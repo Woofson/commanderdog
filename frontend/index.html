@@ -512,6 +512,29 @@
     </div>
   </div>
 
+  <!-- Custom Destination Transfer Modal -->
+  <div class="modal-overlay" id="custom-dest-modal">
+    <div class="modal-box" style="width: 460px;">
+      <div class="modal-header">
+        <span id="custom-dest-title">📁 Transfer to Custom Destination</span>
+        <button class="btn" onclick="closeModal('custom-dest-modal')"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Target Directory Path:</label>
+          <input type="text" id="custom-dest-input" class="pane-quick-filter" style="width: 100%; padding: 8px; font-family: var(--font-mono);" placeholder="/path/to/destination">
+        </div>
+        <div style="margin-top: 8px;">
+          <label style="font-size: 11px; cursor: pointer;"><input type="checkbox" id="custom-dest-save-fav" checked> Save this location to Favorite Quick Destinations</label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="closeModal('custom-dest-modal')">Cancel</button>
+        <button class="btn btn-accent" id="btn-custom-dest-exec">Execute Transfer</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Mkdir Modal -->
   <div class="modal-overlay" id="mkdir-modal">
     <div class="modal-box" style="width: 400px;">

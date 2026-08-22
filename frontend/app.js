@@ -14,6 +14,13 @@ const App = {
   showHiddenDefault: localStorage.getItem('cd_show_hidden') !== 'false',
   showFKeyBar: localStorage.getItem('cd_show_fkeys') !== 'false',
   fontSize: parseInt(localStorage.getItem('cd_font_size') || '13', 10),
+  quickDestinations: JSON.parse(localStorage.getItem('cd_quick_destinations') || 'null') || [
+    { name: 'Home (~)', path: '~' },
+    { name: 'Downloads', path: '~/Downloads' },
+    { name: 'Documents', path: '~/Documents' },
+    { name: 'Desktop', path: '~/Desktop' },
+    { name: 'Temporary Files (/tmp)', path: '/tmp' },
+  ],
 };
 
 class PaneState {
@@ -894,15 +901,150 @@ async function showParanoidConfirm(action, sources, destination, onProceed) {
 
 function showContextMenu(x, y) {
   const menu = document.getElementById('context-menu');
+  if (!menu) return;
+
+  const visibleCount = getVisiblePaneCount();
+  const currentIdx = App.activePaneIndex;
+  
+  let copyPaneItems = '';
+  let movePaneItems = '';
+
+  for (let i = 0; i < visibleCount; i++) {
+    const p = App.panes[i];
+    const isCurrent = (i === currentIdx);
+    const shortP = p.path.length > 20 ? '...' + p.path.slice(-17) : p.path;
+    const label = `Pane ${i + 1} (${shortP})${isCurrent ? ' • Current' : ''}`;
+    
+    if (!isCurrent) {
+      copyPaneItems += `<div class="context-item" onclick="quickTransferToPane('copy', ${i})"><i data-lucide="layout" style="width:13px;"></i> ${escapeHtml(label)}</div>`;
+      movePaneItems += `<div class="context-item" onclick="quickTransferToPane('move', ${i})"><i data-lucide="layout" style="width:13px;"></i> ${escapeHtml(label)}</div>`;
+    }
+  }
+
+  const favCopyItems = App.quickDestinations.map(d => `
+    <div class="context-item" onclick="quickTransferToPath('copy', '${escapeHtml(d.path)}')"><i data-lucide="folder" style="width:13px;"></i> ${escapeHtml(d.name)}</div>
+  `).join('');
+
+  const favMoveItems = App.quickDestinations.map(d => `
+    <div class="context-item" onclick="quickTransferToPath('move', '${escapeHtml(d.path)}')"><i data-lucide="folder" style="width:13px;"></i> ${escapeHtml(d.name)}</div>
+  `).join('');
+
+  menu.innerHTML = `
+    <div class="context-item" onclick="triggerView()"><i data-lucide="eye" style="width: 14px;"></i> Quick View (F3)</div>
+    <div class="context-item" onclick="triggerEditor()"><i data-lucide="file-edit" style="width: 14px;"></i> Edit File (F4)</div>
+    <div class="context-item" onclick="triggerDiff()"><i data-lucide="git-compare" style="width: 14px;"></i> Compare / Diff</div>
+    <div class="context-sep"></div>
+    
+    <!-- Dynamic Advanced Copy Submenu -->
+    <div class="context-item has-submenu">
+      <div style="display:flex; align-items:center; gap:8px;"><i data-lucide="copy" style="width: 14px;"></i> Quick Copy to...</div>
+      <i data-lucide="chevron-right" style="width: 12px;"></i>
+      <div class="context-submenu">
+        ${copyPaneItems ? `<div class="submenu-header">Active Panes</div>${copyPaneItems}<div class="context-sep"></div>` : ''}
+        <div class="submenu-header">Favorite Destinations</div>
+        ${favCopyItems}
+        <div class="context-sep"></div>
+        <div class="context-item" onclick="openCustomDestModal('copy')"><i data-lucide="folder-symlink" style="width:13px;"></i> Custom Folder...</div>
+        <div class="context-item" onclick="addCurrentPaneToQuickDest()"><i data-lucide="bookmark-plus" style="width:13px;"></i> + Bookmark Current Path</div>
+      </div>
+    </div>
+
+    <!-- Dynamic Advanced Move Submenu -->
+    <div class="context-item has-submenu">
+      <div style="display:flex; align-items:center; gap:8px;"><i data-lucide="move" style="width: 14px;"></i> Quick Move to...</div>
+      <i data-lucide="chevron-right" style="width: 12px;"></i>
+      <div class="context-submenu">
+        ${movePaneItems ? `<div class="submenu-header">Active Panes</div>${movePaneItems}<div class="context-sep"></div>` : ''}
+        <div class="submenu-header">Favorite Destinations</div>
+        ${favMoveItems}
+        <div class="context-sep"></div>
+        <div class="context-item" onclick="openCustomDestModal('move')"><i data-lucide="folder-symlink" style="width:13px;"></i> Custom Folder...</div>
+      </div>
+    </div>
+
+    <div class="context-item" onclick="triggerRename()"><i data-lucide="edit-3" style="width: 14px;"></i> Rename (F2)</div>
+    <div class="context-item" onclick="triggerDelete()"><i data-lucide="trash-2" style="width: 14px;"></i> Delete / Trash (F8)</div>
+    <div class="context-sep"></div>
+    <div class="context-item" onclick="triggerPermissions()"><i data-lucide="lock" style="width: 14px;"></i> Permissions & Ownership</div>
+    <div class="context-item" onclick="triggerChecksum()"><i data-lucide="shield-check" style="width: 14px;"></i> Calculate SHA-256 Hash</div>
+    <div class="context-item" onclick="triggerArchiveZip()"><i data-lucide="archive" style="width: 14px;"></i> Compress to .zip</div>
+    <div class="context-item" onclick="triggerArchiveTarGz()"><i data-lucide="archive" style="width: 14px;"></i> Compress to .tar.gz</div>
+    <div class="context-item" onclick="triggerExtract()"><i data-lucide="folder-archive" style="width: 14px;"></i> Extract Archive Here</div>
+  `;
+
+  if (window.lucide) lucide.createIcons();
+
   menu.style.display = 'block';
-  menu.style.left = `${Math.min(x, window.innerWidth - 220)}px`;
-  menu.style.top = `${Math.min(y, window.innerHeight - 340)}px`;
+  menu.style.left = `${Math.min(x, window.innerWidth - 240)}px`;
+  menu.style.top = `${Math.min(y, window.innerHeight - 380)}px`;
 }
 
 document.addEventListener('click', () => {
   const menu = document.getElementById('context-menu');
   if (menu) menu.style.display = 'none';
 });
+
+function getSelectedOrCursorPaths() {
+  const pane = App.panes[App.activePaneIndex];
+  if (pane.selected.size > 0) return Array.from(pane.selected);
+  if (App.contextItem) return [App.contextItem.path];
+  if (pane.entries[pane.cursorIndex]) return [pane.entries[pane.cursorIndex].path];
+  return [];
+}
+
+function quickTransferToPane(action, targetPaneIdx) {
+  const paths = getSelectedOrCursorPaths();
+  if (paths.length === 0) return;
+  const targetPane = App.panes[targetPaneIdx];
+  executeTransfer(action, paths, targetPane.path, targetPaneIdx);
+}
+
+function quickTransferToPath(action, destPath) {
+  const paths = getSelectedOrCursorPaths();
+  if (paths.length === 0) return;
+  executeTransfer(action, paths, destPath, -1);
+}
+
+let customDestAction = 'copy';
+
+function openCustomDestModal(action) {
+  customDestAction = action;
+  document.getElementById('custom-dest-title').textContent = action === 'move' ? '✂️ Move to Custom Destination' : '📋 Copy to Custom Destination';
+  document.getElementById('btn-custom-dest-exec').textContent = action === 'move' ? 'Move Items' : 'Copy Items';
+  showModal('custom-dest-modal');
+  document.getElementById('custom-dest-input')?.focus();
+}
+
+function executeCustomDestTransfer() {
+  const dest = document.getElementById('custom-dest-input').value.trim();
+  if (!dest) {
+    alert('Please provide a destination directory path');
+    return;
+  }
+
+  const saveFav = document.getElementById('custom-dest-save-fav').checked;
+  if (saveFav) {
+    addCustomDestination(dest.split('/').pop() || dest, dest);
+  }
+
+  closeModal('custom-dest-modal');
+  quickTransferToPath(customDestAction, dest);
+}
+
+function addCurrentPaneToQuickDest() {
+  const currentPath = App.panes[App.activePaneIndex].path;
+  const name = prompt('Enter a label for this quick destination:', currentPath.split('/').pop() || currentPath);
+  if (name) {
+    addCustomDestination(name, currentPath);
+  }
+}
+
+function addCustomDestination(name, path) {
+  if (!App.quickDestinations.some(d => d.path === path)) {
+    App.quickDestinations.push({ name, path });
+    localStorage.setItem('cd_quick_destinations', JSON.stringify(App.quickDestinations));
+  }
+}
 
 function setupEventListeners() {
   document.getElementById('layout-1')?.addEventListener('click', () => switchLayout('layout-single'));
@@ -920,6 +1062,7 @@ function setupEventListeners() {
   document.getElementById('btn-open-diff')?.addEventListener('click', () => triggerDiff());
   document.getElementById('btn-toggle-terminal')?.addEventListener('click', () => toggleTerminal());
   document.getElementById('btn-open-tasks')?.addEventListener('click', () => { showModal('tasks-modal'); loadTasksTable(); });
+  document.getElementById('btn-custom-dest-exec')?.addEventListener('click', executeCustomDestTransfer);
   document.getElementById('btn-refresh-all')?.addEventListener('click', () => {
     for (let i = 0; i < getVisiblePaneCount(); i++) refreshPane(i);
   });

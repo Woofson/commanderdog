@@ -875,3 +875,39 @@ body {
 .tasks-pill.active {
   display: flex;
 }
+
+/* Context Submenus & Quick Destinations */
+.context-item.has-submenu {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.context-submenu {
+  display: none;
+  position: absolute;
+  left: calc(100% - 2px);
+  top: -4px;
+  background-color: var(--bg-header);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 4px 0;
+  min-width: 220px;
+  max-width: 320px;
+  z-index: 2100;
+}
+
+.context-item.has-submenu:hover > .context-submenu {
+  display: block;
+}
+
+.submenu-header {
+  padding: 4px 10px;
+  font-size: 10px;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--accent);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
