@@ -39,6 +39,8 @@
       <!-- Quick Action Buttons -->
       <button class="btn" id="btn-open-editor" title="Dual-Pane Editor / Markdown Reader (F4)"><i data-lucide="code"></i> Editor</button>
       <button class="btn" id="btn-open-diff" title="File & Folder Comparison (Ctrl+D)"><i data-lucide="git-compare"></i> Compare / Diff</button>
+      <button class="btn" id="btn-toggle-terminal" title="Toggle Integrated Terminal (Ctrl+`)"><i data-lucide="terminal"></i> Terminal</button>
+      <button class="btn" id="btn-open-tasks" title="Background Transfers & Task Queue"><i data-lucide="list-checks"></i> Tasks</button>
       <button class="btn" id="btn-refresh-all" title="Refresh All Panels"><i data-lucide="rotate-cw"></i></button>
     </div>
 
@@ -532,6 +534,98 @@
         <button class="btn btn-accent" id="btn-submit-login" style="width: 100%;">Log In</button>
       </div>
     </div>
+  </div>
+
+  <!-- Remote Connection Modal (SFTP / WebDAV) -->
+  <div class="modal-overlay" id="remote-modal">
+    <div class="modal-box" style="width: 480px;">
+      <div class="modal-header">
+        <span>🌐 Connect Remote Server (SFTP / WebDAV)</span>
+        <button class="btn" onclick="closeModal('remote-modal')"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Protocol:</label>
+          <select id="remote-proto-select" class="pane-quick-filter" style="width: 100%; padding: 6px;" onchange="updateRemoteProtoUI()">
+            <option value="sftp" selected>SSH / SFTP (Secure File Transfer)</option>
+            <option value="webdav">WebDAV (Nextcloud / ownCloud / Synology)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Server Host / URL:</label>
+          <input type="text" id="remote-host" class="pane-quick-filter" style="width: 100%; padding: 8px;" placeholder="e.g. 192.168.1.100 or sftp.example.com">
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+          <div class="form-group" id="remote-port-group">
+            <label>Port:</label>
+            <input type="number" id="remote-port" class="pane-quick-filter" style="width: 100%; padding: 8px;" value="22">
+          </div>
+          <div class="form-group">
+            <label>Username:</label>
+            <input type="text" id="remote-user" class="pane-quick-filter" style="width: 100%; padding: 8px;" value="root">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Password / Auth Token:</label>
+          <input type="password" id="remote-pass" class="pane-quick-filter" style="width: 100%; padding: 8px;">
+        </div>
+        <div class="form-group">
+          <label>Remote Root Path:</label>
+          <input type="text" id="remote-path" class="pane-quick-filter" style="width: 100%; padding: 8px;" value="/">
+        </div>
+        <div id="remote-test-status" style="font-size: 11px; margin-top: 4px; display: none;"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" id="btn-test-remote" onclick="testRemoteConnection()">Test Connection</button>
+        <button class="btn" onclick="closeModal('remote-modal')">Cancel</button>
+        <button class="btn btn-accent" id="btn-connect-remote" onclick="connectRemoteToActivePane()">Connect to Active Pane</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide-Up Integrated Terminal Drawer -->
+  <div class="terminal-drawer" id="terminal-drawer">
+    <div class="terminal-header">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span style="color: var(--accent); font-weight: 700;">🐕 Woofson Terminal Console</span>
+        <span style="color: var(--text-dim);" id="terminal-cwd-indicator">~</span>
+      </div>
+      <div style="display: flex; gap: 4px;">
+        <button class="btn btn-icon" onclick="toggleTerminalFullscreen()" title="Toggle Maximize"><i data-lucide="maximize-2" style="width:12px;"></i></button>
+        <button class="btn btn-icon" onclick="clearTerminal()" title="Clear Terminal"><i data-lucide="trash" style="width:12px;"></i></button>
+        <button class="btn btn-icon" onclick="toggleTerminal(false)" title="Close Terminal"><i data-lucide="x" style="width:12px;"></i></button>
+      </div>
+    </div>
+    <div class="terminal-body" id="terminal-output" tabindex="0"></div>
+  </div>
+
+  <!-- Background Tasks & Transfers Modal -->
+  <div class="modal-overlay" id="tasks-modal">
+    <div class="modal-box" style="width: 650px; max-height: 80vh;">
+      <div class="modal-header">
+        <span>📋 Background Transfers & Task Queue</span>
+        <button class="btn" onclick="closeModal('tasks-modal')"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <table class="file-table">
+          <thead>
+            <tr><th>Task</th><th>Action</th><th>Source ➔ Dest</th><th>Status</th><th>Control</th></tr>
+          </thead>
+          <tbody id="tasks-table-body">
+            <tr><td colspan="5" style="text-align: center; color: var(--text-muted);">No active background transfers</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-accent" onclick="closeModal('tasks-modal')">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Floating Tasks Status Pill -->
+  <div class="tasks-pill" id="tasks-pill" onclick="showModal('tasks-modal')">
+    <i data-lucide="loader-2" class="animate-spin" style="width: 14px; height: 14px;"></i>
+    <span id="tasks-pill-text">1 Transfer in progress...</span>
   </div>
 
   <script src="app.js"></script>

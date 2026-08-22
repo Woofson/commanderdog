@@ -1,4 +1,4 @@
-use super::{DirectoryListing, FileEntry};
+use super::{DirectoryListing, FileContentResponse, FileEntry};
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use flate2::Compression;
@@ -172,6 +172,65 @@ impl ArchiveHandler {
             total_size,
             protocol: "archive".to_string(),
         })
+    }
+
+    pub fn read_archive_entry(
+        archive_path_str: &str,
+        inner_path: &str,
+        max_bytes: usize,
+    ) -> Result<FileContentResponse, std::io::Error> {
+        let path = Path::new(archive_path_str);
+        let lower = archive_path_str.to_lowercase();
+        let clean_inner = inner_path.trim_matches('/');
+
+        if lower.ends_with(".zip") {
+            let file = File::open(path)?;
+            let mut zip = ZipArchive::new(BufReader::new(file))
+                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+
+            for i in 0..zip.len() {
+                let mut f = zip.by_index(i)
+                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+                if f.name().trim_matches('/') == clean_inner {
+                    let mut buffer = Vec::new();
+                    let size = f.size();
+                    if max_bytes > 0 {
+                        let mut handle = (&mut f).take(max_bytes as u64);
+                        handle.read_to_end(&mut buffer)?;
+                    } else {
+                        f.read_to_end(&mut buffer)?;
+                    }
+
+                    let mime_type = mime_guess::from_path(clean_inner).first_or_octet_stream().to_string();
+                    let name = Path::new(clean_inner).file_name().unwrap_or_default().to_string_lossy().to_string();
+
+                    return match String::from_utf8(buffer.clone()) {
+                        Ok(text) => Ok(FileContentResponse {
+                            path: format!("archive://{}#{}", archive_path_str, clean_inner),
+                            name,
+                            content: text,
+                            is_binary: false,
+                            size,
+                            mime_type,
+                        }),
+                        Err(_) => {
+                            use base64::Engine;
+                            let b64 = base64::engine::general_purpose::STANDARD.encode(&buffer);
+                            Ok(FileContentResponse {
+                                path: format!("archive://{}#{}", archive_path_str, clean_inner),
+                                name,
+                                content: b64,
+                                is_binary: true,
+                                size,
+                                mime_type,
+                            })
+                        }
+                    };
+                }
+            }
+        }
+
+        Err(std::io::Error::new(std::io::ErrorKind::NotFound, "Entry not found in archive"))
     }
 
     pub fn extract_archive(archive_path_str: &str, target_dir_str: &str) -> Result<(), std::io::Error> {

@@ -1,10 +1,14 @@
+pub mod terminal;
+
 use crate::auth::{AuthManager, Claims, User};
 use crate::config::AppConfig;
 use crate::tools::diff::{compare_files_text, compare_folders};
 use crate::tools::paranoid::ParanoidEngine;
+use crate::tools::tasks::{TaskInfo, TaskManager};
 use crate::vfs::archive::ArchiveHandler;
 use crate::vfs::checksum::calculate_checksum;
 use crate::vfs::local::LocalFs;
+use crate::vfs::sftp::SftpClient;
 use crate::vfs::webdav::WebDavClient;
 use crate::vfs::DirectoryListing;
 
@@ -33,6 +37,7 @@ struct Asset;
 pub struct AppState {
     pub config: Arc<AppConfig>,
     pub auth: Arc<AuthManager>,
+    pub tasks: Arc<TaskManager>,
 }
 
 pub fn create_router(state: AppState) -> Router {
@@ -64,10 +69,16 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/fs/archive/create", post(handle_archive_create))
         .route("/api/fs/archive/extract", post(handle_archive_extract))
         .route("/api/fs/checksum", post(handle_calculate_checksum))
-        // Tools & Comparison
+        // Remote Connections & Test
+        .route("/api/remotes/test", post(handle_test_remote))
+        // Tools, Comparison & Tasks
         .route("/api/tools/diff/files", post(handle_diff_files))
         .route("/api/tools/diff/folders", post(handle_diff_folders))
         .route("/api/tools/paranoid/dry-run", post(handle_paranoid_dry_run))
+        .route("/api/tasks", get(handle_list_tasks))
+        .route("/api/tasks/:id/cancel", post(handle_cancel_task))
+        // Terminal WebSocket
+        .route("/api/ws/terminal", get(terminal::handle_terminal_ws))
         // System & Config Information
         .route("/api/config", get(handle_get_config))
         .route("/api/system/users-groups", get(handle_get_system_users_groups))
@@ -167,9 +178,14 @@ async fn handle_delete_user(
 // ---------------- VFS HANDLERS ----------------
 
 #[derive(Deserialize)]
+#[allow(dead_code)]
 struct ListQuery {
     path: Option<String>,
     show_hidden: Option<bool>,
+    host: Option<String>,
+    port: Option<u16>,
+    user: Option<String>,
+    pass: Option<String>,
 }
 
 async fn handle_list_dir(
@@ -187,13 +203,29 @@ async fn handle_list_dir(
         ArchiveHandler::list_archive_contents(archive_file, subpath)
             .map(Json)
             .map_err(|e| (StatusCode::BAD_REQUEST, format!("Failed to list archive: {}", e)))
+    } else if target_path.starts_with("sftp://") {
+        let clean = target_path.strip_prefix("sftp://").unwrap();
+        // format: user@host:port/path
+        let parts: Vec<&str> = clean.splitn(2, '@').collect();
+        let username = if parts.len() > 1 { parts[0] } else { query.user.as_deref().unwrap_or("root") };
+        let host_rest = if parts.len() > 1 { parts[1] } else { parts[0] };
+
+        let host_parts: Vec<&str> = host_rest.splitn(2, '/').collect();
+        let host_port: Vec<&str> = host_parts[0].split(':').collect();
+        let host = host_port[0];
+        let port = if host_port.len() > 1 { host_port[1].parse::<u16>().unwrap_or(22) } else { 22 };
+        let remote_path = if host_parts.len() > 1 { format!("/{}", host_parts[1]) } else { "/".to_string() };
+
+        SftpClient::list_dir(host, port, username, query.pass.as_deref(), &remote_path)
+            .map(Json)
+            .map_err(|e| (StatusCode::BAD_REQUEST, format!("SFTP list failed: {}", e)))
     } else if target_path.starts_with("webdav://") || target_path.starts_with("http://") || target_path.starts_with("https://") {
         let url = if target_path.starts_with("webdav://") {
             format!("http://{}", target_path.strip_prefix("webdav://").unwrap())
         } else {
             target_path
         };
-        WebDavClient::list_dir(&url, None, None).await
+        WebDavClient::list_dir(&url, query.user.as_deref(), query.pass.as_deref()).await
             .map(Json)
             .map_err(|e| (StatusCode::BAD_REQUEST, format!("Failed to list WebDAV: {}", e)))
     } else {
@@ -213,9 +245,20 @@ async fn handle_read_file(
     Query(query): Query<ReadFileQuery>,
 ) -> Result<Json<crate::vfs::FileContentResponse>, (StatusCode, String)> {
     let max_b = query.max_bytes.unwrap_or(10_000_000);
-    LocalFs::read_file(&query.path, max_b)
-        .map(Json)
-        .map_err(|e| (StatusCode::BAD_REQUEST, format!("Failed to read file: {}", e)))
+
+    if query.path.starts_with("archive://") {
+        let rest = query.path.strip_prefix("archive://").unwrap();
+        let parts: Vec<&str> = rest.split('#').collect();
+        let archive_file = parts[0];
+        let subpath = if parts.len() > 1 { parts[1] } else { "" };
+        ArchiveHandler::read_archive_entry(archive_file, subpath, max_b)
+            .map(Json)
+            .map_err(|e| (StatusCode::BAD_REQUEST, format!("Failed to read archive item: {}", e)))
+    } else {
+        LocalFs::read_file(&query.path, max_b)
+            .map(Json)
+            .map_err(|e| (StatusCode::BAD_REQUEST, format!("Failed to read file: {}", e)))
+    }
 }
 
 #[derive(Deserialize)]
@@ -321,7 +364,6 @@ async fn handle_chown(
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let rec = payload.recursive.unwrap_or(false);
 
-    // Resolve owner username to UID
     let uid_val: Option<u32> = if let Some(ref o) = payload.owner {
         if let Ok(u) = o.parse::<u32>() {
             Some(u)
@@ -341,7 +383,6 @@ async fn handle_chown(
         None
     };
 
-    // Resolve group name to GID
     let gid_val: Option<u32> = if let Some(ref g) = payload.group {
         if let Ok(gid) = g.parse::<u32>() {
             Some(gid)
@@ -383,6 +424,14 @@ async fn handle_copy(
     let paranoid = payload.paranoid.unwrap_or(state.config.paranoid.verify_after_transfer);
     let dest_dir = Path::new(&payload.destination);
 
+    let task_id = state.tasks.create_task(
+        &format!("Copy {} items", payload.sources.len()),
+        "copy",
+        &payload.sources.join(", "),
+        &payload.destination,
+        0,
+    ).await;
+
     for src_str in &payload.sources {
         let src_path = Path::new(src_str);
         let target = if dest_dir.is_dir() {
@@ -391,11 +440,14 @@ async fn handle_copy(
             dest_dir.to_path_buf()
         };
 
-        LocalFs::copy_file_paranoid(src_str, &target.to_string_lossy(), paranoid)
-            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Copy failed for {}: {}", src_str, e)))?;
+        if let Err(e) = LocalFs::copy_file_paranoid(src_str, &target.to_string_lossy(), paranoid) {
+            state.tasks.fail_task(&task_id, &e.to_string()).await;
+            return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Copy failed for {}: {}", src_str, e)));
+        }
     }
 
-    Ok(Json(serde_json::json!({ "success": true, "copied_count": payload.sources.len() })))
+    state.tasks.complete_task(&task_id).await;
+    Ok(Json(serde_json::json!({ "success": true, "task_id": task_id, "copied_count": payload.sources.len() })))
 }
 
 async fn handle_move(
@@ -404,6 +456,14 @@ async fn handle_move(
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let paranoid = payload.paranoid.unwrap_or(state.config.paranoid.verify_after_transfer);
     let dest_dir = Path::new(&payload.destination);
+
+    let task_id = state.tasks.create_task(
+        &format!("Move {} items", payload.sources.len()),
+        "move",
+        &payload.sources.join(", "),
+        &payload.destination,
+        0,
+    ).await;
 
     for src_str in &payload.sources {
         let src_path = Path::new(src_str);
@@ -414,13 +474,68 @@ async fn handle_move(
         };
 
         if std::fs::rename(src_str, &target).is_err() {
-            LocalFs::copy_file_paranoid(src_str, &target.to_string_lossy(), paranoid)
-                .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Move copy failed: {}", e)))?;
+            if let Err(e) = LocalFs::copy_file_paranoid(src_str, &target.to_string_lossy(), paranoid) {
+                state.tasks.fail_task(&task_id, &e.to_string()).await;
+                return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Move copy failed: {}", e)));
+            }
             let _ = LocalFs::delete_entry(src_str, false, None);
         }
     }
 
-    Ok(Json(serde_json::json!({ "success": true, "moved_count": payload.sources.len() })))
+    state.tasks.complete_task(&task_id).await;
+    Ok(Json(serde_json::json!({ "success": true, "task_id": task_id, "moved_count": payload.sources.len() })))
+}
+
+#[derive(Deserialize)]
+struct TestRemoteRequest {
+    protocol: String,
+    host: String,
+    port: Option<u16>,
+    user: Option<String>,
+    pass: Option<String>,
+}
+
+async fn handle_test_remote(
+    Json(payload): Json<TestRemoteRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    match payload.protocol.to_lowercase().as_str() {
+        "sftp" => {
+            let port = payload.port.unwrap_or(22);
+            let user = payload.user.unwrap_or_else(|| "root".to_string());
+            match SftpClient::list_dir(&payload.host, port, &user, payload.pass.as_deref(), "/") {
+                Ok(listing) => Ok(Json(serde_json::json!({
+                    "success": true,
+                    "message": format!("Connected successfully to SFTP server (found {} items)", listing.entries.len()),
+                }))),
+                Err(e) => Err((StatusCode::BAD_REQUEST, format!("SFTP connection failed: {}", e))),
+            }
+        }
+        "webdav" => {
+            let url = payload.host;
+            match WebDavClient::list_dir(&url, payload.user.as_deref(), payload.pass.as_deref()).await {
+                Ok(listing) => Ok(Json(serde_json::json!({
+                    "success": true,
+                    "message": format!("Connected successfully to WebDAV storage (found {} items)", listing.entries.len()),
+                }))),
+                Err(e) => Err((StatusCode::BAD_REQUEST, format!("WebDAV connection failed: {}", e))),
+            }
+        }
+        _ => Err((StatusCode::BAD_REQUEST, "Unsupported protocol".to_string())),
+    }
+}
+
+async fn handle_list_tasks(
+    State(state): State<AppState>,
+) -> Json<Vec<TaskInfo>> {
+    Json(state.tasks.list_tasks().await)
+}
+
+async fn handle_cancel_task(
+    State(state): State<AppState>,
+    AxumPath(id): AxumPath<String>,
+) -> Json<serde_json::Value> {
+    let cancelled = state.tasks.cancel_task(&id).await;
+    Json(serde_json::json!({ "success": cancelled }))
 }
 
 async fn handle_upload(

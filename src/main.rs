@@ -45,9 +45,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         &config.auth.default_admin_pass,
     )?;
 
+    let task_mgr = tools::tasks::TaskManager::new();
+
     let state = AppState {
         config: Arc::new(config.clone()),
         auth: Arc::new(auth_mgr),
+        tasks: Arc::new(task_mgr),
     };
 
     let app = create_router(state);

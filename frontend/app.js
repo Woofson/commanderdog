@@ -42,6 +42,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupKeyboardNavigation();
   applyFKeyBarState();
   applyFontSize(App.fontSize);
+  startTasksPolling();
   checkAuthAndLoad();
 });
 
@@ -138,6 +139,7 @@ function createPaneElement(pane, index) {
         <button onclick="navPaneHistory(${index}, 1)" title="Forward"><i data-lucide="arrow-right" style="width:14px;"></i></button>
         <button onclick="navPaneUp(${index})" title="Parent Directory (Backspace)"><i data-lucide="arrow-up" style="width:14px;"></i></button>
         <button onclick="refreshPane(${index})" title="Refresh"><i data-lucide="rotate-cw" style="width:14px;"></i></button>
+        <button onclick="openRemoteModal(${index})" title="Connect Remote SFTP / WebDAV Server"><i data-lucide="network" style="width:14px;"></i></button>
       </div>
 
       <!-- Path bar & Breadcrumbs -->
@@ -684,6 +686,11 @@ function setupKeyboardNavigation() {
       e.preventDefault();
       triggerDiff();
     }
+
+    if (e.ctrlKey && (e.key === '`' || e.key === '~' || e.key === '\\')) {
+      e.preventDefault();
+      toggleTerminal();
+    }
   });
 }
 
@@ -911,6 +918,8 @@ function setupEventListeners() {
 
   document.getElementById('btn-open-editor')?.addEventListener('click', () => showModal('editor-modal'));
   document.getElementById('btn-open-diff')?.addEventListener('click', () => triggerDiff());
+  document.getElementById('btn-toggle-terminal')?.addEventListener('click', () => toggleTerminal());
+  document.getElementById('btn-open-tasks')?.addEventListener('click', () => { showModal('tasks-modal'); loadTasksTable(); });
   document.getElementById('btn-refresh-all')?.addEventListener('click', () => {
     for (let i = 0; i < getVisiblePaneCount(); i++) refreshPane(i);
   });
@@ -1362,4 +1371,288 @@ function applyFontSize(val) {
   const slider = document.getElementById('setting-font-size-slider');
   if (slider) slider.value = val;
 }
+
+// ---------------- REMOTE SFTP / WEBDAV CONNECTION ----------------
+let targetRemotePaneIndex = 0;
+
+function openRemoteModal(paneIndex) {
+  targetRemotePaneIndex = paneIndex;
+  document.getElementById('remote-test-status').style.display = 'none';
+  showModal('remote-modal');
+}
+
+function updateRemoteProtoUI() {
+  const proto = document.getElementById('remote-proto-select').value;
+  const portGroup = document.getElementById('remote-port-group');
+  const hostInput = document.getElementById('remote-host');
+
+  if (proto === 'sftp') {
+    portGroup.style.display = 'block';
+    hostInput.placeholder = 'e.g. 192.168.1.100 or sftp.example.com';
+  } else {
+    portGroup.style.display = 'none';
+    hostInput.placeholder = 'e.g. http://192.168.1.100:80/remote.php/webdav/';
+  }
+}
+
+async function testRemoteConnection() {
+  const proto = document.getElementById('remote-proto-select').value;
+  const host = document.getElementById('remote-host').value;
+  const port = parseInt(document.getElementById('remote-port').value, 10);
+  const user = document.getElementById('remote-user').value;
+  const pass = document.getElementById('remote-pass').value;
+
+  const status = document.getElementById('remote-test-status');
+  status.style.display = 'block';
+  status.style.color = 'var(--accent)';
+  status.textContent = 'Testing connection...';
+
+  try {
+    const resp = await fetch('/api/remotes/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
+      body: JSON.stringify({ protocol: proto, host, port, user, pass })
+    });
+
+    if (resp.ok) {
+      const data = await resp.json();
+      status.style.color = 'var(--success)';
+      status.textContent = `✓ ${data.message}`;
+    } else {
+      status.style.color = 'var(--danger)';
+      status.textContent = `✗ ${await resp.text()}`;
+    }
+  } catch (e) {
+    status.style.color = 'var(--danger)';
+    status.textContent = `✗ Error: ${e}`;
+  }
+}
+
+function connectRemoteToActivePane() {
+  const proto = document.getElementById('remote-proto-select').value;
+  const host = document.getElementById('remote-host').value;
+  const port = parseInt(document.getElementById('remote-port').value, 10);
+  const user = document.getElementById('remote-user').value;
+  const path = document.getElementById('remote-path').value || '/';
+
+  if (!host) {
+    alert('Please specify a server host / URL');
+    return;
+  }
+
+  let remoteUrl = '';
+  if (proto === 'sftp') {
+    remoteUrl = `sftp://${user}@${host}:${port}${path.startsWith('/') ? path : '/' + path}`;
+  } else {
+    remoteUrl = `webdav://${host.replace(/^https?:\/\//, '')}${path.startsWith('/') ? path : '/' + path}`;
+  }
+
+  closeModal('remote-modal');
+  loadPaneDirectory(targetRemotePaneIndex, remoteUrl);
+}
+
+// ---------------- INTEGRATED TERMINAL (PTY & WEBSOCKET) ----------------
+let termWs = null;
+let termOpen = false;
+
+function toggleTerminal(forceState) {
+  const drawer = document.getElementById('terminal-drawer');
+  if (!drawer) return;
+
+  termOpen = typeof forceState === 'boolean' ? forceState : !termOpen;
+
+  if (termOpen) {
+    drawer.classList.add('active');
+    const activePane = App.panes[App.activePaneIndex];
+    const cwd = (activePane && !activePane.path.includes('://')) ? activePane.path : '/';
+    document.getElementById('terminal-cwd-indicator').textContent = cwd;
+    connectTerminal(cwd);
+    document.getElementById('terminal-output')?.focus();
+  } else {
+    drawer.classList.remove('active');
+    if (termWs) {
+      termWs.close();
+      termWs = null;
+    }
+  }
+  if (window.lucide) lucide.createIcons();
+}
+
+function toggleTerminalFullscreen() {
+  document.getElementById('terminal-drawer')?.classList.toggle('fullscreen');
+}
+
+function clearTerminal() {
+  const out = document.getElementById('terminal-output');
+  if (out) out.innerHTML = '';
+}
+
+function connectTerminal(cwd) {
+  if (termWs) {
+    termWs.close();
+  }
+
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const url = `${protocol}//${window.location.host}/api/ws/terminal?cwd=${encodeURIComponent(cwd)}`;
+
+  termWs = new WebSocket(url);
+  const out = document.getElementById('terminal-output');
+
+  termWs.binaryType = 'arraybuffer';
+
+  termWs.onopen = () => {
+    out.innerHTML = `<span style="color:var(--accent);">🐕 CommanderDog PTY Session Connected [cwd: ${cwd}]</span>\n\n`;
+  };
+
+  termWs.onmessage = (e) => {
+    let text = '';
+    if (e.data instanceof ArrayBuffer) {
+      const decoder = new TextDecoder('utf-8');
+      text = decoder.decode(e.data);
+    } else {
+      text = e.data;
+    }
+    appendTerminalText(text);
+  };
+
+  termWs.onclose = () => {
+    appendTerminalText('\n[Terminal Session Disconnected]');
+  };
+
+  termWs.onerror = (err) => {
+    appendTerminalText(`\n[Terminal Error: ${err}]`);
+  };
+
+  out.onkeydown = (e) => {
+    if (!termWs || termWs.readyState !== WebSocket.OPEN) return;
+
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      termWs.send('\t');
+    } else if (e.key === 'Backspace') {
+      e.preventDefault();
+      termWs.send('\x7f');
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      termWs.send('\r');
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      termWs.send('\x1b[A');
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      termWs.send('\x1b[B');
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      termWs.send('\x1b[C');
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      termWs.send('\x1b[D');
+    } else if (e.ctrlKey && e.key.toLowerCase() === 'c') {
+      e.preventDefault();
+      termWs.send('\x03');
+    } else if (e.ctrlKey && e.key.toLowerCase() === 'd') {
+      e.preventDefault();
+      termWs.send('\x04');
+    } else if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+      e.preventDefault();
+      termWs.send(e.key);
+    }
+  };
+}
+
+function appendTerminalText(str) {
+  const out = document.getElementById('terminal-output');
+  if (!out) return;
+
+  let formatted = str
+    .replace(/\x1b\[0m/g, '</span>')
+    .replace(/\x1b\[1m/g, '<span style="font-weight:bold;">')
+    .replace(/\x1b\[31m/g, '<span style="color:#ef4444;">')
+    .replace(/\x1b\[32m/g, '<span style="color:#10b981;">')
+    .replace(/\x1b\[33m/g, '<span style="color:#f59e0b;">')
+    .replace(/\x1b\[34m/g, '<span style="color:#38bdf8;">')
+    .replace(/\x1b\[35m/g, '<span style="color:#bd93f9;">')
+    .replace(/\x1b\[36m/g, '<span style="color:#7dcfff;">')
+    .replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '');
+
+  out.innerHTML += formatted;
+  out.scrollTop = out.scrollHeight;
+}
+
+// ---------------- BACKGROUND TASKS MONITOR ----------------
+let tasksPollTimer = null;
+
+function startTasksPolling() {
+  if (tasksPollTimer) clearInterval(tasksPollTimer);
+  tasksPollTimer = setInterval(pollTasks, 3000);
+}
+
+async function pollTasks() {
+  try {
+    const resp = await fetch('/api/tasks', {
+      headers: { 'Authorization': `Bearer ${App.token}` }
+    });
+    if (resp.ok) {
+      const list = await resp.json();
+      const running = list.filter(t => t.status === 'running');
+      const pill = document.getElementById('tasks-pill');
+
+      if (running.length > 0) {
+        pill.classList.add('active');
+        document.getElementById('tasks-pill-text').textContent = `${running.length} Active Transfer${running.length > 1 ? 's' : ''}...`;
+      } else {
+        pill.classList.remove('active');
+      }
+
+      if (document.getElementById('tasks-modal')?.classList.contains('active')) {
+        renderTasksTable(list);
+      }
+    }
+  } catch (e) {
+    // Ignore polling errors
+  }
+}
+
+async function loadTasksTable() {
+  const resp = await fetch('/api/tasks', {
+    headers: { 'Authorization': `Bearer ${App.token}` }
+  });
+  if (resp.ok) {
+    const list = await resp.json();
+    renderTasksTable(list);
+  }
+}
+
+function renderTasksTable(list) {
+  const tbody = document.getElementById('tasks-table-body');
+  if (!tbody) return;
+
+  if (list.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">No background tasks recorded</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = list.map(t => `
+    <tr class="file-row">
+      <td><b>${t.name}</b></td>
+      <td><span style="color:var(--accent); text-transform:uppercase; font-size:11px;">${t.action}</span></td>
+      <td style="font-family:var(--font-mono); font-size:11px;" title="${t.source} ➔ ${t.destination}">${t.source.slice(0, 20)} ➔ ${t.destination.slice(0, 20)}</td>
+      <td><span style="color:${t.status === 'completed' ? 'var(--success)' : (t.status === 'running' ? 'var(--accent)' : 'var(--danger)')}; font-weight:600;">${t.status.toUpperCase()}</span></td>
+      <td>
+        ${t.status === 'running' ? `<button class="btn btn-icon btn-danger" onclick="cancelTask('${t.id}')" title="Cancel Task"><i data-lucide="x" style="width:12px;"></i></button>` : '-'}
+      </td>
+    </tr>
+  `).join('');
+
+  if (window.lucide) lucide.createIcons();
+}
+
+async function cancelTask(id) {
+  await fetch(`/api/tasks/${id}/cancel`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${App.token}` }
+  });
+  loadTasksTable();
+}
+
 
