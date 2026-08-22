@@ -61,6 +61,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/fs/rename", post(handle_rename))
         .route("/api/fs/delete", post(handle_delete))
         .route("/api/fs/copy", post(handle_copy))
+        .route("/api/fs/deltacopy", post(handle_deltacopy))
         .route("/api/fs/move", post(handle_move))
         .route("/api/fs/chmod", post(handle_chmod))
         .route("/api/fs/chown", post(handle_chown))
@@ -448,6 +449,37 @@ async fn handle_copy(
 
     state.tasks.complete_task(&task_id).await;
     Ok(Json(serde_json::json!({ "success": true, "task_id": task_id, "copied_count": payload.sources.len() })))
+}
+
+#[derive(Deserialize)]
+struct DeltaCopyRequest {
+    sources: Vec<String>,
+    destination: String,
+    options: Option<crate::tools::deltacopy::DeltaCopyOptions>,
+}
+
+async fn handle_deltacopy(
+    State(state): State<AppState>,
+    Json(payload): Json<DeltaCopyRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let opts = payload.options.unwrap_or_default();
+    let tasks_mgr = state.tasks.clone();
+    let cancel_token = Arc::new(std::sync::atomic::AtomicBool::new(false));
+
+    tokio::spawn(async move {
+        let _ = crate::tools::deltacopy::DeltaCopyEngine::run_deltacopy(
+            tasks_mgr,
+            payload.sources,
+            payload.destination,
+            opts,
+            cancel_token,
+        ).await;
+    });
+
+    Ok(Json(serde_json::json!({
+        "success": true,
+        "message": "DeltaCopy transfer started in background queue",
+    })))
 }
 
 async fn handle_move(

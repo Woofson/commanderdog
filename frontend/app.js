@@ -1177,6 +1177,12 @@ function triggerDelete() {
   }
 }
 
+let pendingDeltaTransfer = {
+  sources: [],
+  destination: '',
+  targetIdx: 0
+};
+
 function triggerCopy() {
   const targetIdx = (App.activePaneIndex + 1) % getVisiblePaneCount();
   const sourcePane = App.panes[App.activePaneIndex];
@@ -1184,11 +1190,65 @@ function triggerCopy() {
   const paths = sourcePane.selected.size > 0 ? Array.from(sourcePane.selected) : (sourcePane.entries[sourcePane.cursorIndex] ? [sourcePane.entries[sourcePane.cursorIndex].path] : []);
 
   if (paths.length === 0) return;
-  if (App.paranoidMode) {
-    showParanoidConfirm('copy', paths, targetPane.path, () => executeTransfer('copy', paths, targetPane.path, targetIdx));
+
+  pendingDeltaTransfer = {
+    sources: paths,
+    destination: targetPane.path,
+    targetIdx: targetIdx
+  };
+
+  const summary = document.getElementById('deltacopy-source-summary');
+  if (summary) summary.innerHTML = paths.map(p => `<div>📁 ${escapeHtml(p)}</div>`).join('');
+  const destInput = document.getElementById('deltacopy-dest-input');
+  if (destInput) destInput.value = targetPane.path;
+
+  showModal('deltacopy-modal');
+}
+
+async function executeDeltaCopy() {
+  const dest = document.getElementById('deltacopy-dest-input').value;
+  const skipIdentical = document.getElementById('delta-skip-identical').checked;
+  const verifyCrc = document.getElementById('delta-verify-crc32').checked;
+  const autoRetry = document.getElementById('delta-auto-retry').checked;
+  const preserveMeta = document.getElementById('delta-preserve-meta').checked;
+
+  closeModal('deltacopy-modal');
+
+  const payload = {
+    sources: pendingDeltaTransfer.sources,
+    destination: dest,
+    options: {
+      overwrite_mode: skipIdentical ? 'delta_mtime_size' : 'always',
+      verify_checksum: verifyCrc,
+      verify_algo: 'crc32',
+      retry_count: autoRetry ? 3 : 1,
+      retry_delay_ms: 500,
+      resume_partial: true,
+      preserve_timestamps: preserveMeta,
+      preserve_permissions: preserveMeta,
+      delete_orphans: false
+    }
+  };
+
+  const resp = await fetch('/api/fs/deltacopy', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
+    body: JSON.stringify(payload)
+  });
+
+  if (resp.ok) {
+    pollTasks();
+    showModal('tasks-modal');
+    setTimeout(() => refreshPane(pendingDeltaTransfer.targetIdx), 1500);
   } else {
-    executeTransfer('copy', paths, targetPane.path, targetIdx);
+    alert('Failed to start DeltaCopy: ' + await resp.text());
   }
+}
+
+async function executeStandardCopy() {
+  const dest = document.getElementById('deltacopy-dest-input').value;
+  closeModal('deltacopy-modal');
+  executeTransfer('copy', pendingDeltaTransfer.sources, dest, pendingDeltaTransfer.targetIdx);
 }
 
 function triggerMove() {
@@ -1628,21 +1688,43 @@ function renderTasksTable(list) {
   if (!tbody) return;
 
   if (list.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">No background tasks recorded</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 20px;">No background tasks recorded</td></tr>';
     return;
   }
 
-  tbody.innerHTML = list.map(t => `
-    <tr class="file-row">
-      <td><b>${t.name}</b></td>
-      <td><span style="color:var(--accent); text-transform:uppercase; font-size:11px;">${t.action}</span></td>
-      <td style="font-family:var(--font-mono); font-size:11px;" title="${t.source} ➔ ${t.destination}">${t.source.slice(0, 20)} ➔ ${t.destination.slice(0, 20)}</td>
-      <td><span style="color:${t.status === 'completed' ? 'var(--success)' : (t.status === 'running' ? 'var(--accent)' : 'var(--danger)')}; font-weight:600;">${t.status.toUpperCase()}</span></td>
-      <td>
-        ${t.status === 'running' ? `<button class="btn btn-icon btn-danger" onclick="cancelTask('${t.id}')" title="Cancel Task"><i data-lucide="x" style="width:12px;"></i></button>` : '-'}
-      </td>
-    </tr>
-  `).join('');
+  tbody.innerHTML = list.map(t => {
+    const percent = t.total_bytes > 0 ? Math.min(100, Math.round((t.bytes_processed / t.total_bytes) * 100)) : (t.status === 'completed' ? 100 : 0);
+    const speedStr = t.speed_bytes_per_sec > 0 ? `${formatBytes(t.speed_bytes_per_sec)}/s` : '';
+
+    return `
+      <tr class="file-row">
+        <td>
+          <div style="font-weight: 600;">${escapeHtml(t.name)}</div>
+          ${t.status === 'running' ? `
+            <div style="background: rgba(255,255,255,0.08); height: 6px; border-radius: 3px; margin-top: 4px; overflow: hidden;">
+              <div style="background: var(--accent); width: ${percent}%; height: 100%; transition: width 0.3s ease;"></div>
+            </div>
+            <div style="font-size: 10px; color: var(--text-muted); margin-top: 2px; display: flex; justify-content: space-between;">
+              <span>${percent}% (${formatBytes(t.bytes_processed)} / ${formatBytes(t.total_bytes)})</span>
+              <span>${speedStr}</span>
+            </div>
+          ` : ''}
+        </td>
+        <td><span style="color:var(--accent); text-transform:uppercase; font-size:10px; font-weight:700;">${escapeHtml(t.action)}</span></td>
+        <td style="font-family:var(--font-mono); font-size:11px;" title="${escapeHtml(t.source)} ➔ ${escapeHtml(t.destination)}">
+          ${escapeHtml(t.source.slice(0, 18))} ➔ ${escapeHtml(t.destination.slice(0, 18))}
+        </td>
+        <td>
+          <span style="color:${t.status === 'completed' ? 'var(--success)' : (t.status === 'running' ? 'var(--accent)' : 'var(--danger)')}; font-weight:600; font-size:11px;">
+            ${t.status.toUpperCase()}
+          </span>
+        </td>
+        <td>
+          ${t.status === 'running' ? `<button class="btn btn-icon btn-danger" onclick="cancelTask('${t.id}')" title="Cancel Task"><i data-lucide="x" style="width:12px;"></i></button>` : '✓'}
+        </td>
+      </tr>
+    `;
+  }).join('');
 
   if (window.lucide) lucide.createIcons();
 }
