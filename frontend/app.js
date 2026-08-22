@@ -319,6 +319,8 @@ function renderPaneTable(paneIndex) {
     tr.ondblclick = () => {
       if (entry.is_dir || entry.is_archive) {
         loadPaneDirectory(paneIndex, entry.path);
+      } else if (isImageExtension(entry.name)) {
+        openImageViewer(entry.path);
       } else {
         openEditorWithFile(entry.path);
       }
@@ -698,6 +700,20 @@ function setupKeyboardNavigation() {
       e.preventDefault();
       toggleTerminal();
     }
+
+    if ((e.shiftKey && e.key === 'F6') || (e.ctrlKey && e.key.toLowerCase() === 'm')) {
+      e.preventDefault();
+      triggerBulkRename();
+    }
+
+    const imgModal = document.getElementById('image-viewer-modal');
+    if (imgModal && imgModal.classList.contains('active')) {
+      if (e.key === 'ArrowLeft') { e.preventDefault(); navImageViewer(-1); }
+      if (e.key === 'ArrowRight') { e.preventDefault(); navImageViewer(1); }
+      if (e.key === '+' || e.key === '=') { e.preventDefault(); zoomImage(0.2); }
+      if (e.key === '-') { e.preventDefault(); zoomImage(-0.2); }
+      if (e.key.toLowerCase() === 'r') { e.preventDefault(); rotateImage(90); }
+    }
   });
 }
 
@@ -963,6 +979,7 @@ function showContextMenu(x, y) {
     </div>
 
     <div class="context-item" onclick="triggerRename()"><i data-lucide="edit-3" style="width: 14px;"></i> Rename (F2)</div>
+    <div class="context-item" onclick="triggerBulkRename()"><i data-lucide="tags" style="width: 14px; color: var(--accent);"></i> Advanced Bulk Rename... (Shift+F6)</div>
     <div class="context-item" onclick="triggerDelete()"><i data-lucide="trash-2" style="width: 14px;"></i> Delete / Trash (F8)</div>
     <div class="context-sep"></div>
     <div class="context-item" onclick="triggerPermissions()"><i data-lucide="lock" style="width: 14px;"></i> Permissions & Ownership</div>
@@ -1250,6 +1267,11 @@ function triggerView() {
   const pane = App.panes[App.activePaneIndex];
   const item = App.contextItem || pane.entries[pane.cursorIndex];
   if (!item) return;
+
+  if (isImageExtension(item.name)) {
+    openImageViewer(item.path);
+    return;
+  }
 
   fetch(`/api/fs/read?path=${encodeURIComponent(item.path)}`, {
     headers: { 'Authorization': `Bearer ${App.token}` }
@@ -1879,5 +1901,275 @@ async function cancelTask(id) {
   });
   loadTasksTable();
 }
+
+// ---------------- RICH IMAGE VIEWER ----------------
+let currentImageIndex = 0;
+let currentImageList = [];
+let imgZoom = 1;
+let imgRotation = 0;
+let imgFlipH = 1;
+let imgFlipV = 1;
+
+function isImageExtension(filename) {
+  if (!filename) return false;
+  const ext = filename.split('.').pop().toLowerCase();
+  return ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico', 'avif', 'tiff'].includes(ext);
+}
+
+function openImageViewer(filePath) {
+  const pane = App.panes[App.activePaneIndex];
+  currentImageList = pane.entries.filter(e => !e.is_dir && isImageExtension(e.name)).map(e => e.path);
+
+  if (currentImageList.length === 0) {
+    currentImageList = [filePath];
+  }
+
+  currentImageIndex = currentImageList.indexOf(filePath);
+  if (currentImageIndex === -1) currentImageIndex = 0;
+
+  loadImageToViewer(currentImageList[currentImageIndex]);
+  showModal('image-viewer-modal');
+}
+
+function loadImageToViewer(path) {
+  const imgEl = document.getElementById('img-viewer-element');
+  const titleEl = document.getElementById('img-viewer-title');
+  const metaEl = document.getElementById('img-viewer-meta');
+  const counterEl = document.getElementById('img-viewer-counter');
+
+  resetImageTransform();
+
+  const fileName = path.split('/').pop() || path;
+  titleEl.textContent = fileName;
+  counterEl.textContent = `${currentImageIndex + 1} / ${currentImageList.length}`;
+
+  const imgUrl = `/api/fs/download?path=${encodeURIComponent(path)}`;
+  imgEl.src = imgUrl;
+
+  imgEl.onload = () => {
+    metaEl.textContent = `(${imgEl.naturalWidth} × ${imgEl.naturalHeight} px)`;
+  };
+  imgEl.onerror = () => {
+    metaEl.textContent = '(Preview unavailable)';
+  };
+}
+
+function navImageViewer(dir) {
+  if (currentImageList.length <= 1) return;
+  currentImageIndex = (currentImageIndex + dir + currentImageList.length) % currentImageList.length;
+  loadImageToViewer(currentImageList[currentImageIndex]);
+}
+
+function zoomImage(delta) {
+  imgZoom = Math.max(0.2, Math.min(5, imgZoom + delta));
+  applyImageTransform();
+}
+
+function rotateImage(deg) {
+  imgRotation = (imgRotation + deg) % 360;
+  applyImageTransform();
+}
+
+function flipImage(axis) {
+  if (axis === 'h') imgFlipH *= -1;
+  if (axis === 'v') imgFlipV *= -1;
+  applyImageTransform();
+}
+
+function resetImageTransform() {
+  imgZoom = 1;
+  imgRotation = 0;
+  imgFlipH = 1;
+  imgFlipV = 1;
+  applyImageTransform();
+}
+
+function applyImageTransform() {
+  const imgEl = document.getElementById('img-viewer-element');
+  if (imgEl) {
+    imgEl.style.transform = `scale(${imgZoom}) rotate(${imgRotation}deg) scaleX(${imgFlipH}) scaleY(${imgFlipV})`;
+  }
+}
+
+function downloadCurrentImage() {
+  const path = currentImageList[currentImageIndex];
+  if (path) {
+    window.open(`/api/fs/download?path=${encodeURIComponent(path)}`, '_blank');
+  }
+}
+
+// ---------------- ADVANCED BULK RENAMER ----------------
+let bulkRenameFiles = [];
+let bulkRenamePreviewMap = [];
+
+function triggerBulkRename() {
+  const pane = App.panes[App.activePaneIndex];
+  bulkRenameFiles = pane.selected.size > 0 
+    ? Array.from(pane.selected).map(p => pane.entries.find(e => e.path === p)).filter(Boolean)
+    : (pane.entries[pane.cursorIndex] ? [pane.entries[pane.cursorIndex]] : []);
+
+  if (bulkRenameFiles.length === 0) {
+    alert('Please select one or more files to rename.');
+    return;
+  }
+
+  updateBulkRenameUI();
+  updateBulkRenamePreview();
+  showModal('bulk-rename-modal');
+}
+
+function updateBulkRenameUI() {
+  const mode = document.getElementById('bulk-rename-mode').value;
+  ['replace', 'sequence', 'prefix-suffix', 'case', 'extension'].forEach(m => {
+    const el = document.getElementById(`rule-mode-${m}`);
+    if (el) el.style.display = (m === mode) ? 'flex' : 'none';
+  });
+  updateBulkRenamePreview();
+}
+
+function updateBulkRenamePreview() {
+  const mode = document.getElementById('bulk-rename-mode').value;
+  bulkRenamePreviewMap = [];
+
+  const seenNewNames = new Set();
+  let hasConflict = false;
+
+  bulkRenameFiles.forEach((file, idx) => {
+    const origName = file.name;
+    const parts = origName.split('.');
+    const ext = parts.length > 1 ? parts.pop() : '';
+    const base = parts.join('.');
+    let newName = origName;
+
+    if (mode === 'replace') {
+      const findText = document.getElementById('rename-find').value;
+      const replaceText = document.getElementById('rename-replace').value;
+      const matchCase = document.getElementById('rename-match-case').checked;
+      const useRegex = document.getElementById('rename-use-regex').checked;
+
+      if (findText) {
+        try {
+          if (useRegex) {
+            const re = new RegExp(findText, matchCase ? 'g' : 'gi');
+            newName = origName.replace(re, replaceText);
+          } else {
+            if (matchCase) {
+              newName = origName.split(findText).join(replaceText);
+            } else {
+              const re = new RegExp(findText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+              newName = origName.replace(re, replaceText);
+            }
+          }
+        } catch (e) {
+          // Invalid regex, keep origName
+        }
+      }
+    } else if (mode === 'sequence') {
+      const seqBase = document.getElementById('rename-seq-base').value;
+      const start = parseInt(document.getElementById('rename-seq-start').value || '1', 10);
+      const step = parseInt(document.getElementById('rename-seq-step').value || '1', 10);
+      const pad = parseInt(document.getElementById('rename-seq-pad').value || '3', 10);
+
+      const num = String(start + (idx * step)).padStart(pad, '0');
+      newName = ext ? `${seqBase}${num}.${ext}` : `${seqBase}${num}`;
+    } else if (mode === 'prefix-suffix') {
+      const prefix = document.getElementById('rename-prefix').value || '';
+      const suffix = document.getElementById('rename-suffix').value || '';
+      newName = ext ? `${prefix}${base}${suffix}.${ext}` : `${prefix}${base}${suffix}`;
+    } else if (mode === 'case') {
+      const style = document.getElementById('rename-case-style').value;
+      if (style === 'lower') {
+        newName = origName.toLowerCase();
+      } else if (style === 'upper') {
+        newName = origName.toUpperCase();
+      } else if (style === 'title') {
+        newName = origName.replace(/\w\S*/g, (txt) => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase());
+      } else if (style === 'kebab') {
+        newName = (base.toLowerCase().replace(/[\s_]+/g, '-') + (ext ? `.${ext.toLowerCase()}` : ''));
+      } else if (style === 'snake') {
+        newName = (base.toLowerCase().replace(/[\s-]+/g, '_') + (ext ? `.${ext.toLowerCase()}` : ''));
+      }
+    } else if (mode === 'extension') {
+      const newExt = document.getElementById('rename-new-ext').value.trim();
+      const lower = document.getElementById('rename-ext-lower').checked;
+      if (newExt) {
+        newName = `${base}.${lower ? newExt.toLowerCase() : newExt}`;
+      } else if (lower && ext) {
+        newName = `${base}.${ext.toLowerCase()}`;
+      }
+    }
+
+    const isDuplicate = seenNewNames.has(newName);
+    seenNewNames.add(newName);
+    if (isDuplicate) hasConflict = true;
+
+    const parentDir = file.path.substring(0, file.path.lastIndexOf('/'));
+    const newPath = `${parentDir}/${newName}`;
+
+    bulkRenamePreviewMap.push({
+      origName,
+      newName,
+      from: file.path,
+      to: newPath,
+      hasConflict: isDuplicate,
+      changed: origName !== newName
+    });
+  });
+
+  renderBulkRenameTable(hasConflict);
+}
+
+function renderBulkRenameTable(hasConflict) {
+  const tbody = document.getElementById('bulk-rename-tbody');
+  const stats = document.getElementById('bulk-rename-stats');
+  const btn = document.getElementById('btn-execute-bulk-rename');
+
+  if (!tbody) return;
+
+  const changedCount = bulkRenamePreviewMap.filter(i => i.changed).length;
+  stats.innerHTML = hasConflict 
+    ? `<span style="color:var(--danger); font-weight:700;">⚠️ Name Collision / Duplicate Detected</span>` 
+    : `<span style="color:var(--success); font-weight:600;">${changedCount} of ${bulkRenamePreviewMap.length} items will be renamed</span>`;
+
+  btn.disabled = hasConflict || changedCount === 0;
+
+  tbody.innerHTML = bulkRenamePreviewMap.map(item => `
+    <tr class="file-row">
+      <td>
+        ${item.hasConflict 
+          ? `<span class="diff-tag-conflict">Conflict</span>` 
+          : (item.changed ? `<span class="diff-tag-new">✓ Change</span>` : `<span style="color:var(--text-dim); font-size:10px;">Unchanged</span>`)}
+      </td>
+      <td class="file-cell-mono">${escapeHtml(item.origName)}</td>
+      <td class="file-cell-mono ${item.changed ? 'diff-tag-new' : ''}">${escapeHtml(item.newName)}</td>
+    </tr>
+  `).join('');
+}
+
+async function executeBulkRename() {
+  const renames = bulkRenamePreviewMap.filter(i => i.changed).map(i => ({
+    from: i.from,
+    to: i.to
+  }));
+
+  if (renames.length === 0) {
+    closeModal('bulk-rename-modal');
+    return;
+  }
+
+  const resp = await fetch('/api/fs/batch-rename', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
+    body: JSON.stringify({ renames })
+  });
+
+  if (resp.ok) {
+    closeModal('bulk-rename-modal');
+    refreshPane(App.activePaneIndex);
+  } else {
+    alert('Batch Rename failed: ' + await resp.text());
+  }
+}
+
 
 

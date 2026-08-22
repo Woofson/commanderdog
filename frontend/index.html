@@ -462,6 +462,161 @@
     </div>
   </div>
 
+  <!-- Rich Image Viewer Modal -->
+  <div class="modal-overlay" id="image-viewer-modal">
+    <div class="modal-box image-viewer-box">
+      <div class="image-viewer-toolbar">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="color: var(--accent); font-weight: 700;">🖼️</span>
+          <span id="img-viewer-title" style="font-weight: 600; font-size: 13px;">image.png</span>
+          <span id="img-viewer-meta" style="color: var(--text-muted); font-size: 11px; font-family: var(--font-mono);">(1920x1080 - 1.2 MB)</span>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <button class="btn btn-icon" onclick="navImageViewer(-1)" title="Previous Image (Left Arrow)"><i data-lucide="chevron-left"></i></button>
+          <span id="img-viewer-counter" style="font-size: 11px; color: var(--text-dim); min-width: 40px; text-align: center;">1 / 1</span>
+          <button class="btn btn-icon" onclick="navImageViewer(1)" title="Next Image (Right Arrow)"><i data-lucide="chevron-right"></i></button>
+          <div style="width: 1px; height: 16px; background: var(--border); margin: 0 4px;"></div>
+          <button class="btn btn-icon" onclick="zoomImage(0.2)" title="Zoom In (+)"><i data-lucide="zoom-in"></i></button>
+          <button class="btn btn-icon" onclick="zoomImage(-0.2)" title="Zoom Out (-)"><i data-lucide="zoom-out"></i></button>
+          <button class="btn btn-icon" onclick="resetImageTransform()" title="Reset 1:1 View"><i data-lucide="refresh-cw"></i></button>
+          <button class="btn btn-icon" onclick="rotateImage(90)" title="Rotate Clockwise 90°"><i data-lucide="rotate-cw"></i></button>
+          <button class="btn btn-icon" onclick="flipImage('h')" title="Flip Horizontal"><i data-lucide="flip-horizontal"></i></button>
+          <button class="btn btn-icon" onclick="flipImage('v')" title="Flip Vertical"><i data-lucide="flip-vertical"></i></button>
+          <div style="width: 1px; height: 16px; background: var(--border); margin: 0 4px;"></div>
+          <button class="btn btn-icon" onclick="downloadCurrentImage()" title="Download Image"><i data-lucide="download"></i></button>
+          <button class="btn btn-icon" onclick="closeModal('image-viewer-modal')" title="Close Viewer (Esc)"><i data-lucide="x"></i></button>
+        </div>
+      </div>
+
+      <div class="image-viewer-viewport" id="img-viewer-viewport">
+        <img id="img-viewer-element" class="image-viewer-img" src="" alt="Viewer">
+      </div>
+    </div>
+  </div>
+
+  <!-- Advanced Bulk Renamer Modal -->
+  <div class="modal-overlay" id="bulk-rename-modal">
+    <div class="modal-box bulk-renamer-box">
+      <div class="modal-header">
+        <span style="color: var(--accent); font-weight: 700;">🏷️ Advanced Multi-File Batch Renamer</span>
+        <button class="btn" onclick="closeModal('bulk-rename-modal')"><i data-lucide="x"></i></button>
+      </div>
+
+      <div class="modal-body" style="padding: 14px; display: flex; flex-direction: column; gap: 10px;">
+        <!-- Renaming Mode Selector -->
+        <div class="rename-rule-panel">
+          <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+            <select id="bulk-rename-mode" class="pane-quick-filter" style="width: 220px; font-weight: 600;" onchange="updateBulkRenameUI()">
+              <option value="replace" selected>🔍 Find & Replace</option>
+              <option value="sequence">🔢 Sequential Numbering</option>
+              <option value="prefix-suffix">➕ Add Prefix / Suffix</option>
+              <option value="case">🔤 Change Letter Case</option>
+              <option value="extension">📄 Change Extension</option>
+            </select>
+          </div>
+
+          <!-- Mode 1: Find & Replace -->
+          <div id="rule-mode-replace" style="display: flex; flex-direction: column; gap: 8px;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+              <div>
+                <label style="font-size: 11px;">Find Text / Regex Pattern:</label>
+                <input type="text" id="rename-find" class="pane-quick-filter" style="width: 100%;" placeholder="e.g. img_ or (\d{4})" oninput="updateBulkRenamePreview()">
+              </div>
+              <div>
+                <label style="font-size: 11px;">Replace With:</label>
+                <input type="text" id="rename-replace" class="pane-quick-filter" style="width: 100%;" placeholder="e.g. photo_ or $1" oninput="updateBulkRenamePreview()">
+              </div>
+            </div>
+            <div style="display: flex; gap: 14px; font-size: 11px;">
+              <label style="cursor: pointer;"><input type="checkbox" id="rename-match-case" onchange="updateBulkRenamePreview()"> Match Case</label>
+              <label style="cursor: pointer;"><input type="checkbox" id="rename-use-regex" onchange="updateBulkRenamePreview()"> Use Regular Expressions (Regex)</label>
+            </div>
+          </div>
+
+          <!-- Mode 2: Sequential Numbering -->
+          <div id="rule-mode-sequence" style="display: none; flex-direction: column; gap: 8px;">
+            <div style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 8px;">
+              <div>
+                <label style="font-size: 11px;">Base Name:</label>
+                <input type="text" id="rename-seq-base" class="pane-quick-filter" style="width: 100%;" placeholder="e.g. Vacation_" oninput="updateBulkRenamePreview()">
+              </div>
+              <div>
+                <label style="font-size: 11px;">Start Number:</label>
+                <input type="number" id="rename-seq-start" class="pane-quick-filter" style="width: 100%;" value="1" oninput="updateBulkRenamePreview()">
+              </div>
+              <div>
+                <label style="font-size: 11px;">Step (+):</label>
+                <input type="number" id="rename-seq-step" class="pane-quick-filter" style="width: 100%;" value="1" oninput="updateBulkRenamePreview()">
+              </div>
+              <div>
+                <label style="font-size: 11px;">Padding Digits:</label>
+                <input type="number" id="rename-seq-pad" class="pane-quick-filter" style="width: 100%;" value="3" min="1" max="6" oninput="updateBulkRenamePreview()">
+              </div>
+            </div>
+          </div>
+
+          <!-- Mode 3: Add Prefix / Suffix -->
+          <div id="rule-mode-prefix-suffix" style="display: none; flex-direction: column; gap: 8px;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+              <div>
+                <label style="font-size: 11px;">Prepend Prefix:</label>
+                <input type="text" id="rename-prefix" class="pane-quick-filter" style="width: 100%;" placeholder="e.g. 2026_08_" oninput="updateBulkRenamePreview()">
+              </div>
+              <div>
+                <label style="font-size: 11px;">Append Suffix (Before Ext):</label>
+                <input type="text" id="rename-suffix" class="pane-quick-filter" style="width: 100%;" placeholder="e.g. _final" oninput="updateBulkRenamePreview()">
+              </div>
+            </div>
+          </div>
+
+          <!-- Mode 4: Case Conversion -->
+          <div id="rule-mode-case" style="display: none; gap: 8px; align-items: center;">
+            <label style="font-size: 11px;">Case Style:</label>
+            <select id="rename-case-style" class="pane-quick-filter" style="width: 200px;" onchange="updateBulkRenamePreview()">
+              <option value="lower">lowercase.ext</option>
+              <option value="upper">UPPERCASE.EXT</option>
+              <option value="title">Title Case.ext</option>
+              <option value="kebab">kebab-case.ext</option>
+              <option value="snake">snake_case.ext</option>
+            </select>
+          </div>
+
+          <!-- Mode 5: Extension Modifier -->
+          <div id="rule-mode-extension" style="display: none; gap: 8px; align-items: center;">
+            <label style="font-size: 11px;">New Extension (without dot):</label>
+            <input type="text" id="rename-new-ext" class="pane-quick-filter" style="width: 150px;" placeholder="e.g. jpg or txt" oninput="updateBulkRenamePreview()">
+            <label style="font-size: 11px; cursor: pointer;"><input type="checkbox" id="rename-ext-lower" checked onchange="updateBulkRenamePreview()"> Always lowercase extension</label>
+          </div>
+        </div>
+
+        <!-- Live Preview Table -->
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-weight: 600; font-size: 12px;">Live Rename Preview:</span>
+          <span id="bulk-rename-stats" style="font-size: 11px; color: var(--text-muted);">0 items ready</span>
+        </div>
+
+        <div class="rename-preview-table-wrap">
+          <table class="file-table">
+            <thead>
+              <tr>
+                <th style="width: 60px;">Status</th>
+                <th>Original Name</th>
+                <th>➔ New Name</th>
+              </tr>
+            </thead>
+            <tbody id="bulk-rename-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn" onclick="closeModal('bulk-rename-modal')">Cancel</button>
+        <button class="btn btn-accent" id="btn-execute-bulk-rename" onclick="executeBulkRename()">⚡ Apply Batch Rename</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Paranoid Dry Run & Verification Modal -->
   <div class="modal-overlay" id="paranoid-modal">
     <div class="modal-box" style="width: 550px;">

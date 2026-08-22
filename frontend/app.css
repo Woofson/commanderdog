@@ -911,3 +911,80 @@ body {
   color: var(--accent);
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
+
+/* Image Viewer Modal */
+.image-viewer-box {
+  width: 90vw;
+  height: 88vh;
+  display: flex;
+  flex-direction: column;
+  background: #09090b;
+}
+
+.image-viewer-toolbar {
+  background: var(--bg-header);
+  border-bottom: 1px solid var(--border);
+  padding: 6px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.image-viewer-viewport {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: repeating-conic-gradient(#141417 0% 25%, #18181b 0% 50%) 50% / 20px 20px;
+  position: relative;
+  user-select: none;
+}
+
+.image-viewer-img {
+  max-width: 95%;
+  max-height: 95%;
+  object-fit: contain;
+  transition: transform 0.15s ease-out;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+  border-radius: 2px;
+}
+
+/* Bulk Renamer Modal */
+.bulk-renamer-box {
+  width: 820px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.rename-rule-panel {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  margin-bottom: 14px;
+}
+
+.rename-preview-table-wrap {
+  flex: 1;
+  max-height: 280px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-dark);
+}
+
+.diff-tag-new {
+  color: var(--success);
+  font-weight: 600;
+}
+
+.diff-tag-conflict {
+  color: var(--danger);
+  font-weight: 700;
+  background: rgba(239, 68, 68, 0.15);
+  padding: 2px 6px;
+  border-radius: 3px;
+}

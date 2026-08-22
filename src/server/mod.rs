@@ -59,6 +59,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/fs/write", post(handle_write_file))
         .route("/api/fs/mkdir", post(handle_mkdir))
         .route("/api/fs/rename", post(handle_rename))
+        .route("/api/fs/batch-rename", post(handle_batch_rename))
         .route("/api/fs/delete", post(handle_delete))
         .route("/api/fs/copy", post(handle_copy))
         .route("/api/fs/deltacopy", post(handle_deltacopy))
@@ -304,6 +305,39 @@ async fn handle_rename(
     LocalFs::rename_entry(&payload.from, &payload.to)
         .map(|_| Json(serde_json::json!({ "success": true })))
         .map_err(|e| (StatusCode::BAD_REQUEST, format!("Failed to rename: {}", e)))
+}
+
+#[derive(Deserialize)]
+struct BatchRenameItem {
+    from: String,
+    to: String,
+}
+
+#[derive(Deserialize)]
+struct BatchRenameRequest {
+    renames: Vec<BatchRenameItem>,
+}
+
+async fn handle_batch_rename(
+    Json(payload): Json<BatchRenameRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let mut renamed = 0;
+    let mut errors = Vec::new();
+
+    for item in payload.renames {
+        if item.from != item.to {
+            match LocalFs::rename_entry(&item.from, &item.to) {
+                Ok(_) => renamed += 1,
+                Err(e) => errors.push(format!("{}: {}", item.from, e)),
+            }
+        }
+    }
+
+    if errors.is_empty() {
+        Ok(Json(serde_json::json!({ "success": true, "renamed_count": renamed })))
+    } else {
+        Err((StatusCode::MULTI_STATUS, format!("Encountered errors: {}", errors.join("; "))))
+    }
 }
 
 #[derive(Deserialize)]
