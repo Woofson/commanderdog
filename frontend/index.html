@@ -909,11 +909,11 @@
     </div>
   </div>
 
-  <!-- Remote Connection Modal (SFTP / WebDAV) -->
+  <!-- Remote Connection Modal (SFTP / WebDAV / S3) -->
   <div class="modal-overlay" id="remote-modal">
-    <div class="modal-box" style="width: 480px;">
+    <div class="modal-box" style="width: 500px;">
       <div class="modal-header">
-        <span>🌐 Connect Remote Server (SFTP / WebDAV)</span>
+        <span>🌐 Connect Remote Server (SFTP / WebDAV / S3)</span>
         <button class="btn" onclick="closeModal('remote-modal')"><i data-lucide="x"></i></button>
       </div>
       <div class="modal-body">
@@ -922,11 +922,22 @@
           <select id="remote-proto-select" class="pane-quick-filter" style="width: 100%; padding: 6px;" onchange="updateRemoteProtoUI()">
             <option value="sftp" selected>SSH / SFTP (Secure File Transfer)</option>
             <option value="webdav">WebDAV (Nextcloud / ownCloud / Synology)</option>
+            <option value="s3">☁️ S3 / Cloud Storage (AWS, MinIO, Cloudflare R2, Backblaze B2)</option>
           </select>
         </div>
         <div class="form-group">
-          <label>Server Host / URL:</label>
-          <input type="text" id="remote-host" class="pane-quick-filter" style="width: 100%; padding: 8px;" placeholder="e.g. 192.168.1.100 or sftp.example.com">
+          <label id="remote-host-label">Server Host / Endpoint URL:</label>
+          <input type="text" id="remote-host" class="pane-quick-filter" style="width: 100%; padding: 8px;" placeholder="e.g. https://s3.amazonaws.com or 192.168.1.100">
+        </div>
+        <div id="remote-s3-group" style="display: none; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+          <div>
+            <label style="font-size: 11px;">Bucket Name:</label>
+            <input type="text" id="remote-bucket" class="pane-quick-filter" style="width: 100%; padding: 8px;" placeholder="my-bucket-name">
+          </div>
+          <div>
+            <label style="font-size: 11px;">Region:</label>
+            <input type="text" id="remote-region" class="pane-quick-filter" style="width: 100%; padding: 8px;" value="us-east-1">
+          </div>
         </div>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
           <div class="form-group" id="remote-port-group">
@@ -934,16 +945,16 @@
             <input type="number" id="remote-port" class="pane-quick-filter" style="width: 100%; padding: 8px;" value="22">
           </div>
           <div class="form-group">
-            <label>Username:</label>
+            <label id="remote-user-label">Username / Access Key ID:</label>
             <input type="text" id="remote-user" class="pane-quick-filter" style="width: 100%; padding: 8px;" value="root">
           </div>
         </div>
         <div class="form-group">
-          <label>Password / Auth Token:</label>
+          <label id="remote-pass-label">Password / Secret Access Key:</label>
           <input type="password" id="remote-pass" class="pane-quick-filter" style="width: 100%; padding: 8px;">
         </div>
         <div class="form-group">
-          <label>Remote Root Path:</label>
+          <label>Remote Root Path / Prefix:</label>
           <input type="text" id="remote-path" class="pane-quick-filter" style="width: 100%; padding: 8px;" value="/">
         </div>
         <div id="remote-test-status" style="font-size: 11px; margin-top: 4px; display: none;"></div>

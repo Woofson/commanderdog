@@ -988,3 +988,96 @@ body {
   padding: 2px 6px;
   border-radius: 3px;
 }
+
+/* Mobile & Touch Optimizations */
+@media (max-width: 900px) {
+  .header {
+    flex-wrap: wrap;
+    height: auto;
+    padding: 8px 12px;
+    gap: 8px;
+  }
+  .header-actions {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .header button.btn span {
+    display: none;
+  }
+  .modal-box {
+    width: 95vw !important;
+    max-width: 95vw !important;
+  }
+  .image-viewer-box {
+    width: 98vw !important;
+    height: 94vh !important;
+  }
+  .bulk-renamer-box {
+    width: 95vw !important;
+  }
+}
+
+@media (max-width: 768px) {
+  /* On mobile, collapse grid to single active pane */
+  .pane-grid.layout-dual-vertical,
+  .pane-grid.layout-dual-horizontal,
+  .pane-grid.layout-triple,
+  .pane-grid.layout-quad {
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .pane-grid .pane:not(.active) {
+    display: none !important;
+  }
+
+  .pane-grid .pane.active {
+    width: 100% !important;
+    height: 100% !important;
+    flex: 1;
+  }
+
+  /* File table mobile optimizations */
+  .file-table th:nth-child(5),
+  .file-table td:nth-child(5),
+  .file-table th:nth-child(6),
+  .file-table td:nth-child(6) {
+    display: none;
+  }
+
+  .file-row {
+    height: 38px;
+  }
+
+  .footer-fkeys {
+    overflow-x: auto;
+    justify-content: flex-start;
+    -webkit-overflow-scrolling: touch;
+    padding: 0 6px;
+  }
+
+  .fkey-btn {
+    flex: 0 0 auto;
+    min-width: 70px;
+    padding: 4px 8px;
+    font-size: 11px;
+  }
+
+  .tasks-status-pill {
+    bottom: 36px;
+    right: 12px;
+  }
+
+  .terminal-drawer {
+    height: 70vh !important;
+  }
+}
+
+/* Touch active ripples & feedback */
+.file-row:active {
+  background-color: var(--bg-hover) !important;
+}
+
+.touch-action-bar {
+  display: none;
+}

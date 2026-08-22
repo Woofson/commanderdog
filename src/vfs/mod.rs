@@ -1,10 +1,13 @@
-pub mod local;
-pub mod sftp;
-pub mod webdav;
 pub mod archive;
 pub mod checksum;
+pub mod local;
+pub mod s3;
+pub mod sftp;
+pub mod webdav;
 
 use serde::{Deserialize, Serialize};
+
+pub type VfsResult<T> = Result<T, String>;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FileEntry {
@@ -32,7 +35,7 @@ pub struct DirectoryListing {
     pub total_files: usize,
     pub total_dirs: usize,
     pub total_size: u64,
-    pub protocol: String, // "local", "sftp", "webdav", "archive"
+    pub protocol: String, // "local", "sftp", "webdav", "archive", "s3"
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

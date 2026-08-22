@@ -333,6 +333,33 @@ function renderPaneTable(paneIndex) {
       showContextMenu(e.clientX, e.clientY);
     };
 
+    let touchTimer = null;
+    let touchStartX = 0;
+    let touchStartY = 0;
+
+    tr.ontouchstart = (e) => {
+      touchStartX = e.touches[0].clientX;
+      touchStartY = e.touches[0].clientY;
+      touchTimer = setTimeout(() => {
+        App.contextItem = entry;
+        App.contextPaneIndex = paneIndex;
+        showContextMenu(touchStartX, touchStartY);
+        if (navigator.vibrate) navigator.vibrate(40);
+      }, 450);
+    };
+
+    tr.ontouchend = () => {
+      if (touchTimer) clearTimeout(touchTimer);
+    };
+
+    tr.ontouchmove = (e) => {
+      const dx = Math.abs(e.touches[0].clientX - touchStartX);
+      const dy = Math.abs(e.touches[0].clientY - touchStartY);
+      if (dx > 12 || dy > 12) {
+        if (touchTimer) clearTimeout(touchTimer);
+      }
+    };
+
     const iconType = entry.is_dir ? 'dir' : (entry.is_archive ? 'archive' : 'text');
     const iconName = entry.is_dir ? 'folder' : (entry.is_archive ? 'file-archive' : 'file-text');
 
@@ -1120,6 +1147,8 @@ function setupEventListeners() {
     localStorage.removeItem('cd_token');
     location.reload();
   });
+
+  setupTouchGestures();
 }
 
 function switchLayout(layoutName) {
@@ -1635,14 +1664,33 @@ function openRemoteModal(paneIndex) {
 function updateRemoteProtoUI() {
   const proto = document.getElementById('remote-proto-select').value;
   const portGroup = document.getElementById('remote-port-group');
+  const s3Group = document.getElementById('remote-s3-group');
   const hostInput = document.getElementById('remote-host');
+  const hostLabel = document.getElementById('remote-host-label');
+  const userLabel = document.getElementById('remote-user-label');
+  const passLabel = document.getElementById('remote-pass-label');
 
   if (proto === 'sftp') {
     portGroup.style.display = 'block';
+    if (s3Group) s3Group.style.display = 'none';
+    if (hostLabel) hostLabel.textContent = 'Server Host / IP:';
+    if (userLabel) userLabel.textContent = 'SSH Username:';
+    if (passLabel) passLabel.textContent = 'SSH Password / Key:';
     hostInput.placeholder = 'e.g. 192.168.1.100 or sftp.example.com';
-  } else {
+  } else if (proto === 'webdav') {
     portGroup.style.display = 'none';
+    if (s3Group) s3Group.style.display = 'none';
+    if (hostLabel) hostLabel.textContent = 'WebDAV URL:';
+    if (userLabel) userLabel.textContent = 'WebDAV Username:';
+    if (passLabel) passLabel.textContent = 'WebDAV Password / Token:';
     hostInput.placeholder = 'e.g. http://192.168.1.100:80/remote.php/webdav/';
+  } else if (proto === 's3') {
+    portGroup.style.display = 'none';
+    if (s3Group) s3Group.style.display = 'grid';
+    if (hostLabel) hostLabel.textContent = 'S3 Endpoint URL:';
+    if (userLabel) userLabel.textContent = 'Access Key ID:';
+    if (passLabel) passLabel.textContent = 'Secret Access Key:';
+    hostInput.placeholder = 'e.g. https://s3.amazonaws.com or https://<account_id>.r2.cloudflarestorage.com';
   }
 }
 
@@ -1652,6 +1700,8 @@ async function testRemoteConnection() {
   const port = parseInt(document.getElementById('remote-port').value, 10);
   const user = document.getElementById('remote-user').value;
   const pass = document.getElementById('remote-pass').value;
+  const bucket = document.getElementById('remote-bucket')?.value || '';
+  const region = document.getElementById('remote-region')?.value || 'us-east-1';
 
   const status = document.getElementById('remote-test-status');
   status.style.display = 'block';
@@ -1662,7 +1712,7 @@ async function testRemoteConnection() {
     const resp = await fetch('/api/remotes/test', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
-      body: JSON.stringify({ protocol: proto, host, port, user, pass })
+      body: JSON.stringify({ protocol: proto, host, port, user, pass, bucket, region })
     });
 
     if (resp.ok) {
@@ -1684,6 +1734,7 @@ function connectRemoteToActivePane() {
   const host = document.getElementById('remote-host').value;
   const port = parseInt(document.getElementById('remote-port').value, 10);
   const user = document.getElementById('remote-user').value;
+  const bucket = document.getElementById('remote-bucket')?.value || '';
   const path = document.getElementById('remote-path').value || '/';
 
   if (!host) {
@@ -1694,8 +1745,10 @@ function connectRemoteToActivePane() {
   let remoteUrl = '';
   if (proto === 'sftp') {
     remoteUrl = `sftp://${user}@${host}:${port}${path.startsWith('/') ? path : '/' + path}`;
-  } else {
+  } else if (proto === 'webdav') {
     remoteUrl = `webdav://${host.replace(/^https?:\/\//, '')}${path.startsWith('/') ? path : '/' + path}`;
+  } else if (proto === 's3') {
+    remoteUrl = `s3://${bucket}${path.startsWith('/') ? path : '/' + path}`;
   }
 
   closeModal('remote-modal');
@@ -2415,6 +2468,41 @@ async function runPredefinedAction(command, label) {
 function copyActionOutput() {
   const text = document.getElementById('action-output-text').textContent;
   navigator.clipboard.writeText(text).then(() => alert('Output copied to clipboard!'));
+}
+
+// ---------------- TOUCH & MOBILE GESTURE ENGINE ----------------
+let swipeStartX = 0;
+let swipeStartY = 0;
+
+function setupTouchGestures() {
+  const container = document.getElementById('pane-container');
+  if (!container) return;
+
+  container.addEventListener('touchstart', (e) => {
+    if (!e.touches || e.touches.length === 0) return;
+    swipeStartX = e.touches[0].clientX;
+    swipeStartY = e.touches[0].clientY;
+  }, { passive: true });
+
+  container.addEventListener('touchend', (e) => {
+    if (window.innerWidth > 768) return; // Only trigger pane swipe on mobile
+    if (!e.changedTouches || e.changedTouches.length === 0) return;
+    const dx = e.changedTouches[0].clientX - swipeStartX;
+    const dy = e.changedTouches[0].clientY - swipeStartY;
+
+    if (Math.abs(dx) > 60 && Math.abs(dy) < 40) {
+      const visible = getVisiblePaneCount();
+      if (dx < 0) {
+        // Swipe Left -> Next Pane
+        const nextPane = (App.activePaneIndex + 1) % visible;
+        setActivePane(nextPane);
+      } else {
+        // Swipe Right -> Prev Pane
+        const prevPane = (App.activePaneIndex - 1 + visible) % visible;
+        setActivePane(prevPane);
+      }
+    }
+  }, { passive: true });
 }
 
 

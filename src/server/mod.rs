@@ -563,6 +563,8 @@ struct TestRemoteRequest {
     port: Option<u16>,
     user: Option<String>,
     pass: Option<String>,
+    bucket: Option<String>,
+    region: Option<String>,
 }
 
 async fn handle_test_remote(
@@ -588,6 +590,24 @@ async fn handle_test_remote(
                     "message": format!("Connected successfully to WebDAV storage (found {} items)", listing.entries.len()),
                 }))),
                 Err(e) => Err((StatusCode::BAD_REQUEST, format!("WebDAV connection failed: {}", e))),
+            }
+        }
+        "s3" => {
+            let s3_conf = crate::vfs::s3::S3Config {
+                endpoint: payload.host,
+                bucket: payload.bucket.unwrap_or_default(),
+                region: payload.region.unwrap_or_else(|| "us-east-1".to_string()),
+                access_key_id: payload.user.unwrap_or_default(),
+                secret_access_key: payload.pass.unwrap_or_default(),
+                path_style: Some(true),
+            };
+            let client = crate::vfs::s3::S3Client::new(s3_conf);
+            match client.test_connection().await {
+                Ok(_) => Ok(Json(serde_json::json!({
+                    "success": true,
+                    "message": "Connected successfully to S3 / Cloud Object Storage bucket!",
+                }))),
+                Err(e) => Err((StatusCode::BAD_REQUEST, format!("S3 connection failed: {}", e))),
             }
         }
         _ => Err((StatusCode::BAD_REQUEST, "Unsupported protocol".to_string())),

@@ -41,6 +41,7 @@ uuid = { version = "1.12", features = ["v4", "serde"] }
 parking_lot = "0.12"
 async-trait = "0.1"
 base64 = "0.22"
+hmac = "0.12"
 pam-auth = { version = "0.5", optional = true }
 regex = "1.11"
 
