@@ -945,35 +945,123 @@ function updateParanoidBadge() {
 }
 
 function applyTheme(themeId) {
-  if (themeId === 'midnight-blue') {
-    document.documentElement.style.setProperty('--bg-dark', '#000044');
-    document.documentElement.style.setProperty('--bg-panel', '#000088');
-    document.documentElement.style.setProperty('--bg-header', '#000066');
-    document.documentElement.style.setProperty('--border', '#00aaff');
-    document.documentElement.style.setProperty('--accent', '#00ffff');
-    document.documentElement.style.setProperty('--accent-hover', '#ffffff');
+  localStorage.setItem('cd_theme', themeId);
+  const sel = document.getElementById('theme-selector');
+  if (sel) sel.value = themeId;
+
+  const root = document.documentElement;
+
+  if (themeId === 'gruvbox') {
+    root.style.setProperty('--bg-dark', '#1d2021');
+    root.style.setProperty('--bg-panel', '#282828');
+    root.style.setProperty('--bg-header', '#3c3836');
+    root.style.setProperty('--bg-active', '#504945');
+    root.style.setProperty('--border', '#504945');
+    root.style.setProperty('--accent', '#fabd2f');
+    root.style.setProperty('--accent-hover', '#fe8019');
+    root.style.setProperty('--text-main', '#ebdbb2');
+    root.style.setProperty('--text-muted', '#a89984');
+  } else if (themeId === 'catppuccin-mocha') {
+    root.style.setProperty('--bg-dark', '#181825');
+    root.style.setProperty('--bg-panel', '#1e1e2e');
+    root.style.setProperty('--bg-header', '#313244');
+    root.style.setProperty('--bg-active', '#45475a');
+    root.style.setProperty('--border', '#45475a');
+    root.style.setProperty('--accent', '#cba6f7');
+    root.style.setProperty('--accent-hover', '#f5c2e7');
+    root.style.setProperty('--text-main', '#cdd6f4');
+    root.style.setProperty('--text-muted', '#a6adc8');
+  } else if (themeId === 'catppuccin-latte') {
+    root.style.setProperty('--bg-dark', '#dce0e8');
+    root.style.setProperty('--bg-panel', '#eff1f5');
+    root.style.setProperty('--bg-header', '#e6e9ef');
+    root.style.setProperty('--bg-active', '#ccd0da');
+    root.style.setProperty('--border', '#bcc0cc');
+    root.style.setProperty('--accent', '#8839ef');
+    root.style.setProperty('--accent-hover', '#1e66f5');
+    root.style.setProperty('--text-main', '#4c4f69');
+    root.style.setProperty('--text-muted', '#6c6f85');
+  } else if (themeId === 'tokyo-night') {
+    root.style.setProperty('--bg-dark', '#16161e');
+    root.style.setProperty('--bg-panel', '#1a1b26');
+    root.style.setProperty('--bg-header', '#24283b');
+    root.style.setProperty('--bg-active', '#292e42');
+    root.style.setProperty('--border', '#3b4261');
+    root.style.setProperty('--accent', '#7aa2f7');
+    root.style.setProperty('--accent-hover', '#7dcfff');
+    root.style.setProperty('--text-main', '#c0caf5');
+    root.style.setProperty('--text-muted', '#9aa5ce');
+  } else if (themeId === 'monokai') {
+    root.style.setProperty('--bg-dark', '#1e1f1c');
+    root.style.setProperty('--bg-panel', '#272822');
+    root.style.setProperty('--bg-header', '#3e3d32');
+    root.style.setProperty('--bg-active', '#49483e');
+    root.style.setProperty('--border', '#49483e');
+    root.style.setProperty('--accent', '#ffd866');
+    root.style.setProperty('--accent-hover', '#a9dc76');
+    root.style.setProperty('--text-main', '#f8f8f2');
+    root.style.setProperty('--text-muted', '#939293');
+  } else if (themeId === 'solarized-dark') {
+    root.style.setProperty('--bg-dark', '#00212b');
+    root.style.setProperty('--bg-panel', '#002b36');
+    root.style.setProperty('--bg-header', '#073642');
+    root.style.setProperty('--bg-active', '#0a4250');
+    root.style.setProperty('--border', '#586e75');
+    root.style.setProperty('--accent', '#268bd2');
+    root.style.setProperty('--accent-hover', '#2aa198');
+    root.style.setProperty('--text-main', '#839496');
+    root.style.setProperty('--text-muted', '#657b83');
+  } else if (themeId === 'ayu-dark') {
+    root.style.setProperty('--bg-dark', '#0b0e14');
+    root.style.setProperty('--bg-panel', '#0f1419');
+    root.style.setProperty('--bg-header', '#1f2430');
+    root.style.setProperty('--bg-active', '#242b38');
+    root.style.setProperty('--border', '#252e37');
+    root.style.setProperty('--accent', '#e6b450');
+    root.style.setProperty('--accent-hover', '#ffb454');
+    root.style.setProperty('--text-main', '#e6e1cf');
+    root.style.setProperty('--text-muted', '#707a8c');
   } else if (themeId === 'nord') {
-    document.documentElement.style.setProperty('--bg-dark', '#242933');
-    document.documentElement.style.setProperty('--bg-panel', '#2e3440');
-    document.documentElement.style.setProperty('--bg-header', '#3b4252');
-    document.documentElement.style.setProperty('--border', '#4c566a');
-    document.documentElement.style.setProperty('--accent', '#88c0d0');
-    document.documentElement.style.setProperty('--accent-hover', '#81a1c1');
+    root.style.setProperty('--bg-dark', '#242933');
+    root.style.setProperty('--bg-panel', '#2e3440');
+    root.style.setProperty('--bg-header', '#3b4252');
+    root.style.setProperty('--bg-active', '#434c5e');
+    root.style.setProperty('--border', '#4c566a');
+    root.style.setProperty('--accent', '#88c0d0');
+    root.style.setProperty('--accent-hover', '#81a1c1');
+    root.style.setProperty('--text-main', '#eceff4');
+    root.style.setProperty('--text-muted', '#d8dee9');
   } else if (themeId === 'dracula') {
-    document.documentElement.style.setProperty('--bg-dark', '#1e1f29');
-    document.documentElement.style.setProperty('--bg-panel', '#282a36');
-    document.documentElement.style.setProperty('--bg-header', '#44475a');
-    document.documentElement.style.setProperty('--border', '#6272a4');
-    document.documentElement.style.setProperty('--accent', '#bd93f9');
-    document.documentElement.style.setProperty('--accent-hover', '#ff79c6');
+    root.style.setProperty('--bg-dark', '#1e1f29');
+    root.style.setProperty('--bg-panel', '#282a36');
+    root.style.setProperty('--bg-header', '#44475a');
+    root.style.setProperty('--bg-active', '#6272a4');
+    root.style.setProperty('--border', '#6272a4');
+    root.style.setProperty('--accent', '#bd93f9');
+    root.style.setProperty('--accent-hover', '#ff79c6');
+    root.style.setProperty('--text-main', '#f8f8f2');
+    root.style.setProperty('--text-muted', '#6272a4');
+  } else if (themeId === 'midnight-blue') {
+    root.style.setProperty('--bg-dark', '#000044');
+    root.style.setProperty('--bg-panel', '#000088');
+    root.style.setProperty('--bg-header', '#000066');
+    root.style.setProperty('--bg-active', '#0000aa');
+    root.style.setProperty('--border', '#00aaff');
+    root.style.setProperty('--accent', '#00ffff');
+    root.style.setProperty('--accent-hover', '#ffffff');
+    root.style.setProperty('--text-main', '#ffffff');
+    root.style.setProperty('--text-muted', '#a0a0ff');
   } else {
     // Woofson Amber Default
-    document.documentElement.style.setProperty('--bg-dark', '#121214');
-    document.documentElement.style.setProperty('--bg-panel', '#18181b');
-    document.documentElement.style.setProperty('--bg-header', '#202024');
-    document.documentElement.style.setProperty('--border', '#3f3f46');
-    document.documentElement.style.setProperty('--accent', '#f59e0b');
-    document.documentElement.style.setProperty('--accent-hover', '#fbbf24');
+    root.style.setProperty('--bg-dark', '#121214');
+    root.style.setProperty('--bg-panel', '#18181b');
+    root.style.setProperty('--bg-header', '#202024');
+    root.style.setProperty('--bg-active', '#27272a');
+    root.style.setProperty('--border', '#3f3f46');
+    root.style.setProperty('--accent', '#f59e0b');
+    root.style.setProperty('--accent-hover', '#fbbf24');
+    root.style.setProperty('--text-main', '#f4f4f5');
+    root.style.setProperty('--text-muted', '#a1a1aa');
   }
 }
 
