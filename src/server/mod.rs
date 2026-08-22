@@ -77,6 +77,10 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/tools/diff/files", post(handle_diff_files))
         .route("/api/tools/diff/folders", post(handle_diff_folders))
         .route("/api/tools/paranoid/dry-run", post(handle_paranoid_dry_run))
+        .route("/api/tools/sync/analyze", post(handle_sync_analyze))
+        .route("/api/tools/sync/execute", post(handle_sync_execute))
+        .route("/api/tools/search", post(handle_search))
+        .route("/api/actions/run", post(handle_run_action))
         .route("/api/tasks", get(handle_list_tasks))
         .route("/api/tasks/:id/cancel", post(handle_cancel_task))
         // Terminal WebSocket
@@ -753,6 +757,53 @@ async fn handle_paranoid_dry_run(
     ParanoidEngine::dry_run(&payload.action, &payload.sources, payload.destination.as_deref())
         .map(Json)
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Dry run failed: {}", e)))
+}
+
+// ---------------- PHASE 4 HANDLERS (SYNC, SEARCH, SCRIPT ACTIONS) ----------------
+
+#[derive(Deserialize)]
+struct SyncRequest {
+    source: String,
+    destination: String,
+    options: crate::tools::sync::SyncOptions,
+}
+
+async fn handle_sync_analyze(
+    Json(payload): Json<SyncRequest>,
+) -> Result<Json<crate::tools::sync::SyncAnalysis>, (StatusCode, String)> {
+    crate::tools::sync::DirectorySyncEngine::analyze(&payload.source, &payload.destination, &payload.options)
+        .map(Json)
+        .map_err(|e| (StatusCode::BAD_REQUEST, format!("Sync analysis failed: {}", e)))
+}
+
+async fn handle_sync_execute(
+    State(state): State<AppState>,
+    Json(payload): Json<SyncRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    crate::tools::sync::DirectorySyncEngine::execute_sync(
+        state.tasks.clone(),
+        &payload.source,
+        &payload.destination,
+        payload.options,
+    ).await
+    .map(Json)
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Sync execution failed: {}", e)))
+}
+
+async fn handle_search(
+    Json(payload): Json<crate::tools::search::SearchRequest>,
+) -> Result<Json<Vec<crate::tools::search::SearchResultItem>>, (StatusCode, String)> {
+    crate::tools::search::SearchEngine::search(payload)
+        .map(Json)
+        .map_err(|e| (StatusCode::BAD_REQUEST, format!("Search failed: {}", e)))
+}
+
+async fn handle_run_action(
+    Json(payload): Json<crate::tools::actions::ActionExecutionRequest>,
+) -> Result<Json<crate::tools::actions::ActionExecutionResult>, (StatusCode, String)> {
+    crate::tools::actions::ActionRunner::execute(payload).await
+        .map(Json)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Action execution error: {}", e)))
 }
 
 // ---------------- CONFIG & SYSTEM HANDLERS ----------------

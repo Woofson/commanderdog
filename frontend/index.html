@@ -39,6 +39,8 @@
       <!-- Quick Action Buttons -->
       <button class="btn" id="btn-open-editor" title="Dual-Pane Editor / Markdown Reader (F4)"><i data-lucide="code"></i> Editor</button>
       <button class="btn" id="btn-open-diff" title="File & Folder Comparison (Ctrl+D)"><i data-lucide="git-compare"></i> Compare / Diff</button>
+      <button class="btn" id="btn-open-sync" title="Directory Synchronization & Mirror Engine"><i data-lucide="refresh-cw"></i> Sync</button>
+      <button class="btn" id="btn-open-search" title="Global Deep File & Content Search (Ctrl+F)"><i data-lucide="search"></i> Search</button>
       <button class="btn" id="btn-toggle-terminal" title="Toggle Integrated Terminal (Ctrl+`)"><i data-lucide="terminal"></i> Terminal</button>
       <button class="btn" id="btn-open-tasks" title="Background Transfers & Task Queue"><i data-lucide="list-checks"></i> Tasks</button>
       <button class="btn" id="btn-refresh-all" title="Refresh All Panels"><i data-lucide="rotate-cw"></i></button>
@@ -613,6 +615,164 @@
       <div class="modal-footer">
         <button class="btn" onclick="closeModal('bulk-rename-modal')">Cancel</button>
         <button class="btn btn-accent" id="btn-execute-bulk-rename" onclick="executeBulkRename()">⚡ Apply Batch Rename</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Directory Synchronization & Mirror Modal -->
+  <div class="modal-overlay" id="sync-modal">
+    <div class="modal-box" style="width: 650px; max-height: 85vh;">
+      <div class="modal-header">
+        <span style="color: var(--accent); font-weight: 700;">🔄 Directory Synchronization & Mirror Engine</span>
+        <button class="btn" onclick="closeModal('sync-modal')"><i data-lucide="x"></i></button>
+      </div>
+
+      <div class="modal-body" style="padding: 14px; display: flex; flex-direction: column; gap: 10px;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+          <div>
+            <label style="font-size: 11px;">Source Directory (Left):</label>
+            <input type="text" id="sync-src-input" class="pane-quick-filter" style="width: 100%; font-family: var(--font-mono);">
+          </div>
+          <div>
+            <label style="font-size: 11px;">Destination Directory (Right):</label>
+            <input type="text" id="sync-dest-input" class="pane-quick-filter" style="width: 100%; font-family: var(--font-mono);">
+          </div>
+        </div>
+
+        <div style="background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px;">
+          <label style="font-size: 11px; font-weight: 600; display: block; margin-bottom: 6px;">Sync Mode:</label>
+          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;">
+            <label style="cursor: pointer; background: var(--bg-dark); border: 1px solid var(--border); padding: 8px; border-radius: 4px; font-size: 11px;">
+              <input type="radio" name="sync-mode" value="mirror" checked> <b>🪞 Mirror (1-Way)</b>
+              <div style="color: var(--text-muted); font-size: 10px; margin-top: 2px;">Target becomes exact copy of source (deletes orphan files in target).</div>
+            </label>
+            <label style="cursor: pointer; background: var(--bg-dark); border: 1px solid var(--border); padding: 8px; border-radius: 4px; font-size: 11px;">
+              <input type="radio" name="sync-mode" value="update"> <b>⚡ Update (1-Way)</b>
+              <div style="color: var(--text-muted); font-size: 10px; margin-top: 2px;">Copy new and modified files only (safe, no deletion).</div>
+            </label>
+            <label style="cursor: pointer; background: var(--bg-dark); border: 1px solid var(--border); padding: 8px; border-radius: 4px; font-size: 11px;">
+              <input type="radio" name="sync-mode" value="bidirectional"> <b>🔄 2-Way Sync</b>
+              <div style="color: var(--text-muted); font-size: 10px; margin-top: 2px;">Sync both directions, copying newer versions to both sides.</div>
+            </label>
+          </div>
+          <div style="display: flex; gap: 14px; margin-top: 10px; font-size: 11px;">
+            <label style="cursor: pointer;"><input type="checkbox" id="sync-verify-crc32" checked> 🔒 Verify CRC32 Checksums</label>
+            <label style="cursor: pointer;"><input type="checkbox" id="sync-dry-run"> 🛡️ Dry-Run Preview Only</label>
+          </div>
+        </div>
+
+        <div id="sync-analysis-card" style="display: none; background: var(--bg-dark); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px;">
+          <div style="font-weight: 600; font-size: 11px; color: var(--accent); margin-bottom: 6px;">📊 Pre-Sync Analysis Summary:</div>
+          <div id="sync-analysis-stats" style="font-size: 11px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;"></div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn" onclick="closeModal('sync-modal')">Cancel</button>
+        <button class="btn" onclick="analyzeSync()">Analyze Differences</button>
+        <button class="btn btn-accent" id="btn-run-sync" onclick="executeSync()">⚡ Run Synchronization</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Global Deep Search Modal -->
+  <div class="modal-overlay" id="search-modal">
+    <div class="modal-box" style="width: 780px; max-height: 85vh; display: flex; flex-direction: column;">
+      <div class="modal-header">
+        <span style="color: var(--accent); font-weight: 700;">🔍 Global File & Content Search</span>
+        <button class="btn" onclick="closeModal('search-modal')"><i data-lucide="x"></i></button>
+      </div>
+
+      <div class="modal-body" style="padding: 12px; display: flex; flex-direction: column; gap: 10px;">
+        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 10px;">
+          <div>
+            <label style="font-size: 11px;">Search Directory:</label>
+            <input type="text" id="search-root-input" class="pane-quick-filter" style="width: 100%; font-family: var(--font-mono);">
+          </div>
+          <div>
+            <label style="font-size: 11px;">File Type:</label>
+            <select id="search-file-type" class="pane-quick-filter" style="width: 100%;">
+              <option value="any" selected>All Types (*.*)</option>
+              <option value="file">Files only</option>
+              <option value="dir">Directories only</option>
+              <option value="code">Code & Scripts (*.rs, *.js, *.py, etc.)</option>
+              <option value="image">Images (*.png, *.jpg, *.svg, etc.)</option>
+              <option value="archive">Archives (*.zip, *.tar.gz, etc.)</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+          <div>
+            <label style="font-size: 11px;">Filename Pattern (Glob / Regex):</label>
+            <input type="text" id="search-name-pattern" class="pane-quick-filter" style="width: 100%;" placeholder="e.g. *.rs, *test*, report.pdf">
+          </div>
+          <div>
+            <label style="font-size: 11px;">Containing Text (grep):</label>
+            <input type="text" id="search-content-query" class="pane-quick-filter" style="width: 100%;" placeholder="e.g. fn main, TODO, error_handler">
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 14px; font-size: 11px; align-items: center;">
+          <label style="cursor: pointer;"><input type="checkbox" id="search-case-sensitive"> Match Case</label>
+          <div style="display: flex; align-items: center; gap: 4px;">
+            <span>Modified:</span>
+            <select id="search-date-filter" class="pane-quick-filter">
+              <option value="all" selected>Any Time</option>
+              <option value="1">Today (Past 24 Hours)</option>
+              <option value="7">Past 7 Days</option>
+              <option value="30">Past 30 Days</option>
+            </select>
+          </div>
+          <button class="btn btn-accent" onclick="runGlobalSearch()" style="margin-left: auto;"><i data-lucide="search"></i> Find Results</button>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
+          <span style="font-weight: 600; font-size: 11px;">Search Results:</span>
+          <span id="search-results-stats" style="font-size: 11px; color: var(--text-muted);">0 items found</span>
+        </div>
+
+        <div class="rename-preview-table-wrap" style="max-height: 250px;">
+          <table class="file-table">
+            <thead>
+              <tr>
+                <th>Filename & Match Snippet</th>
+                <th style="width: 80px;">Size</th>
+                <th style="width: 120px;">Modified</th>
+                <th style="width: 80px;">Action</th>
+              </tr>
+            </thead>
+            <tbody id="search-results-tbody">
+              <tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 20px;">No search results yet</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-accent" onclick="closeModal('search-modal')">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Script Action Output Modal -->
+  <div class="modal-overlay" id="action-output-modal">
+    <div class="modal-box" style="width: 680px; max-height: 80vh;">
+      <div class="modal-header">
+        <span id="action-output-title" style="color: var(--accent); font-weight: 700;">⚡ Script Action Output</span>
+        <button class="btn" onclick="closeModal('action-output-modal')"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body" style="padding: 12px; display: flex; flex-direction: column; gap: 8px;">
+        <div style="font-size: 11px; font-family: var(--font-mono); color: var(--text-muted); background: var(--bg-dark); padding: 6px 10px; border-radius: 4px; border: 1px solid var(--border);" id="action-output-cmd"></div>
+        <div style="display: flex; gap: 12px; font-size: 11px;">
+          <span>Status: <b id="action-output-status" style="color: var(--success);">SUCCESS (Code 0)</b></span>
+          <span>Duration: <b id="action-output-duration">42ms</b></span>
+        </div>
+        <pre id="action-output-text" style="background: #090a0d; color: #f4f4f5; padding: 10px; font-family: var(--font-mono); font-size: 12px; border-radius: 4px; overflow: auto; max-height: 400px; white-space: pre-wrap; word-break: break-all; border: 1px solid var(--border);"></pre>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="copyActionOutput()">Copy Output</button>
+        <button class="btn btn-accent" onclick="closeModal('action-output-modal')">Close</button>
       </div>
     </div>
   </div>

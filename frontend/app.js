@@ -701,6 +701,11 @@ function setupKeyboardNavigation() {
       toggleTerminal();
     }
 
+    if (e.ctrlKey && e.key.toLowerCase() === 'f') {
+      e.preventDefault();
+      openSearchModal();
+    }
+
     if ((e.shiftKey && e.key === 'F6') || (e.ctrlKey && e.key.toLowerCase() === 'm')) {
       e.preventDefault();
       triggerBulkRename();
@@ -982,6 +987,25 @@ function showContextMenu(x, y) {
     <div class="context-item" onclick="triggerBulkRename()"><i data-lucide="tags" style="width: 14px; color: var(--accent);"></i> Advanced Bulk Rename... (Shift+F6)</div>
     <div class="context-item" onclick="triggerDelete()"><i data-lucide="trash-2" style="width: 14px;"></i> Delete / Trash (F8)</div>
     <div class="context-sep"></div>
+
+    <!-- Dynamic Custom Script Actions Submenu -->
+    <div class="context-item has-submenu">
+      <div style="display:flex; align-items:center; gap:8px;"><i data-lucide="terminal-square" style="width: 14px; color: var(--accent);"></i> Custom Script Actions</div>
+      <i data-lucide="chevron-right" style="width: 12px;"></i>
+      <div class="context-submenu">
+        <div class="submenu-header">Shell Actions (conf.d)</div>
+        <div class="context-item" onclick="runPredefinedAction('chmod +x &quot;{file}&quot;', 'Make Executable (chmod +x)')"><i data-lucide="shield" style="width:13px;"></i> Make Executable (chmod +x)</div>
+        <div class="context-item" onclick="runPredefinedAction('stat &quot;{file}&quot;', 'File Stat Info')"><i data-lucide="info" style="width:13px;"></i> Inspect Stat (stat)</div>
+        <div class="context-item" onclick="runPredefinedAction('du -sh &quot;{file}&quot;', 'Disk Usage')"><i data-lucide="hard-drive" style="width:13px;"></i> Check Disk Usage (du -sh)</div>
+        <div class="context-item" onclick="runPredefinedAction('git -C &quot;{dir}&quot; log -n 10 --oneline --graph', 'Git Log')"><i data-lucide="git-branch" style="width:13px;"></i> Git Recent Log (git log)</div>
+        <div class="context-item" onclick="runPredefinedAction('md5sum &quot;{file}&quot;', 'MD5 Hash')"><i data-lucide="hash" style="width:13px;"></i> Calculate MD5 Hash</div>
+        <div class="context-item" onclick="runPredefinedAction('wc -l &quot;{file}&quot;', 'Line Count')"><i data-lucide="list-ordered" style="width:13px;"></i> Count Lines (wc -l)</div>
+      </div>
+    </div>
+    <div class="context-item" onclick="openSyncModal()"><i data-lucide="refresh-cw" style="width: 14px;"></i> Sync with Opposite Pane...</div>
+    <div class="context-item" onclick="openSearchModal()"><i data-lucide="search" style="width: 14px;"></i> Deep Search in Directory (Ctrl+F)</div>
+
+    <div class="context-sep"></div>
     <div class="context-item" onclick="triggerPermissions()"><i data-lucide="lock" style="width: 14px;"></i> Permissions & Ownership</div>
     <div class="context-item" onclick="triggerChecksum()"><i data-lucide="shield-check" style="width: 14px;"></i> Calculate SHA-256 Hash</div>
     <div class="context-item" onclick="triggerArchiveZip()"><i data-lucide="archive" style="width: 14px;"></i> Compress to .zip</div>
@@ -1077,6 +1101,8 @@ function setupEventListeners() {
 
   document.getElementById('btn-open-editor')?.addEventListener('click', () => showModal('editor-modal'));
   document.getElementById('btn-open-diff')?.addEventListener('click', () => triggerDiff());
+  document.getElementById('btn-open-sync')?.addEventListener('click', () => openSyncModal());
+  document.getElementById('btn-open-search')?.addEventListener('click', () => openSearchModal());
   document.getElementById('btn-toggle-terminal')?.addEventListener('click', () => toggleTerminal());
   document.getElementById('btn-open-tasks')?.addEventListener('click', () => { showModal('tasks-modal'); loadTasksTable(); });
   document.getElementById('btn-custom-dest-exec')?.addEventListener('click', executeCustomDestTransfer);
@@ -2169,6 +2195,226 @@ async function executeBulkRename() {
   } else {
     alert('Batch Rename failed: ' + await resp.text());
   }
+}
+
+// ---------------- DIRECTORY SYNCHRONIZATION ENGINE ----------------
+
+function openSyncModal() {
+  const visible = getVisiblePaneCount();
+  const srcPane = App.panes[App.activePaneIndex];
+  const destPane = App.panes[(App.activePaneIndex + 1) % visible] || srcPane;
+
+  document.getElementById('sync-src-input').value = srcPane.path;
+  document.getElementById('sync-dest-input').value = destPane.path;
+  document.getElementById('sync-analysis-card').style.display = 'none';
+
+  showModal('sync-modal');
+}
+
+async function analyzeSync() {
+  const source = document.getElementById('sync-src-input').value.trim();
+  const destination = document.getElementById('sync-dest-input').value.trim();
+  const mode = document.querySelector('input[name="sync-mode"]:checked').value;
+  const verify_checksum = document.getElementById('sync-verify-crc32').checked;
+
+  if (!source || !destination) {
+    alert('Please specify source and destination directories');
+    return;
+  }
+
+  const card = document.getElementById('sync-analysis-card');
+  const stats = document.getElementById('sync-analysis-stats');
+
+  stats.innerHTML = '<div style="grid-column: span 4; color: var(--accent);">Analyzing directory differences...</div>';
+  card.style.display = 'block';
+
+  const resp = await fetch('/api/tools/sync/analyze', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
+    body: JSON.stringify({ source, destination, options: { mode, dry_run: true, verify_checksum, delete_orphans: mode === 'mirror' } })
+  });
+
+  if (!resp.ok) {
+    stats.innerHTML = `<div style="grid-column: span 4; color: var(--danger);">Analysis failed: ${await resp.text()}</div>`;
+    return;
+  }
+
+  const data = await resp.json();
+  stats.innerHTML = `
+    <div style="background:var(--bg-header); padding:6px; border-radius:4px;"><b style="color:var(--success);">+ ${data.to_copy.length}</b> To Copy</div>
+    <div style="background:var(--bg-header); padding:6px; border-radius:4px;"><b style="color:var(--accent);">⚡ ${data.to_update.length}</b> To Update</div>
+    <div style="background:var(--bg-header); padding:6px; border-radius:4px;"><b style="color:var(--danger);">✕ ${data.to_delete.length}</b> To Delete</div>
+    <div style="background:var(--bg-header); padding:6px; border-radius:4px;"><b style="color:var(--text-dim);">= ${data.identical_count}</b> Identical</div>
+  `;
+}
+
+async function executeSync() {
+  const source = document.getElementById('sync-src-input').value.trim();
+  const destination = document.getElementById('sync-dest-input').value.trim();
+  const mode = document.querySelector('input[name="sync-mode"]:checked').value;
+  const verify_checksum = document.getElementById('sync-verify-crc32').checked;
+  const dry_run = document.getElementById('sync-dry-run').checked;
+
+  if (!source || !destination) {
+    alert('Please specify source and destination directories');
+    return;
+  }
+
+  closeModal('sync-modal');
+
+  const resp = await fetch('/api/tools/sync/execute', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
+    body: JSON.stringify({ source, destination, options: { mode, dry_run, verify_checksum, delete_orphans: mode === 'mirror' } })
+  });
+
+  if (resp.ok) {
+    if (!dry_run) {
+      for (let i = 0; i < getVisiblePaneCount(); i++) refreshPane(i);
+      showModal('tasks-modal');
+      loadTasksTable();
+    }
+  } else {
+    alert('Sync error: ' + await resp.text());
+  }
+}
+
+// ---------------- GLOBAL SEARCH ENGINE ----------------
+
+function openSearchModal() {
+  const activePane = App.panes[App.activePaneIndex];
+  document.getElementById('search-root-input').value = activePane.path;
+  showModal('search-modal');
+  document.getElementById('search-name-pattern')?.focus();
+}
+
+async function runGlobalSearch() {
+  const path = document.getElementById('search-root-input').value.trim();
+  const name_pattern = document.getElementById('search-name-pattern').value.trim() || null;
+  const content_query = document.getElementById('search-content-query').value.trim() || null;
+  const file_type = document.getElementById('search-file-type').value;
+  const case_sensitive = document.getElementById('search-case-sensitive').checked;
+  const date_val = document.getElementById('search-date-filter').value;
+  const modified_days = date_val !== 'all' ? parseInt(date_val, 10) : null;
+
+  const tbody = document.getElementById('search-results-tbody');
+  const stats = document.getElementById('search-results-stats');
+
+  tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--accent); padding: 20px;">Searching directories...</td></tr>';
+  stats.textContent = 'Searching...';
+
+  const resp = await fetch('/api/tools/search', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
+    body: JSON.stringify({
+      path,
+      name_pattern,
+      content_query,
+      file_type: file_type !== 'any' ? file_type : null,
+      case_sensitive,
+      modified_days,
+      max_results: 300
+    })
+  });
+
+  if (!resp.ok) {
+    tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--danger); padding: 20px;">Search failed: ${await resp.text()}</td></tr>`;
+    return;
+  }
+
+  const items = await resp.json();
+  stats.textContent = `${items.length} items found`;
+
+  if (items.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 20px;">No matching files or content found</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = items.map(item => `
+    <tr class="file-row">
+      <td>
+        <div style="font-weight: 600; font-size: 12px; color: var(--text-main);">${escapeHtml(item.name)}</div>
+        <div style="font-size: 10px; color: var(--text-muted); font-family: var(--font-mono);">${escapeHtml(item.path)}</div>
+        ${item.matched_lines && item.matched_lines.length > 0 ? `
+          <div style="margin-top: 4px; padding: 4px 6px; background: #090a0d; border-radius: 3px; font-family: var(--font-mono); font-size: 10px; color: var(--accent);">
+            ${item.matched_lines.map(l => escapeHtml(l)).join('<br>')}
+          </div>
+        ` : ''}
+      </td>
+      <td class="file-cell-mono">${item.is_dir ? '<DIR>' : formatBytes(item.size)}</td>
+      <td class="file-cell-mono">${item.modified ? formatDate(item.modified) : '-'}</td>
+      <td>
+        <button class="btn btn-icon" onclick="jumpToSearchResult('${escapeHtml(item.path)}', ${item.is_dir})" title="Open / Jump"><i data-lucide="external-link" style="width:12px;"></i></button>
+      </td>
+    </tr>
+  `).join('');
+
+  if (window.lucide) lucide.createIcons();
+}
+
+function jumpToSearchResult(filePath, isDir) {
+  closeModal('search-modal');
+  if (isDir) {
+    loadPaneDirectory(App.activePaneIndex, filePath);
+  } else {
+    const parentDir = filePath.substring(0, filePath.lastIndexOf('/')) || '/';
+    loadPaneDirectory(App.activePaneIndex, parentDir);
+    if (isImageExtension(filePath)) {
+      openImageViewer(filePath);
+    } else {
+      openEditorWithFile(filePath);
+    }
+  }
+}
+
+// ---------------- CUSTOM SCRIPT ACTIONS RUNNER ----------------
+
+async function runPredefinedAction(command, label) {
+  const activePane = App.panes[App.activePaneIndex];
+  const paths = getSelectedOrCursorPaths();
+
+  const req = {
+    command,
+    working_dir: activePane.path,
+    selected_files: paths.length > 0 ? paths : [activePane.path],
+    target_dir: activePane.path
+  };
+
+  document.getElementById('action-output-title').textContent = `⚡ Action: ${label}`;
+  document.getElementById('action-output-cmd').textContent = `$ ${command}`;
+  document.getElementById('action-output-status').textContent = 'RUNNING...';
+  document.getElementById('action-output-status').style.color = 'var(--accent)';
+  document.getElementById('action-output-duration').textContent = '...';
+  document.getElementById('action-output-text').textContent = 'Executing command on server...';
+
+  showModal('action-output-modal');
+
+  const resp = await fetch('/api/actions/run', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
+    body: JSON.stringify(req)
+  });
+
+  if (!resp.ok) {
+    document.getElementById('action-output-status').textContent = 'FAILED';
+    document.getElementById('action-output-status').style.color = 'var(--danger)';
+    document.getElementById('action-output-text').textContent = await resp.text();
+    return;
+  }
+
+  const res = await resp.json();
+  document.getElementById('action-output-status').textContent = res.success ? `SUCCESS (Code ${res.exit_code || 0})` : `FAILED (Code ${res.exit_code || 1})`;
+  document.getElementById('action-output-status').style.color = res.success ? 'var(--success)' : 'var(--danger)';
+  document.getElementById('action-output-duration').textContent = `${res.duration_ms}ms`;
+  document.getElementById('action-output-cmd').textContent = `$ ${res.executed_command}`;
+  document.getElementById('action-output-text').textContent = (res.stdout || '') + (res.stderr ? `\n--- STDERR ---\n${res.stderr}` : '') || '(No output produced)';
+
+  refreshPane(App.activePaneIndex);
+}
+
+function copyActionOutput() {
+  const text = document.getElementById('action-output-text').textContent;
+  navigator.clipboard.writeText(text).then(() => alert('Output copied to clipboard!'));
 }
 
 
