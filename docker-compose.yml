@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  commanderdog:
+    build: .
+    container_name: commanderdog
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/data
+      - ./conf.d:/etc/commanderdog/conf.d:ro
+      - /home:/home:rw
+      - /mnt:/mnt:rw
+    environment:
+      - RUST_LOG=commanderdog=info,tower_http=info
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/api/config || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

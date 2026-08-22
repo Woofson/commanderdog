@@ -1,0 +1,51 @@
+# CommanderDog Theme Palette & Aesthetics
+[themes]
+default_theme = "amber-charcoal"
+
+[[themes.themes]]
+id = "amber-charcoal"
+name = "Amber Charcoal (Dog Classic)"
+bg_dark = "#121214"
+bg_panel = "#18181b"
+bg_active = "#27272a"
+accent = "#f59e0b"
+accent_hover = "#fbbf24"
+text_main = "#f4f4f5"
+text_muted = "#a1a1aa"
+border = "#3f3f46"
+
+[[themes.themes]]
+id = "midnight-blue"
+name = "Midnight Commander Blue"
+bg_dark = "#000044"
+bg_panel = "#000088"
+bg_active = "#0000aa"
+accent = "#00ffff"
+accent_hover = "#ffffff"
+text_main = "#ffffff"
+text_muted = "#a0a0ff"
+border = "#00aaff"
+
+[[themes.themes]]
+id = "nord"
+name = "Nord Frost"
+bg_dark = "#242933"
+bg_panel = "#2e3440"
+bg_active = "#3b4252"
+accent = "#88c0d0"
+accent_hover = "#81a1c1"
+text_main = "#eceff4"
+text_muted = "#d8dee9"
+border = "#4c566a"
+
+[[themes.themes]]
+id = "dracula"
+name = "Dracula Dark"
+bg_dark = "#1e1f29"
+bg_panel = "#282a36"
+bg_active = "#44475a"
+accent = "#bd93f9"
+accent_hover = "#ff79c6"
+text_main = "#f8f8f2"
+text_muted = "#6272a4"
+border = "#6272a4"

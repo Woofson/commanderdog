@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CommanderDog - Quad-Pane Web Commander</title>
+  <link rel="stylesheet" href="app.css">
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Mermaid.js CDN for Markdown Diagrams -->
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+</head>
+<body>
+
+  <!-- Top Application Header -->
+  <header class="app-header">
+    <div class="logo-area">
+      <span>🐕 CommanderDog</span>
+      <span class="dog-badge">QUAD-PANE</span>
+    </div>
+
+    <!-- Center Layout & Quick Actions -->
+    <div class="header-actions">
+      <!-- Layout Switcher -->
+      <div style="display: flex; gap: 2px; background: var(--bg-dark); padding: 2px; border-radius: 4px; border: 1px solid var(--border);">
+        <button class="btn btn-icon" id="layout-1" title="Single Pane (Alt+1)"><i data-lucide="square"></i></button>
+        <button class="btn btn-icon" id="layout-2v" title="Dual Vertical Split (Alt+2)"><i data-lucide="columns-2"></i></button>
+        <button class="btn btn-icon" id="layout-2h" title="Dual Horizontal Split"><i data-lucide="rows-2"></i></button>
+        <button class="btn btn-icon" id="layout-3" title="Triple Pane (Alt+3)"><i data-lucide="columns-3"></i></button>
+        <button class="btn btn-icon" id="layout-4" title="Quad Pane 2x2 (Alt+4)"><i data-lucide="grid-2x2"></i></button>
+      </div>
+
+      <!-- Paranoid Mode Switch -->
+      <div class="paranoid-badge" id="paranoid-toggle" title="Toggle Paranoid File Handling Mode (Pre-flight dry runs, post-transfer SHA256 verification)">
+        <i data-lucide="shield-check" style="width: 14px; height: 14px;"></i>
+        <span>PARANOID MODE</span>
+      </div>
+
+      <!-- Quick Action Buttons -->
+      <button class="btn" id="btn-open-editor" title="Dual-Pane Editor / Markdown Reader (F4)"><i data-lucide="code"></i> Editor</button>
+      <button class="btn" id="btn-open-diff" title="File & Folder Comparison (Ctrl+D)"><i data-lucide="git-compare"></i> Compare / Diff</button>
+      <button class="btn" id="btn-refresh-all" title="Refresh All Panels"><i data-lucide="rotate-cw"></i></button>
+    </div>
+
+    <!-- Right Controls: Themes, Settings, User -->
+    <div class="header-actions">
+      <select id="theme-selector" class="btn" style="padding: 4px 8px;">
+        <option value="amber-charcoal">Woofson Amber (Default)</option>
+        <option value="midnight-blue">Midnight Commander Blue</option>
+        <option value="nord">Nord Frost</option>
+        <option value="dracula">Dracula Dark</option>
+      </select>
+      <button class="btn" id="btn-open-settings" title="Settings, Bookmarks & conf.d (F10)"><i data-lucide="settings"></i> Settings</button>
+      <button class="btn btn-danger" id="btn-logout" title="Logout"><i data-lucide="log-out"></i></button>
+    </div>
+  </header>
+
+  <!-- Main Multi-Pane Workspace -->
+  <main class="main-workspace">
+    <div class="panes-container layout-dual-vertical" id="panes-grid">
+      <!-- Panes 1 to 4 dynamically rendered via app.js -->
+    </div>
+  </main>
+
+  <!-- Bottom Function Key Bar (Midnight Commander Style) -->
+  <footer class="bottom-fkey-bar">
+    <button class="fkey-btn" onclick="openHelpModal()"><span class="fkey-num">F1</span> Help</button>
+    <button class="fkey-btn" onclick="triggerRename()"><span class="fkey-num">F2</span> Rename</button>
+    <button class="fkey-btn" onclick="triggerView()"><span class="fkey-num">F3</span> View</button>
+    <button class="fkey-btn" onclick="triggerEditor()"><span class="fkey-num">F4</span> Edit</button>
+    <button class="fkey-btn" onclick="triggerCopy()"><span class="fkey-num">F5</span> Copy</button>
+    <button class="fkey-btn" onclick="triggerMove()"><span class="fkey-num">F6</span> Move</button>
+    <button class="fkey-btn" onclick="triggerMkdir()"><span class="fkey-num">F7</span> Mkdir</button>
+    <button class="fkey-btn" onclick="triggerDelete()"><span class="fkey-num">F8</span> Delete</button>
+    <button class="fkey-btn" onclick="triggerDiff()"><span class="fkey-num">F9</span> Diff</button>
+    <button class="fkey-btn" onclick="openSettingsModal()"><span class="fkey-num">F10</span> Settings</button>
+  </footer>
+
+  <!-- Right Click Context Menu -->
+  <div id="context-menu" class="context-menu">
+    <div class="context-item" onclick="triggerView()"><i data-lucide="eye" style="width: 14px;"></i> Quick View (F3)</div>
+    <div class="context-item" onclick="triggerEditor()"><i data-lucide="file-edit" style="width: 14px;"></i> Edit File (F4)</div>
+    <div class="context-item" onclick="triggerDiff()"><i data-lucide="git-compare" style="width: 14px;"></i> Compare / Diff</div>
+    <div class="context-sep"></div>
+    <div class="context-item" onclick="triggerPermissions()"><i data-lucide="lock" style="width: 14px;"></i> Permissions & Ownership</div>
+    <div class="context-item" onclick="triggerCopy()"><i data-lucide="copy" style="width: 14px;"></i> Copy to Target Pane (F5)</div>
+    <div class="context-item" onclick="triggerMove()"><i data-lucide="move" style="width: 14px;"></i> Move to Target Pane (F6)</div>
+    <div class="context-item" onclick="triggerRename()"><i data-lucide="edit-3" style="width: 14px;"></i> Rename (F2)</div>
+    <div class="context-item" onclick="triggerDelete()"><i data-lucide="trash-2" style="width: 14px;"></i> Delete / Move to Trash (F8)</div>
+    <div class="context-sep"></div>
+    <div class="context-item" onclick="triggerChecksum()"><i data-lucide="shield-check" style="width: 14px;"></i> Calculate SHA-256 Hash</div>
+    <div class="context-item" onclick="triggerArchiveZip()"><i data-lucide="archive" style="width: 14px;"></i> Compress to .zip</div>
+    <div class="context-item" onclick="triggerArchiveTarGz()"><i data-lucide="archive" style="width: 14px;"></i> Compress to .tar.gz</div>
+    <div class="context-item" onclick="triggerExtract()"><i data-lucide="folder-archive" style="width: 14px;"></i> Extract Archive Here</div>
+  </div>
+
+  <!-- Linux / Unix Permissions & Ownership Manager Modal -->
+  <div class="modal-overlay" id="permissions-modal">
+    <div class="modal-box" style="width: 500px;">
+      <div class="modal-header">
+        <span>🔒 Unix Permissions & Ownership Manager</span>
+        <button class="btn" onclick="closeModal('permissions-modal')"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <div>
+            <div style="font-weight: 700; font-size: 13px;" id="perm-target-name">filename.txt</div>
+            <div style="font-size: 11px; color: var(--text-muted); font-family: var(--font-mono);" id="perm-target-path">/path/to/file</div>
+          </div>
+          <div class="perm-octal-badge" id="perm-octal-display">0755</div>
+        </div>
+
+        <!-- 3x3 Permission Matrix -->
+        <table class="perm-matrix">
+          <thead>
+            <tr>
+              <th>Class</th>
+              <th>Read (r - 4)</th>
+              <th>Write (w - 2)</th>
+              <th>Execute (x - 1)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="font-weight: 600; color: var(--accent);">Owner (User)</td>
+              <td><input type="checkbox" id="perm-u-r" onchange="updatePermFromCheckboxes()"></td>
+              <td><input type="checkbox" id="perm-u-w" onchange="updatePermFromCheckboxes()"></td>
+              <td><input type="checkbox" id="perm-u-x" onchange="updatePermFromCheckboxes()"></td>
+            </tr>
+            <tr>
+              <td style="font-weight: 600; color: var(--info);">Group</td>
+              <td><input type="checkbox" id="perm-g-r" onchange="updatePermFromCheckboxes()"></td>
+              <td><input type="checkbox" id="perm-g-w" onchange="updatePermFromCheckboxes()"></td>
+              <td><input type="checkbox" id="perm-g-x" onchange="updatePermFromCheckboxes()"></td>
+            </tr>
+            <tr>
+              <td style="font-weight: 600; color: var(--text-muted);">Others (Public)</td>
+              <td><input type="checkbox" id="perm-o-r" onchange="updatePermFromCheckboxes()"></td>
+              <td><input type="checkbox" id="perm-o-w" onchange="updatePermFromCheckboxes()"></td>
+              <td><input type="checkbox" id="perm-o-x" onchange="updatePermFromCheckboxes()"></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- Quick 1-Click Presets -->
+        <div style="margin-top: 10px;">
+          <span style="font-size: 11px; color: var(--text-muted); font-weight: 600;">1-Click Presets:</span>
+          <div class="perm-preset-container">
+            <button class="perm-chip" onclick="applyPermPreset(0o644)">📄 Standard File (0644)</button>
+            <button class="perm-chip" onclick="applyPermPreset(0o755)">⚡ Executable / Script (0755)</button>
+            <button class="perm-chip" onclick="applyPermPreset(0o600)">🔒 Private & Secure (0600)</button>
+            <button class="perm-chip" onclick="applyPermPreset(0o700)">📁 Private Dir / SSH (0700)</button>
+            <button class="perm-chip" onclick="applyPermPreset(0o777)">🌐 Full Public (0777)</button>
+          </div>
+        </div>
+
+        <!-- Ownership Selector -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px;">
+          <div class="form-group" style="margin-bottom: 0;">
+            <label>Owner (User):</label>
+            <select id="perm-owner-select" class="pane-quick-filter" style="width: 100%;"></select>
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label>Group:</label>
+            <select id="perm-group-select" class="pane-quick-filter" style="width: 100%;"></select>
+          </div>
+        </div>
+
+        <!-- Recursive check -->
+        <div style="margin-top: 12px; display: flex; align-items: center; gap: 6px;">
+          <input type="checkbox" id="perm-recursive">
+          <label for="perm-recursive" style="font-size: 11px; color: var(--text-muted); cursor: pointer;">Apply recursively to all subdirectories & files (-R)</label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="closeModal('permissions-modal')">Cancel</button>
+        <button class="btn btn-accent" id="btn-save-permissions">Apply Permissions</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Comprehensive Tabbed Settings Modal -->
+  <div class="modal-overlay" id="settings-modal">
+    <div class="modal-box" style="width: 800px; height: 85vh;">
+      <div class="modal-header">
+        <span>⚙️ CommanderDog Settings & System Overview</span>
+        <button class="btn" onclick="closeModal('settings-modal')"><i data-lucide="x"></i></button>
+      </div>
+      
+      <!-- Settings Tabs Header -->
+      <div class="settings-tabs">
+        <button class="settings-tab-btn active" onclick="switchSettingsTab('tab-general')"><i data-lucide="sliders"></i> General</button>
+        <button class="settings-tab-btn" onclick="switchSettingsTab('tab-paranoid')"><i data-lucide="shield-check"></i> Paranoid Mode</button>
+        <button class="settings-tab-btn" onclick="switchSettingsTab('tab-palette')"><i data-lucide="palette"></i> Palette & Theme</button>
+        <button class="settings-tab-btn" onclick="switchSettingsTab('tab-bookmarks')"><i data-lucide="bookmark"></i> Bookmarks</button>
+        <button class="settings-tab-btn" onclick="switchSettingsTab('tab-users')"><i data-lucide="users"></i> Users</button>
+        <button class="settings-tab-btn" onclick="switchSettingsTab('tab-confd')"><i data-lucide="folder-cog"></i> conf.d Engine</button>
+        <button class="settings-tab-btn" onclick="switchSettingsTab('tab-keys')"><i data-lucide="keyboard"></i> Keybindings</button>
+      </div>
+
+      <div class="modal-body" style="padding: 0;">
+        <!-- Tab 1: General -->
+        <div class="settings-tab-content active" id="tab-general">
+          <div class="form-group">
+            <label>Hidden Files & Dotfiles:</label>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <input type="checkbox" id="setting-show-hidden" checked>
+              <span>Show hidden files and dotfiles (e.g. <code>.bashrc</code>, <code>.git</code>) by default</span>
+            </div>
+            <div class="form-hint">You can also quickly toggle this per pane using the dotfile button in the toolbar.</div>
+          </div>
+          <div class="form-group">
+            <label>Default Layout:</label>
+            <select id="setting-default-layout" class="pane-quick-filter" style="width: 250px;">
+              <option value="layout-single">1 Single Pane</option>
+              <option value="layout-dual-vertical" selected>2 Panes (Dual Vertical)</option>
+              <option value="layout-dual-horizontal">2 Panes (Dual Horizontal)</option>
+              <option value="layout-triple">3 Panes (Triple)</option>
+              <option value="layout-quad">4 Panes (2x2 Quad Grid)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Confirmations & Safety:</label>
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <label style="font-weight: normal;"><input type="checkbox" id="setting-confirm-delete" checked> Confirm before deleting files</label>
+              <label style="font-weight: normal;"><input type="checkbox" id="setting-confirm-overwrite" checked> Confirm before overwriting existing files</label>
+              <label style="font-weight: normal;"><input type="checkbox" id="setting-remember-paths" checked> Remember last opened directories across sessions</label>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Bottom Function Key Bar (F1..F10):</label>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <input type="checkbox" id="setting-show-fkeys" checked onchange="toggleFKeyBar(this.checked)">
+              <span>Show orthodox commander function key bar at the bottom</span>
+            </div>
+            <div class="form-hint">Uncheck to hide the bottom bar and give more vertical room to directory panels.</div>
+          </div>
+
+          <div class="form-group">
+            <label>Interface & File Manager Text Size:</label>
+            <div class="slider-container">
+              <input type="range" min="10" max="18" value="13" class="range-slider" id="setting-font-size-slider" oninput="handleFontSizeChange(this.value)">
+              <span class="slider-val-badge" id="setting-font-size-val">13px</span>
+            </div>
+            <div class="perm-preset-container" style="margin-top: 6px;">
+              <button class="perm-chip" onclick="setFontSizePreset(11)">Compact (11px)</button>
+              <button class="perm-chip" onclick="setFontSizePreset(13)">Standard (13px)</button>
+              <button class="perm-chip" onclick="setFontSizePreset(15)">Medium (15px)</button>
+              <button class="perm-chip" onclick="setFontSizePreset(17)">Large (17px)</button>
+            </div>
+            <div class="form-hint">Adjust text size smoothly across file tables, breadcrumbs, and panes.</div>
+          </div>
+        </div>
+
+        <!-- Tab 2: Paranoid Mode -->
+        <div class="settings-tab-content" id="tab-paranoid">
+          <div class="form-group">
+            <label>Paranoid File Verification:</label>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <input type="checkbox" id="setting-paranoid-enabled" checked>
+              <span>Enable Paranoid File Handling Mode by default</span>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Integrity Checksum Algorithm:</label>
+            <select id="setting-checksum-algo" class="pane-quick-filter" style="width: 200px;">
+              <option value="sha256" selected>SHA-256 (Recommended)</option>
+              <option value="md5">MD5</option>
+              <option value="sha1">SHA-1</option>
+            </select>
+            <div class="form-hint">Files transferred in Paranoid mode will have their cryptographic checksum verified upon write completion.</div>
+          </div>
+          <div class="form-group">
+            <label>Atomic Writes:</label>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <input type="checkbox" id="setting-atomic-writes" checked>
+              <span>Write to temporary file and atomically rename upon completion</span>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Safe Trash Bin:</label>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <input type="checkbox" id="setting-trash-enabled" checked>
+              <span>Move deleted files to XDG Trash (<code>~/.local/share/Trash</code>) instead of permanent deletion</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 3: Palette & Themes -->
+        <div class="settings-tab-content" id="tab-palette">
+          <h4 style="color: var(--accent); margin-bottom: 8px;">🐕 Woofson Golden Amber Design Tokens</h4>
+          <p style="color: var(--text-muted); font-size: 11px; margin-bottom: 12px;">The unified design palette for CommanderDog, NoteDog, and DotDog.</p>
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px;">
+            <div style="background: #121214; border: 1px solid #3f3f46; padding: 8px; border-radius: 4px;">
+              <span style="display:inline-block; width:12px; height:12px; background:#121214; border:1px solid #71717a; border-radius:2px;"></span>
+              <b>bg-void</b>: <code>#121214</code>
+            </div>
+            <div style="background: #18181b; border: 1px solid #3f3f46; padding: 8px; border-radius: 4px;">
+              <span style="display:inline-block; width:12px; height:12px; background:#18181b; border:1px solid #71717a; border-radius:2px;"></span>
+              <b>bg-panel</b>: <code>#18181b</code>
+            </div>
+            <div style="background: #202024; border: 1px solid #3f3f46; padding: 8px; border-radius: 4px;">
+              <span style="display:inline-block; width:12px; height:12px; background:#202024; border:1px solid #71717a; border-radius:2px;"></span>
+              <b>bg-header</b>: <code>#202024</code>
+            </div>
+            <div style="background: #27272a; border: 1px solid #3f3f46; padding: 8px; border-radius: 4px;">
+              <span style="display:inline-block; width:12px; height:12px; background:#f59e0b; border-radius:2px;"></span>
+              <b>accent-core</b>: <code style="color:#f59e0b;">#f59e0b</code>
+            </div>
+            <div style="background: #27272a; border: 1px solid #3f3f46; padding: 8px; border-radius: 4px;">
+              <span style="display:inline-block; width:12px; height:12px; background:#fbbf24; border-radius:2px;"></span>
+              <b>accent-hover</b>: <code style="color:#fbbf24;">#fbbf24</code>
+            </div>
+            <div style="background: #27272a; border: 1px solid #3f3f46; padding: 8px; border-radius: 4px;">
+              <span style="display:inline-block; width:12px; height:12px; background:#3f3f46; border-radius:2px;"></span>
+              <b>border</b>: <code>#3f3f46</code>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 4: Bookmarks & Remotes -->
+        <div class="settings-tab-content" id="tab-bookmarks">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <span style="font-weight: 600;">Saved Bookmarks & Remote Mounts</span>
+            <button class="btn btn-accent" onclick="addNewBookmark()"><i data-lucide="plus"></i> Add Bookmark</button>
+          </div>
+          <table class="file-table">
+            <thead>
+              <tr><th>Name</th><th>Protocol</th><th>Target Path / URL</th><th>Action</th></tr>
+            </thead>
+            <tbody id="bookmarks-table-body">
+              <tr>
+                <td>Home Directory</td>
+                <td><span style="color:var(--accent);">LOCAL</span></td>
+                <td><code>/home/bolt</code></td>
+                <td><button class="btn btn-icon"><i data-lucide="trash-2" style="width:12px;"></i></button></td>
+              </tr>
+              <tr>
+                <td>Root Filesystem</td>
+                <td><span style="color:var(--accent);">LOCAL</span></td>
+                <td><code>/</code></td>
+                <td><button class="btn btn-icon"><i data-lucide="trash-2" style="width:12px;"></i></button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Tab 5: Users (Admin) -->
+        <div class="settings-tab-content" id="tab-users">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <span style="font-weight: 600;">System & Internal User Accounts</span>
+            <button class="btn btn-accent" onclick="showAddUserPrompt()"><i data-lucide="user-plus"></i> New User</button>
+          </div>
+          <table class="file-table">
+            <thead>
+              <tr><th>ID</th><th>Username</th><th>Role</th><th>Home Directory</th><th>Auth Engine</th></tr>
+            </thead>
+            <tbody id="users-table-body"></tbody>
+          </table>
+        </div>
+
+        <!-- Tab 6: conf.d Inspector -->
+        <div class="settings-tab-content" id="tab-confd">
+          <p style="color: var(--text-muted); font-size: 11px; margin-bottom: 10px;">
+            CommanderDog scans <code>./conf.d/*.toml</code>, <code>~/.config/commanderdog/conf.d/*.toml</code>, and <code>/etc/commanderdog/conf.d/*.toml</code> and deep-merges them in alphabetical/numerical sorting order.
+          </p>
+          <div id="confd-files-list"></div>
+        </div>
+
+        <!-- Tab 7: Keybindings -->
+        <div class="settings-tab-content" id="tab-keys">
+          <table class="file-table">
+            <tr><th style="width: 140px;">Key</th><th>Action</th></tr>
+            <tr><td><code>Tab / Shift+Tab</code></td><td>Switch Active Focused Pane</td></tr>
+            <tr><td><code>F1</code></td><td>Quick Help</td></tr>
+            <tr><td><code>F2</code></td><td>Rename Selected File / Directory</td></tr>
+            <tr><td><code>F3</code></td><td>Quick View / File Preview</td></tr>
+            <tr><td><code>F4</code></td><td>Dual-Pane Editor / Markdown & Mermaid Viewer</td></tr>
+            <tr><td><code>F5</code></td><td>Copy Selected Items to Target Pane</td></tr>
+            <tr><td><code>F6</code></td><td>Move Selected Items to Target Pane</td></tr>
+            <tr><td><code>F7</code></td><td>Create New Folder (Mkdir)</td></tr>
+            <tr><td><code>F8 / Delete</code></td><td>Delete / Move to Trash</td></tr>
+            <tr><td><code>F9 / Ctrl+D</code></td><td>Folder & File Comparison (Diff)</td></tr>
+            <tr><td><code>F10</code></td><td>Settings & Configuration</td></tr>
+            <tr><td><code>Alt + 1..4</code></td><td>Direct Focus to Pane 1, 2, 3, or 4</td></tr>
+            <tr><td><code>Insert / Space</code></td><td>Toggle Selection & Step Down</td></tr>
+            <tr><td><code>Ctrl + A</code></td><td>Select All in Current Pane</td></tr>
+            <tr><td><code>Ctrl + P</code></td><td>Toggle Paranoid File Handling Mode</td></tr>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-accent" onclick="closeModal('settings-modal')">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dual-Pane Editor & Markdown Viewer Modal -->
+  <div class="modal-overlay" id="editor-modal">
+    <div class="modal-box editor-modal-box">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span>📝 Built-in Dual-Pane Editor & Markdown Viewer</span>
+          <select id="editor-view-mode" class="btn" style="padding: 2px 6px;">
+            <option value="split-markdown">Markdown & Live Mermaid Preview</option>
+            <option value="dual-files">Dual Files Side-by-Side</option>
+            <option value="single-editor">Single File Editor</option>
+          </select>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn btn-accent" id="btn-save-editor"><i data-lucide="save"></i> Save</button>
+          <button class="btn" onclick="closeModal('editor-modal')"><i data-lucide="x"></i></button>
+        </div>
+      </div>
+      <div class="editor-grid" id="editor-grid-container">
+        <div class="editor-pane" id="editor-left-pane">
+          <div style="background: var(--bg-header); padding: 4px 8px; font-family: var(--font-mono); font-size: 11px; border-bottom: 1px solid var(--border);" id="editor-file-title-left">
+            /path/to/file.md
+          </div>
+          <textarea class="editor-textarea" id="editor-text-left" spellcheck="false" placeholder="Write text or markdown..."></textarea>
+        </div>
+        <div class="editor-pane" id="editor-right-pane">
+          <div style="background: var(--bg-header); padding: 4px 8px; font-family: var(--font-mono); font-size: 11px; border-bottom: 1px solid var(--border);" id="editor-file-title-right">
+            Live Markdown & Mermaid Preview
+          </div>
+          <div class="markdown-preview-pane" id="editor-preview-container"></div>
+          <textarea class="editor-textarea" id="editor-text-right" style="display: none;" spellcheck="false"></textarea>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Diff & Comparison Modal -->
+  <div class="modal-overlay" id="diff-modal">
+    <div class="modal-box" style="width: 85vw; height: 80vh;">
+      <div class="modal-header">
+        <span>⚖️ Comparison & Diff Engine (Files & Folders)</span>
+        <button class="btn" onclick="closeModal('diff-modal')"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body" id="diff-modal-body"></div>
+    </div>
+  </div>
+
+  <!-- Quick Preview Modal -->
+  <div class="modal-overlay" id="preview-modal">
+    <div class="modal-box" style="width: 70vw; max-height: 80vh;">
+      <div class="modal-header">
+        <span id="preview-title">File Preview</span>
+        <button class="btn" onclick="closeModal('preview-modal')"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body" id="preview-body" style="font-family: var(--font-mono); font-size: 12px; white-space: pre-wrap; overflow: auto; max-height: 65vh;"></div>
+    </div>
+  </div>
+
+  <!-- Paranoid Dry Run & Verification Modal -->
+  <div class="modal-overlay" id="paranoid-modal">
+    <div class="modal-box" style="width: 550px;">
+      <div class="modal-header" style="color: var(--accent);">
+        <span>🛡️ Paranoid File Operation Confirmation</span>
+        <button class="btn" onclick="closeModal('paranoid-modal')"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body" id="paranoid-modal-body"></div>
+      <div class="modal-footer">
+        <button class="btn" onclick="closeModal('paranoid-modal')">Cancel</button>
+        <button class="btn btn-accent" id="btn-paranoid-proceed">Proceed with Verification</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mkdir Modal -->
+  <div class="modal-overlay" id="mkdir-modal">
+    <div class="modal-box" style="width: 400px;">
+      <div class="modal-header">
+        <span>📁 Create New Folder (F7)</span>
+        <button class="btn" onclick="closeModal('mkdir-modal')"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <label style="display: block; margin-bottom: 6px; font-size: 12px;">Folder Name:</label>
+        <input type="text" id="mkdir-input" class="pane-quick-filter" style="width: 100%; padding: 8px;" placeholder="new-folder">
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="closeModal('mkdir-modal')">Cancel</button>
+        <button class="btn btn-accent" id="btn-confirm-mkdir">Create</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Rename Modal -->
+  <div class="modal-overlay" id="rename-modal">
+    <div class="modal-box" style="width: 400px;">
+      <div class="modal-header">
+        <span>✏️ Rename Entry (F2)</span>
+        <button class="btn" onclick="closeModal('rename-modal')"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <label style="display: block; margin-bottom: 6px; font-size: 12px;">New Name / Destination:</label>
+        <input type="text" id="rename-input" class="pane-quick-filter" style="width: 100%; padding: 8px;">
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="closeModal('rename-modal')">Cancel</button>
+        <button class="btn btn-accent" id="btn-confirm-rename">Rename</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Login Modal -->
+  <div class="modal-overlay" id="login-modal">
+    <div class="modal-box" style="width: 360px;">
+      <div class="modal-header" style="justify-content: center;">
+        <span style="font-size: 16px; color: var(--accent);">🐕 CommanderDog Login</span>
+      </div>
+      <div class="modal-body">
+        <div style="margin-bottom: 12px;">
+          <label style="display: block; margin-bottom: 4px; font-size: 11px;">Username:</label>
+          <input type="text" id="login-username" class="pane-quick-filter" style="width: 100%; padding: 8px;" value="admin">
+        </div>
+        <div style="margin-bottom: 12px;">
+          <label style="display: block; margin-bottom: 4px; font-size: 11px;">Password:</label>
+          <input type="password" id="login-password" class="pane-quick-filter" style="width: 100%; padding: 8px;" value="commanderdog">
+        </div>
+        <div id="login-error" style="color: var(--danger); font-size: 11px; display: none;"></div>
+      </div>
+      <div class="modal-footer" style="justify-content: center;">
+        <button class="btn btn-accent" id="btn-submit-login" style="width: 100%;">Log In</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
