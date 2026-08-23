@@ -143,13 +143,15 @@
 
   <!-- Floating Touch Multi-Select Action Bar -->
   <div id="touch-action-bar" class="touch-action-bar">
-    <div class="touch-action-count" id="touch-selected-count">0 selected</div>
+    <div class="touch-action-left">
+      <button class="btn btn-sm btn-icon" onclick="clearActiveSelections()" title="Close Selection Mode"><i data-lucide="x"></i></button>
+      <span class="touch-action-count" id="touch-selected-count">0 selected</span>
+    </div>
     <div class="touch-action-btns">
       <button class="btn btn-sm btn-accent" onclick="triggerCopy()"><i data-lucide="copy"></i> Copy</button>
       <button class="btn btn-sm" onclick="triggerMove()"><i data-lucide="move"></i> Move</button>
-      <button class="btn btn-sm btn-danger" onclick="triggerDelete()"><i data-lucide="trash-2"></i> Delete</button>
-      <button class="btn btn-sm" onclick="showContextMenu(window.innerWidth/2, window.innerHeight/2)"><i data-lucide="more-horizontal"></i> More</button>
-      <button class="btn btn-sm btn-icon" onclick="clearActiveSelections()"><i data-lucide="x"></i></button>
+      <button class="btn btn-sm btn-danger btn-icon" onclick="triggerDelete()" title="Delete"><i data-lucide="trash-2"></i></button>
+      <button class="btn btn-sm" onclick="showTouchActionsMenu(event)"><i data-lucide="more-vertical"></i> Actions</button>
     </div>
   </div>
 

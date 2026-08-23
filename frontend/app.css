@@ -1130,6 +1130,59 @@ body {
   border-color: var(--accent);
 }
 
+/* Custom Styled Circular Checkboxes (Material / One UI style) */
+.custom-checkbox {
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  min-height: 20px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  background: var(--bg-dark);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.custom-checkbox:hover {
+  border-color: var(--accent);
+}
+
+.custom-checkbox.checked {
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.4);
+  transform: scale(1.05);
+}
+
+.custom-checkbox svg, .custom-checkbox i {
+  width: 12px;
+  height: 12px;
+  color: #121214;
+  stroke-width: 3.5;
+  display: none;
+}
+
+.custom-checkbox.checked svg, .custom-checkbox.checked i {
+  display: block;
+}
+
+.file-cell-select {
+  cursor: pointer;
+  padding: 0 6px !important;
+  width: 52px !important;
+  min-width: 52px !important;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
 /* Floating Touch Multi-Select Action Bar */
 .touch-action-bar {
   display: none;
@@ -1139,20 +1192,27 @@ body {
   right: 10px;
   background: var(--bg-header);
   border: 1px solid var(--accent);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8);
-  border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.85);
+  border-radius: 12px;
   padding: 8px 12px;
   z-index: 1000;
   align-items: center;
   justify-content: space-between;
+  backdrop-filter: blur(8px);
 }
 
 .touch-action-bar.active {
   display: flex;
 }
 
+.touch-action-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .touch-action-count {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   color: var(--accent);
   font-family: var(--font-mono);
@@ -1162,20 +1222,6 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
-}
-
-.file-cell-select {
-  cursor: pointer;
-  padding: 0 4px !important;
-  text-align: center;
-}
-
-.row-checkbox {
-  cursor: pointer;
-  accent-color: var(--accent);
-  width: 16px;
-  height: 16px;
-  vertical-align: middle;
 }
 
 /* Mobile & Touch Optimizations */

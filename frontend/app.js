@@ -184,8 +184,10 @@ function createPaneElement(pane, index) {
       <table class="file-table">
         <thead>
           <tr>
-            <th style="width: 48px; text-align: center;" onclick="event.stopPropagation(); toggleSelectAll(${index})" title="Select All">
-              <input type="checkbox" id="select-all-${index}" style="cursor: pointer; width: 15px; height: 15px; accent-color: var(--accent); vertical-align: middle;">
+            <th style="width: 52px; text-align: center;" onclick="event.stopPropagation(); toggleSelectAll(${index})" title="Select All">
+              <div class="custom-checkbox" id="select-all-${index}">
+                <i data-lucide="check"></i>
+              </div>
             </th>
             <th onclick="sortPane(${index}, 'name')">Name</th>
             <th style="width: 75px;" onclick="sortPane(${index}, 'size')">Size</th>
@@ -333,9 +335,13 @@ function renderPaneTable(paneIndex) {
   });
 
   // Update Header Select All Checkbox state
-  const selectAllCb = document.getElementById(`select-all-${paneIndex}`);
-  if (selectAllCb) {
-    selectAllCb.checked = (filtered.length > 0 && pane.selected.size === filtered.length);
+  const selectAllEl = document.getElementById(`select-all-${paneIndex}`);
+  if (selectAllEl) {
+    if (filtered.length > 0 && pane.selected.size === filtered.length) {
+      selectAllEl.classList.add('checked');
+    } else {
+      selectAllEl.classList.remove('checked');
+    }
   }
 
   filtered.forEach((entry, idx) => {
@@ -356,6 +362,7 @@ function renderPaneTable(paneIndex) {
     let touchStartY = 0;
     let isLongPress = false;
 
+    // Standard Android tap-and-hold for multi-select
     tr.ontouchstart = (e) => {
       touchStartX = e.touches[0].clientX;
       touchStartY = e.touches[0].clientY;
@@ -365,14 +372,14 @@ function renderPaneTable(paneIndex) {
         setActivePane(paneIndex);
         App.contextItem = entry;
         App.contextPaneIndex = paneIndex;
+        // Select held item
         if (!pane.selected.has(entry.path)) {
           pane.selected.add(entry.path);
           renderPaneTable(paneIndex);
         }
         updateTouchActionBar();
         if (navigator.vibrate) navigator.vibrate(40);
-        showContextMenu(touchStartX, touchStartY);
-      }, 400);
+      }, 350);
     };
 
     tr.ontouchend = () => {
@@ -382,7 +389,7 @@ function renderPaneTable(paneIndex) {
     tr.ontouchmove = (e) => {
       const dx = Math.abs(e.touches[0].clientX - touchStartX);
       const dy = Math.abs(e.touches[0].clientY - touchStartY);
-      if (dx > 12 || dy > 12) {
+      if (dx > 10 || dy > 10) {
         if (touchTimer) clearTimeout(touchTimer);
       }
     };
@@ -391,7 +398,7 @@ function renderPaneTable(paneIndex) {
       if (isLongPress) return;
       setActivePane(paneIndex);
 
-      if (e.target.closest('.file-cell-select') || e.target.classList.contains('row-checkbox')) {
+      if (e.target.closest('.file-cell-select') || e.target.closest('.custom-checkbox')) {
         toggleRowSelect(paneIndex, entry.path, idx);
         return;
       }
@@ -400,6 +407,7 @@ function renderPaneTable(paneIndex) {
 
       if (isTouch) {
         if (pane.selected.size > 0) {
+          // If in multi-select mode, tapping any row toggles selection
           toggleRowSelect(paneIndex, entry.path, idx);
           return;
         } else {
@@ -450,8 +458,10 @@ function renderPaneTable(paneIndex) {
 
     tr.innerHTML = `
       <td class="file-cell file-cell-select" onclick="event.stopPropagation(); toggleRowSelect(${paneIndex}, '${escapeHtml(entry.path)}', ${idx})">
-        <input type="checkbox" class="row-checkbox" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation(); toggleRowSelect(${paneIndex}, '${escapeHtml(entry.path)}', ${idx})">
-        <i data-lucide="${iconName}" class="file-icon ${iconType}" style="width: 14px; height: 14px;"></i>
+        <div class="custom-checkbox ${isSelected ? 'checked' : ''}">
+          <i data-lucide="check"></i>
+        </div>
+        <i data-lucide="${iconName}" class="file-icon ${iconType}" style="width: 15px; height: 15px; margin-left: 2px;"></i>
       </td>
       <td class="file-cell file-cell-name">
         <span>${entry.name}</span>
@@ -1127,7 +1137,13 @@ function showContextMenu(x, y) {
     <div class="context-item" onclick="quickTransferToPath('move', '${escapeHtml(d.path)}')"><i data-lucide="folder" style="width:13px;"></i> ${escapeHtml(d.name)}</div>
   `).join('');
 
+  const selectedCount = App.panes[App.activePaneIndex]?.selected?.size || 1;
+  const headerText = selectedCount > 1 ? `⚡ Actions (${selectedCount} items selected)` : `📄 ${escapeHtml(App.contextItem?.name || 'File Actions')}`;
+
   menu.innerHTML = `
+    <div style="padding: 8px 12px; font-size: 11px; font-weight: 700; color: var(--accent); border-bottom: 1px solid var(--border); font-family: var(--font-mono); text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">
+      ${headerText}
+    </div>
     <div class="context-item" onclick="triggerView()"><i data-lucide="eye" style="width: 14px;"></i> Quick View (F3)</div>
     <div class="context-item" onclick="triggerEditor()"><i data-lucide="file-edit" style="width: 14px;"></i> Edit File (F4)</div>
     <div class="context-item" onclick="triggerDiff()"><i data-lucide="git-compare" style="width: 14px;"></i> Compare / Diff</div>
@@ -1198,8 +1214,40 @@ function showContextMenu(x, y) {
   if (window.lucide) lucide.createIcons();
 
   menu.style.display = 'block';
-  menu.style.left = `${Math.min(x, window.innerWidth - 240)}px`;
-  menu.style.top = `${Math.min(y, window.innerHeight - 380)}px`;
+
+  if (window.innerWidth <= 768) {
+    // Mobile Bottom Sheet positioning
+    menu.style.position = 'fixed';
+    menu.style.left = '10px';
+    menu.style.right = '10px';
+    menu.style.width = 'calc(100vw - 20px)';
+    menu.style.maxHeight = '70vh';
+    menu.style.overflowY = 'auto';
+    menu.style.bottom = '56px';
+    menu.style.top = 'auto';
+    menu.style.borderRadius = '12px';
+  } else {
+    menu.style.position = 'fixed';
+    menu.style.left = `${Math.min(x, window.innerWidth - 240)}px`;
+    menu.style.top = `${Math.min(y, window.innerHeight - 380)}px`;
+    menu.style.right = 'auto';
+    menu.style.bottom = 'auto';
+    menu.style.width = 'auto';
+    menu.style.maxHeight = 'none';
+  }
+}
+
+function showTouchActionsMenu(e) {
+  if (e) e.stopPropagation();
+  const pane = App.panes[App.activePaneIndex];
+  if (!pane || pane.selected.size === 0) return;
+
+  const firstPath = Array.from(pane.selected)[0];
+  const entry = pane.entries.find(it => it.path === firstPath) || { path: firstPath, name: firstPath.split('/').pop() };
+  App.contextItem = entry;
+  App.contextPaneIndex = App.activePaneIndex;
+
+  showContextMenu(window.innerWidth / 2, window.innerHeight - 100);
 }
 
 function showEmptySpaceContextMenu(x, y, paneIndex) {
