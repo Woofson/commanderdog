@@ -130,12 +130,16 @@ async fn handle_login(
 ) -> Result<Json<LoginResponse>, (StatusCode, String)> {
     match state.auth.authenticate(&payload.username, &payload.password) {
         Ok(user) => {
+            tracing::info!(username = %user.username, is_pam = user.is_pam, role = %user.role, "User successfully authenticated");
             let token = state.auth.generate_token(&user).map_err(|e| {
                 (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to create token: {}", e))
             })?;
             Ok(Json(LoginResponse { token, user }))
         }
-        Err(_) => Err((StatusCode::UNAUTHORIZED, "Invalid username or password".to_string())),
+        Err(e) => {
+            tracing::warn!(username = %payload.username, error = %e, "Authentication failed");
+            Err((StatusCode::UNAUTHORIZED, "Invalid username or password".to_string()))
+        }
     }
 }
 

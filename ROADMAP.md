@@ -65,6 +65,13 @@
 
 ---
 
+### 🛡️ Linux PAM Authentication & Fallback Chain (v0.2.3)
+- [x] **PAM / Local Linux Account Fix**: Clean separation between database Argon2 verification and PAM authentication so `PAM_MANAGED` users log in seamlessly.
+- [x] **PAM Service Fallback Chain**: Multi-service auth chain (`login`, `common-auth`, `sudo`, `other`, `passwd`) for reliable authentication across all Linux distros, containers, and systemd services.
+- [x] **Auth Tracing & Audit Logs**: Detailed diagnostic logging for authentication attempts and role resolutions.
+
+---
+
 ## 📋 Upcoming Backlog (v0.3.0 & Future Milestones)
 
 ### 🔑 1. OAuth2 / OpenID Connect (OIDC) Single Sign-On (SSO)

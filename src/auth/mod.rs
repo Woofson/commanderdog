@@ -301,40 +301,45 @@ impl AuthManager {
     ) -> Result<User, Box<dyn std::error::Error + Send + Sync>> {
         // 1. If auth mode is mixed or builtin, try builtin DB first
         if self.auth_mode == "builtin" || self.auth_mode == "mixed" {
-            let conn = self.db.lock().map_err(|_| "DB lock poisoned")?;
-            let mut stmt = conn.prepare(
-                "SELECT id, username, password_hash, role, home_dir, nickname, email, avatar_url, allowed_services, is_pam FROM users WHERE username = ?1"
-            )?;
-            let user_res = stmt.query_row(params![username], |row| {
-                Ok((
-                    row.get::<_, i64>(0)?,
-                    row.get::<_, String>(1)?,
-                    row.get::<_, String>(2)?,
-                    row.get::<_, String>(3)?,
-                    row.get::<_, String>(4)?,
-                    row.get::<_, Option<String>>(5)?,
-                    row.get::<_, Option<String>>(6)?,
-                    row.get::<_, Option<String>>(7)?,
-                    row.get::<_, Option<String>>(8)?.unwrap_or_else(|| "[\"*\"]".to_string()),
-                    row.get::<_, i64>(9)? != 0,
-                ))
-            });
+            let user_res = {
+                let conn = self.db.lock().map_err(|_| "DB lock poisoned")?;
+                let mut stmt = conn.prepare(
+                    "SELECT id, username, password_hash, role, home_dir, nickname, email, avatar_url, allowed_services, is_pam FROM users WHERE username = ?1"
+                )?;
+                stmt.query_row(params![username], |row| {
+                    Ok((
+                        row.get::<_, i64>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, String>(2)?,
+                        row.get::<_, String>(3)?,
+                        row.get::<_, String>(4)?,
+                        row.get::<_, Option<String>>(5)?,
+                        row.get::<_, Option<String>>(6)?,
+                        row.get::<_, Option<String>>(7)?,
+                        row.get::<_, Option<String>>(8)?.unwrap_or_else(|| "[\"*\"]".to_string()),
+                        row.get::<_, i64>(9)? != 0,
+                    ))
+                }).optional()?
+            };
 
-            if let Ok((id, uname, hash_str, role, home_dir, nickname, email, avatar_url, allowed_services, is_pam)) = user_res {
-                let parsed_hash = PasswordHash::new(&hash_str)
-                    .map_err(|e| format!("Corrupt password hash: {}", e))?;
-                if Argon2::default().verify_password(password.as_bytes(), &parsed_hash).is_ok() {
-                    return Ok(User {
-                        id,
-                        username: uname,
-                        nickname,
-                        email,
-                        avatar_url,
-                        role,
-                        home_dir,
-                        is_pam,
-                        allowed_services,
-                    });
+            if let Some((id, uname, hash_str, role, home_dir, nickname, email, avatar_url, allowed_services, is_pam)) = user_res {
+                // Only verify Argon2 if this is a native DB user (not PAM_MANAGED)
+                if !is_pam && hash_str != "PAM_MANAGED" {
+                    if let Ok(parsed_hash) = PasswordHash::new(&hash_str) {
+                        if Argon2::default().verify_password(password.as_bytes(), &parsed_hash).is_ok() {
+                            return Ok(User {
+                                id,
+                                username: uname,
+                                nickname,
+                                email,
+                                avatar_url,
+                                role,
+                                home_dir,
+                                is_pam,
+                                allowed_services,
+                            });
+                        }
+                    }
                 }
             }
         }
@@ -343,36 +348,46 @@ impl AuthManager {
         if self.auth_mode == "pam" || self.auth_mode == "mixed" {
             #[cfg(feature = "pam")]
             {
-                if let Some(mut auth) = pam_auth::Authenticator::new(&self.pam_service) {
-                    auth.set_credentials(username, password);
-                    if auth.authenticate().is_ok() {
-                        let (home_dir, def_role) = get_linux_user_info(username);
-                        
-                        // Check if this PAM user already has a linked DB record
-                        if let Ok(Some(existing)) = self.get_user_by_username(username) {
-                            return Ok(existing);
+                let mut services = vec![self.pam_service.as_str()];
+                for fallback in &["common-auth", "sudo", "other", "passwd", "login"] {
+                    if !services.contains(fallback) {
+                        services.push(fallback);
+                    }
+                }
+
+                for svc in services {
+                    if let Some(mut auth) = pam_auth::Authenticator::new(svc) {
+                        auth.set_credentials(username, password);
+                        if auth.authenticate().is_ok() {
+                            let (home_dir, def_role) = get_linux_user_info(username);
+                            
+                            // Check if this PAM user already has a linked DB record
+                            if let Ok(Some(mut existing)) = self.get_user_by_username(username) {
+                                existing.is_pam = true;
+                                return Ok(existing);
+                            }
+
+                            // Auto-link new PAM user to DB profile
+                            let conn = self.db.lock().map_err(|_| "DB lock poisoned")?;
+                            let now = Utc::now().to_rfc3339();
+                            let _ = conn.execute(
+                                "INSERT OR IGNORE INTO users (username, password_hash, role, home_dir, allowed_services, is_pam, created_at) VALUES (?1, 'PAM_MANAGED', ?2, ?3, '[\"*\"]', 1, ?4)",
+                                params![username, def_role, home_dir, now],
+                            );
+                            let id = conn.last_insert_rowid();
+
+                            return Ok(User {
+                                id,
+                                username: username.to_string(),
+                                nickname: Some(username.to_string()),
+                                email: None,
+                                avatar_url: None,
+                                role: def_role,
+                                home_dir,
+                                is_pam: true,
+                                allowed_services: "[\"*\"]".to_string(),
+                            });
                         }
-
-                        // Auto-link new PAM user to DB profile
-                        let conn = self.db.lock().map_err(|_| "DB lock poisoned")?;
-                        let now = Utc::now().to_rfc3339();
-                        let _ = conn.execute(
-                            "INSERT OR IGNORE INTO users (username, password_hash, role, home_dir, allowed_services, is_pam, created_at) VALUES (?1, 'PAM_MANAGED', ?2, ?3, '[\"*\"]', 1, ?4)",
-                            params![username, def_role, home_dir, now],
-                        );
-                        let id = conn.last_insert_rowid();
-
-                        return Ok(User {
-                            id,
-                            username: username.to_string(),
-                            nickname: Some(username.to_string()),
-                            email: None,
-                            avatar_url: None,
-                            role: def_role,
-                            home_dir,
-                            is_pam: true,
-                            allowed_services: "[\"*\"]".to_string(),
-                        });
                     }
                 }
             }
