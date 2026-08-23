@@ -9,6 +9,10 @@
   <script src="https://unpkg.com/lucide@latest"></script>
   <!-- Mermaid.js CDN for Markdown Diagrams -->
   <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <!-- Prism.js for Syntax Highlighting -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
   <!-- Xterm.js for Full Native Terminal Emulation -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.min.css" />
   <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.min.js"></script>
@@ -21,13 +25,12 @@
   <header class="app-header">
     <div class="logo-area">
       <span>🐕 CommanderDog</span>
-      <span class="dog-badge">QUAD-PANE</span>
     </div>
 
-    <!-- Center Layout & Quick Actions (Desktop only) -->
-    <div class="header-actions desktop-header-tools">
+    <!-- Right-Aligned Tools & Controls (Desktop & Mobile) -->
+    <div class="header-actions header-actions-right">
       <!-- Layout Switcher -->
-      <div style="display: flex; gap: 2px; background: var(--bg-dark); padding: 2px; border-radius: 4px; border: 1px solid var(--border);">
+      <div class="desktop-only" style="display: flex; gap: 2px; background: var(--bg-dark); padding: 2px; border-radius: 4px; border: 1px solid var(--border);">
         <button class="btn btn-icon" id="layout-1" title="Single Pane (Alt+1)"><i data-lucide="square"></i></button>
         <button class="btn btn-icon" id="layout-2v" title="Dual Vertical Split (Alt+2)"><i data-lucide="columns-2"></i></button>
         <button class="btn btn-icon" id="layout-2h" title="Dual Horizontal Split"><i data-lucide="rows-2"></i></button>
@@ -35,40 +38,51 @@
         <button class="btn btn-icon" id="layout-4" title="Quad Pane 2x2 (Alt+4)"><i data-lucide="grid-2x2"></i></button>
       </div>
 
-      <!-- Paranoid Mode Switch -->
-      <div class="paranoid-badge" id="paranoid-toggle" title="Toggle Paranoid File Handling Mode (Pre-flight dry runs, post-transfer SHA256 verification)">
-        <i data-lucide="shield-check" style="width: 14px; height: 14px;"></i>
-        <span>PARANOID MODE</span>
+      <!-- Tools Dropdown Menu -->
+      <div class="tools-dropdown-wrapper desktop-only">
+        <button class="btn" id="btn-tools-menu" onclick="toggleToolsMenu(event)" title="Tools & Utilities"><i data-lucide="wrench"></i> Tools ▾</button>
+        <div class="tools-dropdown-menu" id="tools-dropdown-menu">
+          <div class="dropdown-item" onclick="triggerDiff()"><i data-lucide="git-compare"></i> Compare / Diff (F9)</div>
+          <div class="dropdown-item" onclick="showModal('editor-modal')"><i data-lucide="code"></i> Dual-Pane Editor (F4)</div>
+          <div class="dropdown-item" onclick="openSyncModal()"><i data-lucide="refresh-cw"></i> Directory Sync & Mirror</div>
+          <div class="dropdown-item" onclick="openSyncthingModal()"><i data-lucide="repeat"></i> Syncthing Dashboard</div>
+          <div class="dropdown-item" onclick="openConverterModal()"><i data-lucide="file-output"></i> ConvertX Converters</div>
+          <div class="dropdown-item" onclick="openSearchModal()"><i data-lucide="search"></i> Deep File Search (Ctrl+F)</div>
+          <div class="dropdown-item" onclick="showModal('tasks-modal'); loadTasksTable();"><i data-lucide="list-checks"></i> Background Tasks Queue</div>
+          <div class="dropdown-sep"></div>
+          <div class="dropdown-item" onclick="toggleParanoidMode()"><i data-lucide="shield-check"></i> Paranoid Mode: <span id="tools-paranoid-badge" style="color:var(--accent); font-weight:bold; margin-left:4px;">ON</span></div>
+        </div>
       </div>
 
-      <!-- Quick Action Buttons -->
-      <button class="btn" id="btn-open-editor" title="Dual-Pane Editor / Markdown Reader (F4)"><i data-lucide="code"></i> Editor</button>
-      <button class="btn" id="btn-open-diff" title="File & Folder Comparison (Ctrl+D)"><i data-lucide="git-compare"></i> Compare / Diff</button>
-      <button class="btn" id="btn-open-sync" title="Directory Synchronization & Mirror Engine"><i data-lucide="refresh-cw"></i> Sync</button>
-      <button class="btn" id="btn-open-syncthing" title="Syncthing Real-Time Sync Dashboard"><i data-lucide="repeat"></i> Syncthing</button>
-      <button class="btn" id="btn-open-search" title="Global Deep File & Content Search (Ctrl+F)"><i data-lucide="search"></i> Search</button>
-      <button class="btn" id="btn-toggle-terminal" title="Toggle Integrated Terminal (Ctrl+`)"><i data-lucide="terminal"></i> Terminal</button>
-      <button class="btn" id="btn-open-tasks" title="Background Transfers & Task Queue"><i data-lucide="list-checks"></i> Tasks</button>
-      <button class="btn" id="btn-refresh-all" title="Refresh All Panels"><i data-lucide="rotate-cw"></i></button>
-    </div>
+      <!-- Dedicated Terminal Button -->
+      <button class="btn" id="btn-toggle-terminal" onclick="toggleTerminal()" title="Toggle Integrated Terminal"><i data-lucide="terminal"></i> Terminal</button>
+      <button class="btn btn-icon desktop-only" id="btn-refresh-all" onclick="refreshAllPanes()" title="Refresh All Panels"><i data-lucide="rotate-cw"></i></button>
+      
+      <!-- User Profile & Admin Menu -->
+      <div class="profile-dropdown-wrapper">
+        <button class="btn profile-btn" id="btn-user-profile" onclick="toggleProfileMenu(event)">
+          <div class="profile-avatar-thumb" id="header-avatar-thumb">👤</div>
+          <span id="header-username-label">User</span>
+          <span class="user-role-badge" id="header-role-badge">ADMIN</span>
+          <i data-lucide="chevron-down" style="width: 12px; margin-left: 2px;"></i>
+        </button>
+        <div class="profile-dropdown-menu" id="profile-dropdown-menu">
+          <div class="profile-dropdown-header">
+            <div class="profile-avatar-large" id="menu-avatar-large">👤</div>
+            <div style="overflow: hidden;">
+              <div style="font-weight: 700; font-size: 13px;" id="menu-user-name">User</div>
+              <div style="font-size: 11px; color: var(--text-dim);" id="menu-user-email">user@localhost</div>
+              <span class="user-role-badge" id="menu-role-badge" style="margin-top: 4px; display: inline-block;">ADMIN</span>
+            </div>
+          </div>
+          <div class="dropdown-item" id="menu-admin-panel-item" onclick="openAdminPanel()"><i data-lucide="shield-alert" style="color: var(--accent);"></i> 👑 Admin Control Panel</div>
+          <div class="dropdown-item" onclick="openUserProfileModal()"><i data-lucide="user"></i> Edit Profile & Account</div>
+          <div class="dropdown-item" onclick="openSettingsModal()"><i data-lucide="settings"></i> User Settings & Themes</div>
+          <div class="dropdown-sep"></div>
+          <div class="dropdown-item" style="color: var(--danger);" onclick="logout()"><i data-lucide="log-out"></i> Logout</div>
+        </div>
+      </div>
 
-    <!-- Right Controls: Themes, Settings, User -->
-    <div class="header-actions desktop-header-controls">
-      <select id="theme-selector" class="btn" style="padding: 4px 8px;">
-        <option value="amber-charcoal">Woofson Amber (Default)</option>
-        <option value="gruvbox">Gruvbox Dark</option>
-        <option value="catppuccin-mocha">Catppuccin Mocha</option>
-        <option value="catppuccin-latte">Catppuccin Latte (Light)</option>
-        <option value="tokyo-night">Tokyo Night</option>
-        <option value="monokai">Monokai Pro</option>
-        <option value="solarized-dark">Solarized Dark</option>
-        <option value="ayu-dark">Ayu Dark</option>
-        <option value="nord">Nord Frost</option>
-        <option value="dracula">Dracula Dark</option>
-        <option value="midnight-blue">Midnight Commander Blue</option>
-      </select>
-      <button class="btn" id="btn-open-settings" title="Settings, Bookmarks & conf.d (F10)"><i data-lucide="settings"></i> Settings</button>
-      <button class="btn btn-danger" id="btn-logout" title="Logout"><i data-lucide="log-out"></i></button>
       <button class="btn btn-icon mobile-menu-btn" id="btn-mobile-menu" title="Open Menu" onclick="toggleMobileMenu()"><i data-lucide="menu"></i></button>
     </div>
   </header>
@@ -140,7 +154,8 @@
 
       <!-- Settings & Logout -->
       <div class="mobile-drawer-section">
-        <button class="mobile-drawer-item" onclick="openSettingsModal(); closeMobileMenu();"><i data-lucide="settings"></i> Settings & Bookmarks (F10)</button>
+        <button class="mobile-drawer-item" id="mobile-admin-panel-item" onclick="openAdminPanel(); closeMobileMenu();" style="display:none;"><i data-lucide="shield-alert" style="color:var(--accent);"></i> 👑 Admin Control Panel</button>
+        <button class="mobile-drawer-item" onclick="openSettingsModal(); closeMobileMenu();"><i data-lucide="settings"></i> User Settings & Themes (F10)</button>
         <button class="mobile-drawer-item" style="color: var(--danger);" onclick="logout(); closeMobileMenu();"><i data-lucide="log-out"></i> Log Out</button>
       </div>
     </div>
@@ -204,6 +219,7 @@
     <div class="context-item" onclick="triggerDelete()"><i data-lucide="trash-2" style="width: 14px;"></i> Delete / Move to Trash (F8)</div>
     <div class="context-sep"></div>
     <div class="context-item" onclick="triggerChecksum()"><i data-lucide="shield-check" style="width: 14px;"></i> Calculate SHA-256 Hash</div>
+    <div class="context-item" onclick="triggerConvertFile()"><i data-lucide="file-output" style="width: 14px;"></i> Convert File (ConvertX)...</div>
     <div class="context-item" onclick="triggerArchiveZip()"><i data-lucide="archive" style="width: 14px;"></i> Compress to .zip</div>
     <div class="context-item" onclick="triggerArchiveTarGz()"><i data-lucide="archive" style="width: 14px;"></i> Compress to .tar.gz</div>
     <div class="context-item" onclick="triggerExtract()"><i data-lucide="folder-archive" style="width: 14px;"></i> Extract Archive Here</div>
@@ -298,32 +314,28 @@
   <div class="modal-overlay" id="settings-modal">
     <div class="modal-box" style="width: 800px; height: 85vh;">
       <div class="modal-header">
-        <span>⚙️ CommanderDog Settings & System Overview</span>
+        <span>⚙️ User Settings & Preferences</span>
         <button class="btn" onclick="closeModal('settings-modal')"><i data-lucide="x"></i></button>
       </div>
       
-      <!-- Settings Tabs Header -->
+      <!-- User Settings Tabs Header -->
       <div class="settings-tabs">
         <button class="settings-tab-btn active" onclick="switchSettingsTab('tab-general')"><i data-lucide="sliders"></i> General</button>
-        <button class="settings-tab-btn" onclick="switchSettingsTab('tab-paranoid')"><i data-lucide="shield-check"></i> Paranoid Mode</button>
-        <button class="settings-tab-btn" onclick="switchSettingsTab('tab-palette')"><i data-lucide="palette"></i> Palette & Theme</button>
+        <button class="settings-tab-btn" onclick="switchSettingsTab('tab-palette')"><i data-lucide="palette"></i> Themes & Palette</button>
         <button class="settings-tab-btn" onclick="switchSettingsTab('tab-bookmarks')"><i data-lucide="bookmark"></i> Bookmarks</button>
-        <button class="settings-tab-btn" onclick="switchSettingsTab('tab-users')"><i data-lucide="users"></i> Users</button>
-        <button class="settings-tab-btn" onclick="switchSettingsTab('tab-syncthing')"><i data-lucide="repeat"></i> Syncthing</button>
-        <button class="settings-tab-btn" onclick="switchSettingsTab('tab-confd')"><i data-lucide="folder-cog"></i> conf.d Engine</button>
         <button class="settings-tab-btn" onclick="switchSettingsTab('tab-keys')"><i data-lucide="keyboard"></i> Keybindings</button>
       </div>
 
       <div class="modal-body" style="padding: 0;">
-        <!-- Tab 1: General -->
+        <!-- Tab 1: General UI & Preferences -->
         <div class="settings-tab-content active" id="tab-general">
           <div class="form-group">
             <label>Hidden Files & Dotfiles:</label>
             <div style="display: flex; align-items: center; gap: 8px;">
-              <input type="checkbox" id="setting-show-hidden" checked>
-              <span>Show hidden files and dotfiles (e.g. <code>.bashrc</code>, <code>.git</code>) by default</span>
+              <input type="checkbox" id="setting-show-hidden" onchange="toggleGlobalDotfiles(this.checked)">
+              <span>Show hidden files and dotfiles (e.g. <code>.bashrc</code>, <code>.git</code>) across all panels</span>
             </div>
-            <div class="form-hint">You can also quickly toggle this per pane using the dotfile button in the toolbar.</div>
+            <div class="form-hint">Toggle visibility of dotfiles across all active directory panels.</div>
           </div>
           <div class="form-group">
             <label>Default Layout:</label>
@@ -370,45 +382,27 @@
           </div>
         </div>
 
-        <!-- Tab 2: Paranoid Mode -->
-        <div class="settings-tab-content" id="tab-paranoid">
-          <div class="form-group">
-            <label>Paranoid File Verification:</label>
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <input type="checkbox" id="setting-paranoid-enabled" checked>
-              <span>Enable Paranoid File Handling Mode by default</span>
-            </div>
-          </div>
-          <div class="form-group">
-            <label>Integrity Checksum Algorithm:</label>
-            <select id="setting-checksum-algo" class="pane-quick-filter" style="width: 200px;">
-              <option value="sha256" selected>SHA-256 (Recommended)</option>
-              <option value="md5">MD5</option>
-              <option value="sha1">SHA-1</option>
-            </select>
-            <div class="form-hint">Files transferred in Paranoid mode will have their cryptographic checksum verified upon write completion.</div>
-          </div>
-          <div class="form-group">
-            <label>Atomic Writes:</label>
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <input type="checkbox" id="setting-atomic-writes" checked>
-              <span>Write to temporary file and atomically rename upon completion</span>
-            </div>
-          </div>
-          <div class="form-group">
-            <label>Safe Trash Bin:</label>
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <input type="checkbox" id="setting-trash-enabled" checked>
-              <span>Move deleted files to XDG Trash (<code>~/.local/share/Trash</code>) instead of permanent deletion</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- Tab 3: Palette & Themes -->
+        <!-- Tab 2: Palette & Themes -->
         <div class="settings-tab-content" id="tab-palette">
-          <h4 style="color: var(--accent); margin-bottom: 8px;">🐕 Woofson Golden Amber Design Tokens</h4>
-          <p style="color: var(--text-muted); font-size: 11px; margin-bottom: 12px;">The unified design palette for CommanderDog, NoteDog, and DotDog.</p>
-          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px;">
+          <h4 style="color: var(--accent); margin-bottom: 8px;">🎨 CommanderDog Theme & Visual Palette</h4>
+          <p style="color: var(--text-muted); font-size: 11px; margin-bottom: 12px;">Choose your active color theme across CommanderDog panels, editor, and tools.</p>
+          <div class="form-group">
+            <label>Active Theme:</label>
+            <select id="settings-theme-selector" class="pane-quick-filter" style="width: 100%; padding: 8px; font-size: 13px;" onchange="applyTheme(this.value)">
+              <option value="amber-charcoal">Woofson Amber (Default)</option>
+              <option value="gruvbox">Gruvbox Dark</option>
+              <option value="catppuccin-mocha">Catppuccin Mocha</option>
+              <option value="catppuccin-latte">Catppuccin Latte (Light)</option>
+              <option value="tokyo-night">Tokyo Night</option>
+              <option value="monokai">Monokai Pro</option>
+              <option value="solarized-dark">Solarized Dark</option>
+              <option value="ayu-dark">Ayu Dark</option>
+              <option value="nord">Nord Frost</option>
+              <option value="dracula">Dracula Dark</option>
+              <option value="midnight-blue">Midnight Commander Blue</option>
+            </select>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 16px;">
             <div style="background: #121214; border: 1px solid #3f3f46; padding: 8px; border-radius: 4px;">
               <span style="display:inline-block; width:12px; height:12px; background:#121214; border:1px solid #71717a; border-radius:2px;"></span>
               <b>bg-void</b>: <code>#121214</code>
@@ -436,10 +430,10 @@
           </div>
         </div>
 
-        <!-- Tab 4: Bookmarks & Remotes -->
+        <!-- Tab 3: Bookmarks & Favorites -->
         <div class="settings-tab-content" id="tab-bookmarks">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-            <span style="font-weight: 600;">Saved Bookmarks & Remote Mounts</span>
+            <span style="font-weight: 600;">Saved Bookmarks & Favorite Paths</span>
             <button class="btn btn-accent" onclick="addNewBookmark()"><i data-lucide="plus"></i> Add Bookmark</button>
           </div>
           <table class="file-table">
@@ -463,25 +457,125 @@
           </table>
         </div>
 
-        <!-- Tab 5: Users (Admin) -->
-        <div class="settings-tab-content" id="tab-users">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-            <span style="font-weight: 600;">System & Internal User Accounts</span>
+        <!-- Tab 4: Keybindings -->
+        <div class="settings-tab-content" id="tab-keys">
+          <table class="file-table">
+            <tr><th style="width: 140px;">Key</th><th>Action</th></tr>
+            <tr><td><code>Tab / Shift+Tab</code></td><td>Switch Active Focused Pane</td></tr>
+            <tr><td><code>F1</code></td><td>Quick Help</td></tr>
+            <tr><td><code>F2</code></td><td>Rename Selected File / Directory</td></tr>
+            <tr><td><code>F3</code></td><td>Quick View / File Preview</td></tr>
+            <tr><td><code>F4</code></td><td>Dual-Pane Editor / Code Viewer</td></tr>
+            <tr><td><code>F5</code></td><td>Copy Selected Items to Target Pane</td></tr>
+            <tr><td><code>F6</code></td><td>Move Selected Items to Target Pane</td></tr>
+            <tr><td><code>F7</code></td><td>Create New Folder (Mkdir)</td></tr>
+            <tr><td><code>F8 / Delete</code></td><td>Delete / Move to Trash</td></tr>
+            <tr><td><code>F9 / Ctrl+D</code></td><td>Folder & File Comparison (Diff)</td></tr>
+            <tr><td><code>F10</code></td><td>User Settings & Preferences</td></tr>
+            <tr><td><code>Ctrl + F</code></td><td>Editor Search / Global Search</td></tr>
+            <tr><td><code>Ctrl + H</code></td><td>Editor Search & Replace</td></tr>
+            <tr><td><code>Alt + 1..4</code></td><td>Direct Focus to Pane 1, 2, 3, or 4</td></tr>
+            <tr><td><code>Insert / Space</code></td><td>Toggle Selection & Step Down</td></tr>
+            <tr><td><code>Ctrl + A</code></td><td>Select All in Current Pane</td></tr>
+            <tr><td><code>Ctrl + P</code></td><td>Toggle Paranoid File Handling Mode</td></tr>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-accent" onclick="closeModal('settings-modal')">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dedicated Administrator Control Panel Modal (Admin Only) -->
+  <div class="modal-overlay" id="admin-panel-modal">
+    <div class="modal-box" style="width: 88vw; max-width: 1100px; height: 85vh;">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-weight: 700; color: var(--accent); font-size: 14px;">👑 Administrator Control Panel</span>
+          <span class="user-role-badge">GLOBAL SERVER CONFIG</span>
+        </div>
+        <button class="btn" onclick="closeModal('admin-panel-modal')"><i data-lucide="x"></i></button>
+      </div>
+
+      <!-- Admin Tabs Header -->
+      <div class="settings-tabs">
+        <button class="settings-tab-btn active" onclick="switchAdminTab('admin-tab-users')"><i data-lucide="users"></i> Users & RBAC</button>
+        <button class="settings-tab-btn" onclick="switchAdminTab('admin-tab-storage')"><i data-lucide="server"></i> Remote Storage & Mounts</button>
+        <button class="settings-tab-btn" onclick="switchAdminTab('admin-tab-syncthing')"><i data-lucide="repeat"></i> Syncthing Global</button>
+        <button class="settings-tab-btn" onclick="switchAdminTab('admin-tab-security')"><i data-lucide="shield-check"></i> Paranoid & Security</button>
+        <button class="settings-tab-btn" onclick="switchAdminTab('admin-tab-confd')"><i data-lucide="folder-cog"></i> Server conf.d Engine</button>
+      </div>
+
+      <div class="modal-body" style="padding: 0; overflow-y: auto;">
+        <!-- Admin Tab 1: User Management & RBAC Permissions -->
+        <div class="settings-tab-content active" id="admin-tab-users" style="padding: 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <div>
+              <div style="font-weight: 700; font-size: 13px;">User Accounts & Granular Service Permissions</div>
+              <div style="font-size: 11px; color: var(--text-muted);">Manage internal and PAM accounts, assign Admin privileges, and grant or restrict service access per user.</div>
+            </div>
             <button class="btn btn-accent" onclick="showAddUserPrompt()"><i data-lucide="user-plus"></i> New User</button>
           </div>
-          <table class="file-table">
+          <table class="admin-table">
             <thead>
-              <tr><th>ID</th><th>Username</th><th>Role</th><th>Home Directory</th><th>Auth Engine</th></tr>
+              <tr><th>User Account</th><th>Role</th><th>Home Directory</th><th>Enabled Protocol & Service Access</th><th style="text-align: center; width: 120px;">Actions</th></tr>
             </thead>
             <tbody id="users-table-body"></tbody>
           </table>
         </div>
 
-        <!-- Tab 6: Syncthing Configuration -->
-        <div class="settings-tab-content" id="tab-syncthing">
-          <div style="font-weight: 600; margin-bottom: 8px;">🔄 Syncthing Continuous Synchronization Engine</div>
+        <!-- Admin Tab 2: Remote Storage & Mounts (Samba/CIFS, NFS, S3, SFTP, WebDAV) -->
+        <div class="settings-tab-content" id="admin-tab-storage" style="padding: 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <div>
+              <div style="font-weight: 700; font-size: 13px;">🪟 Global Storage, Network Shares & User Access</div>
+              <div style="font-size: 11px; color: var(--text-muted);">Configure network shares and assign which users can access them via their Favorites menu.</div>
+            </div>
+            <button class="btn btn-accent" onclick="openRemoteModal(App.activePaneIndex, true)"><i data-lucide="plus"></i> Add Global Mount</button>
+          </div>
+
+          <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>Mount Name</th>
+                  <th>Protocol</th>
+                  <th>Target URI / Share Path</th>
+                  <th>Allowed Users</th>
+                  <th style="text-align: center; width: 120px;">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="admin-global-mounts-tbody">
+                <tr><td colspan="5" style="text-align: center; padding: 16px; color: var(--text-muted);">Loading global network mounts...</td></tr>
+              </tbody>
+            </table>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+            <div style="background: var(--bg-dark); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px;">
+              <h4 style="color: var(--accent); margin-bottom: 8px; display:flex; align-items:center; gap:6px;"><i data-lucide="share-2" style="width:16px;"></i> Samba / Windows Share (CIFS)</h4>
+              <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 10px;">Native client using <code>smbclient</code> with Workgroup, Active Directory Domain, and guest authentication.</p>
+              <div class="form-group">
+                <label>Default Workgroup / Domain:</label>
+                <input type="text" class="pane-quick-filter" style="width: 100%; padding: 6px;" value="WORKGROUP" id="admin-default-smb-workgroup">
+              </div>
+            </div>
+
+            <div style="background: var(--bg-dark); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px;">
+              <h4 style="color: var(--accent); margin-bottom: 8px; display:flex; align-items:center; gap:6px;"><i data-lucide="server" style="width:16px;"></i> Linux Network File System (NFS)</h4>
+              <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 10px;">Automated export discovery via <code>showmount -e</code> and mounts to <code>/run/commanderdog/mounts/nfs/</code>.</p>
+              <div class="form-group">
+                <label>NFS Base Mountpoint:</label>
+                <input type="text" class="pane-quick-filter" style="width: 100%; padding: 6px;" value="/run/commanderdog/mounts/nfs" readonly>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Admin Tab 3: Syncthing Global Daemon -->
+        <div class="settings-tab-content" id="admin-tab-syncthing" style="padding: 16px;">
+          <div style="font-weight: 700; margin-bottom: 4px;">🔄 Global Syncthing Daemon Configuration</div>
           <p style="color: var(--text-muted); font-size: 11px; margin-bottom: 12px;">
-            Configure your local or remote Syncthing daemon connection. CommanderDog automatically discovers the API key from <code>~/.config/syncthing/config.xml</code> if running on the same machine.
+            Configure the cluster Syncthing daemon used for continuous background sync across nodes.
           </p>
           <div class="form-group">
             <label>Syncthing Daemon URL:</label>
@@ -497,70 +591,170 @@
             </div>
           </div>
           <div style="display: flex; gap: 8px; margin-top: 10px;">
-            <button class="btn btn-accent" onclick="testAndSaveSyncthingConfig()">Test Connection & Dashboard</button>
+            <button class="btn btn-accent" onclick="testAndSaveSyncthingConfig()"><i data-lucide="activity"></i> Test Connection & Dashboard</button>
           </div>
           <div id="syncthing-settings-status" style="font-size: 11px; margin-top: 8px; display: none;"></div>
         </div>
 
-        <!-- Tab 7: conf.d Inspector -->
-        <div class="settings-tab-content" id="tab-confd">
-          <p style="color: var(--text-muted); font-size: 11px; margin-bottom: 10px;">
+        <!-- Admin Tab 4: Security & Paranoid Defaults -->
+        <div class="settings-tab-content" id="admin-tab-security" style="padding: 16px;">
+          <div style="font-weight: 700; margin-bottom: 4px;">🛡️ Global File Safety & Paranoid Integrity Defaults</div>
+          <p style="color: var(--text-muted); font-size: 11px; margin-bottom: 12px;">Configure default transaction rules, cryptographic validation, and atomic filesystem policies.</p>
+          <div class="form-group">
+            <label>Paranoid File Verification:</label>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <input type="checkbox" id="setting-paranoid-enabled" checked>
+              <span>Enable Paranoid File Handling Mode globally by default</span>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Integrity Checksum Algorithm:</label>
+            <select id="setting-checksum-algo" class="pane-quick-filter" style="width: 220px;">
+              <option value="sha256" selected>SHA-256 (Cryptographic / Strict)</option>
+              <option value="md5">MD5 (Legacy Fast)</option>
+              <option value="sha1">SHA-1</option>
+            </select>
+            <div class="form-hint">Files transferred in Paranoid mode will have their checksum cryptographically verified upon write completion.</div>
+          </div>
+          <div class="form-group">
+            <label>Atomic File Writes:</label>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <input type="checkbox" id="setting-atomic-writes" checked>
+              <span>Write to temporary hidden file and atomically rename upon completion</span>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Safe Trash Bin:</label>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <input type="checkbox" id="setting-trash-enabled" checked>
+              <span>Move deleted files to XDG Trash (<code>~/.local/share/Trash</code>) instead of permanent deletion</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Admin Tab 5: Server conf.d Engine -->
+        <div class="settings-tab-content" id="admin-tab-confd" style="padding: 16px;">
+          <div style="font-weight: 700; margin-bottom: 4px;">📜 Server conf.d Cascade Engine</div>
+          <p style="color: var(--text-muted); font-size: 11px; margin-bottom: 12px;">
             CommanderDog scans <code>./conf.d/*.toml</code>, <code>~/.config/commanderdog/conf.d/*.toml</code>, and <code>/etc/commanderdog/conf.d/*.toml</code> and deep-merges them in alphabetical/numerical sorting order.
           </p>
           <div id="confd-files-list"></div>
         </div>
-
-        <!-- Tab 7: Keybindings -->
-        <div class="settings-tab-content" id="tab-keys">
-          <table class="file-table">
-            <tr><th style="width: 140px;">Key</th><th>Action</th></tr>
-            <tr><td><code>Tab / Shift+Tab</code></td><td>Switch Active Focused Pane</td></tr>
-            <tr><td><code>F1</code></td><td>Quick Help</td></tr>
-            <tr><td><code>F2</code></td><td>Rename Selected File / Directory</td></tr>
-            <tr><td><code>F3</code></td><td>Quick View / File Preview</td></tr>
-            <tr><td><code>F4</code></td><td>Dual-Pane Editor / Markdown & Mermaid Viewer</td></tr>
-            <tr><td><code>F5</code></td><td>Copy Selected Items to Target Pane</td></tr>
-            <tr><td><code>F6</code></td><td>Move Selected Items to Target Pane</td></tr>
-            <tr><td><code>F7</code></td><td>Create New Folder (Mkdir)</td></tr>
-            <tr><td><code>F8 / Delete</code></td><td>Delete / Move to Trash</td></tr>
-            <tr><td><code>F9 / Ctrl+D</code></td><td>Folder & File Comparison (Diff)</td></tr>
-            <tr><td><code>F10</code></td><td>Settings & Configuration</td></tr>
-            <tr><td><code>Alt + 1..4</code></td><td>Direct Focus to Pane 1, 2, 3, or 4</td></tr>
-            <tr><td><code>Insert / Space</code></td><td>Toggle Selection & Step Down</td></tr>
-            <tr><td><code>Ctrl + A</code></td><td>Select All in Current Pane</td></tr>
-            <tr><td><code>Ctrl + P</code></td><td>Toggle Paranoid File Handling Mode</td></tr>
-          </table>
-        </div>
       </div>
+
       <div class="modal-footer">
-        <button class="btn btn-accent" onclick="closeModal('settings-modal')">Done</button>
+        <button class="btn btn-accent" onclick="closeModal('admin-panel-modal')">Done</button>
       </div>
     </div>
   </div>
 
-  <!-- Dual-Pane Editor & Markdown Viewer Modal -->
+  <!-- User Profile Modal -->
+  <div class="modal-overlay" id="profile-modal">
+    <div class="modal-box" style="width: 480px;">
+      <div class="modal-header">
+        <span>👤 User Profile & Account Settings</span>
+        <button class="btn" onclick="closeModal('profile-modal')"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 16px; background: var(--bg-header); padding: 12px; border-radius: var(--radius);">
+          <div class="profile-avatar-large" id="profile-edit-avatar">👤</div>
+          <div>
+            <div style="font-weight: 700; font-size: 15px;" id="profile-edit-username">User</div>
+            <div style="font-size: 12px; color: var(--text-dim);" id="profile-edit-auth-type">PAM / Local Linux Account</div>
+            <span class="user-role-badge" id="profile-edit-role-badge" style="margin-top: 4px; display: inline-block;">ADMIN</span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Display Name / Nickname:</label>
+          <input type="text" id="profile-input-nickname" class="pane-quick-filter" style="width: 100%; padding: 8px;" placeholder="e.g. Woofson">
+        </div>
+
+        <div class="form-group">
+          <label>Email Address:</label>
+          <input type="email" id="profile-input-email" class="pane-quick-filter" style="width: 100%; padding: 8px;" placeholder="e.g. user@domain.com">
+        </div>
+
+        <div class="form-group">
+          <label>Avatar Emoji / URL:</label>
+          <input type="text" id="profile-input-avatar" class="pane-quick-filter" style="width: 100%; padding: 8px;" placeholder="e.g. 🐕 or https://example.com/avatar.png">
+        </div>
+
+        <div class="form-group" id="profile-password-section">
+          <label>Change Password (leave empty to keep current):</label>
+          <input type="password" id="profile-input-password" class="pane-quick-filter" style="width: 100%; padding: 8px;" placeholder="New password">
+        </div>
+
+        <div id="profile-status-msg" style="font-size: 12px; margin-top: 8px; display: none;"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="closeModal('profile-modal')">Cancel</button>
+        <button class="btn btn-accent" onclick="saveUserProfile()"><i data-lucide="save"></i> Save Profile</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dual-Pane Editor & Markdown Viewer Modal with Syntax Highlighting & Find/Replace -->
   <div class="modal-overlay" id="editor-modal">
     <div class="modal-box editor-modal-box">
       <div class="modal-header">
         <div style="display: flex; align-items: center; gap: 10px;">
-          <span>📝 Built-in Dual-Pane Editor & Markdown Viewer</span>
-          <select id="editor-view-mode" class="btn" style="padding: 2px 6px;">
+          <span>📝 Built-in Dual-Pane Editor</span>
+          <select id="editor-view-mode" class="btn" style="padding: 2px 6px;" onchange="handleEditorViewModeChange(this.value)">
             <option value="split-markdown">Markdown & Live Mermaid Preview</option>
             <option value="dual-files">Dual Files Side-by-Side</option>
             <option value="single-editor">Single File Editor</option>
           </select>
+          <select id="editor-language-select" class="btn" style="padding: 2px 6px;" onchange="handleEditorLanguageChange(this.value)">
+            <option value="auto">Language: Auto</option>
+            <option value="rust">Rust</option>
+            <option value="python">Python</option>
+            <option value="javascript">JavaScript / TypeScript</option>
+            <option value="html">HTML / XML</option>
+            <option value="css">CSS / SCSS</option>
+            <option value="json">JSON</option>
+            <option value="yaml">YAML</option>
+            <option value="toml">TOML</option>
+            <option value="bash">Bash / Shell</option>
+            <option value="sql">SQL</option>
+            <option value="markdown">Markdown</option>
+            <option value="clike">C / C++</option>
+            <option value="docker">Dockerfile</option>
+          </select>
         </div>
         <div style="display: flex; gap: 8px;">
-          <button class="btn btn-accent" id="btn-save-editor"><i data-lucide="save"></i> Save</button>
+          <button class="btn" onclick="toggleFindBar()" title="Find & Replace (Ctrl+F / Ctrl+H)"><i data-lucide="search"></i> Find / Replace</button>
+          <button class="btn btn-accent" id="btn-save-editor" onclick="saveEditorContent()"><i data-lucide="save"></i> Save (Ctrl+S)</button>
           <button class="btn" onclick="closeModal('editor-modal')"><i data-lucide="x"></i></button>
         </div>
       </div>
+
+      <!-- Integrated Find & Replace Toolbar -->
+      <div class="editor-find-bar" id="editor-find-bar" style="display: none;">
+        <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+          <div style="display: flex; align-items: center; gap: 4px;">
+            <i data-lucide="search" style="width: 14px; color: var(--accent);"></i>
+            <input type="text" id="editor-find-input" class="pane-quick-filter" placeholder="Find..." style="width: 170px; padding: 3px 6px;" onkeydown="handleFindKeyDown(event)">
+            <span id="editor-match-count" style="font-size: 11px; color: var(--text-dim); min-width: 45px;">0 of 0</span>
+            <button class="btn btn-icon" onclick="findNextMatch()" title="Next Match (Enter / F3)"><i data-lucide="chevron-down" style="width:13px;"></i></button>
+            <button class="btn btn-icon" onclick="findPrevMatch()" title="Previous Match (Shift+Enter / Shift+F3)"><i data-lucide="chevron-up" style="width:13px;"></i></button>
+          </div>
+          <div style="display: flex; align-items: center; gap: 4px;">
+            <i data-lucide="repeat" style="width: 14px; color: var(--accent);"></i>
+            <input type="text" id="editor-replace-input" class="pane-quick-filter" placeholder="Replace with..." style="width: 170px; padding: 3px 6px;">
+            <button class="btn" onclick="replaceCurrentMatch()" style="padding: 2px 8px; font-size: 11px;">Replace</button>
+            <button class="btn btn-accent" onclick="replaceAllMatches()" style="padding: 2px 8px; font-size: 11px;">All</button>
+          </div>
+          <button class="btn btn-icon" onclick="toggleFindBar(false)" style="margin-left: auto;"><i data-lucide="x" style="width:13px;"></i></button>
+        </div>
+      </div>
+
       <div class="editor-grid" id="editor-grid-container">
         <div class="editor-pane" id="editor-left-pane">
           <div style="background: var(--bg-header); padding: 4px 8px; font-family: var(--font-mono); font-size: 11px; border-bottom: 1px solid var(--border);" id="editor-file-title-left">
-            /path/to/file.md
+            /path/to/file.txt
           </div>
-          <textarea class="editor-textarea" id="editor-text-left" spellcheck="false" placeholder="Write text or markdown..."></textarea>
+          <textarea class="editor-textarea" id="editor-text-left" spellcheck="false" placeholder="Write code, text or markdown..." oninput="handleEditorInput()" onkeydown="handleEditorKeyDown(event)"></textarea>
         </div>
         <div class="editor-pane" id="editor-right-pane">
           <div style="background: var(--bg-header); padding: 4px 8px; font-family: var(--font-mono); font-size: 11px; border-bottom: 1px solid var(--border);" id="editor-file-title-right">
@@ -570,17 +764,94 @@
           <textarea class="editor-textarea" id="editor-text-right" style="display: none;" spellcheck="false"></textarea>
         </div>
       </div>
+      <div class="editor-status-bar" id="editor-status-bar">
+        <span id="editor-cursor-pos">Ln 1, Col 1</span>
+        <span id="editor-doc-stats">0 characters | UTF-8</span>
+      </div>
     </div>
   </div>
 
   <!-- Diff & Comparison Modal -->
   <div class="modal-overlay" id="diff-modal">
-    <div class="modal-box" style="width: 85vw; height: 80vh;">
+    <div class="modal-box" style="width: 85vw; height: 85vh;">
       <div class="modal-header">
         <span>⚖️ Comparison & Diff Engine (Files & Folders)</span>
-        <button class="btn" onclick="closeModal('diff-modal')"><i data-lucide="x"></i></button>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn btn-icon" onclick="triggerDiff(true)" title="Deep Recursive SHA-256 Hash Compare"><i data-lucide="shield-check"></i> Deep Hash</button>
+          <button class="btn" onclick="closeModal('diff-modal')"><i data-lucide="x"></i></button>
+        </div>
       </div>
       <div class="modal-body" id="diff-modal-body"></div>
+    </div>
+  </div>
+
+  <!-- ConvertX File & Image Converter Modal -->
+  <div class="modal-overlay" id="converter-modal">
+    <div class="modal-box" style="width: 520px;">
+      <div class="modal-header">
+        <span>🔄 ConvertX File & Image Converter</span>
+        <button class="btn" onclick="closeModal('converter-modal')"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="converter-preview-box">
+          <div style="font-size: 28px;">📄</div>
+          <div style="overflow: hidden;">
+            <div style="font-weight: 700;" id="convert-source-filename">image.png</div>
+            <div style="font-size: 11px; color: var(--text-dim);" id="convert-source-path">/path/to/file</div>
+            <div style="font-size: 11px; color: var(--accent);" id="convert-source-size">1.2 MB</div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Target Format:</label>
+          <select id="convert-target-format" class="pane-quick-filter" style="width: 100%; padding: 8px;" onchange="handleTargetFormatChange(this.value)">
+            <optgroup label="Images">
+              <option value="webp" selected>WebP (Optimized Next-Gen)</option>
+              <option value="png">PNG (Lossless)</option>
+              <option value="jpeg">JPEG (Compressed Photo)</option>
+              <option value="avif">AVIF (Ultra-Compressed)</option>
+              <option value="gif">GIF (Animated / Graphics)</option>
+              <option value="bmp">BMP (Raw Bitmap)</option>
+              <option value="ico">ICO (Favicon / Windows Icon)</option>
+            </optgroup>
+            <optgroup label="Structured Data & Documents">
+              <option value="json">JSON (Formatted)</option>
+              <option value="yaml">YAML (Human Readable)</option>
+              <option value="toml">TOML (Config Format)</option>
+              <option value="html">HTML (Document / Markup)</option>
+              <option value="base64">Base64 Data URI</option>
+            </optgroup>
+          </select>
+        </div>
+
+        <!-- Image Options -->
+        <div id="convert-image-options">
+          <div class="form-group">
+            <label>Quality Compression (1..100):</label>
+            <div class="slider-container">
+              <input type="range" min="10" max="100" value="85" class="range-slider" id="convert-quality-slider" oninput="document.getElementById('convert-quality-val').textContent = this.value + '%'">
+              <span class="slider-val-badge" id="convert-quality-val">85%</span>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <div class="form-group">
+              <label>Resize Width (px):</label>
+              <input type="number" id="convert-resize-w" class="pane-quick-filter" placeholder="Auto" style="width: 100%; padding: 6px;">
+            </div>
+            <div class="form-group">
+              <label>Resize Height (px):</label>
+              <input type="number" id="convert-resize-h" class="pane-quick-filter" placeholder="Auto" style="width: 100%; padding: 6px;">
+            </div>
+          </div>
+        </div>
+
+        <div id="convert-status-msg" style="font-size: 12px; margin-top: 10px; display: none;"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="closeModal('converter-modal')">Cancel</button>
+        <button class="btn btn-accent" id="btn-run-convert" onclick="executeFileConversion()"><i data-lucide="play"></i> Convert Now</button>
+      </div>
     </div>
   </div>
 
@@ -1183,7 +1454,7 @@
   <div class="modal-overlay" id="remote-modal">
     <div class="modal-box" style="width: 500px;">
       <div class="modal-header">
-        <span>🌐 Connect Remote Storage (SFTP / WebDAV / S3 / SMB / NFS / Proton)</span>
+        <span>🌐 Remote Storage</span>
         <button class="btn" onclick="closeModal('remote-modal')"><i data-lucide="x"></i></button>
       </div>
       <div class="modal-body">
@@ -1290,11 +1561,40 @@
           <label>Remote Root Path / Prefix:</label>
           <input type="text" id="remote-path" class="pane-quick-filter" style="width: 100%; padding: 8px;" value="/">
         </div>
-        <div id="remote-test-status" style="font-size: 11px; margin-top: 4px; display: none;"></div>
+
+        <!-- Admin Global Mount Option -->
+        <div id="remote-global-mount-section" style="display: none; background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.25); border-radius: 6px; padding: 12px; margin-top: 12px;">
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <label style="display: flex; align-items: center; gap: 8px; font-weight: 700; color: var(--accent); margin: 0; cursor: pointer;">
+              <input type="checkbox" id="remote-is-global-mount" onchange="toggleRemoteGlobalMountUI(this.checked)">
+              <span>👑 Save as Global Network Mount for Users</span>
+            </label>
+          </div>
+          <div id="remote-global-mount-options" style="display: none; margin-top: 10px;">
+            <div class="form-group" style="margin-bottom: 8px;">
+              <label style="font-size: 11px;">Display Mount Name:</label>
+              <input type="text" id="remote-global-mount-name" class="pane-quick-filter" style="width: 100%; padding: 6px;" placeholder="e.g. Primary NAS / CIFS, Company NFS, Backup S3">
+            </div>
+            <div>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                <label style="font-size: 11px; font-weight: 600; margin: 0;">Users Allowed Access (via Favorites):</label>
+                <label style="font-size: 10px; color: var(--accent); cursor: pointer; margin: 0;">
+                  <input type="checkbox" id="remote-mount-all-users" checked onchange="toggleMountAllUsers(this.checked)"> All Users (*)
+                </label>
+              </div>
+              <div id="remote-mount-users-checkboxes" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; max-height: 110px; overflow-y: auto; background: var(--bg-dark); padding: 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 11px;">
+                <!-- Dynamically populated -->
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="remote-test-status" style="font-size: 11px; margin-top: 8px; display: none;"></div>
       </div>
       <div class="modal-footer">
         <button class="btn" id="btn-test-remote" onclick="testRemoteConnection()">Test Connection</button>
         <button class="btn" onclick="closeModal('remote-modal')">Cancel</button>
+        <button class="btn btn-accent" id="btn-save-global-mount" onclick="saveGlobalRemoteMount()" style="display:none;"><i data-lucide="save"></i> Save Global Mount</button>
         <button class="btn btn-accent" id="btn-connect-remote" onclick="connectRemoteToActivePane()">Connect to Active Pane</button>
       </div>
     </div>

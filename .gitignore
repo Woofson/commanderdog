@@ -6,3 +6,7 @@
 .env
 .DS_Store
 /dist
+swappy-*.png
+swappy-*.jpg
+Screenshot_*.jpg
+*.png.bk

@@ -57,27 +57,27 @@
   - Pre-flight dry run collision and disk space inspection
   - Post-transfer cryptographic SHA-256 integrity verification
   - Atomic writes & safe XDG Trash bin recovery.
-- ⚖️ **Side-by-Side File & Folder Diff**:
-  - Visual folder comparison (count, size mismatches, hash differences, missing files)
-  - Side-by-side text file diff with line-by-line additions, deletions, and inline highlights.
-- 📝 **Dual-Pane Text & Markdown Editor**:
-  - Built-in side-by-side file editor
+- 👑 **Dedicated Administrator Control Panel & Granular RBAC**:
+  - Full separation between regular **User Settings & Themes (`F10`)** and the **👑 Admin Control Panel**.
+  - Multi-user RBAC table: assign roles (`Admin`, `Standard User`, `Read-Only`), customize home directories, and grant/revoke individual protocol privileges (`Local`, `SMB/CIFS`, `NFS`, `S3`, `SFTP`, `WebDAV`, `Terminal`, `Syncthing`, `ConvertX`).
+  - Seamless auto-synchronization of Linux PAM system users (`/etc/passwd`, `/etc/group` with `sudo`/`wheel` admin resolution).
+- 🌐 **Global Network Mounts & Auto-Discovery in Favorites**:
+  - Administrators can mount global shares (Samba/CIFS, NFS, S3, SFTP, WebDAV) and assign access permissions to specific users or `All Users (*)`.
+  - Assigned mounts automatically appear in users' **⭐ Favorites / Bookmarks** menu for 1-click navigation.
+- 🔄 **ConvertX Universal File Converter**:
+  - Convert images (WebP, PNG, JPEG, AVIF, BMP, TIFF), audio (MP3, WAV, AAC, FLAC, OGG), video (MP4, WebM, MKV, AVI, GIF), and documents (PDF, TXT, HTML, DOCX) directly within the browser with format quality sliders.
+- 📝 **Dual-Pane Text & Markdown Editor with Syntax Highlighting**:
+  - Built-in syntax highlighting for JavaScript, HTML, CSS, Rust, Python, Bash, Markdown, JSON, YAML, TOML, SQL, and Dockerfiles.
+  - Interactive **Find & Replace** engine with match counter, step navigation, and Replace All.
   - Live Markdown preview with **Mermaid.js diagram rendering** (Flowcharts, sequences, Gantt charts, state diagrams).
+- ⚖️ **Advanced File & Folder Diff Engine**:
+  - Fast Folder Comparison (size & mtime mismatches, missing items).
+  - Selected files only diff and full deep cryptographic hash comparison.
+  - Side-by-side text diff with line-by-line additions, deletions, and inline token highlighting.
 - 🎨 **11 Themes Suite**:
-  - **🐕 Woofson Amber (Default)**
-  - **🍂 Gruvbox Dark**
-  - **☕ Catppuccin Mocha**
-  - **🥛 Catppuccin Latte (Light)**
-  - **🌃 Tokyo Night**
-  - **🔥 Monokai Pro**
-  - **☀️ Solarized Dark**
-  - **✨ Ayu Dark**
-  - **❄️ Nord Frost**
-  - **🧛 Dracula Dark**
-  - **💻 Midnight Commander Blue**
+  - **🐕 Woofson Amber (Default)**, **🍂 Gruvbox Dark**, **☕ Catppuccin Mocha**, **🥛 Catppuccin Latte (Light)**, **🌃 Tokyo Night**, **🔥 Monokai Pro**, **☀️ Solarized Dark**, **✨ Ayu Dark**, **❄️ Nord Frost**, **🧛 Dracula Dark**, **💻 Midnight Commander Blue**.
 - ⚙️ **conf.d Configuration Architecture**:
   - Scans and merges snippets hierarchically from `/etc/commanderdog/conf.d/*.toml`, `~/.config/commanderdog/conf.d/*.toml`, and `./conf.d/*.toml`.
-- 👥 **Multi-User Auth**: Native Linux PAM system users (`/etc/shadow`, sudoer admin resolution) + Built-in SQLite user database with Argon2 password hashing.
 - 🐳 **Docker, Proxmox & LXC Ready**: Standalone single binary with embedded web frontend, Debian `.deb` packages, and full Proxmox deployment guide (`LXC.md`).
 
 ---
@@ -104,7 +104,7 @@ Default credentials:
 
 ## 📦 Native Packages & LXC Deployment
 
-- **Debian / Ubuntu**: Install pre-built `dist/commanderdog_0.1.0_amd64.deb` (`sudo dpkg -i commanderdog_*.deb`).
+- **Debian / Ubuntu**: Install pre-built `dist/commanderdog_0.2.0_amd64.deb` (`sudo dpkg -i commanderdog_*.deb`).
 - **Arch Linux**: `packaging/PKGBUILD` included for `makepkg -si`.
 - **Alpine Linux**: `packaging/APKBUILD` included.
 - **Proxmox VE / Linux LXC**: See the complete [LXC.md](file:///home/bolt/projects/commanderdog/LXC.md) guide or run `scripts/lxc-install.sh`.

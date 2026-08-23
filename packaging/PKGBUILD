@@ -1,6 +1,6 @@
 # Maintainer: Bolt J Woofson <bolt@boop.no>
 pkgname=commanderdog
-pkgver=0.1.0
+pkgver=0.2.0
 pkgrel=1
 pkgdesc="Quad-pane web file commander with orthodox speed, WebDAV/SFTP, S3, and diffing"
 arch=('x86_64' 'aarch64')

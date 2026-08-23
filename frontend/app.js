@@ -70,6 +70,7 @@ async function checkAuthAndLoad() {
       });
       if (resp.ok) {
         App.user = await resp.json();
+        updateHeaderProfile(App.user);
         hideModal('login-modal');
         await loadConfig();
         await loadSystemUsersGroups();
@@ -172,10 +173,12 @@ function createPaneElement(pane, index) {
         <input type="text" class="pane-path-input" id="pane-input-${index}" onkeydown="handlePathKey(event, ${index})" onblur="disablePathInput(${index})">
       </div>
 
-      <!-- Quick Toggles -->
-      <button class="btn btn-icon ${pane.showHidden ? 'active' : ''}" id="btn-dotfiles-${index}" onclick="togglePaneDotfiles(${index})" title="Toggle Dotfiles & Hidden Files">
-        <i data-lucide="eye" style="width: 13px; height: 13px;"></i>
-      </button>
+      <!-- Favorites & Quick Bookmarks -->
+      <div class="pane-favorites-wrapper">
+        <button class="btn btn-icon" id="btn-favorites-${index}" onclick="openPaneFavoritesMenu(event, ${index})" oncontextmenu="event.preventDefault(); openBookmarksManager();" title="Favorites & Bookmarks (Left-click: Quick Jump, Right-click: Manage)">
+          <i data-lucide="star" style="width: 13px; height: 13px; color: var(--accent);"></i>
+        </button>
+      </div>
 
       <input type="text" class="pane-quick-filter" placeholder="Filter (/)..." id="pane-filter-${index}" oninput="handleFilterInput(${index}, this.value)">
     </div>
@@ -481,10 +484,15 @@ function renderPaneTable(paneIndex) {
       iconName = 'image';
     }
 
+    const isMobile = window.innerWidth <= 768;
+    const showCheckBadge = isSelected && isMobile;
+    const activeIconName = showCheckBadge ? 'check' : iconName;
+    const activeIconClass = showCheckBadge ? 'file-icon check-icon' : `file-icon ${iconType}`;
+
     tr.innerHTML = `
       <td class="file-cell file-cell-icon">
-        <div class="row-icon-wrapper ${isSelected ? 'selected' : ''}">
-          <i data-lucide="${isSelected ? 'check' : iconName}" class="file-icon ${isSelected ? 'check-icon' : iconType}" style="width: 15px; height: 15px;"></i>
+        <div class="row-icon-wrapper ${showCheckBadge ? 'selected' : ''}">
+          <i data-lucide="${activeIconName}" class="${activeIconClass}" style="width: 15px; height: 15px;"></i>
         </div>
       </td>
       <td class="file-cell file-cell-name">
@@ -633,19 +641,40 @@ document.getElementById('btn-save-permissions')?.addEventListener('click', async
 // ---------------- SETTINGS & CONF.D INSPECTOR ----------------
 
 function switchSettingsTab(tabId) {
-  document.querySelectorAll('.settings-tab-btn').forEach(btn => btn.classList.remove('active'));
-  document.querySelectorAll('.settings-tab-content').forEach(c => c.classList.remove('active'));
+  const modal = document.getElementById('settings-modal');
+  if (!modal) return;
+  modal.querySelectorAll('.settings-tab-btn').forEach(btn => btn.classList.remove('active'));
+  modal.querySelectorAll('.settings-tab-content').forEach(c => c.classList.remove('active'));
 
-  event.currentTarget.classList.add('active');
+  if (window.event && window.event.currentTarget && window.event.currentTarget.classList.contains('settings-tab-btn')) {
+    window.event.currentTarget.classList.add('active');
+  } else {
+    modal.querySelector(`[onclick*="${tabId}"]`)?.classList.add('active');
+  }
+  document.getElementById(tabId)?.classList.add('active');
+}
+
+function switchAdminTab(tabId) {
+  const modal = document.getElementById('admin-panel-modal');
+  if (!modal) return;
+  modal.querySelectorAll('.settings-tab-btn').forEach(btn => btn.classList.remove('active'));
+  modal.querySelectorAll('.settings-tab-content').forEach(c => c.classList.remove('active'));
+
+  if (window.event && window.event.currentTarget && window.event.currentTarget.classList.contains('settings-tab-btn')) {
+    window.event.currentTarget.classList.add('active');
+  } else {
+    modal.querySelector(`[onclick*="${tabId}"]`)?.classList.add('active');
+  }
   document.getElementById(tabId)?.classList.add('active');
 
-  if (tabId === 'tab-users') loadUsersTable();
-  if (tabId === 'tab-confd') loadConfdInspector();
+  if (tabId === 'admin-tab-users') loadUsersTable();
+  if (tabId === 'admin-tab-storage') loadAdminGlobalMounts();
+  if (tabId === 'admin-tab-confd') loadConfdInspector();
 }
 
 async function loadUsersTable() {
   const tbody = document.getElementById('users-table-body');
-  tbody.innerHTML = '<tr><td colspan="5">Loading users...</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding: 16px;">Loading user database & RBAC permissions...</td></tr>';
 
   try {
     const resp = await fetch('/api/auth/users', {
@@ -653,18 +682,138 @@ async function loadUsersTable() {
     });
     if (resp.ok) {
       const users = await resp.json();
-      tbody.innerHTML = users.map(u => `
-        <tr class="file-row">
-          <td>${u.id}</td>
-          <td><b>${u.username}</b></td>
-          <td><span style="color:var(--accent); font-weight:600;">${u.role.toUpperCase()}</span></td>
-          <td><code>${u.home_dir}</code></td>
-          <td>${u.is_pam ? 'Linux Native PAM' : 'Built-in SQLite DB'}</td>
-        </tr>
-      `).join('');
+      tbody.innerHTML = users.map(u => {
+        let allowed = [];
+        try {
+          allowed = typeof u.allowed_services === 'string' ? JSON.parse(u.allowed_services) : (u.allowed_services || ['*']);
+        } catch (_) {
+          allowed = ['*'];
+        }
+        const hasAll = allowed.includes('*');
+
+        const services = ['local', 'smb', 'nfs', 's3', 'sftp', 'webdav', 'terminal', 'syncthing', 'converters'];
+        const serviceLabels = {
+          'local': 'Local',
+          'smb': 'SMB/CIFS',
+          'nfs': 'NFS',
+          's3': 'S3',
+          'sftp': 'SFTP',
+          'webdav': 'WebDAV',
+          'terminal': 'Terminal',
+          'syncthing': 'Syncthing',
+          'converters': 'ConvertX'
+        };
+
+        const safeUname = escapeHtml(u.username);
+
+        return `
+          <tr class="admin-user-row">
+            <td class="admin-user-cell">
+              <div style="font-weight: 700; font-size: 13px; color: var(--text-main); display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                <span style="font-size: 16px;">${u.avatar_url || '👤'}</span>
+                <span>${safeUname}</span>
+                ${u.is_pam ? '<span class="badge" style="font-size:9px; background:rgba(56,189,248,0.2); color:var(--info); border:1px solid rgba(56,189,248,0.35);">PAM / LINUX</span>' : '<span class="badge" style="font-size:9px; background:rgba(245,158,11,0.2); color:var(--accent); border:1px solid rgba(245,158,11,0.35);">DATABASE</span>'}
+              </div>
+              <div style="font-size: 11px; color: var(--text-dim); padding-left: 24px;">${escapeHtml(u.email || (u.nickname ? `@${u.nickname}` : 'System user account'))}</div>
+            </td>
+            <td class="admin-user-cell">
+              <select id="user-role-${safeUname}" class="pane-quick-filter" style="padding: 6px 8px; font-size: 11px; width: 100%;">
+                <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>👑 Admin</option>
+                <option value="user" ${u.role === 'user' ? 'selected' : ''}>👤 Standard User</option>
+                <option value="readonly" ${u.role === 'readonly' ? 'selected' : ''}>👁️ Read-Only</option>
+              </select>
+            </td>
+            <td class="admin-user-cell">
+              <input type="text" id="user-home-${safeUname}" class="pane-quick-filter" value="${escapeHtml(u.home_dir)}" style="width: 100%; padding: 6px 8px; font-size: 11px;">
+            </td>
+            <td class="admin-user-cell">
+              <div style="background: rgba(0, 0, 0, 0.25); border: 1px solid var(--border); border-radius: 4px; padding: 8px 10px;">
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; font-size: 10px;">
+                  ${services.map(svc => {
+                    const isChecked = hasAll || allowed.includes(svc);
+                    return `
+                      <label style="display: flex; align-items: center; gap: 4px; font-weight: normal; cursor: pointer; color: ${isChecked ? 'var(--text-main)' : 'var(--text-muted)'};">
+                        <input type="checkbox" id="svc-${safeUname}-${svc}" ${isChecked ? 'checked' : ''}>
+                        <span>${serviceLabels[svc]}</span>
+                      </label>
+                    `;
+                  }).join('')}
+                </div>
+              </div>
+            </td>
+            <td class="admin-user-cell" style="text-align: center;">
+              <div style="display: flex; gap: 6px; justify-content: center;">
+                <button class="btn btn-accent" style="padding: 6px 10px; font-size: 11px;" onclick="saveUserRbac('${safeUname}')" title="Save RBAC Permissions">
+                  <i data-lucide="save" style="width: 12px;"></i> Save
+                </button>
+                <button class="btn btn-danger" style="padding: 6px 8px; font-size: 11px;" onclick="deleteUserAccount('${safeUname}')" title="Delete User">
+                  <i data-lucide="trash-2" style="width: 12px;"></i>
+                </button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+      if (window.lucide) lucide.createIcons();
     }
   } catch (e) {
-    console.error(e);
+    console.error('loadUsersTable error:', e);
+  }
+}
+
+async function saveUserRbac(username) {
+  const roleSelect = document.getElementById(`user-role-${username}`);
+  const homeInput = document.getElementById(`user-home-${username}`);
+  const role = roleSelect?.value || 'user';
+  const home_dir = homeInput?.value || '/';
+
+  const services = ['local', 'smb', 'nfs', 's3', 'sftp', 'webdav', 'terminal', 'syncthing', 'converters'];
+  const allowed_services = [];
+
+  for (const svc of services) {
+    const cb = document.getElementById(`svc-${username}-${svc}`);
+    if (cb && cb.checked) {
+      allowed_services.push(svc);
+    }
+  }
+
+  try {
+    const resp = await fetch(`/api/auth/users/${encodeURIComponent(username)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
+      body: JSON.stringify({
+        role: role,
+        allowed_services: allowed_services,
+        home_dir: home_dir
+      })
+    });
+
+    if (resp.ok) {
+      alert(`RBAC settings for '${username}' saved successfully!`);
+      loadUsersTable();
+    } else {
+      alert(`Failed to save RBAC: ${await resp.text()}`);
+    }
+  } catch (e) {
+    alert(`Save error: ${e}`);
+  }
+}
+
+async function deleteUserAccount(username) {
+  if (!confirm(`Are you sure you want to delete user account '${username}'?`)) return;
+
+  try {
+    const resp = await fetch(`/api/auth/users/${encodeURIComponent(username)}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${App.token}` }
+    });
+    if (resp.ok) {
+      loadUsersTable();
+    } else {
+      alert('Failed to delete user: ' + await resp.text());
+    }
+  } catch (e) {
+    alert('Delete error: ' + e);
   }
 }
 
@@ -940,13 +1089,54 @@ function getVisiblePaneCount() {
   return 4;
 }
 
-// ---------------- DUAL-PANE EDITOR & MARKDOWN MERMAID ----------------
+// ---------------- DUAL-PANE EDITOR & CODE VIEWER (SYNTAX HIGHLIGHTING & FIND/REPLACE) ----------------
 
 let activeEditorPathLeft = '';
+let activeEditorLanguage = 'auto';
+let editorFindMatches = [];
+let currentMatchIndex = -1;
+
+function detectLanguageFromPath(path) {
+  const ext = (path.split('.').pop() || '').toLowerCase();
+  const map = {
+    'rs': 'rust',
+    'py': 'python',
+    'js': 'javascript',
+    'ts': 'typescript',
+    'jsx': 'javascript',
+    'tsx': 'typescript',
+    'html': 'html',
+    'htm': 'html',
+    'xml': 'xml',
+    'css': 'css',
+    'scss': 'css',
+    'json': 'json',
+    'yaml': 'yaml',
+    'yml': 'yaml',
+    'toml': 'toml',
+    'sh': 'bash',
+    'bash': 'bash',
+    'zsh': 'bash',
+    'sql': 'sql',
+    'md': 'markdown',
+    'markdown': 'markdown',
+    'c': 'clike',
+    'cpp': 'clike',
+    'h': 'clike',
+    'hpp': 'clike',
+    'dockerfile': 'docker',
+  };
+  return map[ext] || 'markup';
+}
 
 async function openEditorWithFile(filePath) {
   activeEditorPathLeft = filePath;
   document.getElementById('editor-file-title-left').textContent = filePath;
+
+  const detectedLang = detectLanguageFromPath(filePath);
+  const langSelect = document.getElementById('editor-language-select');
+  if (langSelect) langSelect.value = detectedLang;
+  activeEditorLanguage = detectedLang;
 
   const resp = await fetch(`/api/fs/read?path=${encodeURIComponent(filePath)}`, {
     headers: { 'Authorization': `Bearer ${App.token}` }
@@ -954,15 +1144,96 @@ async function openEditorWithFile(filePath) {
 
   if (resp.ok) {
     const data = await resp.json();
-    document.getElementById('editor-text-left').value = data.content;
-    updateMarkdownPreview();
+    const textarea = document.getElementById('editor-text-left');
+    textarea.value = data.content;
+    handleEditorInput();
+    
+    // Default to markdown preview for .md, single-editor for code
+    const isMd = filePath.endsWith('.md') || filePath.endsWith('.markdown');
+    const viewModeSelect = document.getElementById('editor-view-mode');
+    if (viewModeSelect) {
+      viewModeSelect.value = isMd ? 'split-markdown' : 'single-editor';
+      handleEditorViewModeChange(viewModeSelect.value);
+    }
+
     showModal('editor-modal');
+  } else {
+    alert('Failed to read file: ' + await resp.text());
+  }
+}
+
+function handleEditorViewModeChange(mode) {
+  const rightPane = document.getElementById('editor-right-pane');
+  const preview = document.getElementById('editor-preview-container');
+  const rightText = document.getElementById('editor-text-right');
+
+  if (mode === 'single-editor') {
+    rightPane.style.display = 'none';
+  } else if (mode === 'split-markdown') {
+    rightPane.style.display = 'flex';
+    preview.style.display = 'block';
+    rightText.style.display = 'none';
+    updateMarkdownPreview();
+  } else if (mode === 'dual-files') {
+    rightPane.style.display = 'flex';
+    preview.style.display = 'none';
+    rightText.style.display = 'block';
+  }
+}
+
+function handleEditorLanguageChange(lang) {
+  activeEditorLanguage = lang === 'auto' ? detectLanguageFromPath(activeEditorPathLeft) : lang;
+  updateMarkdownPreview();
+}
+
+function handleEditorInput() {
+  const textarea = document.getElementById('editor-text-left');
+  const content = textarea.value;
+
+  // Update status bar stats
+  const pos = textarea.selectionStart || 0;
+  const lines = content.substring(0, pos).split('\n');
+  const lineNum = lines.length;
+  const colNum = lines[lines.length - 1].length + 1;
+
+  const posEl = document.getElementById('editor-cursor-pos');
+  if (posEl) posEl.textContent = `Ln ${lineNum}, Col ${colNum}`;
+
+  const statsEl = document.getElementById('editor-doc-stats');
+  if (statsEl) statsEl.textContent = `${content.length} characters | ${content.split(/\s+/).filter(Boolean).length} words | UTF-8`;
+
+  const mode = document.getElementById('editor-view-mode')?.value;
+  if (mode === 'split-markdown') {
+    updateMarkdownPreview();
+  }
+}
+
+function handleEditorKeyDown(e) {
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    const textarea = e.target;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    textarea.value = textarea.value.substring(0, start) + '  ' + textarea.value.substring(end);
+    textarea.selectionStart = textarea.selectionEnd = start + 2;
+    handleEditorInput();
+  } else if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+    e.preventDefault();
+    saveEditorContent();
+  } else if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+    e.preventDefault();
+    toggleFindBar(true);
+  } else if ((e.ctrlKey || e.metaKey) && e.key === 'h') {
+    e.preventDefault();
+    toggleFindBar(true);
+    document.getElementById('editor-replace-input')?.focus();
   }
 }
 
 function updateMarkdownPreview() {
   const content = document.getElementById('editor-text-left').value;
   const preview = document.getElementById('editor-preview-container');
+  if (!preview) return;
 
   let html = content
     .replace(/^### (.*$)/gim, '<h3>$1</h3>')
@@ -971,7 +1242,11 @@ function updateMarkdownPreview() {
     .replace(/\*\*(.*)\*\*/gim, '<b>$1</b>')
     .replace(/\*(.*)\*/gim, '<i>$1</i>')
     .replace(/```mermaid\n([\s\S]*?)\n```/gim, '<div class="mermaid">$1</div>')
-    .replace(/```([a-z]*)\n([\s\S]*?)\n```/gim, '<pre><code>$2</code></pre>')
+    .replace(/```([a-z]*)\n([\s\S]*?)\n```/gim, (match, lang, code) => {
+      const prismLang = Prism.languages[lang] || Prism.languages.markup;
+      const highlighted = window.Prism ? Prism.highlight(code, prismLang, lang) : escapeHtml(code);
+      return `<pre class="language-${lang}"><code class="language-${lang}">${highlighted}</code></pre>`;
+    })
     .replace(/\n/gim, '<br>');
 
   preview.innerHTML = html;
@@ -985,109 +1260,677 @@ function updateMarkdownPreview() {
   }
 }
 
-document.getElementById('editor-text-left')?.addEventListener('input', () => {
-  if (document.getElementById('editor-view-mode').value === 'split-markdown') {
-    updateMarkdownPreview();
-  }
-});
-
-document.getElementById('btn-save-editor')?.addEventListener('click', async () => {
+async function saveEditorContent() {
   const content = document.getElementById('editor-text-left').value;
-  const resp = await fetch('/api/fs/write', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
-    body: JSON.stringify({ path: activeEditorPathLeft, content, atomic: true })
-  });
-
-  if (resp.ok) {
-    alert('File saved successfully!');
-    refreshPane(App.activePaneIndex);
-  } else {
-    alert('Failed to save file: ' + await resp.text());
-  }
-});
-
-// ---------------- COMPARISON & DIFF ENGINE ----------------
-
-async function triggerDiff() {
-  const paneA = App.panes[0];
-  const paneB = App.panes[1] || App.panes[0];
-
-  const modalBody = document.getElementById('diff-modal-body');
-  modalBody.innerHTML = '<div style="padding: 20px; color: var(--accent);">Calculating comparison between Pane 1 and Pane 2...</div>';
-  showModal('diff-modal');
+  if (!activeEditorPathLeft) return;
 
   try {
-    const resp = await fetch('/api/tools/diff/folders', {
+    const resp = await fetch('/api/fs/write', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
-      body: JSON.stringify({ dir_left: paneA.path, dir_right: paneB.path, deep_hash: true })
+      body: JSON.stringify({ path: activeEditorPathLeft, content, atomic: true })
     });
 
     if (resp.ok) {
-      const data = await resp.json();
-      renderFolderDiff(data);
+      const btn = document.getElementById('btn-save-editor');
+      if (btn) {
+        const origText = btn.innerHTML;
+        btn.innerHTML = '<i data-lucide="check"></i> Saved!';
+        if (window.lucide) lucide.createIcons();
+        setTimeout(() => { btn.innerHTML = origText; if (window.lucide) lucide.createIcons(); }, 1500);
+      }
+      refreshPane(App.activePaneIndex);
     } else {
-      modalBody.innerHTML = `<div style="color: var(--danger);">Diff calculation failed: ${await resp.text()}</div>`;
+      alert('Failed to save file: ' + await resp.text());
     }
   } catch (e) {
-    modalBody.innerHTML = `<div style="color: var(--danger);">Error: ${e}</div>`;
+    alert('Save error: ' + e);
   }
 }
 
-function renderFolderDiff(diff) {
-  const body = document.getElementById('diff-modal-body');
-  body.innerHTML = `
-    <div style="display: flex; justify-content: space-between; margin-bottom: 12px; background: var(--bg-header); padding: 8px 12px; border-radius: var(--radius);">
-      <div><b>Left:</b> ${diff.dir_left}</div>
-      <div><b>Right:</b> ${diff.dir_right}</div>
-      <div><b>Stats:</b> <span style="color: var(--success);">${diff.identical_count} identical</span>, <span style="color: var(--accent);">${diff.modified_count} modified</span>, <span style="color: var(--info);">${diff.left_only_count} left-only</span>, <span style="color: var(--danger);">${diff.right_only_count} right-only</span></div>
+// ---------------- EDITOR FIND & REPLACE ----------------
+
+function toggleFindBar(forceOpen) {
+  const bar = document.getElementById('editor-find-bar');
+  if (!bar) return;
+  const isOpening = forceOpen !== undefined ? forceOpen : bar.style.display === 'none';
+  bar.style.display = isOpening ? 'block' : 'none';
+  if (isOpening) {
+    const findInput = document.getElementById('editor-find-input');
+    findInput?.focus();
+    findInput?.select();
+    executeFind();
+  }
+}
+
+function handleFindKeyDown(e) {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    if (e.shiftKey) findPrevMatch();
+    else findNextMatch();
+  } else if (e.key === 'Escape') {
+    toggleFindBar(false);
+  } else {
+    setTimeout(executeFind, 50);
+  }
+}
+
+function executeFind() {
+  const query = document.getElementById('editor-find-input')?.value;
+  const textarea = document.getElementById('editor-text-left');
+  const countEl = document.getElementById('editor-match-count');
+  editorFindMatches = [];
+
+  if (!query || !textarea) {
+    if (countEl) countEl.textContent = '0 of 0';
+    return;
+  }
+
+  const text = textarea.value;
+  const queryLower = query.toLowerCase();
+  const textLower = text.toLowerCase();
+  let pos = 0;
+
+  while ((pos = textLower.indexOf(queryLower, pos)) !== -1) {
+    editorFindMatches.push({ start: pos, end: pos + query.length });
+    pos += query.length;
+  }
+
+  if (editorFindMatches.length > 0) {
+    currentMatchIndex = 0;
+    highlightCurrentMatch();
+  } else {
+    currentMatchIndex = -1;
+  }
+
+  if (countEl) {
+    countEl.textContent = editorFindMatches.length > 0 ? `${currentMatchIndex + 1} of ${editorFindMatches.length}` : '0 of 0';
+  }
+}
+
+function highlightCurrentMatch() {
+  if (currentMatchIndex < 0 || currentMatchIndex >= editorFindMatches.length) return;
+  const match = editorFindMatches[currentMatchIndex];
+  const textarea = document.getElementById('editor-text-left');
+  if (!textarea) return;
+
+  textarea.focus();
+  textarea.setSelectionRange(match.start, match.end);
+
+  const countEl = document.getElementById('editor-match-count');
+  if (countEl) countEl.textContent = `${currentMatchIndex + 1} of ${editorFindMatches.length}`;
+}
+
+function findNextMatch() {
+  if (editorFindMatches.length === 0) return;
+  currentMatchIndex = (currentMatchIndex + 1) % editorFindMatches.length;
+  highlightCurrentMatch();
+}
+
+function findPrevMatch() {
+  if (editorFindMatches.length === 0) return;
+  currentMatchIndex = (currentMatchIndex - 1 + editorFindMatches.length) % editorFindMatches.length;
+  highlightCurrentMatch();
+}
+
+function replaceCurrentMatch() {
+  if (currentMatchIndex < 0 || currentMatchIndex >= editorFindMatches.length) return;
+  const match = editorFindMatches[currentMatchIndex];
+  const replaceWith = document.getElementById('editor-replace-input')?.value || '';
+  const textarea = document.getElementById('editor-text-left');
+  if (!textarea) return;
+
+  const val = textarea.value;
+  textarea.value = val.substring(0, match.start) + replaceWith + val.substring(match.end);
+  executeFind();
+}
+
+function replaceAllMatches() {
+  const query = document.getElementById('editor-find-input')?.value;
+  const replaceWith = document.getElementById('editor-replace-input')?.value || '';
+  const textarea = document.getElementById('editor-text-left');
+  if (!query || !textarea) return;
+
+  const regex = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+  textarea.value = textarea.value.replace(regex, replaceWith);
+  executeFind();
+}
+
+// ---------------- REVISED COMPARISON & DIFF ENGINE ----------------
+
+let currentFolderDiffData = null;
+let currentDiffFilter = 'all';
+
+async function triggerDiff(deepHash = false) {
+  const paneA = App.panes[0];
+  const paneB = App.panes[1] || App.panes[0];
+
+  // Scenario 1: User selected 1 file in Pane 1 and 1 file in Pane 2
+  const selA = Array.from(paneA.selected);
+  const selB = Array.from(paneB.selected);
+
+  if (selA.length === 1 && selB.length === 1 && selA[0] !== selB[0]) {
+    return openFileDiffView(selA[0], selB[0]);
+  }
+
+  // Scenario 2: User selected 2 files in the SAME active pane
+  const activePane = App.panes[App.activePaneIndex];
+  const activeSel = Array.from(activePane.selected);
+  if (activeSel.length === 2) {
+    return openFileDiffView(activeSel[0], activeSel[1]);
+  }
+
+  // Scenario 3: Folder Comparison (Fast Immediate Level by default, Deep SHA-256 on demand)
+  const modalBody = document.getElementById('diff-modal-body');
+  modalBody.innerHTML = `
+    <div style="padding: 24px; text-align: center; color: var(--accent);">
+      <div style="font-size: 20px; font-weight: 700; margin-bottom: 8px;">⚖️ Calculating Folder Comparison...</div>
+      <div style="font-size: 12px; color: var(--text-muted);">${paneA.path} ⟷ ${paneB.path}</div>
+      <div style="margin-top: 12px; font-size: 11px; color: var(--text-dim);">${deepHash ? 'Performing deep recursive SHA-256 integrity analysis...' : 'Comparing immediate directory entries (fast mode)...'}</div>
     </div>
-    <table class="file-table">
-      <thead>
-        <tr><th>Relative Path</th><th>Status</th><th>Left Size</th><th>Right Size</th><th>Action</th></tr>
-      </thead>
-      <tbody>
-        ${diff.entries.map(e => `
-          <tr class="file-row">
-            <td class="file-cell">${e.relative_path}</td>
-            <td class="file-cell" style="color: ${e.status === 'identical' ? 'var(--success)' : (e.status === 'modified' ? 'var(--accent)' : 'var(--info)')}; font-weight: 600;">${e.status.toUpperCase()}</td>
-            <td class="file-cell file-cell-mono">${e.size_left !== null ? formatBytes(e.size_left) : '-'}</td>
-            <td class="file-cell file-cell-mono">${e.size_right !== null ? formatBytes(e.size_right) : '-'}</td>
-            <td class="file-cell"><button class="btn btn-icon" onclick="openFileDiffView('${diff.dir_left}/${e.relative_path}', '${diff.dir_right}/${e.relative_path}')" title="Inspect Diff"><i data-lucide="eye" style="width:12px;"></i></button></td>
+  `;
+  showModal('diff-modal');
+
+  try {
+    const selectedItems = activeSel.length > 0 ? activeSel.map(p => p.split('/').pop()) : null;
+
+    const resp = await fetch('/api/tools/diff/folders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
+      body: JSON.stringify({
+        dir_left: paneA.path,
+        dir_right: paneB.path,
+        recursive: deepHash,
+        deep_hash: deepHash,
+        selected_items: selectedItems
+      })
+    });
+
+    if (resp.ok) {
+      currentFolderDiffData = await resp.json();
+      currentDiffFilter = 'all';
+      renderFolderDiff(currentFolderDiffData, currentDiffFilter);
+    } else {
+      modalBody.innerHTML = `<div style="color: var(--danger); padding: 20px;">Diff calculation failed: ${await resp.text()}</div>`;
+    }
+  } catch (e) {
+    modalBody.innerHTML = `<div style="color: var(--danger); padding: 20px;">Error: ${e}</div>`;
+  }
+}
+
+function setDiffFilter(filter) {
+  currentDiffFilter = filter;
+  if (currentFolderDiffData) renderFolderDiff(currentFolderDiffData, currentDiffFilter);
+}
+
+function renderFolderDiff(diff, filter = 'all') {
+  const body = document.getElementById('diff-modal-body');
+  
+  let filteredEntries = diff.entries;
+  if (filter === 'modified') filteredEntries = diff.entries.filter(e => e.status === 'modified');
+  else if (filter === 'left_only') filteredEntries = diff.entries.filter(e => e.status === 'left_only');
+  else if (filter === 'right_only') filteredEntries = diff.entries.filter(e => e.status === 'right_only');
+  else if (filter === 'identical') filteredEntries = diff.entries.filter(e => e.status === 'identical');
+
+  body.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; background: var(--bg-header); padding: 10px 14px; border-radius: var(--radius); border: 1px solid var(--border);">
+      <div style="display: flex; gap: 20px; font-size: 12px;">
+        <div><b>Left:</b> <code style="color: var(--accent);">${diff.dir_left}</code></div>
+        <div><b>Right:</b> <code style="color: var(--accent);">${diff.dir_right}</code></div>
+      </div>
+      <div style="display: flex; gap: 6px;">
+        <button class="btn btn-accent" onclick="triggerDiff(false)" title="Fast Immediate Compare"><i data-lucide="zap"></i> Fast Compare</button>
+        <button class="btn" onclick="triggerDiff(true)" title="Deep Recursive SHA-256 Compare"><i data-lucide="shield-check"></i> Deep Hash Scan</button>
+      </div>
+    </div>
+
+    <!-- Filter Buttons -->
+    <div class="diff-filter-bar">
+      <button class="diff-filter-btn ${filter === 'all' ? 'active' : ''}" onclick="setDiffFilter('all')">
+        All Items (${diff.entries.length})
+      </button>
+      <button class="diff-filter-btn ${filter === 'modified' ? 'active' : ''}" onclick="setDiffFilter('modified')">
+        <span style="color: var(--accent);">⚠️ Modified (${diff.modified_count})</span>
+      </button>
+      <button class="diff-filter-btn ${filter === 'left_only' ? 'active' : ''}" onclick="setDiffFilter('left_only')">
+        <span style="color: var(--info);">⬅️ Left Only (${diff.left_only_count})</span>
+      </button>
+      <button class="diff-filter-btn ${filter === 'right_only' ? 'active' : ''}" onclick="setDiffFilter('right_only')">
+        <span style="color: var(--danger);">➡️ Right Only (${diff.right_only_count})</span>
+      </button>
+      <button class="diff-filter-btn ${filter === 'identical' ? 'active' : ''}" onclick="setDiffFilter('identical')">
+        <span style="color: var(--success);">✅ Identical (${diff.identical_count})</span>
+      </button>
+    </div>
+
+    <div style="max-height: 58vh; overflow: auto; border: 1px solid var(--border); border-radius: var(--radius);">
+      <table class="file-table">
+        <thead>
+          <tr>
+            <th>Relative Path</th>
+            <th>Status</th>
+            <th>Left Size</th>
+            <th>Right Size</th>
+            <th style="width: 100px; text-align: center;">Actions</th>
           </tr>
-        `).join('')}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          ${filteredEntries.length === 0 ? '<tr><td colspan="5" style="text-align:center; padding: 20px; color: var(--text-dim);">No files match this filter.</td></tr>' : ''}
+          ${filteredEntries.map(e => `
+            <tr class="file-row">
+              <td class="file-cell"><span style="font-family: var(--font-mono);">${e.relative_path}</span></td>
+              <td class="file-cell" style="color: ${e.status === 'identical' ? 'var(--success)' : (e.status === 'modified' ? 'var(--accent)' : (e.status === 'left_only' ? 'var(--info)' : 'var(--danger)'))}; font-weight: 700; font-size: 11px;">
+                ${e.status.replace('_', ' ').toUpperCase()}
+              </td>
+              <td class="file-cell file-cell-mono">${e.size_left !== null ? formatBytes(e.size_left) : '-'}</td>
+              <td class="file-cell file-cell-mono">${e.size_right !== null ? formatBytes(e.size_right) : '-'}</td>
+              <td class="file-cell" style="text-align: center;">
+                ${!e.is_dir && (e.status === 'modified' || e.status === 'identical') ? `
+                  <button class="btn btn-icon" onclick="openFileDiffView('${diff.dir_left}/${e.relative_path}', '${diff.dir_right}/${e.relative_path}')" title="Inspect Side-by-Side Diff">
+                    <i data-lucide="eye" style="width:12px;"></i>
+                  </button>
+                ` : ''}
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
   `;
   if (window.lucide) lucide.createIcons();
 }
 
 async function openFileDiffView(fileL, fileR) {
-  const resp = await fetch('/api/tools/diff/files', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
-    body: JSON.stringify({ file_left: fileL, file_right: fileR })
-  });
+  showModal('diff-modal');
+  const body = document.getElementById('diff-modal-body');
+  body.innerHTML = '<div style="padding: 20px; color: var(--accent);">Loading side-by-side file comparison...</div>';
 
-  if (resp.ok) {
-    const diffData = await resp.json();
-    const body = document.getElementById('diff-modal-body');
-    body.innerHTML = `
-      <div style="margin-bottom: 8px; display: flex; justify-content: space-between;">
-        <span><b>${diffData.file_left}</b> ⟷ <b>${diffData.file_right}</b></span>
-        <button class="btn" onclick="triggerDiff()">Back to Folder Diff</button>
-      </div>
-      <div class="diff-container">
-        ${diffData.lines.map(line => `
-          <div class="diff-line ${line.tag}">
-            <div class="diff-gutter">${line.line_num_left || ''} | ${line.line_num_right || ''}</div>
-            <div>${line.tag === 'insert' ? '+ ' : (line.tag === 'delete' ? '- ' : '  ')}${escapeHtml(line.content)}</div>
+  try {
+    const resp = await fetch('/api/tools/diff/files', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
+      body: JSON.stringify({ file_left: fileL, file_right: fileR })
+    });
+
+    if (resp.ok) {
+      const diffData = await resp.json();
+      body.innerHTML = `
+        <div style="margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; background: var(--bg-header); padding: 8px 12px; border-radius: var(--radius);">
+          <div style="font-size: 12px;">
+            <span style="color: var(--accent); font-weight: 700;">Left:</span> ${escapeHtml(diffData.file_left)} 
+            <span style="margin: 0 8px; color: var(--text-dim);">⟷</span>
+            <span style="color: var(--accent); font-weight: 700;">Right:</span> ${escapeHtml(diffData.file_right)}
+            <span class="badge" style="margin-left: 12px; font-size: 11px; background: rgba(245, 158, 11, 0.2); color: var(--accent); padding: 2px 6px;">
+              +${diffData.additions} / -${diffData.deletions}
+            </span>
+          </div>
+          <button class="btn" onclick="triggerDiff(false)"><i data-lucide="arrow-left"></i> Back to Folder Diff</button>
+        </div>
+        <div class="diff-container" style="max-height: 68vh; overflow: auto;">
+          ${diffData.lines.map(line => `
+            <div class="diff-line ${line.tag}">
+              <div class="diff-gutter">${line.line_num_left || ''} | ${line.line_num_right || ''}</div>
+              <div>${line.tag === 'insert' ? '+ ' : (line.tag === 'delete' ? '- ' : '  ')}${escapeHtml(line.content)}</div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+      if (window.lucide) lucide.createIcons();
+    } else {
+      body.innerHTML = `<div style="color: var(--danger); padding: 20px;">Failed to compare files: ${await resp.text()}</div>`;
+    }
+  } catch (e) {
+    body.innerHTML = `<div style="color: var(--danger); padding: 20px;">Error: ${e}</div>`;
+  }
+}
+
+// ---------------- CONVERTX FILE & IMAGE CONVERTER TOOL ----------------
+
+let activeConverterFile = '';
+
+function triggerConvertFile() {
+  const pane = App.panes[App.activePaneIndex];
+  const item = App.contextItem || pane.entries[pane.cursorIndex];
+  if (item && !item.is_dir) {
+    openConverterModal(item.path);
+  } else {
+    openConverterModal('');
+  }
+}
+
+function openConverterModal(filePath) {
+  const pane = App.panes[App.activePaneIndex];
+  if (!filePath && pane.entries[pane.cursorIndex]) {
+    filePath = pane.entries[pane.cursorIndex].path;
+  }
+  activeConverterFile = filePath || '';
+
+  const fileName = filePath ? filePath.split('/').pop() : 'No file selected';
+  const nameEl = document.getElementById('convert-source-filename');
+  const pathEl = document.getElementById('convert-source-path');
+  const sizeEl = document.getElementById('convert-source-size');
+
+  if (nameEl) nameEl.textContent = fileName;
+  if (pathEl) pathEl.textContent = filePath || 'Select a file in the pane to convert';
+  if (sizeEl) sizeEl.textContent = '';
+
+  const statusMsg = document.getElementById('convert-status-msg');
+  if (statusMsg) statusMsg.style.display = 'none';
+
+  showModal('converter-modal');
+}
+
+function handleTargetFormatChange(fmt) {
+  const isImage = ['png', 'jpg', 'jpeg', 'webp', 'avif', 'gif', 'bmp', 'ico'].includes(fmt.toLowerCase());
+  const imgOpts = document.getElementById('convert-image-options');
+  if (imgOpts) imgOpts.style.display = isImage ? 'block' : 'none';
+}
+
+async function executeFileConversion() {
+  if (!activeConverterFile) {
+    alert('Please select a valid file to convert');
+    return;
+  }
+
+  const targetFormat = document.getElementById('convert-target-format')?.value || 'webp';
+  const quality = parseInt(document.getElementById('convert-quality-slider')?.value || '85', 10);
+  const resizeW = parseInt(document.getElementById('convert-resize-w')?.value, 10) || null;
+  const resizeH = parseInt(document.getElementById('convert-resize-h')?.value, 10) || null;
+
+  const statusMsg = document.getElementById('convert-status-msg');
+  const btn = document.getElementById('btn-run-convert');
+
+  if (statusMsg) {
+    statusMsg.style.display = 'block';
+    statusMsg.style.color = 'var(--accent)';
+    statusMsg.innerHTML = '<i data-lucide="loader"></i> Converting file in progress...';
+    if (window.lucide) lucide.createIcons();
+  }
+  if (btn) btn.disabled = true;
+
+  try {
+    const resp = await fetch('/api/tools/convert', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
+      body: JSON.stringify({
+        source_path: activeConverterFile,
+        target_format: targetFormat,
+        quality: quality,
+        resize_width: resizeW,
+        resize_height: resizeH
+      })
+    });
+
+    if (resp.ok) {
+      const data = await resp.json();
+      if (statusMsg) {
+        statusMsg.style.color = 'var(--success)';
+        statusMsg.innerHTML = `✅ ${escapeHtml(data.message)}<br><small style="color:var(--text-muted);">Output: ${escapeHtml(data.output_path)}</small>`;
+      }
+      refreshPane(App.activePaneIndex);
+    } else {
+      if (statusMsg) {
+        statusMsg.style.color = 'var(--danger)';
+        statusMsg.textContent = `Conversion failed: ${await resp.text()}`;
+      }
+    }
+  } catch (e) {
+    if (statusMsg) {
+      statusMsg.style.color = 'var(--danger)';
+      statusMsg.textContent = `Error: ${e}`;
+    }
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+// ---------------- USER PROFILE & DROPDOWNS & FAVORITES ----------------
+
+function updateHeaderProfile(user) {
+  if (!user) return;
+  const uname = user.nickname || user.username || 'User';
+  const roleStr = (user.role || 'USER').toUpperCase();
+  const avatar = user.avatar_url || '👤';
+
+  const headerLabel = document.getElementById('header-username-label');
+  const headerBadge = document.getElementById('header-role-badge');
+  const headerAvatar = document.getElementById('header-avatar-thumb');
+  if (headerLabel) headerLabel.textContent = uname;
+  if (headerBadge) headerBadge.textContent = roleStr;
+  if (headerAvatar) headerAvatar.textContent = avatar;
+
+  const menuName = document.getElementById('menu-user-name');
+  const menuEmail = document.getElementById('menu-user-email');
+  const menuBadge = document.getElementById('menu-role-badge');
+  const menuAvatar = document.getElementById('menu-avatar-large');
+  if (menuName) menuName.textContent = uname;
+  if (menuEmail) menuEmail.textContent = user.email || `${user.username}@localhost`;
+  if (menuBadge) menuBadge.textContent = roleStr;
+  if (menuAvatar) menuAvatar.textContent = avatar;
+
+  // Show/Hide Admin Control Panel item based on role (Admin only)
+  const isAdmin = user.role === 'admin';
+  const adminItem = document.getElementById('menu-admin-panel-item');
+  if (adminItem) {
+    adminItem.style.display = isAdmin ? 'flex' : 'none';
+  }
+  const mobileAdminItem = document.getElementById('mobile-admin-panel-item');
+  if (mobileAdminItem) {
+    mobileAdminItem.style.display = isAdmin ? 'flex' : 'none';
+  }
+}
+
+function toggleToolsMenu(e) {
+  e?.stopPropagation();
+  const menu = document.getElementById('tools-dropdown-menu');
+  const profileMenu = document.getElementById('profile-dropdown-menu');
+  if (profileMenu) profileMenu.classList.remove('active');
+  if (menu) menu.classList.toggle('active');
+}
+
+function toggleProfileMenu(e) {
+  e?.stopPropagation();
+  const menu = document.getElementById('profile-dropdown-menu');
+  const toolsMenu = document.getElementById('tools-dropdown-menu');
+  if (toolsMenu) toolsMenu.classList.remove('active');
+  if (menu) menu.classList.toggle('active');
+}
+
+// Close dropdowns on outside click
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.tools-dropdown-wrapper')) {
+    document.getElementById('tools-dropdown-menu')?.classList.remove('active');
+  }
+  if (!e.target.closest('.profile-dropdown-wrapper')) {
+    document.getElementById('profile-dropdown-menu')?.classList.remove('active');
+  }
+  const favMenu = document.getElementById('pane-favorites-popup');
+  if (favMenu && !e.target.closest('.pane-favorites-dropdown') && !e.target.closest('[id^="btn-favorites-"]')) {
+    favMenu.remove();
+  }
+});
+
+function openUserProfileModal() {
+  document.getElementById('profile-dropdown-menu')?.classList.remove('active');
+  const user = App.user || {};
+
+  const editAvatar = document.getElementById('profile-edit-avatar');
+  const editUname = document.getElementById('profile-edit-username');
+  const editBadge = document.getElementById('profile-edit-role-badge');
+  const editAuthType = document.getElementById('profile-edit-auth-type');
+
+  if (editAvatar) editAvatar.textContent = user.avatar_url || '👤';
+  if (editUname) editUname.textContent = user.username || 'User';
+  if (editBadge) editBadge.textContent = (user.role || 'USER').toUpperCase();
+  if (editAuthType) editAuthType.textContent = user.is_pam ? 'PAM / Local Linux Account' : 'Internal Database Account';
+
+  const nickInput = document.getElementById('profile-input-nickname');
+  const emailInput = document.getElementById('profile-input-email');
+  const avatarInput = document.getElementById('profile-input-avatar');
+  const passInput = document.getElementById('profile-input-password');
+
+  if (nickInput) nickInput.value = user.nickname || '';
+  if (emailInput) emailInput.value = user.email || '';
+  if (avatarInput) avatarInput.value = user.avatar_url || '';
+  if (passInput) passInput.value = '';
+
+  const statusMsg = document.getElementById('profile-status-msg');
+  if (statusMsg) statusMsg.style.display = 'none';
+
+  showModal('profile-modal');
+}
+
+async function saveUserProfile() {
+  const nickname = document.getElementById('profile-input-nickname')?.value.trim() || null;
+  const email = document.getElementById('profile-input-email')?.value.trim() || null;
+  const avatar_url = document.getElementById('profile-input-avatar')?.value.trim() || null;
+  const new_password = document.getElementById('profile-input-password')?.value || null;
+
+  const statusMsg = document.getElementById('profile-status-msg');
+  if (statusMsg) {
+    statusMsg.style.display = 'block';
+    statusMsg.style.color = 'var(--accent)';
+    statusMsg.textContent = 'Saving profile...';
+  }
+
+  try {
+    const resp = await fetch('/api/auth/profile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
+      body: JSON.stringify({ nickname, email, avatar_url, new_password })
+    });
+
+    if (resp.ok) {
+      if (statusMsg) {
+        statusMsg.style.color = 'var(--success)';
+        statusMsg.textContent = 'Profile updated successfully!';
+      }
+      // Re-fetch me
+      const meResp = await fetch('/api/auth/me', {
+        headers: { 'Authorization': `Bearer ${App.token}` }
+      });
+      if (meResp.ok) {
+        App.user = await meResp.json();
+        updateHeaderProfile(App.user);
+      }
+      setTimeout(() => closeModal('profile-modal'), 1000);
+    } else {
+      if (statusMsg) {
+        statusMsg.style.color = 'var(--danger)';
+        statusMsg.textContent = `Save failed: ${await resp.text()}`;
+      }
+    }
+  } catch (e) {
+    if (statusMsg) {
+      statusMsg.style.color = 'var(--danger)';
+      statusMsg.textContent = `Error: ${e}`;
+    }
+  }
+}
+
+function openAdminPanel() {
+  document.getElementById('profile-dropdown-menu')?.classList.remove('active');
+  if (App.user?.role !== 'admin') {
+    alert('Access restricted to Administrators.');
+    return;
+  }
+  showModal('admin-panel-modal');
+  switchAdminTab('admin-tab-users');
+}
+
+function openBookmarksManager() {
+  openSettingsModal();
+  switchSettingsTab('tab-bookmarks');
+}
+
+async function openPaneFavoritesMenu(e, paneIndex) {
+  e.stopPropagation();
+  document.getElementById('pane-favorites-popup')?.remove();
+
+  const localShortcuts = [
+    { name: 'Home Directory', path: `/home/${App.user?.username || 'bolt'}`, icon: 'home' },
+    { name: 'Root Filesystem', path: '/', icon: 'hard-drive' },
+    { name: 'Downloads', path: `/home/${App.user?.username || 'bolt'}/Downloads`, icon: 'download' },
+    { name: 'Documents', path: `/home/${App.user?.username || 'bolt'}/Documents`, icon: 'file-text' },
+    { name: 'Projects', path: `/home/${App.user?.username || 'bolt'}/projects`, icon: 'folder-git-2' },
+    { name: 'Temporary /tmp', path: '/tmp', icon: 'zap' }
+  ];
+
+  let globalMounts = [];
+  try {
+    const resp = await fetch('/api/mounts/accessible', {
+      headers: { 'Authorization': `Bearer ${App.token}` }
+    });
+    if (resp.ok) {
+      globalMounts = await resp.json();
+    }
+  } catch (err) {
+    console.warn('Failed to load accessible mounts for favorites:', err);
+  }
+
+  const protoIcons = {
+    'smb': 'share-2',
+    'nfs': 'server',
+    's3': 'cloud',
+    'sftp': 'terminal',
+    'webdav': 'globe',
+    'hetzner-box': 'box',
+    'proton': 'shield'
+  };
+
+  const popup = document.createElement('div');
+  popup.id = 'pane-favorites-popup';
+  popup.className = 'pane-favorites-dropdown active';
+
+  popup.innerHTML = `
+    <div style="padding: 8px 12px; font-weight: 700; font-size: 11px; color: var(--accent); background: var(--bg-dark); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+      <span>⭐ Quick Favorites & Bookmarks</span>
+      <span style="font-size: 10px; color: var(--text-dim); cursor: pointer;" onclick="openBookmarksManager()">Manage ⚙️</span>
+    </div>
+    <div style="padding: 4px 0;">
+      <div style="padding: 4px 12px; font-size: 10px; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">Local Shortcuts</div>
+      ${localShortcuts.map(b => `
+        <div class="dropdown-item" onclick="loadPaneDirectory(${paneIndex}, '${b.path}'); document.getElementById('pane-favorites-popup')?.remove();">
+          <i data-lucide="${b.icon}"></i>
+          <div>
+            <div style="font-weight: 600;">${escapeHtml(b.name)}</div>
+            <div style="font-size: 10px; color: var(--text-dim); font-family: var(--font-mono);">${escapeHtml(b.path)}</div>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+    ${globalMounts.length > 0 ? `
+      <div style="border-top: 1px solid var(--border); padding: 4px 0; background: rgba(245, 158, 11, 0.03);">
+        <div style="padding: 4px 12px; font-size: 10px; color: var(--accent); font-weight: 700; text-transform: uppercase; display: flex; justify-content: space-between;">
+          <span>🌐 Network & Global Mounts</span>
+          <span style="font-size: 9px; background: rgba(245, 158, 11, 0.15); padding: 1px 4px; border-radius: 3px;">ASSIGNED BY ADMIN</span>
+        </div>
+        ${globalMounts.map(m => `
+          <div class="dropdown-item" onclick="loadPaneDirectory(${paneIndex}, '${escapeHtml(m.target_uri)}'); document.getElementById('pane-favorites-popup')?.remove();">
+            <i data-lucide="${protoIcons[m.protocol] || 'network'}" style="color: var(--accent);"></i>
+            <div>
+              <div style="font-weight: 600; display: flex; align-items: center; gap: 6px;">
+                <span>${escapeHtml(m.name)}</span>
+                <span class="badge" style="font-size: 9px; padding: 1px 4px; text-transform: uppercase;">${escapeHtml(m.protocol)}</span>
+              </div>
+              <div style="font-size: 10px; color: var(--text-dim); font-family: var(--font-mono);">${escapeHtml(m.target_uri)}</div>
+            </div>
           </div>
         `).join('')}
       </div>
-    `;
-  }
+    ` : ''}
+  `;
+
+  const btn = document.getElementById(`btn-favorites-${paneIndex}`);
+  btn?.parentElement?.appendChild(popup);
+  if (window.lucide) lucide.createIcons();
+}
+
+function toggleGlobalDotfiles(show) {
+  App.panes.forEach(pane => {
+    pane.showHidden = show;
+  });
+  refreshAllPanes();
 }
 
 // ---------------- PARANOID DRY RUN ----------------
@@ -1462,18 +2305,7 @@ function setupEventListeners() {
     updateParanoidBadge();
   });
 
-  document.getElementById('btn-open-editor')?.addEventListener('click', () => showModal('editor-modal'));
-  document.getElementById('btn-open-diff')?.addEventListener('click', () => triggerDiff());
-  document.getElementById('btn-open-sync')?.addEventListener('click', () => openSyncModal());
-  document.getElementById('btn-open-syncthing')?.addEventListener('click', () => openSyncthingModal());
-  document.getElementById('btn-open-search')?.addEventListener('click', () => openSearchModal());
-  document.getElementById('btn-toggle-terminal')?.addEventListener('click', () => toggleTerminal());
-  document.getElementById('btn-open-tasks')?.addEventListener('click', () => { showModal('tasks-modal'); loadTasksTable(); });
   document.getElementById('btn-custom-dest-exec')?.addEventListener('click', executeCustomDestTransfer);
-  document.getElementById('btn-refresh-all')?.addEventListener('click', () => {
-    for (let i = 0; i < getVisiblePaneCount(); i++) refreshPane(i);
-  });
-  document.getElementById('btn-open-settings')?.addEventListener('click', () => openSettingsModal());
 
   document.getElementById('theme-selector')?.addEventListener('change', (e) => {
     applyTheme(e.target.value);
@@ -1656,6 +2488,7 @@ async function handleLoginSubmit() {
     const data = await resp.json();
     App.token = data.token;
     App.user = data.user;
+    updateHeaderProfile(App.user);
     localStorage.setItem('cd_token', data.token);
     hideModal('login-modal');
     await loadConfig();
@@ -1682,6 +2515,17 @@ function openSettingsModal() {
       localStorage.setItem('cd_dblclick_up', e.target.checked);
     };
   }
+
+  const dotfilesCheckbox = document.getElementById('setting-show-hidden');
+  if (dotfilesCheckbox) {
+    dotfilesCheckbox.checked = App.panes[0]?.showHidden || false;
+  }
+
+  const themeSel = document.getElementById('settings-theme-selector');
+  if (themeSel) {
+    themeSel.value = localStorage.getItem('cd_theme') || 'amber-charcoal';
+  }
+
   showModal('settings-modal');
 }
 
@@ -2019,13 +2863,249 @@ function applyFontSize(val) {
   if (slider) slider.value = val;
 }
 
-// ---------------- REMOTE SFTP / WEBDAV CONNECTION ----------------
+// ---------------- REMOTE SFTP / WEBDAV & GLOBAL MOUNTS ----------------
 let targetRemotePaneIndex = 0;
 
-function openRemoteModal(paneIndex) {
+async function openRemoteModal(paneIndex, asGlobalAdmin = false) {
   targetRemotePaneIndex = paneIndex;
   document.getElementById('remote-test-status').style.display = 'none';
+
+  const isAdmin = App.user?.role === 'admin';
+  const globalSection = document.getElementById('remote-global-mount-section');
+  if (globalSection) globalSection.style.display = isAdmin ? 'block' : 'none';
+
+  const globalCheckbox = document.getElementById('remote-is-global-mount');
+  if (globalCheckbox) {
+    globalCheckbox.checked = asGlobalAdmin;
+    toggleRemoteGlobalMountUI(asGlobalAdmin);
+  }
+
+  // Populate users list for mount permissions
+  if (isAdmin) {
+    const userContainer = document.getElementById('remote-mount-users-checkboxes');
+    if (userContainer) {
+      userContainer.innerHTML = '<div>Loading users...</div>';
+      try {
+        const resp = await fetch('/api/auth/users', {
+          headers: { 'Authorization': `Bearer ${App.token}` }
+        });
+        if (resp.ok) {
+          const users = await resp.json();
+          userContainer.innerHTML = users.map(u => `
+            <label style="display: flex; align-items: center; gap: 4px; cursor: pointer; font-weight: normal;">
+              <input type="checkbox" class="mount-user-cb" value="${escapeHtml(u.username)}" checked>
+              <span>${escapeHtml(u.username)} ${u.nickname ? `(${escapeHtml(u.nickname)})` : ''}</span>
+            </label>
+          `).join('');
+        }
+      } catch (err) {
+        userContainer.innerHTML = '<div>Failed to load users</div>';
+      }
+    }
+  }
+
   showModal('remote-modal');
+  updateRemoteProtoUI();
+}
+
+function toggleRemoteGlobalMountUI(checked) {
+  const opts = document.getElementById('remote-global-mount-options');
+  const saveBtn = document.getElementById('btn-save-global-mount');
+  const connectBtn = document.getElementById('btn-connect-remote');
+
+  if (opts) opts.style.display = checked ? 'block' : 'none';
+  if (saveBtn) saveBtn.style.display = checked ? 'inline-flex' : 'none';
+  if (connectBtn) connectBtn.textContent = checked ? 'Connect & Also Mount to Active Pane' : 'Connect to Active Pane';
+}
+
+function toggleMountAllUsers(checked) {
+  document.querySelectorAll('.mount-user-cb').forEach(cb => {
+    cb.checked = checked;
+  });
+}
+
+async function saveGlobalRemoteMount() {
+  const proto = document.getElementById('remote-proto-select').value;
+  const host = document.getElementById('remote-host')?.value || '';
+  const port = parseInt(document.getElementById('remote-port')?.value || '22', 10);
+  const user = document.getElementById('remote-user')?.value || '';
+  const pass = document.getElementById('remote-pass')?.value || '';
+  const path = document.getElementById('remote-path')?.value || '/';
+  const mountName = document.getElementById('remote-global-mount-name')?.value.trim() || `${proto.toUpperCase()} - ${host}`;
+
+  let target_uri = '';
+  if (proto === 'sftp') {
+    if (!host) { alert('Please specify host'); return; }
+    target_uri = `sftp://${user ? `${user}@` : ''}${host}:${port}${path.startsWith('/') ? path : '/' + path}`;
+  } else if (proto === 'smb') {
+    const share = document.getElementById('remote-smb-share')?.value || '';
+    const domain = document.getElementById('remote-smb-domain')?.value || '';
+    if (!host || !share) { alert('Please specify Samba host and share name'); return; }
+    const domPrefix = domain && domain !== 'WORKGROUP' ? `${domain};` : '';
+    const userAuth = user ? (pass ? `${domPrefix}${user}:${pass}@` : `${domPrefix}${user}@`) : '';
+    const portSuffix = port !== 445 ? `:${port}` : '';
+    const sub = path.startsWith('/') ? path : '/' + path;
+    target_uri = `smb://${userAuth}${host}${portSuffix}/${share}${sub === '/' ? '' : sub}`;
+  } else if (proto === 'nfs') {
+    const exportPath = document.getElementById('remote-nfs-export')?.value || '/';
+    if (!host) { alert('Please specify NFS host'); return; }
+    const portSuffix = port !== 2049 ? `:${port}` : '';
+    const cleanExport = exportPath.startsWith('/') ? exportPath : '/' + exportPath;
+    const sub = path && path !== '/' ? (path.startsWith('/') ? path : '/' + path) : '';
+    target_uri = `nfs://${host}${portSuffix}${cleanExport}${sub}`;
+  } else if (proto === 'webdav') {
+    if (!host) { alert('Please specify WebDAV URL'); return; }
+    target_uri = `webdav://${host.replace(/^https?:\/\//, '')}${path.startsWith('/') ? path : '/' + path}`;
+  } else if (proto === 's3') {
+    const bucket = document.getElementById('remote-bucket')?.value || '';
+    if (!bucket) { alert('Please specify S3 bucket name'); return; }
+    target_uri = `s3://${bucket}${path.startsWith('/') ? path : '/' + path}`;
+  } else if (proto === 'hetzner-box') {
+    const hMode = document.getElementById('hetzner-mode')?.value || 'sftp';
+    if (hMode === 'sftp') {
+      target_uri = `sftp://${user}@${host}:${port}${path.startsWith('/') ? path : '/' + path}`;
+    } else {
+      target_uri = `webdav://${host.replace(/^https?:\/\//, '')}${path.startsWith('/') ? path : '/' + path}`;
+    }
+  } else {
+    target_uri = path;
+  }
+
+  const allUsers = document.getElementById('remote-mount-all-users')?.checked;
+  const allowed_users = [];
+  if (allUsers) {
+    allowed_users.push('*');
+  } else {
+    document.querySelectorAll('.mount-user-cb:checked').forEach(cb => {
+      allowed_users.push(cb.value);
+    });
+    if (allowed_users.length === 0) {
+      alert('Please select at least one user or choose All Users (*)');
+      return;
+    }
+  }
+
+  try {
+    const resp = await fetch('/api/mounts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
+      body: JSON.stringify({
+        name: mountName,
+        protocol: proto,
+        target_uri: target_uri,
+        options_json: JSON.stringify({ host, port, user, pass, path }),
+        allowed_users: allowed_users
+      })
+    });
+
+    if (resp.ok) {
+      alert(`Global mount '${mountName}' saved! Assigned users will see it in Favorites automatically.`);
+      closeModal('remote-modal');
+      loadAdminGlobalMounts();
+    } else {
+      alert(`Failed to save global mount: ${await resp.text()}`);
+    }
+  } catch (err) {
+    alert(`Save error: ${err}`);
+  }
+}
+
+async function loadAdminGlobalMounts() {
+  const tbody = document.getElementById('admin-global-mounts-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 16px;">Loading global network mounts...</td></tr>';
+
+  const protoIcons = {
+    'smb': 'share-2',
+    'nfs': 'server',
+    's3': 'cloud',
+    'sftp': 'terminal',
+    'webdav': 'globe',
+    'hetzner-box': 'box',
+    'proton': 'shield'
+  };
+
+  try {
+    const resp = await fetch('/api/mounts/all', {
+      headers: { 'Authorization': `Bearer ${App.token}` }
+    });
+
+    if (resp.ok) {
+      const mounts = await resp.json();
+      if (mounts.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 16px; color: var(--text-dim);">No global network mounts configured yet. Click "+ Add Global Mount" above to create one.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = mounts.map(m => {
+        let allowed = [];
+        try {
+          allowed = typeof m.allowed_users === 'string' ? JSON.parse(m.allowed_users) : m.allowed_users;
+        } catch (_) {
+          allowed = ['*'];
+        }
+        const hasAll = allowed.includes('*');
+
+        return `
+          <tr class="admin-user-row">
+            <td class="admin-user-cell">
+              <div style="font-weight: 700; font-size: 13px; display: flex; align-items: center; gap: 8px;">
+                <i data-lucide="${protoIcons[m.protocol] || 'network'}" style="width: 16px; color: var(--accent);"></i>
+                <span>${escapeHtml(m.name)}</span>
+              </div>
+            </td>
+            <td class="admin-user-cell">
+              <span class="badge" style="font-size: 10px; text-transform: uppercase;">${escapeHtml(m.protocol)}</span>
+            </td>
+            <td class="admin-user-cell file-cell-mono" style="font-size: 11px;">
+              ${escapeHtml(m.target_uri)}
+            </td>
+            <td class="admin-user-cell">
+              ${hasAll ? `
+                <span class="badge" style="font-size: 10px; background: rgba(34, 197, 94, 0.2); color: var(--success); border: 1px solid rgba(34, 197, 94, 0.35);">ALL USERS (*)</span>
+              ` : `
+                <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+                  ${allowed.map(u => `<span class="badge" style="font-size: 10px; background: rgba(56, 189, 248, 0.15); color: var(--info); border: 1px solid rgba(56, 189, 248, 0.3);">${escapeHtml(u)}</span>`).join('')}
+                </div>
+              `}
+            </td>
+            <td class="admin-user-cell" style="text-align: center;">
+              <div style="display: flex; gap: 6px; justify-content: center;">
+                <button class="btn" style="padding: 5px 10px; font-size: 11px;" onclick="loadPaneDirectory(App.activePaneIndex, '${escapeHtml(m.target_uri)}'); closeModal('admin-panel-modal');" title="Open in active panel">
+                  <i data-lucide="folder-open" style="width: 12px;"></i> Open
+                </button>
+                <button class="btn btn-danger" style="padding: 5px 8px; font-size: 11px;" onclick="deleteGlobalMount(${m.id}, '${escapeHtml(m.name)}')" title="Delete Mount">
+                  <i data-lucide="trash-2" style="width: 12px;"></i>
+                </button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+      if (window.lucide) lucide.createIcons();
+    }
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="5" style="color: var(--danger); padding: 16px;">Failed to load global mounts: ${err}</td></tr>`;
+  }
+}
+
+async function deleteGlobalMount(id, name) {
+  if (!confirm(`Are you sure you want to remove global network mount '${name}'?`)) return;
+
+  try {
+    const resp = await fetch(`/api/mounts/${id}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${App.token}` }
+    });
+
+    if (resp.ok) {
+      loadAdminGlobalMounts();
+    } else {
+      alert(`Failed to delete mount: ${await resp.text()}`);
+    }
+  } catch (err) {
+    alert(`Delete error: ${err}`);
+  }
 }
 
 function syncHetznerFields() {
@@ -2317,6 +3397,10 @@ function initTerminalUI() {
 }
 
 function toggleTerminal(forceState) {
+  if (forceState && typeof forceState === 'object' && forceState.stopPropagation) {
+    forceState.stopPropagation();
+    forceState = undefined;
+  }
   const drawer = document.getElementById('terminal-drawer');
   if (!drawer) return;
 

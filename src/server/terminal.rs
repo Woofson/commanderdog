@@ -8,7 +8,6 @@ use axum::{
 use futures_util::{SinkExt, StreamExt};
 use portable_pty::{native_pty_system, CommandBuilder, PtySize};
 use serde::Deserialize;
-use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::sync::Arc;
 use tokio::sync::mpsc;
@@ -131,23 +130,33 @@ async fn handle_terminal_socket(socket: WebSocket, query: TerminalQuery) {
         }
     });
 
+#[derive(Deserialize, Debug)]
+struct TerminalResizePayload {
+    cols: u16,
+    rows: u16,
+    #[serde(default)]
+    #[allow(dead_code)]
+    resize: Option<bool>,
+}
+
+    let master_pty = Arc::new(parking_lot::Mutex::new(pair.master));
+    let master_pty_clone = master_pty.clone();
+
     // Task forwarding WebSocket input -> PTY master writer
     let ws_to_pty = tokio::spawn(async move {
         while let Some(Ok(msg)) = ws_receiver.next().await {
             match msg {
                 Message::Text(text) => {
-                    // Check for JSON resize command
-                    if text.starts_with('{') && text.contains("resize") {
-                        if let Ok(val) = serde_json::from_str::<HashMap<String, usize>>(&text) {
-                            if let (Some(&c), Some(&r)) = (val.get("cols"), val.get("rows")) {
-                                let _ = pair.master.resize(PtySize {
-                                    rows: r as u16,
-                                    cols: c as u16,
-                                    pixel_width: 0,
-                                    pixel_height: 0,
-                                });
-                                continue;
-                            }
+                    // Check for JSON control message (e.g. resize)
+                    if text.starts_with('{') {
+                        if let Ok(resize_cmd) = serde_json::from_str::<TerminalResizePayload>(&text) {
+                            let _ = master_pty_clone.lock().resize(PtySize {
+                                rows: resize_cmd.rows,
+                                cols: resize_cmd.cols,
+                                pixel_width: 0,
+                                pixel_height: 0,
+                            });
+                            continue;
                         }
                     }
                     if writer.write_all(text.as_bytes()).is_err() {
@@ -156,6 +165,19 @@ async fn handle_terminal_socket(socket: WebSocket, query: TerminalQuery) {
                     let _ = writer.flush();
                 }
                 Message::Binary(bytes) => {
+                    if bytes.starts_with(b"{") {
+                        if let Ok(text) = std::str::from_utf8(&bytes) {
+                            if let Ok(resize_cmd) = serde_json::from_str::<TerminalResizePayload>(text) {
+                                let _ = master_pty_clone.lock().resize(PtySize {
+                                    rows: resize_cmd.rows,
+                                    cols: resize_cmd.cols,
+                                    pixel_width: 0,
+                                    pixel_height: 0,
+                                });
+                                continue;
+                            }
+                        }
+                    }
                     if writer.write_all(&bytes).is_err() {
                         break;
                     }

@@ -1,8 +1,8 @@
 pub mod terminal;
 
-use crate::auth::{AuthManager, Claims, User};
+use crate::auth::{AuthManager, GlobalMount, User};
 use crate::config::AppConfig;
-use crate::tools::diff::{compare_files_text, compare_folders};
+use crate::tools::diff::compare_files_text;
 use crate::tools::paranoid::ParanoidEngine;
 use crate::tools::tasks::{TaskInfo, TaskManager};
 use crate::vfs::archive::ArchiveHandler;
@@ -51,8 +51,14 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/auth/login", post(handle_login))
         .route("/api/auth/logout", post(handle_logout))
         .route("/api/auth/me", get(handle_get_me))
+        .route("/api/auth/profile", post(handle_update_profile))
         .route("/api/auth/users", get(handle_list_users).post(handle_create_user))
-        .route("/api/auth/users/:username", delete(handle_delete_user))
+        .route("/api/auth/users/:username", delete(handle_delete_user).post(handle_update_user_rbac))
+        // Global Network Mounts & Permissions API
+        .route("/api/mounts/accessible", get(handle_list_accessible_mounts))
+        .route("/api/mounts/all", get(handle_list_all_mounts))
+        .route("/api/mounts", post(handle_create_or_update_mount))
+        .route("/api/mounts/:id", delete(handle_delete_mount))
         // VFS File Operations
         .route("/api/fs/list", get(handle_list_dir))
         .route("/api/fs/read", get(handle_read_file))
@@ -77,6 +83,7 @@ pub fn create_router(state: AppState) -> Router {
         // Tools, Comparison & Tasks
         .route("/api/tools/diff/files", post(handle_diff_files))
         .route("/api/tools/diff/folders", post(handle_diff_folders))
+        .route("/api/tools/convert", post(handle_convert_file))
         .route("/api/tools/paranoid/dry-run", post(handle_paranoid_dry_run))
         .route("/api/tools/sync/analyze", post(handle_sync_analyze))
         .route("/api/tools/sync/execute", post(handle_sync_execute))
@@ -136,11 +143,30 @@ async fn handle_logout() -> Json<serde_json::Value> {
 async fn handle_get_me(
     State(state): State<AppState>,
     headers: HeaderMap,
-) -> Result<Json<Claims>, (StatusCode, String)> {
+) -> Result<Json<User>, (StatusCode, String)> {
     let auth_header = headers.get(header::AUTHORIZATION).and_then(|v| v.to_str().ok());
     if let Some(token_str) = auth_header.and_then(|h| h.strip_prefix("Bearer ")) {
         match state.auth.verify_token(token_str) {
-            Ok(claims) => Ok(Json(claims)),
+            Ok(claims) => {
+                if let Ok(Some(user)) = state.auth.get_user_by_username(&claims.sub) {
+                    return Ok(Json(user));
+                }
+                // Automatically sync PAM user to database so they appear in Users table & RBAC
+                if let Ok(synced_user) = state.auth.sync_pam_user_to_db(&claims.sub, &claims.role, &claims.home_dir) {
+                    return Ok(Json(synced_user));
+                }
+                Ok(Json(User {
+                    id: 0,
+                    username: claims.sub,
+                    nickname: None,
+                    email: None,
+                    avatar_url: None,
+                    role: claims.role,
+                    home_dir: claims.home_dir,
+                    is_pam: claims.is_pam,
+                    allowed_services: "[\"*\"]".to_string(),
+                }))
+            }
             Err(_) => Err((StatusCode::UNAUTHORIZED, "Invalid token".to_string())),
         }
     } else {
@@ -148,9 +174,82 @@ async fn handle_get_me(
     }
 }
 
+#[derive(Deserialize)]
+struct UpdateProfileRequest {
+    nickname: Option<String>,
+    email: Option<String>,
+    avatar_url: Option<String>,
+    new_password: Option<String>,
+}
+
+async fn handle_update_profile(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<UpdateProfileRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let auth_header = headers.get(header::AUTHORIZATION).and_then(|v| v.to_str().ok());
+    if let Some(token_str) = auth_header.and_then(|h| h.strip_prefix("Bearer ")) {
+        let claims = state.auth.verify_token(token_str).map_err(|e| (StatusCode::UNAUTHORIZED, e.to_string()))?;
+        let _ = state.auth.update_user_profile(
+            &claims.sub,
+            payload.nickname.as_deref(),
+            payload.email.as_deref(),
+            payload.avatar_url.as_deref(),
+        ).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to update profile: {}", e)))?;
+
+        if let Some(ref new_pass) = payload.new_password {
+            if !new_pass.trim().is_empty() {
+                let _ = state.auth.update_user_password(&claims.sub, new_pass)
+                    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to update password: {}", e)))?;
+            }
+        }
+
+        return Ok(Json(serde_json::json!({ "success": true, "message": "Profile updated successfully" })));
+    }
+    Err((StatusCode::UNAUTHORIZED, "Missing authorization token".to_string()))
+}
+
+#[derive(Deserialize)]
+struct UpdateUserRbacRequest {
+    role: String,
+    allowed_services: Vec<String>,
+    home_dir: Option<String>,
+}
+
+async fn handle_update_user_rbac(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    AxumPath(username): AxumPath<String>,
+    Json(payload): Json<UpdateUserRbacRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let auth_header = headers.get(header::AUTHORIZATION).and_then(|v| v.to_str().ok());
+    if let Some(token_str) = auth_header.and_then(|h| h.strip_prefix("Bearer ")) {
+        let claims = state.auth.verify_token(token_str).map_err(|e| (StatusCode::UNAUTHORIZED, e.to_string()))?;
+        if claims.role != "admin" {
+            return Err((StatusCode::FORBIDDEN, "Only administrators can modify user roles and permissions".to_string()));
+        }
+
+        let services_json = serde_json::to_string(&payload.allowed_services).unwrap_or_else(|_| "[\"*\"]".to_string());
+        let updated = state.auth.update_user_rbac(&username, &payload.role, &services_json, payload.home_dir.as_deref())
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to update user RBAC: {}", e)))?;
+
+        return Ok(Json(serde_json::json!({ "success": updated })));
+    }
+    Err((StatusCode::UNAUTHORIZED, "Missing authorization token".to_string()))
+}
+
 async fn handle_list_users(
     State(state): State<AppState>,
+    headers: HeaderMap,
 ) -> Result<Json<Vec<User>>, (StatusCode, String)> {
+    let auth_header = headers.get(header::AUTHORIZATION).and_then(|v| v.to_str().ok());
+    if let Some(token_str) = auth_header.and_then(|h| h.strip_prefix("Bearer ")) {
+        if let Ok(claims) = state.auth.verify_token(token_str) {
+            if claims.is_pam {
+                let _ = state.auth.sync_pam_user_to_db(&claims.sub, &claims.role, &claims.home_dir);
+            }
+        }
+    }
     state.auth.list_users().map(Json).map_err(|e| {
         (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to list users: {}", e))
     })
@@ -182,6 +281,106 @@ async fn handle_delete_user(
     state.auth.delete_user(&username).map(|deleted| {
         Json(serde_json::json!({ "success": deleted }))
     }).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to delete user: {}", e)))
+}
+
+// ---------------- GLOBAL NETWORK MOUNTS & RBAC HANDLERS ----------------
+
+#[derive(Deserialize)]
+struct CreateMountRequest {
+    name: String,
+    protocol: String,
+    target_uri: String,
+    options_json: Option<String>,
+    allowed_users: Option<Vec<String>>,
+}
+
+async fn handle_list_accessible_mounts(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<Json<Vec<GlobalMount>>, (StatusCode, String)> {
+    let auth_header = headers.get(header::AUTHORIZATION).and_then(|v| v.to_str().ok());
+    if let Some(token_str) = auth_header.and_then(|h| h.strip_prefix("Bearer ")) {
+        let claims = state.auth.verify_token(token_str).map_err(|e| (StatusCode::UNAUTHORIZED, e.to_string()))?;
+        let is_admin = claims.role == "admin";
+        let mounts = state.auth.list_accessible_mounts(&claims.sub, is_admin)
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to list accessible mounts: {}", e)))?;
+        Ok(Json(mounts))
+    } else {
+        Err((StatusCode::UNAUTHORIZED, "Missing authorization token".to_string()))
+    }
+}
+
+async fn handle_list_all_mounts(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<Json<Vec<GlobalMount>>, (StatusCode, String)> {
+    let auth_header = headers.get(header::AUTHORIZATION).and_then(|v| v.to_str().ok());
+    if let Some(token_str) = auth_header.and_then(|h| h.strip_prefix("Bearer ")) {
+        let claims = state.auth.verify_token(token_str).map_err(|e| (StatusCode::UNAUTHORIZED, e.to_string()))?;
+        if claims.role != "admin" {
+            return Err((StatusCode::FORBIDDEN, "Only administrators can view all mounts".to_string()));
+        }
+        let mounts = state.auth.list_all_mounts()
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to list all mounts: {}", e)))?;
+        Ok(Json(mounts))
+    } else {
+        Err((StatusCode::UNAUTHORIZED, "Missing authorization token".to_string()))
+    }
+}
+
+async fn handle_create_or_update_mount(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<CreateMountRequest>,
+) -> Result<Json<GlobalMount>, (StatusCode, String)> {
+    let auth_header = headers.get(header::AUTHORIZATION).and_then(|v| v.to_str().ok());
+    if let Some(token_str) = auth_header.and_then(|h| h.strip_prefix("Bearer ")) {
+        let claims = state.auth.verify_token(token_str).map_err(|e| (StatusCode::UNAUTHORIZED, e.to_string()))?;
+        if claims.role != "admin" {
+            return Err((StatusCode::FORBIDDEN, "Only administrators can create or configure global mounts".to_string()));
+        }
+
+        let allowed_users_str = if let Some(users) = payload.allowed_users {
+            serde_json::to_string(&users).unwrap_or_else(|_| "[\"*\"]".to_string())
+        } else {
+            "[\"*\"]".to_string()
+        };
+
+        let options_str = payload.options_json.unwrap_or_else(|| "{}".to_string());
+
+        let mount = state.auth.create_or_update_mount(
+            &payload.name,
+            &payload.protocol,
+            &payload.target_uri,
+            &options_str,
+            &allowed_users_str,
+        ).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to save global mount: {}", e)))?;
+
+        Ok(Json(mount))
+    } else {
+        Err((StatusCode::UNAUTHORIZED, "Missing authorization token".to_string()))
+    }
+}
+
+async fn handle_delete_mount(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    AxumPath(id): AxumPath<i64>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let auth_header = headers.get(header::AUTHORIZATION).and_then(|v| v.to_str().ok());
+    if let Some(token_str) = auth_header.and_then(|h| h.strip_prefix("Bearer ")) {
+        let claims = state.auth.verify_token(token_str).map_err(|e| (StatusCode::UNAUTHORIZED, e.to_string()))?;
+        if claims.role != "admin" {
+            return Err((StatusCode::FORBIDDEN, "Only administrators can delete global mounts".to_string()));
+        }
+
+        state.auth.delete_mount(id)
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to delete mount: {}", e)))?;
+
+        Ok(Json(serde_json::json!({ "success": true, "message": "Mount removed" })))
+    } else {
+        Err((StatusCode::UNAUTHORIZED, "Missing authorization token".to_string()))
+    }
 }
 
 // ---------------- VFS HANDLERS ----------------
@@ -859,16 +1058,27 @@ async fn handle_diff_files(
 struct DiffFoldersRequest {
     dir_left: String,
     dir_right: String,
+    recursive: Option<bool>,
     deep_hash: Option<bool>,
+    selected_items: Option<Vec<String>>,
 }
 
 async fn handle_diff_folders(
     Json(payload): Json<DiffFoldersRequest>,
 ) -> Result<Json<crate::tools::diff::FolderDiffResult>, (StatusCode, String)> {
+    let recursive = payload.recursive.unwrap_or(false);
     let deep = payload.deep_hash.unwrap_or(false);
-    compare_folders(&payload.dir_left, &payload.dir_right, deep)
+    crate::tools::diff::compare_folders(&payload.dir_left, &payload.dir_right, recursive, deep, payload.selected_items)
         .map(Json)
         .map_err(|e| (StatusCode::BAD_REQUEST, format!("Folder diff failed: {}", e)))
+}
+
+async fn handle_convert_file(
+    Json(payload): Json<crate::tools::converter::ConvertRequest>,
+) -> Result<Json<crate::tools::converter::ConvertResponse>, (StatusCode, String)> {
+    crate::tools::converter::ConvertEngine::convert_file(&payload)
+        .map(Json)
+        .map_err(|e| (StatusCode::BAD_REQUEST, format!("Conversion failed: {}", e)))
 }
 
 #[derive(Deserialize)]

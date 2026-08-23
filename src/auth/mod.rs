@@ -4,7 +4,7 @@ use argon2::{
 };
 use chrono::{Duration, Utc};
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 use tracing::info;
@@ -13,9 +13,24 @@ use tracing::info;
 pub struct User {
     pub id: i64,
     pub username: String,
+    pub nickname: Option<String>,
+    pub email: Option<String>,
+    pub avatar_url: Option<String>,
     pub role: String, // "admin", "user", "readonly"
     pub home_dir: String,
     pub is_pam: bool,
+    pub allowed_services: String, // JSON array e.g. ["*"] or ["local","smb","s3"]
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GlobalMount {
+    pub id: i64,
+    pub name: String,
+    pub protocol: String,
+    pub target_uri: String,
+    pub options_json: String,
+    pub allowed_users: String, // JSON array e.g. ["*"] or ["bolt", "alice"]
+    pub created_at: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -55,10 +70,35 @@ impl AuthManager {
                 password_hash TEXT NOT NULL,
                 role TEXT NOT NULL DEFAULT 'user',
                 home_dir TEXT NOT NULL DEFAULT '/',
+                nickname TEXT,
+                email TEXT,
+                avatar_url TEXT,
+                allowed_services TEXT DEFAULT '[\"*\"]',
+                is_pam INTEGER DEFAULT 0,
                 created_at TEXT NOT NULL
             )",
             [],
         )?;
+
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS global_mounts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                protocol TEXT NOT NULL,
+                target_uri TEXT NOT NULL,
+                options_json TEXT DEFAULT '{}',
+                allowed_users TEXT DEFAULT '[\"*\"]',
+                created_at TEXT NOT NULL
+            )",
+            [],
+        )?;
+
+        // Safe migrations for newly added columns
+        let _ = conn.execute("ALTER TABLE users ADD COLUMN nickname TEXT", []);
+        let _ = conn.execute("ALTER TABLE users ADD COLUMN email TEXT", []);
+        let _ = conn.execute("ALTER TABLE users ADD COLUMN avatar_url TEXT", []);
+        let _ = conn.execute("ALTER TABLE users ADD COLUMN allowed_services TEXT DEFAULT '[\"*\"]'", []);
+        let _ = conn.execute("ALTER TABLE users ADD COLUMN is_pam INTEGER DEFAULT 0", []);
 
         let auth = Self {
             db: Arc::new(Mutex::new(conn)),
@@ -102,7 +142,7 @@ impl AuthManager {
         let now = Utc::now().to_rfc3339();
 
         conn.execute(
-            "INSERT INTO users (username, password_hash, role, home_dir, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+            "INSERT INTO users (username, password_hash, role, home_dir, allowed_services, is_pam, created_at) VALUES (?1, ?2, ?3, ?4, '[\"*\"]', 0, ?5)",
             params![username, password_hash, role, home_dir, now],
         )?;
 
@@ -111,22 +151,55 @@ impl AuthManager {
         Ok(User {
             id,
             username: username.to_string(),
+            nickname: None,
+            email: None,
+            avatar_url: None,
             role: role.to_string(),
             home_dir: home_dir.to_string(),
             is_pam: false,
+            allowed_services: "[\"*\"]".to_string(),
         })
+    }
+
+    pub fn get_user_by_username(&self, username: &str) -> Result<Option<User>, Box<dyn std::error::Error + Send + Sync>> {
+        let conn = self.db.lock().map_err(|_| "DB lock poisoned")?;
+        let mut stmt = conn.prepare(
+            "SELECT id, username, nickname, email, avatar_url, role, home_dir, is_pam, allowed_services FROM users WHERE username = ?1"
+        )?;
+
+        let user = stmt.query_row(params![username], |row| {
+            Ok(User {
+                id: row.get(0)?,
+                username: row.get(1)?,
+                nickname: row.get(2)?,
+                email: row.get(3)?,
+                avatar_url: row.get(4)?,
+                role: row.get(5)?,
+                home_dir: row.get(6)?,
+                is_pam: row.get::<_, i64>(7)? != 0,
+                allowed_services: row.get::<_, Option<String>>(8)?.unwrap_or_else(|| "[\"*\"]".to_string()),
+            })
+        }).optional()?;
+
+        Ok(user)
     }
 
     pub fn list_users(&self) -> Result<Vec<User>, Box<dyn std::error::Error + Send + Sync>> {
         let conn = self.db.lock().map_err(|_| "DB lock poisoned")?;
-        let mut stmt = conn.prepare("SELECT id, username, role, home_dir FROM users ORDER BY username ASC")?;
+        let mut stmt = conn.prepare(
+            "SELECT id, username, nickname, email, avatar_url, role, home_dir, is_pam, allowed_services FROM users ORDER BY username ASC"
+        )?;
         let rows = stmt.query_map([], |row| {
             Ok(User {
                 id: row.get(0)?,
                 username: row.get(1)?,
-                role: row.get(2)?,
-                home_dir: row.get(3)?,
-                is_pam: false,
+                nickname: row.get(2)?,
+                email: row.get(3)?,
+                avatar_url: row.get(4)?,
+                role: row.get(5)?,
+                home_dir: row.get(6)?,
+                is_pam: row.get::<_, i64>(7)? != 0,
+                allowed_services: row.get::<_, Option<String>>(8)?.unwrap_or_else(|| "[\"*\"]".to_string()),
             })
         })?;
 
@@ -135,6 +208,84 @@ impl AuthManager {
             users.push(user?);
         }
         Ok(users)
+    }
+
+    pub fn sync_pam_user_to_db(
+        &self,
+        username: &str,
+        role: &str,
+        home_dir: &str,
+    ) -> Result<User, Box<dyn std::error::Error + Send + Sync>> {
+        let conn = self.db.lock().map_err(|_| "DB lock poisoned")?;
+        let now = Utc::now().to_rfc3339();
+
+        conn.execute(
+            "INSERT INTO users (username, password_hash, role, home_dir, nickname, allowed_services, is_pam, created_at)
+             VALUES (?1, 'PAM_MANAGED', ?2, ?3, ?1, '[\"*\"]', 1, ?4)
+             ON CONFLICT(username) DO UPDATE SET is_pam = 1",
+            params![username, role, home_dir, now],
+        )?;
+
+        drop(conn);
+        self.get_user_by_username(username)?
+            .ok_or_else(|| "Failed to retrieve synced PAM user".into())
+    }
+
+    pub fn update_user_profile(
+        &self,
+        username: &str,
+        nickname: Option<&str>,
+        email: Option<&str>,
+        avatar_url: Option<&str>,
+    ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
+        let conn = self.db.lock().map_err(|_| "DB lock poisoned")?;
+        let affected = conn.execute(
+            "UPDATE users SET nickname = ?1, email = ?2, avatar_url = ?3 WHERE username = ?4",
+            params![nickname, email, avatar_url, username],
+        )?;
+        Ok(affected > 0)
+    }
+
+    pub fn update_user_password(
+        &self,
+        username: &str,
+        new_password: &str,
+    ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
+        let salt = SaltString::generate(&mut OsRng);
+        let argon2 = Argon2::default();
+        let password_hash = argon2
+            .hash_password(new_password.as_bytes(), &salt)
+            .map_err(|e| format!("Password hashing failed: {}", e))?
+            .to_string();
+
+        let conn = self.db.lock().map_err(|_| "DB lock poisoned")?;
+        let affected = conn.execute(
+            "UPDATE users SET password_hash = ?1 WHERE username = ?2",
+            params![password_hash, username],
+        )?;
+        Ok(affected > 0)
+    }
+
+    pub fn update_user_rbac(
+        &self,
+        username: &str,
+        role: &str,
+        allowed_services: &str,
+        home_dir: Option<&str>,
+    ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
+        let conn = self.db.lock().map_err(|_| "DB lock poisoned")?;
+        let affected = if let Some(hd) = home_dir {
+            conn.execute(
+                "UPDATE users SET role = ?1, allowed_services = ?2, home_dir = ?3 WHERE username = ?4",
+                params![role, allowed_services, hd, username],
+            )?
+        } else {
+            conn.execute(
+                "UPDATE users SET role = ?1, allowed_services = ?2 WHERE username = ?3",
+                params![role, allowed_services, username],
+            )?
+        };
+        Ok(affected > 0)
     }
 
     pub fn delete_user(&self, username: &str) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
@@ -151,7 +302,9 @@ impl AuthManager {
         // 1. If auth mode is mixed or builtin, try builtin DB first
         if self.auth_mode == "builtin" || self.auth_mode == "mixed" {
             let conn = self.db.lock().map_err(|_| "DB lock poisoned")?;
-            let mut stmt = conn.prepare("SELECT id, username, password_hash, role, home_dir FROM users WHERE username = ?1")?;
+            let mut stmt = conn.prepare(
+                "SELECT id, username, password_hash, role, home_dir, nickname, email, avatar_url, allowed_services, is_pam FROM users WHERE username = ?1"
+            )?;
             let user_res = stmt.query_row(params![username], |row| {
                 Ok((
                     row.get::<_, i64>(0)?,
@@ -159,19 +312,28 @@ impl AuthManager {
                     row.get::<_, String>(2)?,
                     row.get::<_, String>(3)?,
                     row.get::<_, String>(4)?,
+                    row.get::<_, Option<String>>(5)?,
+                    row.get::<_, Option<String>>(6)?,
+                    row.get::<_, Option<String>>(7)?,
+                    row.get::<_, Option<String>>(8)?.unwrap_or_else(|| "[\"*\"]".to_string()),
+                    row.get::<_, i64>(9)? != 0,
                 ))
             });
 
-            if let Ok((id, uname, hash_str, role, home_dir)) = user_res {
+            if let Ok((id, uname, hash_str, role, home_dir, nickname, email, avatar_url, allowed_services, is_pam)) = user_res {
                 let parsed_hash = PasswordHash::new(&hash_str)
                     .map_err(|e| format!("Corrupt password hash: {}", e))?;
                 if Argon2::default().verify_password(password.as_bytes(), &parsed_hash).is_ok() {
                     return Ok(User {
                         id,
                         username: uname,
+                        nickname,
+                        email,
+                        avatar_url,
                         role,
                         home_dir,
-                        is_pam: false,
+                        is_pam,
+                        allowed_services,
                     });
                 }
             }
@@ -184,13 +346,32 @@ impl AuthManager {
                 if let Some(mut auth) = pam_auth::Authenticator::new(&self.pam_service) {
                     auth.set_credentials(username, password);
                     if auth.authenticate().is_ok() {
-                        let (home_dir, role) = get_linux_user_info(username);
+                        let (home_dir, def_role) = get_linux_user_info(username);
+                        
+                        // Check if this PAM user already has a linked DB record
+                        if let Ok(Some(existing)) = self.get_user_by_username(username) {
+                            return Ok(existing);
+                        }
+
+                        // Auto-link new PAM user to DB profile
+                        let conn = self.db.lock().map_err(|_| "DB lock poisoned")?;
+                        let now = Utc::now().to_rfc3339();
+                        let _ = conn.execute(
+                            "INSERT OR IGNORE INTO users (username, password_hash, role, home_dir, allowed_services, is_pam, created_at) VALUES (?1, 'PAM_MANAGED', ?2, ?3, '[\"*\"]', 1, ?4)",
+                            params![username, def_role, home_dir, now],
+                        );
+                        let id = conn.last_insert_rowid();
+
                         return Ok(User {
-                            id: 0,
+                            id,
                             username: username.to_string(),
-                            role,
+                            nickname: Some(username.to_string()),
+                            email: None,
+                            avatar_url: None,
+                            role: def_role,
                             home_dir,
                             is_pam: true,
+                            allowed_services: "[\"*\"]".to_string(),
                         });
                     }
                 }
@@ -231,6 +412,99 @@ impl AuthManager {
         )?;
 
         Ok(token_data.claims)
+    }
+
+    pub fn list_accessible_mounts(
+        &self,
+        username: &str,
+        is_admin: bool,
+    ) -> Result<Vec<GlobalMount>, Box<dyn std::error::Error + Send + Sync>> {
+        let conn = self.db.lock().map_err(|_| "DB lock poisoned")?;
+        let mut stmt = conn.prepare("SELECT id, name, protocol, target_uri, options_json, allowed_users, created_at FROM global_mounts ORDER BY name ASC")?;
+        let rows = stmt.query_map([], |row| {
+            Ok(GlobalMount {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                protocol: row.get(2)?,
+                target_uri: row.get(3)?,
+                options_json: row.get(4)?,
+                allowed_users: row.get(5)?,
+                created_at: row.get(6)?,
+            })
+        })?;
+
+        let mut accessible = Vec::new();
+        for r in rows {
+            let m = r?;
+            if is_admin {
+                accessible.push(m);
+            } else {
+                let allowed: Vec<String> = serde_json::from_str(&m.allowed_users).unwrap_or_else(|_| vec!["*".to_string()]);
+                if allowed.contains(&"*".to_string()) || allowed.iter().any(|u| u.eq_ignore_ascii_case(username)) {
+                    accessible.push(m);
+                }
+            }
+        }
+
+        Ok(accessible)
+    }
+
+    pub fn list_all_mounts(&self) -> Result<Vec<GlobalMount>, Box<dyn std::error::Error + Send + Sync>> {
+        let conn = self.db.lock().map_err(|_| "DB lock poisoned")?;
+        let mut stmt = conn.prepare("SELECT id, name, protocol, target_uri, options_json, allowed_users, created_at FROM global_mounts ORDER BY name ASC")?;
+        let rows = stmt.query_map([], |row| {
+            Ok(GlobalMount {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                protocol: row.get(2)?,
+                target_uri: row.get(3)?,
+                options_json: row.get(4)?,
+                allowed_users: row.get(5)?,
+                created_at: row.get(6)?,
+            })
+        })?;
+
+        let mut all = Vec::new();
+        for r in rows {
+            all.push(r?);
+        }
+        Ok(all)
+    }
+
+    pub fn create_or_update_mount(
+        &self,
+        name: &str,
+        protocol: &str,
+        target_uri: &str,
+        options_json: &str,
+        allowed_users: &str,
+    ) -> Result<GlobalMount, Box<dyn std::error::Error + Send + Sync>> {
+        let conn = self.db.lock().map_err(|_| "DB lock poisoned")?;
+        let now = Utc::now().to_rfc3339();
+
+        conn.execute(
+            "INSERT INTO global_mounts (name, protocol, target_uri, options_json, allowed_users, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![name, protocol, target_uri, options_json, allowed_users, now],
+        )?;
+
+        let id = conn.last_insert_rowid();
+
+        Ok(GlobalMount {
+            id,
+            name: name.to_string(),
+            protocol: protocol.to_string(),
+            target_uri: target_uri.to_string(),
+            options_json: options_json.to_string(),
+            allowed_users: allowed_users.to_string(),
+            created_at: now,
+        })
+    }
+
+    pub fn delete_mount(&self, id: i64) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let conn = self.db.lock().map_err(|_| "DB lock poisoned")?;
+        conn.execute("DELETE FROM global_mounts WHERE id = ?1", params![id])?;
+        Ok(())
     }
 }
 

@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use similar::{ChangeTag, TextDiff};
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
+use std::fs;
 use walkdir::WalkDir;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -105,7 +106,9 @@ pub struct FolderDiffResult {
 pub fn compare_folders(
     dir_left_str: &str,
     dir_right_str: &str,
+    recursive: bool,
     deep_hash_compare: bool,
+    selected_items: Option<Vec<String>>,
 ) -> Result<FolderDiffResult, std::io::Error> {
     let p_left = Path::new(dir_left_str);
     let p_right = Path::new(dir_right_str);
@@ -113,40 +116,87 @@ pub fn compare_folders(
     let mut map_left: HashMap<String, (bool, u64, Option<String>)> = HashMap::new();
     let mut map_right: HashMap<String, (bool, u64, Option<String>)> = HashMap::new();
 
-    if p_left.is_dir() {
-        for entry in WalkDir::new(p_left).into_iter().filter_map(|e| e.ok()) {
-            if let Ok(rel) = entry.path().strip_prefix(p_left) {
-                let rel_str = rel.to_string_lossy().to_string();
-                if rel_str.is_empty() {
-                    continue;
-                }
-                let is_dir = entry.file_type().is_dir();
-                let size = if is_dir { 0 } else { entry.metadata().map_or(0, |m| m.len()) };
-                let hash = if !is_dir && deep_hash_compare {
-                    calculate_sha256(entry.path()).ok()
-                } else {
-                    None
-                };
-                map_left.insert(rel_str, (is_dir, size, hash));
+    // If specific selected items were requested:
+    if let Some(items) = selected_items {
+        for item in items {
+            let path_l = p_left.join(&item);
+            let path_r = p_right.join(&item);
+
+            if path_l.exists() {
+                let is_dir = path_l.is_dir();
+                let size = if is_dir { 0 } else { fs::metadata(&path_l).map_or(0, |m| m.len()) };
+                let hash = if !is_dir && deep_hash_compare { calculate_sha256(&path_l).ok() } else { None };
+                map_left.insert(item.clone(), (is_dir, size, hash));
+            }
+            if path_r.exists() {
+                let is_dir = path_r.is_dir();
+                let size = if is_dir { 0 } else { fs::metadata(&path_r).map_or(0, |m| m.len()) };
+                let hash = if !is_dir && deep_hash_compare { calculate_sha256(&path_r).ok() } else { None };
+                map_right.insert(item, (is_dir, size, hash));
             }
         }
-    }
-
-    if p_right.is_dir() {
-        for entry in WalkDir::new(p_right).into_iter().filter_map(|e| e.ok()) {
-            if let Ok(rel) = entry.path().strip_prefix(p_right) {
-                let rel_str = rel.to_string_lossy().to_string();
-                if rel_str.is_empty() {
-                    continue;
+    } else if !recursive {
+        // Fast Immediate Level Compare: only read immediate children (O(N) ~ 5ms)
+        if p_left.is_dir() {
+            if let Ok(entries) = fs::read_dir(p_left) {
+                for entry in entries.filter_map(|e| e.ok()) {
+                    let name = entry.file_name().to_string_lossy().to_string();
+                    let is_dir = entry.file_type().map(|t| t.is_dir()).unwrap_or(false);
+                    let size = if is_dir { 0 } else { entry.metadata().map_or(0, |m| m.len()) };
+                    let hash = if !is_dir && deep_hash_compare { calculate_sha256(&entry.path()).ok() } else { None };
+                    map_left.insert(name, (is_dir, size, hash));
                 }
-                let is_dir = entry.file_type().is_dir();
-                let size = if is_dir { 0 } else { entry.metadata().map_or(0, |m| m.len()) };
-                let hash = if !is_dir && deep_hash_compare {
-                    calculate_sha256(entry.path()).ok()
-                } else {
-                    None
-                };
-                map_right.insert(rel_str, (is_dir, size, hash));
+            }
+        }
+
+        if p_right.is_dir() {
+            if let Ok(entries) = fs::read_dir(p_right) {
+                for entry in entries.filter_map(|e| e.ok()) {
+                    let name = entry.file_name().to_string_lossy().to_string();
+                    let is_dir = entry.file_type().map(|t| t.is_dir()).unwrap_or(false);
+                    let size = if is_dir { 0 } else { entry.metadata().map_or(0, |m| m.len()) };
+                    let hash = if !is_dir && deep_hash_compare { calculate_sha256(&entry.path()).ok() } else { None };
+                    map_right.insert(name, (is_dir, size, hash));
+                }
+            }
+        }
+    } else {
+        // Recursive WalkDir
+        if p_left.is_dir() {
+            for entry in WalkDir::new(p_left).max_depth(10).into_iter().filter_map(|e| e.ok()) {
+                if let Ok(rel) = entry.path().strip_prefix(p_left) {
+                    let rel_str = rel.to_string_lossy().to_string();
+                    if rel_str.is_empty() {
+                        continue;
+                    }
+                    let is_dir = entry.file_type().is_dir();
+                    let size = if is_dir { 0 } else { entry.metadata().map_or(0, |m| m.len()) };
+                    let hash = if !is_dir && deep_hash_compare {
+                        calculate_sha256(entry.path()).ok()
+                    } else {
+                        None
+                    };
+                    map_left.insert(rel_str, (is_dir, size, hash));
+                }
+            }
+        }
+
+        if p_right.is_dir() {
+            for entry in WalkDir::new(p_right).max_depth(10).into_iter().filter_map(|e| e.ok()) {
+                if let Ok(rel) = entry.path().strip_prefix(p_right) {
+                    let rel_str = rel.to_string_lossy().to_string();
+                    if rel_str.is_empty() {
+                        continue;
+                    }
+                    let is_dir = entry.file_type().is_dir();
+                    let size = if is_dir { 0 } else { entry.metadata().map_or(0, |m| m.len()) };
+                    let hash = if !is_dir && deep_hash_compare {
+                        calculate_sha256(entry.path()).ok()
+                    } else {
+                        None
+                    };
+                    map_right.insert(rel_str, (is_dir, size, hash));
+                }
             }
         }
     }
@@ -182,7 +232,7 @@ pub fn compare_folders(
 
                 let is_same = if is_dir {
                     true
-                } else if deep_hash_compare {
+                } else if deep_hash_compare && hash_l.is_some() && hash_r.is_some() {
                     hash_l == hash_r
                 } else {
                     size_l == size_r
