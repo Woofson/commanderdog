@@ -886,6 +886,52 @@
     </div>
   </div>
 
+  <!-- Add User Modal -->
+  <div class="modal-overlay" id="add-user-modal">
+    <div class="modal-box" style="width: 420px;">
+      <div class="modal-header">
+        <span style="color: var(--accent); font-weight: 700;">👤 Add New User Account</span>
+        <button class="btn" onclick="closeModal('add-user-modal')"><i data-lucide="x"></i></button>
+      </div>
+      <form id="add-user-form" onsubmit="event.preventDefault(); submitAddUser();">
+        <div class="modal-body" style="display: flex; flex-direction: column; gap: 10px;">
+          <div class="form-group">
+            <label style="font-size: 11px;">Username:</label>
+            <input type="text" id="new-user-username" class="pane-quick-filter" style="width: 100%; padding: 8px;" placeholder="e.g. john" required autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label style="font-size: 11px;">Password:</label>
+            <div style="position: relative;">
+              <input type="password" id="new-user-password" class="pane-quick-filter" style="width: 100%; padding: 8px 32px 8px 8px;" placeholder="Enter secure password" required autocomplete="new-password">
+              <button type="button" class="btn btn-icon" onclick="togglePasswordVisibility('new-user-password')" style="position: absolute; right: 4px; top: 50%; transform: translateY(-50%); background: transparent; border: none;" title="Toggle Visibility">
+                <i data-lucide="eye" style="width: 14px;"></i>
+              </button>
+            </div>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <div class="form-group">
+              <label style="font-size: 11px;">Role:</label>
+              <select id="new-user-role" class="pane-quick-filter" style="width: 100%; padding: 7px;">
+                <option value="user" selected>Standard User</option>
+                <option value="admin">Administrator</option>
+                <option value="readonly">Read-Only</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label style="font-size: 11px;">Home Directory:</label>
+              <input type="text" id="new-user-home" class="pane-quick-filter" style="width: 100%; padding: 8px;" value="/" placeholder="/">
+            </div>
+          </div>
+          <div id="add-user-error" style="color: var(--danger); font-size: 11px; display: none;"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn" onclick="closeModal('add-user-modal')">Cancel</button>
+          <button type="submit" class="btn btn-accent" id="btn-save-user">Create User</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Login Modal -->
   <div class="modal-overlay" id="login-modal">
     <div class="modal-box" style="width: 360px;">

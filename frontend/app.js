@@ -573,18 +573,65 @@ async function loadConfdInspector() {
 }
 
 function showAddUserPrompt() {
-  const u = prompt('Enter new username:');
-  if (!u) return;
-  const p = prompt('Enter password for ' + u + ':');
-  if (!p) return;
-  const role = prompt('Role (admin, user, readonly):', 'user') || 'user';
-  const home = prompt('Home directory:', '/home/' + u) || '/';
+  document.getElementById('new-user-username').value = '';
+  document.getElementById('new-user-password').value = '';
+  document.getElementById('new-user-password').type = 'password';
+  document.getElementById('new-user-role').value = 'user';
+  document.getElementById('new-user-home').value = '/';
+  const err = document.getElementById('add-user-error');
+  if (err) {
+    err.style.display = 'none';
+    err.textContent = '';
+  }
+  showModal('add-user-modal');
+  document.getElementById('new-user-username')?.focus();
+}
 
-  fetch('/api/auth/users', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
-    body: JSON.stringify({ username: u, password: p, role, home_dir: home })
-  }).then(() => loadUsersTable());
+async function submitAddUser() {
+  const username = document.getElementById('new-user-username').value.trim();
+  const password = document.getElementById('new-user-password').value;
+  const role = document.getElementById('new-user-role').value;
+  const home_dir = document.getElementById('new-user-home').value.trim() || '/';
+  const err = document.getElementById('add-user-error');
+
+  if (!username || !password) {
+    if (err) {
+      err.style.display = 'block';
+      err.textContent = 'Username and password are required.';
+    }
+    return;
+  }
+
+  try {
+    const resp = await fetch('/api/auth/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
+      body: JSON.stringify({ username, password, role, home_dir })
+    });
+
+    if (resp.ok) {
+      closeModal('add-user-modal');
+      loadUsersTable();
+    } else {
+      const msg = await resp.text();
+      if (err) {
+        err.style.display = 'block';
+        err.textContent = `Failed to create user: ${msg}`;
+      }
+    }
+  } catch (e) {
+    if (err) {
+      err.style.display = 'block';
+      err.textContent = `Error: ${e}`;
+    }
+  }
+}
+
+function togglePasswordVisibility(inputId) {
+  const input = document.getElementById(inputId);
+  if (input) {
+    input.type = input.type === 'password' ? 'text' : 'password';
+  }
 }
 
 // ---------------- TRANSFERS & DRAG-AND-DROP ----------------
