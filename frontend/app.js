@@ -21,6 +21,8 @@ const App = {
     { name: 'Desktop', path: '~/Desktop' },
     { name: 'Temporary Files (/tmp)', path: '/tmp' },
   ],
+  clipboard: null,
+  dblclickUpDir: localStorage.getItem('cd_dblclick_up') !== 'false',
 };
 
 class PaneState {
@@ -184,6 +186,22 @@ function createPaneElement(pane, index) {
       <span>0 B</span>
     </div>
   `;
+
+  const content = el.querySelector('.pane-content');
+  if (content) {
+    content.ondblclick = (e) => {
+      if (e.target.closest('tr.file-row')) return;
+      if (App.dblclickUpDir) {
+        navPaneUp(index);
+      }
+    };
+    content.oncontextmenu = (e) => {
+      if (e.target.closest('tr.file-row')) return;
+      e.preventDefault();
+      setActivePane(index);
+      showEmptySpaceContextMenu(e.clientX, e.clientY, index);
+    };
+  }
 
   return el;
 }
@@ -701,7 +719,23 @@ function setupKeyboardNavigation() {
       return;
     }
 
-    const pane = App.panes[App.activePaneIndex];
+    if (e.ctrlKey || e.metaKey) {
+      if (e.key === 'c' || e.key === 'C') {
+        e.preventDefault();
+        triggerCopyClipboard();
+        return;
+      }
+      if (e.key === 'x' || e.key === 'X') {
+        e.preventDefault();
+        triggerCutClipboard();
+        return;
+      }
+      if (e.key === 'v' || e.key === 'V') {
+        e.preventDefault();
+        triggerPaste(App.activePaneIndex);
+        return;
+      }
+    }
 
     switch (e.key) {
       case 'Tab':
@@ -1029,6 +1063,11 @@ function showContextMenu(x, y) {
     <div class="context-item" onclick="triggerEditor()"><i data-lucide="file-edit" style="width: 14px;"></i> Edit File (F4)</div>
     <div class="context-item" onclick="triggerDiff()"><i data-lucide="git-compare" style="width: 14px;"></i> Compare / Diff</div>
     <div class="context-sep"></div>
+
+    <div class="context-item" onclick="triggerCopyClipboard()"><i data-lucide="clipboard-copy" style="width: 14px;"></i> Copy to Clipboard (Ctrl+C)</div>
+    <div class="context-item" onclick="triggerCutClipboard()"><i data-lucide="scissors" style="width: 14px;"></i> Cut (Ctrl+X)</div>
+    <div class="context-item ${App.clipboard ? '' : 'disabled'}" onclick="triggerPaste(App.activePaneIndex)" style="${App.clipboard ? '' : 'opacity: 0.5; pointer-events: none;'}"><i data-lucide="clipboard-paste" style="width: 14px;"></i> Paste (Ctrl+V)</div>
+    <div class="context-sep"></div>
     
     <!-- Dynamic Advanced Copy Submenu -->
     <div class="context-item has-submenu">
@@ -1092,6 +1131,115 @@ function showContextMenu(x, y) {
   menu.style.display = 'block';
   menu.style.left = `${Math.min(x, window.innerWidth - 240)}px`;
   menu.style.top = `${Math.min(y, window.innerHeight - 380)}px`;
+}
+
+function showEmptySpaceContextMenu(x, y, paneIndex) {
+  const menu = document.getElementById('context-menu');
+  if (!menu) return;
+
+  const pane = App.panes[paneIndex];
+  const clipInfo = App.clipboard ? `(${App.clipboard.paths.length} item${App.clipboard.paths.length > 1 ? 's' : ''})` : '';
+
+  menu.innerHTML = `
+    <div style="padding: 6px 12px; font-size: 11px; font-weight: 700; color: var(--accent); border-bottom: 1px solid var(--border); font-family: var(--font-mono); text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">
+      📁 ${escapeHtml(pane.path.split('/').pop() || pane.path || '/')}
+    </div>
+    <div class="context-item" onclick="triggerMkdir()"><i data-lucide="folder-plus" style="width: 14px;"></i> New Folder... (F7)</div>
+    <div class="context-item" onclick="triggerNewFile()"><i data-lucide="file-plus" style="width: 14px;"></i> New Text File...</div>
+    <div class="context-item ${App.clipboard ? '' : 'disabled'}" onclick="triggerPaste(${paneIndex})" style="${App.clipboard ? '' : 'opacity: 0.5; pointer-events: none;'}">
+      <i data-lucide="clipboard-paste" style="width: 14px;"></i> Paste ${clipInfo} (Ctrl+V)
+    </div>
+    <div class="context-item" onclick="refreshPane(${paneIndex})"><i data-lucide="rotate-cw" style="width: 14px;"></i> Refresh Directory</div>
+    <div class="context-sep"></div>
+    <div class="context-item" onclick="openTerminalInPath('${escapeHtml(pane.path)}')"><i data-lucide="terminal" style="width: 14px; color: var(--accent);"></i> Open in Terminal (\`)</div>
+    <div class="context-item" onclick="openSearchModal()"><i data-lucide="search" style="width: 14px;"></i> Deep Search in Directory (Ctrl+F)</div>
+    <div class="context-item" onclick="openSyncModal()"><i data-lucide="refresh-cw" style="width: 14px;"></i> Sync with Opposite Pane...</div>
+    <div class="context-item" onclick="openRemoteModal(${paneIndex})"><i data-lucide="network" style="width: 14px;"></i> Mount Remote Storage Here...</div>
+    <div class="context-item" onclick="addCurrentPaneToQuickDest()"><i data-lucide="bookmark-plus" style="width: 14px;"></i> Bookmark Current Path</div>
+    <div class="context-sep"></div>
+    <div class="context-item" onclick="triggerDirPermissions(${paneIndex})"><i data-lucide="lock" style="width: 14px;"></i> Directory Permissions & Ownership</div>
+    <div class="context-item" onclick="runPredefinedAction('du -sh &quot;{dir}&quot;', 'Directory Disk Usage')"><i data-lucide="hard-drive" style="width: 14px;"></i> Check Disk Usage (du -sh)</div>
+  `;
+
+  if (window.lucide) lucide.createIcons();
+
+  menu.style.display = 'block';
+  menu.style.left = `${Math.min(x, window.innerWidth - 250)}px`;
+  menu.style.top = `${Math.min(y, window.innerHeight - 380)}px`;
+}
+
+function triggerCopyClipboard() {
+  const paths = getSelectedOrCursorPaths();
+  if (paths.length === 0) return;
+  App.clipboard = { action: 'copy', paths };
+}
+
+function triggerCutClipboard() {
+  const paths = getSelectedOrCursorPaths();
+  if (paths.length === 0) return;
+  App.clipboard = { action: 'cut', paths };
+}
+
+async function triggerPaste(targetPaneIdx = App.activePaneIndex) {
+  if (!App.clipboard || !App.clipboard.paths || App.clipboard.paths.length === 0) {
+    alert('Clipboard is empty. Copy or Cut items first (Ctrl+C / Ctrl+X).');
+    return;
+  }
+
+  const targetPane = App.panes[targetPaneIdx];
+  const action = App.clipboard.action;
+  const paths = App.clipboard.paths;
+
+  await executeTransfer(action, paths, targetPane.path, targetPaneIdx);
+
+  if (action === 'cut') {
+    App.clipboard = null;
+  }
+}
+
+async function triggerNewFile() {
+  const name = prompt('Enter new file name (e.g. notes.txt, config.json, script.py):');
+  if (!name) return;
+  const pane = App.panes[App.activePaneIndex];
+  const newFilePath = `${pane.path.replace(/\/$/, '')}/${name}`;
+
+  try {
+    const resp = await fetch('/api/fs/write', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
+      body: JSON.stringify({ path: newFilePath, content: '' })
+    });
+
+    if (resp.ok) {
+      refreshPane(App.activePaneIndex);
+      openEditorWithFile(newFilePath);
+    } else {
+      alert(`Failed to create file: ${await resp.text()}`);
+    }
+  } catch (e) {
+    alert(`Error: ${e}`);
+  }
+}
+
+function triggerDirPermissions(paneIndex = App.activePaneIndex) {
+  const pane = App.panes[paneIndex];
+  App.contextItem = {
+    name: pane.path.split('/').pop() || pane.path,
+    path: pane.path,
+    is_dir: true,
+    mode_octal: '0755',
+    owner: 'root',
+    group: 'root'
+  };
+  App.contextPaneIndex = paneIndex;
+  triggerPermissions();
+}
+
+function openTerminalInPath(path) {
+  toggleTerminal(true);
+  if (termWs && termWs.readyState === WebSocket.OPEN && path) {
+    termWs.send(`cd "${path.replace(/"/g, '\\"')}" && clear\n`);
+  }
 }
 
 document.addEventListener('click', () => {
@@ -1379,8 +1527,22 @@ async function handleLoginSubmit() {
   }
 }
 
-function openHelpModal() { showModal('settings-modal'); }
-function openSettingsModal() { showModal('settings-modal'); }
+function openHelpModal() {
+  showModal('settings-modal');
+  switchSettingsTab('tab-keys');
+}
+
+function openSettingsModal() {
+  const dblclickCheckbox = document.getElementById('setting-dblclick-up');
+  if (dblclickCheckbox) {
+    dblclickCheckbox.checked = App.dblclickUpDir;
+    dblclickCheckbox.onchange = (e) => {
+      App.dblclickUpDir = e.target.checked;
+      localStorage.setItem('cd_dblclick_up', e.target.checked);
+    };
+  }
+  showModal('settings-modal');
+}
 
 function triggerView() {
   const pane = App.panes[App.activePaneIndex];
