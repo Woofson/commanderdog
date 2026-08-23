@@ -2233,13 +2233,27 @@ function clearTerminal() {
   if (out) out.innerHTML = '';
 }
 
+function getAppBasePath() {
+  const path = window.location.pathname;
+  if (!path || path === '/' || path.endsWith('/index.html')) {
+    return '';
+  }
+  return path.endsWith('/') ? path.slice(0, -1) : path.replace(/\/[^\/]*$/, '');
+}
+
+function getWsUrl(endpoint) {
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const basePath = getAppBasePath();
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  return `${protocol}//${window.location.host}${basePath}${cleanEndpoint}`;
+}
+
 function connectTerminal(cwd) {
   if (termWs) {
     termWs.close();
   }
 
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const url = `${protocol}//${window.location.host}/api/ws/terminal?cwd=${encodeURIComponent(cwd)}`;
+  const url = `${getWsUrl('/api/ws/terminal')}?cwd=${encodeURIComponent(cwd)}`;
 
   termWs = new WebSocket(url);
   const out = document.getElementById('terminal-output');

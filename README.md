@@ -117,6 +117,19 @@ docker compose up -d --build
 
 ---
 
+## 🌐 Reverse Proxies, Tailscale & NetBird
+
+CommanderDog is engineered to run seamlessly behind reverse proxies, mesh VPNs, and tunnels:
+- 🦎 **[Tailscale Setup Guide](REVERSE_PROXY.md#1-tailscale)**: MagicDNS HTTPS with `tailscale serve` or `tailscale funnel`.
+- 🦅 **[NetBird Setup Guide](REVERSE_PROXY.md#2-netbird)**: WireGuard peer-to-peer overlay network access.
+- 🔒 **[Caddy 2 Guide](REVERSE_PROXY.md#3-caddy-2-recommended)**: 3-line automatic TLS & WebSocket reverse proxy.
+- 🌐 **[Nginx & NPM Guide](REVERSE_PROXY.md#4-nginx)**: WebSocket upgrade, buffer tuning, and timeout configurations.
+- 🚦 **[Traefik v2/v3 Guide](REVERSE_PROXY.md#6-traefik-v2--v3)**: Docker compose labels and buffering middleware.
+- ☁️ **[Cloudflare Tunnel Guide](REVERSE_PROXY.md#7-cloudflare-tunnel-cloudflared)**: Zero-trust tunneling with WebSockets.
+- 📦 **[Proxmox LXC Guide](LXC.md)**: 1-click Proxmox VE / Debian container deployment.
+
+---
+
 ## 📁 conf.d Directory Structure
 
 CommanderDog merges all `.toml` files in the `conf.d` directory in sorting order:
