@@ -141,7 +141,22 @@ function createPaneElement(pane, index) {
   el.ondragleave = () => el.classList.remove('drag-over');
   el.ondrop = (e) => handlePaneDrop(e, index);
 
+  const visibleCount = getVisiblePaneCount();
+  let mobileTabs = '';
+  if (visibleCount > 1) {
+    mobileTabs = `
+      <div class="mobile-pane-switcher-bar">
+        ${Array.from({ length: visibleCount }).map((_, pIdx) => `
+          <button class="mobile-pane-tab ${pIdx === index ? 'active' : ''}" data-pane-idx="${pIdx}" onclick="event.stopPropagation(); setActivePane(${pIdx})">
+            📁 Pane ${pIdx + 1}
+          </button>
+        `).join('')}
+      </div>
+    `;
+  }
+
   el.innerHTML = `
+    ${mobileTabs}
     <div class="pane-header">
       <div class="pane-nav-btns">
         <button onclick="navPaneHistory(${index}, -1)" title="Back"><i data-lucide="arrow-left" style="width:14px;"></i></button>
@@ -211,6 +226,12 @@ function setActivePane(index) {
   document.querySelectorAll('.pane').forEach((p, idx) => {
     if (idx === index) p.classList.add('active');
     else p.classList.remove('active');
+  });
+
+  document.querySelectorAll('.mobile-pane-tab').forEach((tab) => {
+    const pIdx = parseInt(tab.getAttribute('data-pane-idx'), 10);
+    if (pIdx === index) tab.classList.add('active');
+    else tab.classList.remove('active');
   });
 }
 
@@ -2776,7 +2797,7 @@ let swipeStartX = 0;
 let swipeStartY = 0;
 
 function setupTouchGestures() {
-  const container = document.getElementById('pane-container');
+  const container = document.getElementById('panes-grid') || document.body;
   if (!container) return;
 
   container.addEventListener('touchstart', (e) => {
@@ -2791,8 +2812,9 @@ function setupTouchGestures() {
     const dx = e.changedTouches[0].clientX - swipeStartX;
     const dy = e.changedTouches[0].clientY - swipeStartY;
 
-    if (Math.abs(dx) > 60 && Math.abs(dy) < 40) {
+    if (Math.abs(dx) > 45 && Math.abs(dy) < 70) {
       const visible = getVisiblePaneCount();
+      if (visible <= 1) return;
       if (dx < 0) {
         // Swipe Left -> Next Pane
         const nextPane = (App.activePaneIndex + 1) % visible;
