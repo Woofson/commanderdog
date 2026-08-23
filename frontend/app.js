@@ -1724,45 +1724,75 @@ function openRemoteModal(paneIndex) {
   showModal('remote-modal');
 }
 
-function updateRemoteProtoUI() {
+async function updateRemoteProtoUI() {
   const proto = document.getElementById('remote-proto-select').value;
   const portGroup = document.getElementById('remote-port-group');
   const s3Group = document.getElementById('remote-s3-group');
+  const standardGroup = document.getElementById('remote-standard-group');
+  const protonGroup = document.getElementById('remote-proton-group');
   const hostInput = document.getElementById('remote-host');
   const hostLabel = document.getElementById('remote-host-label');
   const userLabel = document.getElementById('remote-user-label');
   const passLabel = document.getElementById('remote-pass-label');
 
   if (proto === 'sftp') {
-    portGroup.style.display = 'block';
+    if (standardGroup) standardGroup.style.display = 'block';
+    if (protonGroup) protonGroup.style.display = 'none';
+    if (portGroup) portGroup.style.display = 'block';
     if (s3Group) s3Group.style.display = 'none';
     if (hostLabel) hostLabel.textContent = 'Server Host / IP:';
     if (userLabel) userLabel.textContent = 'SSH Username:';
     if (passLabel) passLabel.textContent = 'SSH Password / Key:';
-    hostInput.placeholder = 'e.g. 192.168.1.100 or sftp.example.com';
+    if (hostInput) hostInput.placeholder = 'e.g. 192.168.1.100 or sftp.example.com';
   } else if (proto === 'webdav') {
-    portGroup.style.display = 'none';
+    if (standardGroup) standardGroup.style.display = 'block';
+    if (protonGroup) protonGroup.style.display = 'none';
+    if (portGroup) portGroup.style.display = 'none';
     if (s3Group) s3Group.style.display = 'none';
     if (hostLabel) hostLabel.textContent = 'WebDAV URL:';
     if (userLabel) userLabel.textContent = 'WebDAV Username:';
     if (passLabel) passLabel.textContent = 'WebDAV Password / Token:';
-    hostInput.placeholder = 'e.g. http://192.168.1.100:80/remote.php/webdav/';
+    if (hostInput) hostInput.placeholder = 'e.g. http://192.168.1.100:80/remote.php/webdav/';
   } else if (proto === 's3') {
-    portGroup.style.display = 'none';
+    if (standardGroup) standardGroup.style.display = 'block';
+    if (protonGroup) protonGroup.style.display = 'none';
+    if (portGroup) portGroup.style.display = 'none';
     if (s3Group) s3Group.style.display = 'grid';
     if (hostLabel) hostLabel.textContent = 'S3 Endpoint URL:';
     if (userLabel) userLabel.textContent = 'Access Key ID:';
     if (passLabel) passLabel.textContent = 'Secret Access Key:';
-    hostInput.placeholder = 'e.g. https://s3.amazonaws.com or https://<account_id>.r2.cloudflarestorage.com';
+    if (hostInput) hostInput.placeholder = 'e.g. https://s3.amazonaws.com or https://<account_id>.r2.cloudflarestorage.com';
+  } else if (proto === 'proton') {
+    if (standardGroup) standardGroup.style.display = 'none';
+    if (protonGroup) protonGroup.style.display = 'block';
+
+    const badge = document.getElementById('proton-cli-status-badge');
+    if (badge) badge.innerHTML = '<span style="color: var(--accent);">Checking Proton Drive CLI / daemon status...</span>';
+
+    try {
+      const resp = await fetch('/api/remotes/proton/status', {
+        headers: { 'Authorization': `Bearer ${App.token}` }
+      });
+      if (resp.ok) {
+        const st = await resp.json();
+        if (st.installed) {
+          badge.innerHTML = `🟢 <b>Detected Backend:</b> ${st.cli_type} (${st.version || 'active'}) &nbsp;|&nbsp; <b>Auth:</b> ${st.authenticated ? '✅ Ready' : '⚠️ Not Logged In'}`;
+        } else {
+          badge.innerHTML = `⚪ <b>Proton CLI Not Detected:</b> Run <code>proton-drive login</code> or configure an <code>rclone</code> proton remote.`;
+        }
+      }
+    } catch (e) {
+      if (badge) badge.textContent = `Status check error: ${e}`;
+    }
   }
 }
 
 async function testRemoteConnection() {
   const proto = document.getElementById('remote-proto-select').value;
-  const host = document.getElementById('remote-host').value;
-  const port = parseInt(document.getElementById('remote-port').value, 10);
-  const user = document.getElementById('remote-user').value;
-  const pass = document.getElementById('remote-pass').value;
+  const host = document.getElementById('remote-host')?.value || '';
+  const port = parseInt(document.getElementById('remote-port')?.value || '22', 10);
+  const user = document.getElementById('remote-user')?.value || '';
+  const pass = document.getElementById('remote-pass')?.value || '';
   const bucket = document.getElementById('remote-bucket')?.value || '';
   const region = document.getElementById('remote-region')?.value || 'us-east-1';
 
@@ -1780,8 +1810,8 @@ async function testRemoteConnection() {
 
     if (resp.ok) {
       const data = await resp.json();
-      status.style.color = 'var(--success)';
-      status.textContent = `✓ ${data.message}`;
+      status.style.color = data.success ? 'var(--success)' : 'var(--warning)';
+      status.textContent = `${data.success ? '✓' : '⚠️'} ${data.message}`;
     } else {
       status.style.color = 'var(--danger)';
       status.textContent = `✗ ${await resp.text()}`;
@@ -1794,24 +1824,24 @@ async function testRemoteConnection() {
 
 function connectRemoteToActivePane() {
   const proto = document.getElementById('remote-proto-select').value;
-  const host = document.getElementById('remote-host').value;
-  const port = parseInt(document.getElementById('remote-port').value, 10);
-  const user = document.getElementById('remote-user').value;
+  const host = document.getElementById('remote-host')?.value || '';
+  const port = parseInt(document.getElementById('remote-port')?.value || '22', 10);
+  const user = document.getElementById('remote-user')?.value || '';
   const bucket = document.getElementById('remote-bucket')?.value || '';
-  const path = document.getElementById('remote-path').value || '/';
-
-  if (!host) {
-    alert('Please specify a server host / URL');
-    return;
-  }
+  const path = document.getElementById('remote-path')?.value || '/';
 
   let remoteUrl = '';
   if (proto === 'sftp') {
+    if (!host) { alert('Please specify a server host / URL'); return; }
     remoteUrl = `sftp://${user}@${host}:${port}${path.startsWith('/') ? path : '/' + path}`;
   } else if (proto === 'webdav') {
+    if (!host) { alert('Please specify a server host / URL'); return; }
     remoteUrl = `webdav://${host.replace(/^https?:\/\//, '')}${path.startsWith('/') ? path : '/' + path}`;
   } else if (proto === 's3') {
+    if (!host) { alert('Please specify S3 endpoint'); return; }
     remoteUrl = `s3://${bucket}${path.startsWith('/') ? path : '/' + path}`;
+  } else if (proto === 'proton') {
+    remoteUrl = `proton://${path.startsWith('/') ? path.substring(1) : path}`;
   }
 
   closeModal('remote-modal');

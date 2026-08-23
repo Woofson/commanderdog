@@ -73,6 +73,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/fs/checksum", post(handle_calculate_checksum))
         // Remote Connections & Test
         .route("/api/remotes/test", post(handle_test_remote))
+        .route("/api/remotes/proton/status", get(handle_proton_status))
         // Tools, Comparison & Tasks
         .route("/api/tools/diff/files", post(handle_diff_files))
         .route("/api/tools/diff/folders", post(handle_diff_folders))
@@ -234,6 +235,32 @@ async fn handle_list_dir(
         WebDavClient::list_dir(&url, query.user.as_deref(), query.pass.as_deref()).await
             .map(Json)
             .map_err(|e| (StatusCode::BAD_REQUEST, format!("Failed to list WebDAV: {}", e)))
+    } else if target_path.starts_with("proton://") {
+        let entries = crate::vfs::proton::ProtonDriveClient::list_directory(&target_path).await
+            .map_err(|e| (StatusCode::BAD_REQUEST, format!("Proton Drive list failed: {}", e)))?;
+        let total_files = entries.iter().filter(|e| !e.is_dir).count();
+        let total_dirs = entries.iter().filter(|e| e.is_dir).count();
+        let total_size = entries.iter().map(|e| e.size).sum();
+        let parent_path = if target_path == "proton://" || target_path == "proton:///" {
+            None
+        } else {
+            let clean = target_path.trim_start_matches("proton://").trim_start_matches('/');
+            let p = std::path::Path::new(clean);
+            p.parent().and_then(|par| {
+                let s = par.to_string_lossy().to_string();
+                if s.is_empty() { Some("proton:///".to_string()) } else { Some(format!("proton:///{}", s)) }
+            })
+        };
+
+        Ok(Json(DirectoryListing {
+            current_path: target_path,
+            parent_path,
+            entries,
+            total_files,
+            total_dirs,
+            total_size,
+            protocol: "proton".to_string(),
+        }))
     } else {
         LocalFs::list_dir(&target_path, show_hidden)
             .map(Json)
@@ -610,8 +637,30 @@ async fn handle_test_remote(
                 Err(e) => Err((StatusCode::BAD_REQUEST, format!("S3 connection failed: {}", e))),
             }
         }
+        "proton" => {
+            let status = crate::vfs::proton::ProtonDriveClient::check_status().await;
+            if status.installed {
+                if status.authenticated {
+                    Ok(Json(serde_json::json!({
+                        "success": true,
+                        "message": format!("Proton Drive integration ready! Backend: {} (Version: {})", status.cli_type, status.version.unwrap_or_default()),
+                    })))
+                } else {
+                    Ok(Json(serde_json::json!({
+                        "success": false,
+                        "message": format!("Proton Drive CLI detected ({}) but not yet logged in. Run '{} login' in terminal.", status.cli_type, status.cli_type),
+                    })))
+                }
+            } else {
+                Err((StatusCode::BAD_REQUEST, "Proton Drive CLI or rclone not detected on host. Install 'proton-drive' or configure an rclone proton remote.".to_string()))
+            }
+        }
         _ => Err((StatusCode::BAD_REQUEST, "Unsupported protocol".to_string())),
     }
+}
+
+async fn handle_proton_status() -> Json<crate::vfs::proton::ProtonStatus> {
+    Json(crate::vfs::proton::ProtonDriveClient::check_status().await)
 }
 
 async fn handle_list_tasks(

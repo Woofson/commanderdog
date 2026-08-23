@@ -1,6 +1,7 @@
 pub mod archive;
 pub mod checksum;
 pub mod local;
+pub mod proton;
 pub mod s3;
 pub mod sftp;
 pub mod webdav;
