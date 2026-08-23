@@ -263,6 +263,18 @@ async fn handle_list_dir(
             total_size,
             protocol: "proton".to_string(),
         }))
+    } else if target_path.starts_with("smb://") {
+        let params = crate::vfs::smb::SmbClient::parse_uri(&target_path, query.user.as_deref(), query.pass.as_deref())
+            .map_err(|e| (StatusCode::BAD_REQUEST, format!("Invalid SMB URI: {}", e)))?;
+        crate::vfs::smb::SmbClient::list_dir(&params)
+            .map(Json)
+            .map_err(|e| (StatusCode::BAD_REQUEST, format!("SMB list failed: {}", e)))
+    } else if target_path.starts_with("nfs://") {
+        let params = crate::vfs::nfs::NfsClient::parse_uri(&target_path)
+            .map_err(|e| (StatusCode::BAD_REQUEST, format!("Invalid NFS URI: {}", e)))?;
+        crate::vfs::nfs::NfsClient::list_dir(&params, show_hidden)
+            .map(Json)
+            .map_err(|e| (StatusCode::BAD_REQUEST, format!("NFS list failed: {}", e)))
     } else {
         LocalFs::list_dir(&target_path, show_hidden)
             .map(Json)
@@ -289,6 +301,12 @@ async fn handle_read_file(
         ArchiveHandler::read_archive_entry(archive_file, subpath, max_b)
             .map(Json)
             .map_err(|e| (StatusCode::BAD_REQUEST, format!("Failed to read archive item: {}", e)))
+    } else if query.path.starts_with("smb://") {
+        let params = crate::vfs::smb::SmbClient::parse_uri(&query.path, None, None)
+            .map_err(|e| (StatusCode::BAD_REQUEST, format!("Invalid SMB URI: {}", e)))?;
+        crate::vfs::smb::SmbClient::read_file(&params)
+            .map(Json)
+            .map_err(|e| (StatusCode::BAD_REQUEST, format!("Failed to read SMB file: {}", e)))
     } else {
         LocalFs::read_file(&query.path, max_b)
             .map(Json)
@@ -307,10 +325,18 @@ async fn handle_write_file(
     State(state): State<AppState>,
     Json(payload): Json<WriteFileRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    let atomic = payload.atomic.unwrap_or(state.config.paranoid.atomic_writes);
-    LocalFs::write_file(&payload.path, payload.content.as_bytes(), atomic)
-        .map(|_| Json(serde_json::json!({ "success": true, "path": payload.path })))
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to save file: {}", e)))
+    if payload.path.starts_with("smb://") {
+        let params = crate::vfs::smb::SmbClient::parse_uri(&payload.path, None, None)
+            .map_err(|e| (StatusCode::BAD_REQUEST, format!("Invalid SMB URI: {}", e)))?;
+        crate::vfs::smb::SmbClient::write_file(&params, payload.content.as_bytes())
+            .map(|_| Json(serde_json::json!({ "success": true, "path": payload.path })))
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to save SMB file: {}", e)))
+    } else {
+        let atomic = payload.atomic.unwrap_or(state.config.paranoid.atomic_writes);
+        LocalFs::write_file(&payload.path, payload.content.as_bytes(), atomic)
+            .map(|_| Json(serde_json::json!({ "success": true, "path": payload.path })))
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to save file: {}", e)))
+    }
 }
 
 #[derive(Deserialize)]
@@ -656,6 +682,36 @@ async fn handle_test_remote(
             } else {
                 Err((StatusCode::BAD_REQUEST, "Proton Drive CLI or rclone not detected on host. Install 'proton-drive' or configure an rclone proton remote.".to_string()))
             }
+        }
+        "smb" => {
+            let port = payload.port.unwrap_or(445);
+            let share = payload.bucket.unwrap_or_else(|| "share".to_string());
+            let params = crate::vfs::smb::SmbParams {
+                host: payload.host,
+                port,
+                share,
+                subpath: "".to_string(),
+                username: payload.user,
+                password: payload.pass,
+                domain: payload.region,
+            };
+            crate::vfs::smb::SmbClient::test_connection(&params)
+                .map(|msg| Json(serde_json::json!({ "success": true, "message": msg })))
+                .map_err(|e| (StatusCode::BAD_REQUEST, e))
+        }
+        "nfs" => {
+            let port = payload.port.unwrap_or(2049);
+            let export_path = payload.bucket.unwrap_or_else(|| "/".to_string());
+            let params = crate::vfs::nfs::NfsParams {
+                host: payload.host,
+                port,
+                export_path,
+                subpath: "".to_string(),
+                version: payload.region,
+            };
+            crate::vfs::nfs::NfsClient::test_connection(&params)
+                .map(|msg| Json(serde_json::json!({ "success": true, "message": msg })))
+                .map_err(|e| (StatusCode::BAD_REQUEST, e))
         }
         _ => Err((StatusCode::BAD_REQUEST, "Unsupported protocol".to_string())),
     }

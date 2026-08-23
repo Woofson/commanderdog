@@ -39,6 +39,8 @@
   - Native Linux pseudo-terminal running `bash`/`sh` over WebSockets, starting in the active pane's current directory.
 - 🌐 **Protocols & Cloud Object Storage Manager**:
   - **Local Linux Filesystem**
+  - **🪟 Samba / Windows Shares (SMB / CIFS)**: Port 445 / 139 with domain & guest authentication (`smb://`)
+  - **🐧 NFS (Network File System)**: NFSv3 / NFSv4 automated export mounting & discovery (`nfs://`)
   - **SFTP / SSH** remote servers (Port 22 / 23)
   - **📦 Hetzner Storage Box**: Dedicated fast preset (SFTP port 23 & WebDAV HTTPS)
   - **WebDAV**: Nextcloud, ownCloud, Synology, Apache/Nginx

@@ -2052,7 +2052,10 @@ function syncHetznerFields() {
 async function updateRemoteProtoUI() {
   const proto = document.getElementById('remote-proto-select').value;
   const portGroup = document.getElementById('remote-port-group');
+  const portInput = document.getElementById('remote-port');
   const s3Group = document.getElementById('remote-s3-group');
+  const smbGroup = document.getElementById('remote-smb-group');
+  const nfsGroup = document.getElementById('remote-nfs-group');
   const standardGroup = document.getElementById('remote-standard-group');
   const protonGroup = document.getElementById('remote-proton-group');
   const hetznerGroup = document.getElementById('remote-hetzner-group');
@@ -2062,16 +2065,39 @@ async function updateRemoteProtoUI() {
   const passLabel = document.getElementById('remote-pass-label');
 
   if (hetznerGroup) hetznerGroup.style.display = proto === 'hetzner-box' ? 'block' : 'none';
+  if (smbGroup) smbGroup.style.display = proto === 'smb' ? 'grid' : 'none';
+  if (nfsGroup) nfsGroup.style.display = proto === 'nfs' ? 'block' : 'none';
 
   if (proto === 'sftp') {
     if (standardGroup) standardGroup.style.display = 'block';
     if (protonGroup) protonGroup.style.display = 'none';
     if (portGroup) portGroup.style.display = 'block';
+    if (portInput) portInput.value = '22';
     if (s3Group) s3Group.style.display = 'none';
     if (hostLabel) hostLabel.textContent = 'Server Host / IP:';
     if (userLabel) userLabel.textContent = 'SSH Username:';
     if (passLabel) passLabel.textContent = 'SSH Password / Key:';
     if (hostInput) hostInput.placeholder = 'e.g. 192.168.1.100 or sftp.example.com';
+  } else if (proto === 'smb') {
+    if (standardGroup) standardGroup.style.display = 'block';
+    if (protonGroup) protonGroup.style.display = 'none';
+    if (portGroup) portGroup.style.display = 'block';
+    if (portInput) portInput.value = '445';
+    if (s3Group) s3Group.style.display = 'none';
+    if (hostLabel) hostLabel.textContent = 'Samba Server / NAS Host:';
+    if (userLabel) userLabel.textContent = 'SMB Username (or blank for guest):';
+    if (passLabel) passLabel.textContent = 'SMB Password:';
+    if (hostInput) hostInput.placeholder = 'e.g. 192.168.1.50 or my-nas.local';
+  } else if (proto === 'nfs') {
+    if (standardGroup) standardGroup.style.display = 'block';
+    if (protonGroup) protonGroup.style.display = 'none';
+    if (portGroup) portGroup.style.display = 'block';
+    if (portInput) portInput.value = '2049';
+    if (s3Group) s3Group.style.display = 'none';
+    if (hostLabel) hostLabel.textContent = 'NFS Server Host / IP:';
+    if (userLabel) userLabel.textContent = 'NFS User (Optional):';
+    if (passLabel) passLabel.textContent = 'Password (Optional):';
+    if (hostInput) hostInput.placeholder = 'e.g. 192.168.1.50 or nfs-server.local';
   } else if (proto === 'hetzner-box') {
     if (standardGroup) standardGroup.style.display = 'block';
     if (protonGroup) protonGroup.style.display = 'none';
@@ -2130,12 +2156,17 @@ async function testRemoteConnection() {
   const port = parseInt(document.getElementById('remote-port')?.value || '22', 10);
   const user = document.getElementById('remote-user')?.value || '';
   const pass = document.getElementById('remote-pass')?.value || '';
-  const bucket = document.getElementById('remote-bucket')?.value || '';
-  const region = document.getElementById('remote-region')?.value || 'us-east-1';
+  let bucket = document.getElementById('remote-bucket')?.value || '';
+  let region = document.getElementById('remote-region')?.value || 'us-east-1';
 
   if (proto === 'hetzner-box') {
     const hMode = document.getElementById('hetzner-mode')?.value || 'sftp';
     proto = hMode;
+  } else if (proto === 'smb') {
+    bucket = document.getElementById('remote-smb-share')?.value || '';
+    region = document.getElementById('remote-smb-domain')?.value || 'WORKGROUP';
+  } else if (proto === 'nfs') {
+    bucket = document.getElementById('remote-nfs-export')?.value || '/';
   }
 
   const status = document.getElementById('remote-test-status');
@@ -2169,6 +2200,7 @@ function connectRemoteToActivePane() {
   const host = document.getElementById('remote-host')?.value || '';
   const port = parseInt(document.getElementById('remote-port')?.value || '22', 10);
   const user = document.getElementById('remote-user')?.value || '';
+  const pass = document.getElementById('remote-pass')?.value || '';
   const bucket = document.getElementById('remote-bucket')?.value || '';
   const path = document.getElementById('remote-path')?.value || '/';
 
@@ -2176,6 +2208,23 @@ function connectRemoteToActivePane() {
   if (proto === 'sftp') {
     if (!host) { alert('Please specify a server host / URL'); return; }
     remoteUrl = `sftp://${user}@${host}:${port}${path.startsWith('/') ? path : '/' + path}`;
+  } else if (proto === 'smb') {
+    const share = document.getElementById('remote-smb-share')?.value || '';
+    const domain = document.getElementById('remote-smb-domain')?.value || '';
+    if (!host) { alert('Please specify Samba / NAS host'); return; }
+    if (!share) { alert('Please specify Share Name (e.g. public or data)'); return; }
+    const domPrefix = domain && domain !== 'WORKGROUP' ? `${domain};` : '';
+    const userAuth = user ? (pass ? `${domPrefix}${user}:${pass}@` : `${domPrefix}${user}@`) : '';
+    const portSuffix = port !== 445 ? `:${port}` : '';
+    const sub = path.startsWith('/') ? path : '/' + path;
+    remoteUrl = `smb://${userAuth}${host}${portSuffix}/${share}${sub === '/' ? '' : sub}`;
+  } else if (proto === 'nfs') {
+    const exportPath = document.getElementById('remote-nfs-export')?.value || '/';
+    if (!host) { alert('Please specify NFS host'); return; }
+    const portSuffix = port !== 2049 ? `:${port}` : '';
+    const cleanExport = exportPath.startsWith('/') ? exportPath : '/' + exportPath;
+    const sub = path && path !== '/' ? (path.startsWith('/') ? path : '/' + path) : '';
+    remoteUrl = `nfs://${host}${portSuffix}${cleanExport}${sub}`;
   } else if (proto === 'hetzner-box') {
     const hMode = document.getElementById('hetzner-mode')?.value || 'sftp';
     if (hMode === 'sftp') {

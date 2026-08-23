@@ -1,9 +1,11 @@
 pub mod archive;
 pub mod checksum;
 pub mod local;
+pub mod nfs;
 pub mod proton;
 pub mod s3;
 pub mod sftp;
+pub mod smb;
 pub mod webdav;
 
 use serde::{Deserialize, Serialize};
