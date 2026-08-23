@@ -3234,5 +3234,17 @@ function clearActiveSelections() {
   updateMobileBottomBar();
 }
 
+// ---------------- DYNAMIC VIEWPORT HEIGHT SYNC (FOR BOTTOM ADDRESS BARS) ----------------
+function updateDynamicViewportHeight() {
+  if (window.visualViewport) {
+    document.body.style.height = `${window.visualViewport.height}px`;
+  }
+}
+window.addEventListener('resize', updateDynamicViewportHeight);
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', updateDynamicViewportHeight);
+}
+document.addEventListener('DOMContentLoaded', updateDynamicViewportHeight);
+
 
 
