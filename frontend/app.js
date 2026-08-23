@@ -2241,7 +2241,6 @@ function connectRemoteToActivePane() {
   } else if (proto === 'proton') {
     remoteUrl = `proton://${path.startsWith('/') ? path.substring(1) : path}`;
   }
-
   closeModal('remote-modal');
   loadPaneDirectory(targetRemotePaneIndex, remoteUrl);
 }
@@ -2249,6 +2248,73 @@ function connectRemoteToActivePane() {
 // ---------------- INTEGRATED TERMINAL (PTY & WEBSOCKET) ----------------
 let termWs = null;
 let termOpen = false;
+let termInstance = null;
+let termFitAddon = null;
+
+function initTerminalUI() {
+  const container = document.getElementById('terminal-output');
+  if (!container) return;
+
+  if (window.Terminal && !termInstance) {
+    container.innerHTML = '';
+    termInstance = new Terminal({
+      cursorBlink: true,
+      cursorStyle: 'bar',
+      fontFamily: 'JetBrains Mono, Menlo, Monaco, Consolas, "Courier New", monospace',
+      fontSize: 13,
+      lineHeight: 1.25,
+      scrollback: 5000,
+      theme: {
+        background: '#090a0d',
+        foreground: '#f4f4f5',
+        cursor: '#f59e0b',
+        cursorAccent: '#090a0d',
+        selectionBackground: 'rgba(245, 158, 11, 0.35)',
+        black: '#18181b',
+        red: '#ef4444',
+        green: '#10b981',
+        yellow: '#f59e0b',
+        blue: '#38bdf8',
+        magenta: '#bd93f9',
+        cyan: '#7dcfff',
+        white: '#f4f4f5',
+        brightBlack: '#71717a',
+        brightRed: '#f87171',
+        brightGreen: '#34d399',
+        brightYellow: '#fbbf24',
+        brightBlue: '#60a5fa',
+        brightMagenta: '#c084fc',
+        brightCyan: '#a5f3fc',
+        brightWhite: '#ffffff',
+      }
+    });
+
+    if (window.FitAddon) {
+      termFitAddon = new FitAddon.FitAddon();
+      termInstance.loadAddon(termFitAddon);
+    }
+    if (window.WebLinksAddon) {
+      termInstance.loadAddon(new WebLinksAddon.WebLinksAddon());
+    }
+
+    termInstance.open(container);
+    if (termFitAddon) {
+      setTimeout(() => termFitAddon.fit(), 50);
+    }
+
+    termInstance.onData((data) => {
+      if (termWs && termWs.readyState === WebSocket.OPEN) {
+        termWs.send(data);
+      }
+    });
+
+    termInstance.onResize(({ cols, rows }) => {
+      if (termWs && termWs.readyState === WebSocket.OPEN) {
+        termWs.send(JSON.stringify({ cols, rows, resize: true }));
+      }
+    });
+  }
+}
 
 function toggleTerminal(forceState) {
   const drawer = document.getElementById('terminal-drawer');
@@ -2261,8 +2327,15 @@ function toggleTerminal(forceState) {
     const activePane = App.panes[App.activePaneIndex];
     const cwd = (activePane && !activePane.path.includes('://')) ? activePane.path : '/';
     document.getElementById('terminal-cwd-indicator').textContent = cwd;
+
+    initTerminalUI();
+
+    setTimeout(() => {
+      if (termFitAddon) termFitAddon.fit();
+      if (termInstance) termInstance.focus();
+    }, 100);
+
     connectTerminal(cwd);
-    document.getElementById('terminal-output')?.focus();
   } else {
     drawer.classList.remove('active');
     if (termWs) {
@@ -2274,12 +2347,28 @@ function toggleTerminal(forceState) {
 }
 
 function toggleTerminalFullscreen() {
-  document.getElementById('terminal-drawer')?.classList.toggle('fullscreen');
+  const drawer = document.getElementById('terminal-drawer');
+  if (!drawer) return;
+  drawer.classList.toggle('fullscreen');
+  setTimeout(() => {
+    if (termFitAddon) {
+      termFitAddon.fit();
+      if (termWs && termWs.readyState === WebSocket.OPEN && termInstance) {
+        termWs.send(JSON.stringify({ cols: termInstance.cols, rows: termInstance.rows, resize: true }));
+      }
+    }
+    if (termInstance) termInstance.focus();
+  }, 100);
 }
 
 function clearTerminal() {
-  const out = document.getElementById('terminal-output');
-  if (out) out.innerHTML = '';
+  if (termInstance) {
+    termInstance.clear();
+    termInstance.focus();
+  } else {
+    const out = document.getElementById('terminal-output');
+    if (out) out.innerHTML = '';
+  }
 }
 
 function getAppBasePath() {
@@ -2302,115 +2391,49 @@ function connectTerminal(cwd) {
     termWs.close();
   }
 
-  const url = `${getWsUrl('/api/ws/terminal')}?cwd=${encodeURIComponent(cwd)}`;
+  const cols = termInstance ? termInstance.cols : 100;
+  const rows = termInstance ? termInstance.rows : 24;
+  const url = `${getWsUrl('/api/ws/terminal')}?cwd=${encodeURIComponent(cwd)}&cols=${cols}&rows=${rows}`;
 
   termWs = new WebSocket(url);
-  const out = document.getElementById('terminal-output');
-
   termWs.binaryType = 'arraybuffer';
 
   termWs.onopen = () => {
-    out.innerHTML = `<span style="color:var(--accent);">🐕 CommanderDog PTY Session Connected [cwd: ${cwd}]</span>\n\n`;
+    if (termInstance) {
+      termInstance.writeln('\x1b[38;5;214m🐕 CommanderDog PTY Session Connected\x1b[0m [\x1b[38;5;244mcwd:\x1b[0m ' + cwd + ']\r\n');
+      termInstance.focus();
+    }
   };
 
   termWs.onmessage = (e) => {
-    let text = '';
-    if (e.data instanceof ArrayBuffer) {
-      const decoder = new TextDecoder('utf-8');
-      text = decoder.decode(e.data);
+    if (termInstance) {
+      if (e.data instanceof ArrayBuffer) {
+        termInstance.write(new Uint8Array(e.data));
+      } else {
+        termInstance.write(e.data);
+      }
     } else {
-      text = e.data;
+      appendTerminalTextFallback(typeof e.data === 'string' ? e.data : new TextDecoder().decode(e.data));
     }
-    appendTerminalText(text);
   };
 
   termWs.onclose = () => {
-    appendTerminalText('\n[Terminal Session Disconnected]');
+    if (termInstance) {
+      termInstance.writeln('\r\n\x1b[38;5;244m[Terminal Session Disconnected]\x1b[0m');
+    }
   };
 
   termWs.onerror = (err) => {
-    appendTerminalText(`\n[Terminal Error: ${err}]`);
-  };
-
-  out.onkeydown = (e) => {
-    if (!termWs || termWs.readyState !== WebSocket.OPEN) return;
-
-    if (e.key === 'Tab') {
-      e.preventDefault();
-      termWs.send('\t');
-    } else if (e.key === 'Backspace') {
-      e.preventDefault();
-      termWs.send('\x7f');
-    } else if (e.key === 'Enter') {
-      e.preventDefault();
-      termWs.send('\r');
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      termWs.send('\x1b[A');
-    } else if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      termWs.send('\x1b[B');
-    } else if (e.key === 'ArrowRight') {
-      e.preventDefault();
-      termWs.send('\x1b[C');
-    } else if (e.key === 'ArrowLeft') {
-      e.preventDefault();
-      termWs.send('\x1b[D');
-    } else if (e.ctrlKey && e.key.toLowerCase() === 'c') {
-      e.preventDefault();
-      termWs.send('\x03');
-    } else if (e.ctrlKey && e.key.toLowerCase() === 'd') {
-      e.preventDefault();
-      termWs.send('\x04');
-    } else if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
-      e.preventDefault();
-      termWs.send(e.key);
+    if (termInstance) {
+      termInstance.writeln('\r\n\x1b[38;5;196m[Terminal Error: ' + err + ']\x1b[0m');
     }
   };
 }
 
-function stripTerminalEscapes(str) {
-  return str
-    // Strip OSC sequences (e.g. \x1b]7;...\x07 or \x1b]133;...\x1b\\ or \x1b]0;...)
-    .replace(/\x1b\][^\x07\x1b]*(\x07|\x1b\\)?/g, '')
-    // Strip DCS / APC / PM sequences
-    .replace(/\x1b[P^_][^\x1b]*\x1b\\/g, '')
-    // Strip DEC private mode escapes like \x1b[?2004h, \x1b[?2004l, \x1b[=5u, \x1b(B
-    .replace(/\x1b\[\?[0-9]+[a-zA-Z]/g, '')
-    .replace(/\x1b\[=[0-9]+[a-zA-Z]/g, '')
-    .replace(/\x1b\([a-zA-Z0-9]/g, '')
-    // Strip non-color cursor positioning / clear escapes
-    .replace(/\x1b\[[0-9;]*[A-HJKSTf]/g, '');
-}
-
-function appendTerminalText(str) {
+function appendTerminalTextFallback(str) {
   const out = document.getElementById('terminal-output');
   if (!out) return;
-
-  const cleaned = stripTerminalEscapes(str);
-
-  let formatted = escapeHtml(cleaned)
-    .replace(/\x1b\[0m/g, '</span>')
-    .replace(/\x1b\[1m/g, '<span style="font-weight:bold;">')
-    .replace(/\x1b\[30m/g, '<span style="color:#71717a;">')
-    .replace(/\x1b\[31m/g, '<span style="color:#ef4444;">')
-    .replace(/\x1b\[32m/g, '<span style="color:#10b981;">')
-    .replace(/\x1b\[33m/g, '<span style="color:#f59e0b;">')
-    .replace(/\x1b\[34m/g, '<span style="color:#38bdf8;">')
-    .replace(/\x1b\[35m/g, '<span style="color:#bd93f9;">')
-    .replace(/\x1b\[36m/g, '<span style="color:#7dcfff;">')
-    .replace(/\x1b\[37m/g, '<span style="color:#f4f4f5;">')
-    .replace(/\x1b\[90m/g, '<span style="color:#71717a;">')
-    .replace(/\x1b\[91m/g, '<span style="color:#f87171;">')
-    .replace(/\x1b\[92m/g, '<span style="color:#34d399;">')
-    .replace(/\x1b\[93m/g, '<span style="color:#fbbf24;">')
-    .replace(/\x1b\[94m/g, '<span style="color:#60a5fa;">')
-    .replace(/\x1b\[95m/g, '<span style="color:#c084fc;">')
-    .replace(/\x1b\[96m/g, '<span style="color:#38bdf8;">')
-    .replace(/\x1b\[97m/g, '<span style="color:#ffffff;">')
-    .replace(/\x1b\[[0-9;]*m/g, '');
-
-  out.innerHTML += formatted;
+  out.textContent += str;
   out.scrollTop = out.scrollHeight;
 }
 
