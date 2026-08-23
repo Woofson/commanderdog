@@ -1204,25 +1204,26 @@ body {
     display: flex;
   }
 
-  /* Header: Show Burger Menu, Hide Long Desktop Button Row */
-  .mobile-menu-btn {
-    display: inline-flex !important;
-  }
-  
-  .app-header .header-actions:first-of-type {
+  /* Header: Show Burger Menu ONLY, Hide Desktop Toolbar completely on mobile */
+  .desktop-header-tools {
     display: none !important;
   }
 
-  .app-header .header-actions:last-of-type select,
-  .app-header .header-actions:last-of-type #btn-open-settings,
-  .app-header .header-actions:last-of-type #btn-logout {
+  .desktop-header-controls select,
+  .desktop-header-controls #theme-selector,
+  .desktop-header-controls #btn-open-settings,
+  .desktop-header-controls #btn-logout {
     display: none !important;
+  }
+
+  .mobile-menu-btn {
+    display: inline-flex !important;
   }
 
   .app-header {
     height: 42px !important;
     min-height: 42px !important;
-    padding: 0 10px !important;
+    padding: 0 12px !important;
     display: flex !important;
     align-items: center !important;
     justify-content: space-between !important;
