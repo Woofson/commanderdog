@@ -2369,20 +2369,46 @@ function connectTerminal(cwd) {
   };
 }
 
+function stripTerminalEscapes(str) {
+  return str
+    // Strip OSC sequences (e.g. \x1b]7;...\x07 or \x1b]133;...\x1b\\ or \x1b]0;...)
+    .replace(/\x1b\][^\x07\x1b]*(\x07|\x1b\\)?/g, '')
+    // Strip DCS / APC / PM sequences
+    .replace(/\x1b[P^_][^\x1b]*\x1b\\/g, '')
+    // Strip DEC private mode escapes like \x1b[?2004h, \x1b[?2004l, \x1b[=5u, \x1b(B
+    .replace(/\x1b\[\?[0-9]+[a-zA-Z]/g, '')
+    .replace(/\x1b\[=[0-9]+[a-zA-Z]/g, '')
+    .replace(/\x1b\([a-zA-Z0-9]/g, '')
+    // Strip non-color cursor positioning / clear escapes
+    .replace(/\x1b\[[0-9;]*[A-HJKSTf]/g, '');
+}
+
 function appendTerminalText(str) {
   const out = document.getElementById('terminal-output');
   if (!out) return;
 
-  let formatted = str
+  const cleaned = stripTerminalEscapes(str);
+
+  let formatted = escapeHtml(cleaned)
     .replace(/\x1b\[0m/g, '</span>')
     .replace(/\x1b\[1m/g, '<span style="font-weight:bold;">')
+    .replace(/\x1b\[30m/g, '<span style="color:#71717a;">')
     .replace(/\x1b\[31m/g, '<span style="color:#ef4444;">')
     .replace(/\x1b\[32m/g, '<span style="color:#10b981;">')
     .replace(/\x1b\[33m/g, '<span style="color:#f59e0b;">')
     .replace(/\x1b\[34m/g, '<span style="color:#38bdf8;">')
     .replace(/\x1b\[35m/g, '<span style="color:#bd93f9;">')
     .replace(/\x1b\[36m/g, '<span style="color:#7dcfff;">')
-    .replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '');
+    .replace(/\x1b\[37m/g, '<span style="color:#f4f4f5;">')
+    .replace(/\x1b\[90m/g, '<span style="color:#71717a;">')
+    .replace(/\x1b\[91m/g, '<span style="color:#f87171;">')
+    .replace(/\x1b\[92m/g, '<span style="color:#34d399;">')
+    .replace(/\x1b\[93m/g, '<span style="color:#fbbf24;">')
+    .replace(/\x1b\[94m/g, '<span style="color:#60a5fa;">')
+    .replace(/\x1b\[95m/g, '<span style="color:#c084fc;">')
+    .replace(/\x1b\[96m/g, '<span style="color:#38bdf8;">')
+    .replace(/\x1b\[97m/g, '<span style="color:#ffffff;">')
+    .replace(/\x1b\[[0-9;]*m/g, '');
 
   out.innerHTML += formatted;
   out.scrollTop = out.scrollHeight;

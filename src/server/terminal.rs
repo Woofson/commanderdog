@@ -46,8 +46,25 @@ async fn handle_terminal_socket(socket: WebSocket, query: TerminalQuery) {
         }
     };
 
-    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string());
-    let mut cmd = CommandBuilder::new(&shell);
+    // Always use standard clean bash or sh for web terminal to prevent non-standard shell escape garbage (like fish / zsh OSC codes)
+    let shell = if std::path::Path::new("/bin/bash").exists() {
+        "/bin/bash"
+    } else if std::path::Path::new("/usr/bin/bash").exists() {
+        "/usr/bin/bash"
+    } else if std::path::Path::new("/bin/sh").exists() {
+        "/bin/sh"
+    } else {
+        "/bin/sh"
+    };
+
+    let mut cmd = CommandBuilder::new(shell);
+    cmd.env("TERM", "xterm-256color");
+    cmd.env("COLORTERM", "truecolor");
+    cmd.env("LANG", "C.UTF-8");
+    cmd.env("LC_ALL", "C.UTF-8");
+    cmd.env("SHELL", shell);
+    cmd.env("PROMPT_COMMAND", "");
+    cmd.env("PS1", r#"\[\033[01;33m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ "#);
 
     if let Some(ref cwd) = query.cwd {
         let p = std::path::Path::new(cwd);
