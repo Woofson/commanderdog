@@ -104,7 +104,7 @@ Default credentials:
 
 ## 📦 Native Packages & LXC Deployment
 
-- **Debian / Ubuntu**: Install pre-built `dist/commanderdog_0.2.0_amd64.deb` (`sudo dpkg -i commanderdog_*.deb`).
+- **Debian / Ubuntu**: Install pre-built `dist/commanderdog_0.2.1_amd64.deb` (`sudo dpkg -i commanderdog_*.deb`).
 - **Arch Linux**: `packaging/PKGBUILD` included for `makepkg -si`.
 - **Alpine Linux**: `packaging/APKBUILD` included.
 - **Proxmox VE / Linux LXC**: See the complete [LXC.md](file:///home/bolt/projects/commanderdog/LXC.md) guide or run `scripts/lxc-install.sh`.

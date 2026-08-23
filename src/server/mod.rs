@@ -971,13 +971,18 @@ async fn handle_download(
 
     let file_name = path.file_name().unwrap_or_default().to_string_lossy();
     let mime = mime_guess::from_path(path).first_or_octet_stream().to_string();
+    let is_inline = query.get("inline").map(|v| v == "true" || v == "1").unwrap_or(false);
+
+    let disposition = if is_inline {
+        format!("inline; filename=\"{}\"", file_name)
+    } else {
+        format!("attachment; filename=\"{}\"", file_name)
+    };
 
     let response = Response::builder()
         .header(header::CONTENT_TYPE, mime)
-        .header(
-            header::CONTENT_DISPOSITION,
-            format!("attachment; filename=\"{}\"", file_name),
-        )
+        .header(header::CONTENT_DISPOSITION, disposition)
+        .header(header::ACCEPT_RANGES, "bytes")
         .body(Body::from(file_bytes))
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Response build error: {}", e)))?;
 

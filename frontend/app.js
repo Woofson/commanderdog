@@ -23,6 +23,7 @@ const App = {
   ],
   clipboard: null,
   dblclickUpDir: localStorage.getItem('cd_dblclick_up') !== 'false',
+  showParentDir: localStorage.getItem('cd_show_parent_dir') !== 'false',
 };
 
 class PaneState {
@@ -49,6 +50,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   initPanes();
   setupEventListeners();
   setupKeyboardNavigation();
+  setupHistoryNavigation();
   applyFKeyBarState();
   applyFontSize(App.fontSize);
   startTasksPolling();
@@ -184,6 +186,10 @@ function createPaneElement(pane, index) {
     </div>
 
     <div class="pane-content" id="pane-content-${index}">
+      <div class="pull-refresh-indicator" id="pull-refresh-${index}" style="display: none; height: 0px; overflow: hidden; justify-content: center; align-items: center; background: rgba(0,0,0,0.3); color: var(--accent); font-size: 11px; font-weight: 700; transition: height 0.1s linear; border-bottom: 1px dashed var(--border);">
+        <i data-lucide="rotate-cw" class="pull-refresh-spinner" style="width: 14px; margin-right: 6px;"></i>
+        <span class="pull-refresh-label">Pull down to refresh...</span>
+      </div>
       <table class="file-table">
         <thead>
           <tr>
@@ -219,6 +225,82 @@ function createPaneElement(pane, index) {
       setActivePane(index);
       showEmptySpaceContextMenu(e.clientX, e.clientY, index);
     };
+
+    // Mobile Pull-to-Refresh
+    let pullStartY = 0;
+    let isPulling = false;
+    let pullDistance = 0;
+
+    content.addEventListener('touchstart', (e) => {
+      if (content.scrollTop <= 0 && e.touches.length === 1) {
+        pullStartY = e.touches[0].clientY;
+        isPulling = true;
+        pullDistance = 0;
+      } else {
+        isPulling = false;
+      }
+    }, { passive: true });
+
+    content.addEventListener('touchmove', (e) => {
+      if (!isPulling || e.touches.length !== 1) return;
+      const currentY = e.touches[0].clientY;
+      const diffY = currentY - pullStartY;
+      if (diffY > 0 && content.scrollTop <= 0) {
+        pullDistance = Math.min(80, diffY * 0.45);
+        const indicator = document.getElementById(`pull-refresh-${index}`);
+        if (indicator) {
+          indicator.style.display = 'flex';
+          indicator.style.height = `${pullDistance}px`;
+          const label = indicator.querySelector('.pull-refresh-label');
+          const icon = indicator.querySelector('.pull-refresh-spinner');
+          if (pullDistance > 45) {
+            if (label) label.textContent = 'Release to refresh...';
+            if (icon) icon.style.transform = `rotate(${pullDistance * 4}deg)`;
+          } else {
+            if (label) label.textContent = 'Pull down to refresh...';
+            if (icon) icon.style.transform = `rotate(${pullDistance * 2}deg)`;
+          }
+        }
+      } else {
+        pullDistance = 0;
+        const indicator = document.getElementById(`pull-refresh-${index}`);
+        if (indicator) {
+          indicator.style.display = 'none';
+          indicator.style.height = '0px';
+        }
+      }
+    }, { passive: true });
+
+    content.addEventListener('touchend', () => {
+      if (isPulling && pullDistance > 45) {
+        const indicator = document.getElementById(`pull-refresh-${index}`);
+        if (indicator) {
+          const label = indicator.querySelector('.pull-refresh-label');
+          const icon = indicator.querySelector('.pull-refresh-spinner');
+          if (label) label.textContent = 'Refreshing...';
+          if (icon) icon.classList.add('animate-spin');
+          if (navigator.vibrate) navigator.vibrate(30);
+        }
+        setTimeout(() => {
+          refreshPane(index);
+          const ind = document.getElementById(`pull-refresh-${index}`);
+          if (ind) {
+            ind.style.display = 'none';
+            ind.style.height = '0px';
+            const icon = ind.querySelector('.pull-refresh-spinner');
+            if (icon) icon.classList.remove('animate-spin');
+          }
+        }, 300);
+      } else {
+        const indicator = document.getElementById(`pull-refresh-${index}`);
+        if (indicator) {
+          indicator.style.display = 'none';
+          indicator.style.height = '0px';
+        }
+      }
+      isPulling = false;
+      pullDistance = 0;
+    });
   }
 
   return el;
@@ -249,11 +331,15 @@ function togglePaneDotfiles(paneIndex) {
   loadPaneDirectory(paneIndex, pane.path);
 }
 
-async function loadPaneDirectory(paneIndex, targetPath) {
+async function loadPaneDirectory(paneIndex, targetPath, pushHistory = true) {
   const pane = App.panes[paneIndex];
   pane.path = targetPath;
   pane.selected.clear();
   localStorage.setItem(`cd_pane_path_${paneIndex}`, targetPath);
+
+  if (pushHistory && window.history && history.pushState) {
+    history.pushState({ type: 'dir', paneIndex, path: targetPath }, '', '');
+  }
 
   try {
     const url = `/api/fs/list?path=${encodeURIComponent(targetPath)}&show_hidden=${pane.showHidden}`;
@@ -333,6 +419,58 @@ function renderPaneTable(paneIndex) {
     return pane.sortAsc ? cmp : -cmp;
   });
 
+  // Parent directory ".." row when not at root (and enabled in settings)
+  if (App.showParentDir && pane.path !== '/' && pane.path !== '' && !pane.filterText) {
+    const parentTr = document.createElement('tr');
+    parentTr.className = 'file-row parent-dir-row';
+    parentTr.draggable = true;
+
+    parentTr.onclick = (e) => {
+      e.stopPropagation();
+      setActivePane(paneIndex);
+      navPaneUp(paneIndex);
+    };
+
+    parentTr.ondblclick = (e) => {
+      e.stopPropagation();
+      navPaneUp(paneIndex);
+    };
+
+    parentTr.ondragover = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      parentTr.classList.add('drag-over-row');
+    };
+
+    parentTr.ondragleave = () => parentTr.classList.remove('drag-over-row');
+
+    parentTr.ondrop = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      parentTr.classList.remove('drag-over-row');
+      const parts = pane.path.split('/').filter(Boolean);
+      parts.pop();
+      const parent = parts.length === 0 ? '/' : '/' + parts.join('/');
+      handlePaneDrop(e, paneIndex, parent);
+    };
+
+    parentTr.innerHTML = `
+      <td class="file-cell file-cell-icon">
+        <div class="row-icon-wrapper">
+          <i data-lucide="corner-left-up" class="file-icon dir dir-filled" style="width: 15px; height: 15px; color: var(--accent);"></i>
+        </div>
+      </td>
+      <td class="file-cell file-cell-name">
+        <span class="file-name-text" style="font-weight: 700; color: var(--accent); font-size: 13px;">..</span>
+      </td>
+      <td class="file-cell file-cell-mono file-cell-size" style="color: var(--accent); font-weight: 600;">&lt;UP&gt;</td>
+      <td class="file-cell file-cell-mono">-</td>
+      <td class="file-cell file-cell-mono">-</td>
+      <td class="file-cell file-cell-mono">-</td>
+    `;
+    tbody.appendChild(parentTr);
+  }
+
   filtered.forEach((entry, idx) => {
     const isSelected = pane.selected.has(entry.path);
     const tr = document.createElement('tr');
@@ -340,10 +478,35 @@ function renderPaneTable(paneIndex) {
     tr.draggable = true;
 
     tr.ondragstart = (e) => {
+      const selectedPaths = pane.selected.size > 0 ? Array.from(pane.selected) : [entry.path];
       e.dataTransfer.setData('text/plain', JSON.stringify({
         sourcePane: paneIndex,
-        paths: pane.selected.size > 0 ? Array.from(pane.selected) : [entry.path]
+        paths: selectedPaths
       }));
+      e.dataTransfer.effectAllowed = 'copyMove';
+    };
+
+    tr.ondragover = (e) => {
+      if (entry.is_dir) {
+        e.preventDefault();
+        e.stopPropagation();
+        tr.classList.add('drag-over-row');
+      }
+    };
+
+    tr.ondragleave = (e) => {
+      if (entry.is_dir) {
+        tr.classList.remove('drag-over-row');
+      }
+    };
+
+    tr.ondrop = (e) => {
+      if (entry.is_dir) {
+        e.preventDefault();
+        e.stopPropagation();
+        tr.classList.remove('drag-over-row');
+        handlePaneDrop(e, paneIndex, entry.path);
+      }
     };
 
     let touchStartX = 0;
@@ -427,13 +590,7 @@ function renderPaneTable(paneIndex) {
         }
 
         // Normal browsing mode: Single tap opens folder / file
-        if (entry.is_dir || entry.is_archive) {
-          loadPaneDirectory(paneIndex, entry.path);
-        } else if (isImageExtension(entry.name)) {
-          openImageViewer(entry.path);
-        } else {
-          openEditorWithFile(entry.path);
-        }
+        openFileByType(entry, paneIndex);
       }
     };
 
@@ -455,13 +612,7 @@ function renderPaneTable(paneIndex) {
     };
 
     tr.ondblclick = () => {
-      if (entry.is_dir || entry.is_archive) {
-        loadPaneDirectory(paneIndex, entry.path);
-      } else if (isImageExtension(entry.name)) {
-        openImageViewer(entry.path);
-      } else {
-        openEditorWithFile(entry.path);
-      }
+      openFileByType(entry, paneIndex);
     };
 
     tr.oncontextmenu = (e) => {
@@ -482,6 +633,18 @@ function renderPaneTable(paneIndex) {
     } else if (isImageExtension(entry.name)) {
       iconType = 'image';
       iconName = 'image';
+    } else if (isPdfExtension(entry.name)) {
+      iconType = 'pdf';
+      iconName = 'file-text';
+    } else if (isAudioExtension(entry.name)) {
+      iconType = 'audio';
+      iconName = 'music';
+    } else if (isVideoExtension(entry.name)) {
+      iconType = 'video';
+      iconName = 'video';
+    } else if (isComicBookExtension(entry.name)) {
+      iconType = 'book';
+      iconName = 'book-open';
     }
 
     const isMobile = window.innerWidth <= 768;
@@ -905,24 +1068,45 @@ function togglePasswordVisibility(inputId) {
 }
 
 // ---------------- TRANSFERS & DRAG-AND-DROP ----------------
+let pendingInterpaneTransfer = null;
 
-async function handlePaneDrop(e, targetPaneIndex) {
+async function handlePaneDrop(e, targetPaneIndex, subfolderPath) {
   e.preventDefault();
   const targetPane = App.panes[targetPaneIndex];
-  document.getElementById(`pane-${targetPaneIndex}`).classList.remove('drag-over');
+  const paneEl = document.getElementById(`pane-${targetPaneIndex}`);
+  if (paneEl) paneEl.classList.remove('drag-over');
+
+  const destPath = subfolderPath || targetPane.path;
 
   // OS Desktop Drag & Drop Upload
   if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+    const fileCount = e.dataTransfer.files.length;
     const formData = new FormData();
     for (let f of e.dataTransfer.files) {
       formData.append('files', f);
     }
-    await fetch(`/api/fs/upload?destination=${encodeURIComponent(targetPane.path)}`, {
-      method: 'POST',
-      body: formData,
-      headers: { 'Authorization': `Bearer ${App.token}` }
-    });
-    refreshPane(targetPaneIndex);
+
+    const pill = document.getElementById('tasks-pill');
+    const pillText = document.getElementById('tasks-pill-text');
+    if (pill && pillText) {
+      pill.style.display = 'flex';
+      pillText.textContent = `Uploading ${fileCount} file(s)...`;
+    }
+
+    try {
+      const resp = await fetch(`/api/fs/upload?destination=${encodeURIComponent(destPath)}`, {
+        method: 'POST',
+        body: formData,
+        headers: { 'Authorization': `Bearer ${App.token}` }
+      });
+      if (resp.ok) {
+        refreshPane(targetPaneIndex);
+      } else {
+        alert(`Upload failed: ${await resp.text()}`);
+      }
+    } catch (err) {
+      alert(`Upload error: ${err}`);
+    }
     return;
   }
 
@@ -931,18 +1115,44 @@ async function handlePaneDrop(e, targetPaneIndex) {
   if (rawData) {
     try {
       const { sourcePane, paths } = JSON.parse(rawData);
-      if (sourcePane === targetPaneIndex) return;
+      if (sourcePane === targetPaneIndex && !subfolderPath) return;
 
-      if (App.paranoidMode) {
-        showParanoidConfirm('copy', paths, targetPane.path, () => {
-          executeTransfer('copy', paths, targetPane.path, targetPaneIndex);
-        });
+      pendingInterpaneTransfer = {
+        sourcePane,
+        paths,
+        destination: destPath,
+        targetPaneIndex
+      };
+
+      if (e.shiftKey) {
+        executeInterpaneDrop('move');
+      } else if (e.altKey) {
+        executeInterpaneDrop('copy');
       } else {
-        executeTransfer('copy', paths, targetPane.path, targetPaneIndex);
+        const msgEl = document.getElementById('interpane-drop-msg');
+        if (msgEl) {
+          msgEl.innerHTML = `Transfer <strong>${paths.length} item(s)</strong> to: <br><code style="background:var(--bg-dark); padding:3px 6px; border-radius:4px; display:inline-block; margin-top:6px; word-break:break-all;">${escapeHtml(destPath)}</code>`;
+        }
+        showModal('interpane-drop-modal');
       }
     } catch (err) {
-      console.error(err);
+      console.error('Inter-pane transfer error:', err);
     }
+  }
+}
+
+function executeInterpaneDrop(action) {
+  closeModal('interpane-drop-modal');
+  if (!pendingInterpaneTransfer) return;
+  const { paths, destination, targetPaneIndex } = pendingInterpaneTransfer;
+  pendingInterpaneTransfer = null;
+
+  if (App.paranoidMode) {
+    showParanoidConfirm(action, paths, destination, () => {
+      executeTransfer(action, paths, destination, targetPaneIndex);
+    });
+  } else {
+    executeTransfer(action, paths, destination, targetPaneIndex);
   }
 }
 
@@ -1750,6 +1960,11 @@ document.addEventListener('click', (e) => {
   }
 });
 
+function openAboutModal() {
+  document.getElementById('profile-dropdown-menu')?.classList.remove('active');
+  showModal('about-modal');
+}
+
 function openUserProfileModal() {
   document.getElementById('profile-dropdown-menu')?.classList.remove('active');
   const user = App.user || {};
@@ -2516,6 +2731,16 @@ function openSettingsModal() {
     };
   }
 
+  const parentDirCheckbox = document.getElementById('setting-show-parent-dir');
+  if (parentDirCheckbox) {
+    parentDirCheckbox.checked = App.showParentDir;
+    parentDirCheckbox.onchange = (e) => {
+      App.showParentDir = e.target.checked;
+      localStorage.setItem('cd_show_parent_dir', e.target.checked);
+      renderAllPanes();
+    };
+  }
+
   const dotfilesCheckbox = document.getElementById('setting-show-hidden');
   if (dotfilesCheckbox) {
     dotfilesCheckbox.checked = App.panes[0]?.showHidden || false;
@@ -2534,6 +2759,26 @@ function triggerView() {
   const item = App.contextItem || pane.entries[pane.cursorIndex];
   if (!item) return;
 
+  if (item.is_dir || item.is_archive) {
+    loadPaneDirectory(App.activePaneIndex, item.path);
+    return;
+  }
+  if (isPdfExtension(item.name)) {
+    openPdfViewer(item.path);
+    return;
+  }
+  if (isAudioExtension(item.name)) {
+    openMediaPlayer(item.path, 'audio');
+    return;
+  }
+  if (isVideoExtension(item.name)) {
+    openMediaPlayer(item.path, 'video');
+    return;
+  }
+  if (isComicBookExtension(item.name)) {
+    openBookReader(item.path);
+    return;
+  }
   if (isImageExtension(item.name)) {
     openImageViewer(item.path);
     return;
@@ -2751,9 +2996,28 @@ function triggerExtract() {
 
 function navPaneUp(index) {
   const pane = App.panes[index];
+  if (!pane || pane.path === '/' || pane.path === '') return;
+
+  if (pane.path.startsWith('archive://')) {
+    const [arch, sub] = pane.path.replace('archive://', '').split('#');
+    if (sub && sub.includes('/')) {
+      const subParts = sub.split('/').filter(Boolean);
+      subParts.pop();
+      loadPaneDirectory(index, `archive://${arch}#${subParts.join('/')}`);
+    } else if (sub) {
+      loadPaneDirectory(index, `archive://${arch}#`);
+    } else {
+      const archParts = arch.split('/').filter(Boolean);
+      archParts.pop();
+      const p = archParts.length === 0 ? '/' : '/' + archParts.join('/');
+      loadPaneDirectory(index, p);
+    }
+    return;
+  }
+
   const parts = pane.path.split('/').filter(Boolean);
   parts.pop();
-  const parent = '/' + parts.join('/');
+  const parent = parts.length === 0 ? '/' : '/' + parts.join('/');
   loadPaneDirectory(index, parent);
 }
 
@@ -2801,11 +3065,72 @@ function sortPane(index, sortBy) {
   renderPaneTable(index);
 }
 
-function showModal(id) { document.getElementById(id)?.classList.add('active'); }
-function hideModal(id) { document.getElementById(id)?.classList.remove('active'); }
+function showModal(id) {
+  const el = document.getElementById(id);
+  if (el) {
+    el.classList.add('active');
+    if (window.history && history.pushState) {
+      history.pushState({ type: 'modal', modalId: id }, '', '');
+    }
+  }
+}
+
+function hideModal(id) {
+  document.getElementById(id)?.classList.remove('active');
+}
+
 function closeModal(id) {
   if (id) hideModal(id);
   else document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('active'));
+}
+
+function setupHistoryNavigation() {
+  if (!window.history || !history.pushState) return;
+
+  // Set initial state
+  history.replaceState({ type: 'dir', paneIndex: App.activePaneIndex, path: App.panes[App.activePaneIndex]?.path || '/' }, '', '');
+
+  window.addEventListener('popstate', (e) => {
+    // 1. If any modal is active, close it!
+    const activeModals = Array.from(document.querySelectorAll('.modal-overlay.active'));
+    if (activeModals.length > 0) {
+      const topModal = activeModals[activeModals.length - 1];
+      if (topModal.id === 'media-player-modal') {
+        closeMediaPlayer();
+      } else {
+        topModal.classList.remove('active');
+      }
+      history.pushState({ type: 'dir', paneIndex: App.activePaneIndex, path: App.panes[App.activePaneIndex]?.path || '/' }, '', '');
+      return;
+    }
+
+    // 2. If mobile menu drawer is open, close it!
+    const mobileDrawer = document.getElementById('mobile-menu-drawer');
+    if (mobileDrawer && mobileDrawer.classList.contains('active')) {
+      closeMobileMenu();
+      history.pushState({ type: 'dir', paneIndex: App.activePaneIndex, path: App.panes[App.activePaneIndex]?.path || '/' }, '', '');
+      return;
+    }
+
+    // 3. If terminal drawer is open, close it!
+    const termDrawer = document.getElementById('terminal-drawer');
+    if (termDrawer && termDrawer.classList.contains('active')) {
+      toggleTerminal(false);
+      history.pushState({ type: 'dir', paneIndex: App.activePaneIndex, path: App.panes[App.activePaneIndex]?.path || '/' }, '', '');
+      return;
+    }
+
+    // 4. Directory Navigation
+    if (e.state && e.state.type === 'dir' && e.state.path) {
+      loadPaneDirectory(e.state.paneIndex ?? App.activePaneIndex, e.state.path, false);
+    } else {
+      const pane = App.panes[App.activePaneIndex];
+      if (pane && pane.path !== '/' && pane.path !== '') {
+        navPaneUp(App.activePaneIndex);
+      }
+      history.pushState({ type: 'dir', paneIndex: App.activePaneIndex, path: pane?.path || '/' }, '', '');
+    }
+  });
 }
 
 function formatBytes(bytes) {
@@ -3713,6 +4038,366 @@ function downloadCurrentImage() {
   if (path) {
     window.open(`/api/fs/download?path=${encodeURIComponent(path)}`, '_blank');
   }
+}
+
+// ---------------- DOCUMENT & MEDIA READERS ----------------
+function isPdfExtension(filename) {
+  if (!filename) return false;
+  return filename.split('.').pop().toLowerCase() === 'pdf';
+}
+
+function isAudioExtension(filename) {
+  if (!filename) return false;
+  const ext = filename.split('.').pop().toLowerCase();
+  return ['mp3', 'wav', 'aac', 'flac', 'ogg', 'm4a', 'wma', 'opus'].includes(ext);
+}
+
+function isVideoExtension(filename) {
+  if (!filename) return false;
+  const ext = filename.split('.').pop().toLowerCase();
+  return ['mp4', 'webm', 'mkv', 'avi', 'mov', 'm4v', 'ogv'].includes(ext);
+}
+
+function isComicBookExtension(filename) {
+  if (!filename) return false;
+  const ext = filename.split('.').pop().toLowerCase();
+  return ['cbz', 'cbr', 'epub'].includes(ext);
+}
+
+function openFileByType(entry, paneIndex) {
+  if (entry.is_dir || entry.is_archive) {
+    loadPaneDirectory(paneIndex, entry.path);
+  } else if (isPdfExtension(entry.name)) {
+    openPdfViewer(entry.path);
+  } else if (isAudioExtension(entry.name)) {
+    openMediaPlayer(entry.path, 'audio');
+  } else if (isVideoExtension(entry.name)) {
+    openMediaPlayer(entry.path, 'video');
+  } else if (isComicBookExtension(entry.name)) {
+    openBookReader(entry.path);
+  } else if (isImageExtension(entry.name)) {
+    openImageViewer(entry.path);
+  } else {
+    openEditorWithFile(entry.path);
+  }
+}
+
+// PDF Reader
+function openPdfViewer(filePath) {
+  const titleEl = document.getElementById('pdf-viewer-title');
+  const frameEl = document.getElementById('pdf-viewer-frame');
+  const dlEl = document.getElementById('pdf-viewer-download');
+  const extEl = document.getElementById('pdf-viewer-external');
+
+  const fileName = filePath.split('/').pop() || filePath;
+  if (titleEl) titleEl.textContent = fileName;
+
+  const url = `/api/fs/download?path=${encodeURIComponent(filePath)}&inline=true`;
+  if (frameEl) frameEl.src = url;
+  if (dlEl) {
+    dlEl.href = `/api/fs/download?path=${encodeURIComponent(filePath)}`;
+    dlEl.download = fileName;
+  }
+  if (extEl) extEl.href = url;
+
+  showModal('pdf-viewer-modal');
+}
+
+// Media Player (Audio & Video)
+let mediaPlaylist = [];
+let mediaPlaylistIndex = 0;
+let mediaIsPlaying = false;
+let mediaLoop = false;
+
+function openMediaPlayer(filePath, mediaType) {
+  const pane = App.panes[App.activePaneIndex];
+  mediaPlaylist = pane.entries
+    .filter(e => !e.is_dir && (isAudioExtension(e.name) || isVideoExtension(e.name)))
+    .map(e => e.path);
+
+  if (mediaPlaylist.length === 0) mediaPlaylist = [filePath];
+  mediaPlaylistIndex = mediaPlaylist.indexOf(filePath);
+  if (mediaPlaylistIndex === -1) mediaPlaylistIndex = 0;
+
+  loadMediaTrack(mediaPlaylist[mediaPlaylistIndex], mediaType);
+  showModal('media-player-modal');
+}
+
+function loadMediaTrack(filePath, forcedType) {
+  const fileName = filePath.split('/').pop() || filePath;
+  const ext = fileName.split('.').pop().toLowerCase();
+  const isVideo = forcedType === 'video' || isVideoExtension(fileName);
+
+  const titleEl = document.getElementById('media-player-title');
+  const badgeEl = document.getElementById('media-player-badge');
+  const iconEl = document.getElementById('media-player-icon');
+  const videoEl = document.getElementById('media-video-element');
+  const audioEl = document.getElementById('media-audio-element');
+  const vizEl = document.getElementById('media-audio-visualizer');
+  const artistEl = document.getElementById('media-audio-artist');
+  const pathEl = document.getElementById('media-audio-file-path');
+
+  if (titleEl) titleEl.textContent = fileName;
+  if (badgeEl) badgeEl.textContent = ext.toUpperCase();
+  if (artistEl) artistEl.textContent = fileName.replace(/\.[^/.]+$/, '');
+  if (pathEl) pathEl.textContent = filePath;
+
+  const streamUrl = `/api/fs/download?path=${encodeURIComponent(filePath)}&inline=true`;
+
+  if (isVideo) {
+    if (iconEl) iconEl.setAttribute('data-lucide', 'video');
+    if (vizEl) vizEl.style.display = 'none';
+    if (videoEl) {
+      videoEl.style.display = 'block';
+      videoEl.src = streamUrl;
+      videoEl.currentTime = 0;
+      videoEl.play().catch(() => {});
+    }
+    if (audioEl) {
+      audioEl.pause();
+      audioEl.src = '';
+    }
+  } else {
+    if (iconEl) iconEl.setAttribute('data-lucide', 'music');
+    if (videoEl) {
+      videoEl.pause();
+      videoEl.style.display = 'none';
+      videoEl.src = '';
+    }
+    if (vizEl) vizEl.style.display = 'flex';
+    if (audioEl) {
+      audioEl.src = streamUrl;
+      audioEl.currentTime = 0;
+      audioEl.play().catch(() => {});
+    }
+  }
+
+  if (window.lucide) lucide.createIcons();
+  attachMediaEvents();
+}
+
+function getActiveMediaElement() {
+  const videoEl = document.getElementById('media-video-element');
+  if (videoEl && videoEl.style.display !== 'none' && videoEl.src) return videoEl;
+  return document.getElementById('media-audio-element');
+}
+
+function attachMediaEvents() {
+  const el = getActiveMediaElement();
+  if (!el) return;
+
+  el.ontimeupdate = () => {
+    const cur = el.currentTime || 0;
+    const dur = el.duration || 0;
+    const pct = dur > 0 ? (cur / dur) * 100 : 0;
+
+    const progEl = document.getElementById('media-scrubber-progress');
+    if (progEl) progEl.style.width = `${pct}%`;
+
+    const curEl = document.getElementById('media-time-current');
+    const totEl = document.getElementById('media-time-total');
+    if (curEl) curEl.textContent = formatMediaTime(cur);
+    if (totEl) totEl.textContent = formatMediaTime(dur);
+  };
+
+  el.onplay = () => updateMediaPlayButton(true);
+  el.onpause = () => updateMediaPlayButton(false);
+  el.onended = () => {
+    if (mediaLoop) {
+      el.currentTime = 0;
+      el.play();
+    } else if (mediaPlaylist.length > 1) {
+      navMediaPlaylist(1);
+    }
+  };
+}
+
+function formatMediaTime(secs) {
+  if (isNaN(secs) || secs === 0) return '00:00';
+  const m = Math.floor(secs / 60);
+  const s = Math.floor(secs % 60);
+  return `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
+}
+
+function updateMediaPlayButton(playing) {
+  mediaIsPlaying = playing;
+  const btn = document.getElementById('btn-media-play-pause');
+  if (btn) {
+    btn.innerHTML = `<i data-lucide="${playing ? 'pause' : 'play'}" style="width: 14px;"></i>`;
+    if (window.lucide) lucide.createIcons();
+  }
+}
+
+function toggleMediaPlay() {
+  const el = getActiveMediaElement();
+  if (!el) return;
+  if (el.paused) el.play();
+  else el.pause();
+}
+
+function seekMedia(e) {
+  const el = getActiveMediaElement();
+  if (!el || !el.duration) return;
+  const track = document.getElementById('media-scrubber-track');
+  const rect = track.getBoundingClientRect();
+  const clickX = e.clientX - rect.left;
+  const pct = Math.max(0, Math.min(1, clickX / rect.width));
+  el.currentTime = pct * el.duration;
+}
+
+function navMediaPlaylist(dir) {
+  if (mediaPlaylist.length <= 1) return;
+  mediaPlaylistIndex = (mediaPlaylistIndex + dir + mediaPlaylist.length) % mediaPlaylist.length;
+  loadMediaTrack(mediaPlaylist[mediaPlaylistIndex]);
+}
+
+function toggleMediaLoop() {
+  mediaLoop = !mediaLoop;
+  const btn = document.getElementById('btn-media-loop');
+  if (btn) {
+    btn.style.color = mediaLoop ? 'var(--accent)' : 'var(--text-main)';
+    btn.style.borderColor = mediaLoop ? 'var(--accent)' : 'var(--border)';
+  }
+}
+
+function changeMediaSpeed(val) {
+  const el = getActiveMediaElement();
+  if (el) el.playbackRate = parseFloat(val);
+}
+
+function changeMediaVolume(val) {
+  const v = parseFloat(val);
+  const videoEl = document.getElementById('media-video-element');
+  const audioEl = document.getElementById('media-audio-element');
+  if (videoEl) videoEl.volume = v;
+  if (audioEl) audioEl.volume = v;
+}
+
+function closeMediaPlayer() {
+  const videoEl = document.getElementById('media-video-element');
+  const audioEl = document.getElementById('media-audio-element');
+  if (videoEl) { videoEl.pause(); videoEl.src = ''; }
+  if (audioEl) { audioEl.pause(); audioEl.src = ''; }
+  closeModal('media-player-modal');
+}
+
+// Comic Book (.cbz/.cbr) & EPUB Reader
+let bookPages = [];
+let bookPageIndex = 0;
+let bookZoom = 1;
+let currentBookPath = '';
+
+async function openBookReader(filePath) {
+  currentBookPath = filePath;
+  bookPages = [];
+  bookPageIndex = 0;
+  bookZoom = 1;
+
+  const fileName = filePath.split('/').pop() || filePath;
+  const titleEl = document.getElementById('book-reader-title');
+  if (titleEl) titleEl.textContent = fileName;
+
+  showModal('book-reader-modal');
+
+  // Query archive directory listing to get all image pages inside .cbz/.zip/.epub
+  try {
+    const resp = await fetch(`/api/fs/list?path=${encodeURIComponent('archive://' + filePath + '#')}`, {
+      headers: { 'Authorization': `Bearer ${App.token}` }
+    });
+
+    if (resp.ok) {
+      const data = await resp.json();
+      bookPages = (data.entries || [])
+        .filter(e => !e.is_dir && isImageExtension(e.name))
+        .map(e => e.path);
+
+      if (bookPages.length === 0) {
+        const textEntries = (data.entries || []).filter(e => !e.is_dir);
+        if (textEntries.length > 0) {
+          loadBookTextEntry(textEntries[0].path);
+          return;
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Book reader error:', err);
+  }
+
+  if (bookPages.length === 0) {
+    bookPages = [filePath];
+  }
+
+  loadBookPage(0);
+}
+
+async function loadBookPage(idx) {
+  if (bookPages.length === 0) return;
+  bookPageIndex = Math.max(0, Math.min(bookPages.length - 1, idx));
+
+  const counterEl = document.getElementById('book-reader-counter');
+  const imgEl = document.getElementById('book-reader-img');
+  const textEl = document.getElementById('book-reader-text');
+
+  if (counterEl) counterEl.textContent = `Page ${bookPageIndex + 1} / ${bookPages.length}`;
+  if (textEl) textEl.style.display = 'none';
+  if (imgEl) {
+    imgEl.style.display = 'block';
+    imgEl.style.transform = `scale(${bookZoom})`;
+    const p = bookPages[bookPageIndex];
+    if (p.startsWith('archive://')) {
+      try {
+        const resp = await fetch(`/api/fs/read?path=${encodeURIComponent(p)}`, {
+          headers: { 'Authorization': `Bearer ${App.token}` }
+        });
+        if (resp.ok) {
+          const res = await resp.json();
+          if (res.is_binary) {
+            imgEl.src = `data:${res.mime_type || 'image/jpeg'};base64,${res.content}`;
+          } else {
+            imgEl.src = res.content;
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load book page data:', err);
+      }
+    } else {
+      imgEl.src = `/api/fs/download?path=${encodeURIComponent(p)}&inline=true`;
+    }
+  }
+}
+
+async function loadBookTextEntry(path) {
+  const imgEl = document.getElementById('book-reader-img');
+  const textEl = document.getElementById('book-reader-text');
+  const counterEl = document.getElementById('book-reader-counter');
+
+  if (imgEl) imgEl.style.display = 'none';
+  if (counterEl) counterEl.textContent = 'Text Mode';
+  if (textEl) {
+    textEl.style.display = 'block';
+    try {
+      const resp = await fetch(`/api/fs/read?path=${encodeURIComponent(path)}`, {
+        headers: { 'Authorization': `Bearer ${App.token}` }
+      });
+      if (resp.ok) {
+        const res = await resp.json();
+        textEl.textContent = res.content;
+      }
+    } catch (err) {
+      textEl.textContent = `Failed to read text: ${err}`;
+    }
+  }
+}
+
+function navBookPage(dir) {
+  if (bookPages.length <= 1) return;
+  loadBookPage(bookPageIndex + dir);
+}
+
+function zoomBookPage(delta) {
+  bookZoom = Math.max(0.4, Math.min(3.0, bookZoom + delta));
+  const imgEl = document.getElementById('book-reader-img');
+  if (imgEl) imgEl.style.transform = `scale(${bookZoom})`;
 }
 
 // ---------------- ADVANCED BULK RENAMER ----------------

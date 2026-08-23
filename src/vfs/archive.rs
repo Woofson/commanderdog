@@ -33,7 +33,7 @@ impl ArchiveHandler {
 
         let clean_subpath = subpath_filter.trim_matches('/');
 
-        if lower_name.ends_with(".zip") {
+        if lower_name.ends_with(".zip") || lower_name.ends_with(".cbz") || lower_name.ends_with(".epub") {
             let file = File::open(path)?;
             let mut zip = ZipArchive::new(BufReader::new(file))
                 .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
@@ -185,7 +185,7 @@ impl ArchiveHandler {
         let lower = archive_path_str.to_lowercase();
         let clean_inner = inner_path.trim_matches('/');
 
-        if lower.ends_with(".zip") {
+        if lower.ends_with(".zip") || lower.ends_with(".cbz") || lower.ends_with(".epub") {
             let file = File::open(path)?;
             let mut zip = ZipArchive::new(BufReader::new(file))
                 .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
@@ -242,7 +242,7 @@ impl ArchiveHandler {
 
         let lower = archive_path_str.to_lowercase();
 
-        if lower.ends_with(".zip") {
+        if lower.ends_with(".zip") || lower.ends_with(".cbz") || lower.ends_with(".epub") {
             let file = File::open(path)?;
             let mut zip = ZipArchive::new(BufReader::new(file))
                 .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;

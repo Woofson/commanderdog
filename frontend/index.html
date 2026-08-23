@@ -78,6 +78,7 @@
           <div class="dropdown-item" id="menu-admin-panel-item" onclick="openAdminPanel()"><i data-lucide="shield-alert" style="color: var(--accent);"></i> 👑 Admin Control Panel</div>
           <div class="dropdown-item" onclick="openUserProfileModal()"><i data-lucide="user"></i> Edit Profile & Account</div>
           <div class="dropdown-item" onclick="openSettingsModal()"><i data-lucide="settings"></i> User Settings & Themes</div>
+          <div class="dropdown-item" onclick="openAboutModal()"><i data-lucide="info"></i> About CommanderDog</div>
           <div class="dropdown-sep"></div>
           <div class="dropdown-item" style="color: var(--danger);" onclick="logout()"><i data-lucide="log-out"></i> Logout</div>
         </div>
@@ -156,6 +157,7 @@
       <div class="mobile-drawer-section">
         <button class="mobile-drawer-item" id="mobile-admin-panel-item" onclick="openAdminPanel(); closeMobileMenu();" style="display:none;"><i data-lucide="shield-alert" style="color:var(--accent);"></i> 👑 Admin Control Panel</button>
         <button class="mobile-drawer-item" onclick="openSettingsModal(); closeMobileMenu();"><i data-lucide="settings"></i> User Settings & Themes (F10)</button>
+        <button class="mobile-drawer-item" onclick="openAboutModal(); closeMobileMenu();"><i data-lucide="info"></i> About CommanderDog</button>
         <button class="mobile-drawer-item" style="color: var(--danger);" onclick="logout(); closeMobileMenu();"><i data-lucide="log-out"></i> Log Out</button>
       </div>
     </div>
@@ -354,6 +356,7 @@
               <label style="font-weight: normal;"><input type="checkbox" id="setting-confirm-overwrite" checked> Confirm before overwriting existing files</label>
               <label style="font-weight: normal;"><input type="checkbox" id="setting-remember-paths" checked> Remember last opened directories across sessions</label>
               <label style="font-weight: normal;"><input type="checkbox" id="setting-dblclick-up" checked> <b>Double-Click Navigation:</b> Double-click in empty panel space jumps up to parent directory</label>
+              <label style="font-weight: normal;"><input type="checkbox" id="setting-show-parent-dir" checked> <b>Parent Directory ("..") Row:</b> Show ".." parent entry at the top of file tables</label>
             </div>
           </div>
 
@@ -1635,6 +1638,205 @@
       </div>
       <div class="modal-footer">
         <button class="btn btn-accent" onclick="closeModal('tasks-modal')">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- About CommanderDog Modal -->
+  <div class="modal-overlay" id="about-modal">
+    <div class="modal-box" style="width: 580px; max-height: 85vh;">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 18px;">🐕</span>
+          <span style="font-weight: 700; font-size: 14px;">About CommanderDog</span>
+        </div>
+        <button class="btn" onclick="closeModal('about-modal')"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body" style="padding: 20px; overflow-y: auto;">
+        <!-- Banner & Version Header -->
+        <div style="text-align: center; margin-bottom: 18px; padding: 16px; background: var(--bg-dark); border: 1px solid var(--border); border-radius: var(--radius);">
+          <div style="font-size: 34px; margin-bottom: 4px;">🐕</div>
+          <div style="font-size: 18px; font-weight: 800; color: var(--accent); letter-spacing: 0.5px;">CommanderDog</div>
+          <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 10px;">High-Performance Multi-Pane Web File Commander</div>
+          <div style="display: flex; justify-content: center; gap: 6px; flex-wrap: wrap;">
+            <span class="badge" style="background: rgba(245, 158, 11, 0.2); color: var(--accent); border: 1px solid rgba(245, 158, 11, 0.4); font-weight: 700;">v0.2.1 (Release)</span>
+            <span class="badge" style="background: rgba(56, 189, 248, 0.15); color: var(--info); border: 1px solid rgba(56, 189, 248, 0.3);">Rust + Axum + Tokio</span>
+            <span class="badge" style="background: rgba(34, 197, 94, 0.15); color: var(--success); border: 1px solid rgba(34, 197, 94, 0.3);">MIT Open Source</span>
+          </div>
+        </div>
+
+        <!-- Description -->
+        <p style="font-size: 12px; color: var(--text-main); line-height: 1.6; margin-bottom: 16px;">
+          <strong>CommanderDog</strong> brings the speed, keyboard ergonomics, and dual/quad-pane productivity of classic orthodox commanders (Midnight Commander, Total Commander, Norton Commander) directly to the web browser — powered by a lightweight Rust backend, multi-cloud storage drivers, real-time background transfer queues, and paranoid cryptographic data verification.
+        </p>
+
+        <!-- System & Runtime Details Card -->
+        <div style="background: var(--bg-dark); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; margin-bottom: 16px;">
+          <div style="font-weight: 700; font-size: 11px; color: var(--accent); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 6px;">
+            <i data-lucide="cpu" style="width: 14px;"></i> System & Runtime Architecture
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 11px;">
+            <div><span style="color: var(--text-muted);">Author:</span> <strong style="color: var(--text-main);">Bolt J Woofson</strong></div>
+            <div><span style="color: var(--text-muted);">Contact:</span> <a href="mailto:bolt@boop.no" style="color: var(--accent); text-decoration: none;">bolt@boop.no</a></div>
+            <div><span style="color: var(--text-muted);">Backend:</span> <span style="font-family: var(--font-mono);">Rust 2021 (Axum 0.7)</span></div>
+            <div><span style="color: var(--text-muted);">Auth Engine:</span> <span>Linux PAM + SQLite RBAC</span></div>
+            <div><span style="color: var(--text-muted);">Terminal:</span> <span>Native PTY (portable-pty)</span></div>
+            <div><span style="color: var(--text-muted);">Frontend:</span> <span>Vanilla JS + Prism + Mermaid</span></div>
+            <div><span style="color: var(--text-muted);">Repository:</span> <a href="https://github.com/Woofson/commanderdog" target="_blank" style="color: var(--accent); text-decoration: none;">github.com/Woofson/commanderdog</a></div>
+            <div><span style="color: var(--text-muted);">License:</span> <span>MIT License</span></div>
+          </div>
+        </div>
+
+        <!-- Key Features Grid -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 11px; margin-bottom: 16px;">
+          <div style="padding: 8px 10px; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border); border-radius: 4px;">
+            <strong style="color: var(--accent);">🗂️ 1-to-4 Dynamic Panes</strong>
+            <div style="color: var(--text-dim); font-size: 10px;">Single, Dual, Triple & Quad grid layouts</div>
+          </div>
+          <div style="padding: 8px 10px; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border); border-radius: 4px;">
+            <strong style="color: var(--accent);">🌐 Multi-Cloud & Mounts</strong>
+            <div style="color: var(--text-dim); font-size: 10px;">SMB/CIFS, NFS, S3, SFTP, WebDAV, Proton</div>
+          </div>
+          <div style="padding: 8px 10px; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border); border-radius: 4px;">
+            <strong style="color: var(--accent);">⚡ DeltaCopy & TeraCopy</strong>
+            <div style="color: var(--text-dim); font-size: 10px;">Bit-for-bit CRC32/SHA-256 integrity verify</div>
+          </div>
+          <div style="padding: 8px 10px; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border); border-radius: 4px;">
+            <strong style="color: var(--accent);">🔄 ConvertX Converter</strong>
+            <div style="color: var(--text-dim); font-size: 10px;">Universal Image, Audio, Video & Document</div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center;">
+        <button class="btn" onclick="closeModal('about-modal'); openSettingsModal(); switchSettingsTab('tab-keys');">
+          <i data-lucide="keyboard" style="width: 12px;"></i> View Keybindings
+        </button>
+        <button class="btn btn-accent" onclick="closeModal('about-modal')">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PDF Document Reader Modal -->
+  <div class="modal-overlay" id="pdf-viewer-modal">
+    <div class="modal-box" style="width: 90vw; height: 90vh; display: flex; flex-direction: column; padding: 0; overflow: hidden;">
+      <div class="modal-header" style="padding: 10px 16px; background: var(--bg-header); border-bottom: 1px solid var(--border); flex-shrink: 0;">
+        <div style="display: flex; align-items: center; gap: 8px; overflow: hidden;">
+          <i data-lucide="file-text" style="color: var(--accent); width: 16px;"></i>
+          <span id="pdf-viewer-title" style="font-weight: 700; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; overflow: hidden;">Document.pdf</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <a id="pdf-viewer-download" class="btn btn-icon" href="#" download title="Download PDF"><i data-lucide="download" style="width: 13px;"></i></a>
+          <a id="pdf-viewer-external" class="btn btn-icon" href="#" target="_blank" title="Open in New Tab"><i data-lucide="external-link" style="width: 13px;"></i></a>
+          <button class="btn btn-icon" onclick="closeModal('pdf-viewer-modal')"><i data-lucide="x" style="width: 13px;"></i></button>
+        </div>
+      </div>
+      <div style="flex: 1; background: #525659; overflow: hidden; position: relative;">
+        <iframe id="pdf-viewer-frame" style="width: 100%; height: 100%; border: none;"></iframe>
+      </div>
+    </div>
+  </div>
+
+  <!-- Audio & Video In-Browser Media Player Modal -->
+  <div class="modal-overlay" id="media-player-modal">
+    <div class="media-player-box">
+      <div class="modal-header" style="padding: 10px 14px; background: var(--bg-header); border-bottom: 1px solid var(--border);">
+        <div style="display: flex; align-items: center; gap: 8px; overflow: hidden;">
+          <i id="media-player-icon" data-lucide="music" style="color: var(--accent); width: 16px;"></i>
+          <span id="media-player-title" style="font-weight: 700; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; overflow: hidden;">Track.mp3</span>
+          <span class="badge" id="media-player-badge" style="font-size: 9px; text-transform: uppercase;">MP3</span>
+        </div>
+        <button class="btn btn-icon" onclick="closeMediaPlayer()"><i data-lucide="x" style="width: 13px;"></i></button>
+      </div>
+
+      <div class="media-player-display" id="media-display-container">
+        <video id="media-video-element" style="display: none;" playsinline></video>
+        <div class="media-audio-visualizer" id="media-audio-visualizer">
+          <div style="font-size: 48px; margin-bottom: 4px;">🎵</div>
+          <div style="font-size: 12px; font-weight: 600; color: var(--text-main);" id="media-audio-artist">Now Playing</div>
+          <div style="font-size: 10px; color: var(--text-dim);" id="media-audio-file-path">/path/to/file</div>
+        </div>
+      </div>
+      <audio id="media-audio-element" style="display: none;"></audio>
+
+      <div class="media-controls-bar">
+        <!-- Progress scrubber & time -->
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+          <div class="media-scrubber-track" id="media-scrubber-track" onclick="seekMedia(event)">
+            <div class="media-scrubber-progress" id="media-scrubber-progress"></div>
+          </div>
+          <div style="display: flex; justify-content: space-between; font-size: 10px; color: var(--text-dim); font-family: var(--font-mono);">
+            <span id="media-time-current">00:00</span>
+            <span id="media-time-total">00:00</span>
+          </div>
+        </div>
+
+        <!-- Buttons bar -->
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <div style="display: flex; align-items: center; gap: 4px;">
+            <button class="btn btn-icon" onclick="navMediaPlaylist(-1)" title="Previous Track"><i data-lucide="skip-back" style="width: 14px;"></i></button>
+            <button class="btn btn-accent" id="btn-media-play-pause" onclick="toggleMediaPlay()" style="padding: 6px 14px;" title="Play / Pause"><i data-lucide="play" style="width: 14px;"></i></button>
+            <button class="btn btn-icon" onclick="navMediaPlaylist(1)" title="Next Track"><i data-lucide="skip-forward" style="width: 14px;"></i></button>
+            <button class="btn btn-icon" id="btn-media-loop" onclick="toggleMediaLoop()" title="Toggle Loop"><i data-lucide="repeat" style="width: 13px;"></i></button>
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <select id="media-playback-rate" class="pane-quick-filter" style="padding: 2px 4px; font-size: 10px; width: 60px;" onchange="changeMediaSpeed(this.value)">
+              <option value="0.5">0.5x</option>
+              <option value="1" selected>1.0x</option>
+              <option value="1.25">1.25x</option>
+              <option value="1.5">1.5x</option>
+              <option value="2">2.0x</option>
+            </select>
+            <div style="display: flex; align-items: center; gap: 4px; width: 90px;">
+              <i data-lucide="volume-2" style="width: 12px; color: var(--text-muted);"></i>
+              <input type="range" class="range-slider" id="media-volume-slider" min="0" max="1" step="0.05" value="1" oninput="changeMediaVolume(this.value)">
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Comic Book (.cbz/.cbr) & EPUB In-Browser Reader Modal -->
+  <div class="modal-overlay" id="book-reader-modal">
+    <div class="modal-box" style="width: 90vw; height: 90vh; display: flex; flex-direction: column; padding: 0; overflow: hidden;">
+      <div class="modal-header" style="padding: 10px 16px; background: var(--bg-header); border-bottom: 1px solid var(--border); flex-shrink: 0;">
+        <div style="display: flex; align-items: center; gap: 8px; overflow: hidden;">
+          <span style="font-size: 16px;">📖</span>
+          <span id="book-reader-title" style="font-weight: 700; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; overflow: hidden;">Comic.cbz</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <span id="book-reader-counter" style="font-size: 11px; font-family: var(--font-mono); color: var(--accent); margin-right: 6px;">Page 1 / 1</span>
+          <button class="btn btn-icon" onclick="navBookPage(-1)" title="Previous Page (Left Arrow)"><i data-lucide="chevron-left" style="width: 14px;"></i></button>
+          <button class="btn btn-icon" onclick="navBookPage(1)" title="Next Page (Right Arrow)"><i data-lucide="chevron-right" style="width: 14px;"></i></button>
+          <button class="btn btn-icon" onclick="zoomBookPage(-0.1)" title="Zoom Out"><i data-lucide="zoom-out" style="width: 13px;"></i></button>
+          <button class="btn btn-icon" onclick="zoomBookPage(0.1)" title="Zoom In"><i data-lucide="zoom-in" style="width: 13px;"></i></button>
+          <button class="btn btn-icon" onclick="closeModal('book-reader-modal')"><i data-lucide="x" style="width: 13px;"></i></button>
+        </div>
+      </div>
+      <div class="comic-reader-viewport" id="book-reader-viewport">
+        <img id="book-reader-img" class="comic-reader-img" src="" alt="Comic Page">
+        <div id="book-reader-text" style="display: none; padding: 24px; color: var(--text-main); line-height: 1.7; max-width: 800px; overflow-y: auto;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Inter-Pane Transfer Confirmation Modal -->
+  <div class="modal-overlay" id="interpane-drop-modal">
+    <div class="modal-box" style="width: 440px;">
+      <div class="modal-header">
+        <span>🔄 Transfer Files Across Panes</span>
+        <button class="btn" onclick="closeModal('interpane-drop-modal')"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body" style="padding: 16px;">
+        <p style="font-size: 12px; margin-bottom: 16px; line-height: 1.5;" id="interpane-drop-msg">
+          Copy or Move items to destination?
+        </p>
+        <div style="display: flex; gap: 8px; justify-content: flex-end;">
+          <button class="btn" onclick="closeModal('interpane-drop-modal')">Cancel</button>
+          <button class="btn" id="btn-interpane-move" onclick="executeInterpaneDrop('move')"><i data-lucide="move" style="width: 12px;"></i> Move Here (F6)</button>
+          <button class="btn btn-accent" id="btn-interpane-copy" onclick="executeInterpaneDrop('copy')"><i data-lucide="copy" style="width: 12px;"></i> Copy Here (F5)</button>
+        </div>
       </div>
     </div>
   </div>

@@ -46,6 +46,16 @@
 
 ---
 
+### 🖱️ Drag-and-Drop & Document Readers (v0.2.0)
+- [x] **Cross-Pane Drag-and-Drop Transfers**: Drag files between open panels in the dual/quad grid with folder hover targets (`.drag-over-row`), Transfer Action Modal (`[Copy (F5)]` / `[Move (F6)]`), and `Shift`/`Alt` modifier shortcuts.
+- [x] **OS Desktop Drag-and-Drop Upload**: Drop external files from your host OS directly into any active panel or subfolder with live progress tracking in the floating task pill.
+- [x] **Embedded PDF Document Reader**: Full-featured in-browser PDF viewing with zoom, search, print, download, and external window popout.
+- [x] **In-Browser Audio & Video Media Player**: Seamless streaming of MP3, WAV, AAC, FLAC, OGG, MP4, WebM, MKV, AVI with scrubber seeking, speed control (0.5x–2.0x), volume, loop, and auto-playlist folder discovery (`⏮️ Previous` / `⏭️ Next`).
+- [x] **Comic Book (`.cbz`/`.cbr`) & EPUB Book Reader**: High-resolution page rendering directly from archives with page counter, zoom, and arrow key (`◀` / `▶`) navigation.
+- [x] **About CommanderDog Modal**: Information page under the User Profile menu with architecture specs, developer credits, and quick links.
+
+---
+
 ## 📋 Upcoming Backlog (v0.3.0 & Future Milestones)
 
 ### 🔑 1. OAuth2 / OpenID Connect (OIDC) Single Sign-On (SSO)
@@ -57,18 +67,9 @@
 - [ ] Automatic OIDC group-to-role mapping (map IDP groups to CommanderDog admin/standard/readonly roles).
 - [ ] Just-In-Time (JIT) user auto-provisioning upon initial SSO login.
 
-### 🖱️ 2. Cross-Pane Drag-and-Drop Transfers
-- [ ] Drag-and-drop files directly between open panels in the dual/quad grid to trigger copy/move dialogs.
-- [ ] Native OS file drag-and-drop into any active pane for high-speed chunked uploads.
-
-### 📖 3. In-Browser Document & Media Readers
-- [ ] Embedded PDF document reader with zoom, page navigation, and text search.
-- [ ] In-browser EPUB and comic archive (`.cbz`/`.cbr`) reader.
-- [ ] Built-in audio/video player modal with playlist queuing.
-
-### 🧩 4. Webhooks & Automation Actions
+### 🧩 2. Webhooks & Automation Actions
 - [ ] Webhook triggers on file events (upload, rename, move, delete).
 - [ ] Custom user script execution directly from the right-click context menu via `conf.d/30-actions.toml`.
 
-### ⚡ 5. WASM / Plugin Extensibility Architecture
+### ⚡ 3. WASM / Plugin Extensibility Architecture
 - [ ] WebAssembly (WASM) plugin hooks for custom file format previews, custom converters, and external cloud drivers.
