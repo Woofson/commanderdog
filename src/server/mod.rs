@@ -93,6 +93,9 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/actions/run", post(handle_run_action))
         .route("/api/tasks", get(handle_list_tasks))
         .route("/api/tasks/:id/cancel", post(handle_cancel_task))
+        .route("/api/tasks/:id/pause", post(handle_pause_task))
+        .route("/api/tasks/:id/resume", post(handle_resume_task))
+        .route("/api/tasks/clear-completed", post(handle_clear_completed_tasks))
         // Terminal WebSocket
         .route("/api/ws/terminal", get(terminal::handle_terminal_ws))
         // System & Config Information
@@ -934,25 +937,67 @@ async fn handle_cancel_task(
     Json(serde_json::json!({ "success": cancelled }))
 }
 
+async fn handle_pause_task(
+    State(state): State<AppState>,
+    AxumPath(id): AxumPath<String>,
+) -> Json<serde_json::Value> {
+    let paused = state.tasks.pause_task(&id).await;
+    Json(serde_json::json!({ "success": paused }))
+}
+
+async fn handle_resume_task(
+    State(state): State<AppState>,
+    AxumPath(id): AxumPath<String>,
+) -> Json<serde_json::Value> {
+    let resumed = state.tasks.resume_task(&id).await;
+    Json(serde_json::json!({ "success": resumed }))
+}
+
+async fn handle_clear_completed_tasks(
+    State(state): State<AppState>,
+) -> Json<serde_json::Value> {
+    state.tasks.clear_completed().await;
+    Json(serde_json::json!({ "success": true }))
+}
+
 async fn handle_upload(
+    State(state): State<AppState>,
     Query(query): Query<HashMap<String, String>>,
     mut multipart: Multipart,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let dest_dir = query.get("destination").cloned().unwrap_or_else(|| "/tmp".to_string());
     let mut uploaded_files = Vec::new();
+    let task_id = state.tasks.create_task("Upload Files", "upload", "Browser", &dest_dir, 0).await;
 
     while let Ok(Some(field)) = multipart.next_field().await {
         let file_name = field.file_name().unwrap_or("upload.bin").to_string();
         let target_path = Path::new(&dest_dir).join(&file_name);
 
         if let Ok(data) = field.bytes().await {
-            LocalFs::write_file(&target_path.to_string_lossy(), &data, true)
-                .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to write upload: {}", e)))?;
+            let file_size = data.len() as u64;
+            state.tasks.update_task_details(
+                &task_id,
+                Some(&file_name),
+                file_size,
+                file_size,
+                uploaded_files.len() as u64 + 1,
+                uploaded_files.len() as u64 + 1,
+                file_size,
+                0,
+                Some(&format!("Uploaded {}", file_name)),
+            ).await;
+
+            if let Err(e) = LocalFs::write_file(&target_path.to_string_lossy(), &data, true) {
+                let err_msg = format!("Failed to write upload: {}", e);
+                state.tasks.fail_task(&task_id, &err_msg).await;
+                return Err((StatusCode::INTERNAL_SERVER_ERROR, err_msg));
+            }
             uploaded_files.push(file_name);
         }
     }
 
-    Ok(Json(serde_json::json!({ "success": true, "uploaded": uploaded_files })))
+    state.tasks.complete_task(&task_id).await;
+    Ok(Json(serde_json::json!({ "success": true, "uploaded": uploaded_files, "task_id": task_id })))
 }
 
 async fn handle_download(

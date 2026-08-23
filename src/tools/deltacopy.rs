@@ -162,6 +162,7 @@ impl DeltaCopyEngine {
                 if let Ok(m) = src.metadata() {
                     stats.bytes_copied += m.len();
                 }
+                task_manager.add_log_entry(&task_id, &format!("⏩ Skipped unchanged: {}", stats.current_file)).await;
                 continue;
             }
 
@@ -169,6 +170,8 @@ impl DeltaCopyEngine {
             if let Some(parent) = dest.parent() {
                 fs::create_dir_all(parent).ok();
             }
+
+            task_manager.add_log_entry(&task_id, &format!("📥 Copying: {}", stats.current_file)).await;
 
             // Perform robust copy with Robocopy retry logic
             let copy_res = copy_file_robust(&src, &dest, &options, &mut stats, &task_manager, &task_id, &start_time, &mut last_speed_calc, &mut last_bytes_marker).await;
@@ -179,15 +182,21 @@ impl DeltaCopyEngine {
                     if options.verify_checksum {
                         if verify_file_checksum(&src, &dest, &options.verify_algo) {
                             stats.verified_count += 1;
+                            task_manager.add_log_entry(&task_id, &format!("🔒 Verified {}: MATCH ({})", options.verify_algo.to_uppercase(), stats.current_file)).await;
                         } else {
                             stats.files_failed += 1;
-                            stats.error_log.push(format!("Verification checksum mismatch: {}", src.display()));
+                            let err_m = format!("Verification checksum mismatch: {}", src.display());
+                            stats.error_log.push(err_m.clone());
+                            task_manager.add_log_entry(&task_id, &format!("❌ CRC Mismatch: {}", stats.current_file)).await;
                         }
+                    } else {
+                        task_manager.add_log_entry(&task_id, &format!("✓ Finished: {}", stats.current_file)).await;
                     }
                 }
                 Err(e) => {
                     stats.files_failed += 1;
                     stats.error_log.push(format!("Failed {}: {}", src.display(), e));
+                    task_manager.add_log_entry(&task_id, &format!("❌ Error {}: {}", stats.current_file, e)).await;
                 }
             }
         }
@@ -330,7 +339,17 @@ async fn copy_stream_chunked(
                 stats.eta_seconds = (stats.total_bytes - stats.bytes_copied) / speed;
             }
 
-            task_manager.update_progress(task_id, stats.bytes_copied, speed).await;
+            task_manager.update_task_details(
+                task_id,
+                Some(&stats.current_file),
+                written,
+                src_len,
+                stats.files_copied as u64,
+                stats.total_files as u64,
+                stats.bytes_copied,
+                speed,
+                None,
+            ).await;
 
             *last_speed_calc = now;
             *last_bytes_marker = stats.bytes_copied;

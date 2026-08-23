@@ -6,7 +6,7 @@
 
 set -euo pipefail
 
-VERSION="0.2.1"
+VERSION="0.2.2"
 ARCH=$(uname -m)
 DIST_DIR="./dist"
 

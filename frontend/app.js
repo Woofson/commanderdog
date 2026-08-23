@@ -24,6 +24,8 @@ const App = {
   clipboard: null,
   dblclickUpDir: localStorage.getItem('cd_dblclick_up') !== 'false',
   showParentDir: localStorage.getItem('cd_show_parent_dir') !== 'false',
+  autoOpenTasks: localStorage.getItem('cd_auto_open_tasks') !== 'false',
+  taskVerbosity: localStorage.getItem('cd_task_verbosity') || 'detailed',
 };
 
 class PaneState {
@@ -873,7 +875,9 @@ async function loadUsersTable() {
           <tr class="admin-user-row">
             <td class="admin-user-cell">
               <div style="font-weight: 700; font-size: 13px; color: var(--text-main); display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
-                <span style="font-size: 16px;">${u.avatar_url || '👤'}</span>
+                <div class="profile-avatar-thumb" style="width: 22px; height: 22px;">
+                  ${u.avatar_url && (u.avatar_url.startsWith('data:image') || u.avatar_url.startsWith('http') || u.avatar_url.startsWith('/')) ? `<img src="${escapeHtml(u.avatar_url)}" alt="Avatar">` : escapeHtml(u.avatar_url || '👤')}
+                </div>
                 <span>${safeUname}</span>
                 ${u.is_pam ? '<span class="badge" style="font-size:9px; background:rgba(56,189,248,0.2); color:var(--info); border:1px solid rgba(56,189,248,0.35);">PAM / LINUX</span>' : '<span class="badge" style="font-size:9px; background:rgba(245,158,11,0.2); color:var(--accent); border:1px solid rgba(245,158,11,0.35);">DATABASE</span>'}
               </div>
@@ -881,9 +885,9 @@ async function loadUsersTable() {
             </td>
             <td class="admin-user-cell">
               <select id="user-role-${safeUname}" class="pane-quick-filter" style="padding: 6px 8px; font-size: 11px; width: 100%;">
-                <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>👑 Admin</option>
-                <option value="user" ${u.role === 'user' ? 'selected' : ''}>👤 Standard User</option>
-                <option value="readonly" ${u.role === 'readonly' ? 'selected' : ''}>👁️ Read-Only</option>
+                <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Administrator</option>
+                <option value="user" ${u.role === 'user' ? 'selected' : ''}>Standard User</option>
+                <option value="readonly" ${u.role === 'readonly' ? 'selected' : ''}>Read-Only</option>
               </select>
             </td>
             <td class="admin-user-cell">
@@ -952,18 +956,27 @@ async function saveUserRbac(username) {
     });
 
     if (resp.ok) {
-      alert(`RBAC settings for '${username}' saved successfully!`);
+      showToast(`RBAC settings for '${username}' saved!`, 'success');
       loadUsersTable();
     } else {
-      alert(`Failed to save RBAC: ${await resp.text()}`);
+      showToast(`Failed to save RBAC: ${await resp.text()}`, 'error');
     }
   } catch (e) {
-    alert(`Save error: ${e}`);
+    showToast(`Save error: ${e}`, 'error');
   }
 }
 
 async function deleteUserAccount(username) {
-  if (!confirm(`Are you sure you want to delete user account '${username}'?`)) return;
+  const confirmed = await showConfirmDialog({
+    title: 'Delete User Account',
+    subtitle: 'Admin Control Panel',
+    message: `Are you sure you want to delete user account '${username}'?`,
+    icon: 'user-x',
+    type: 'danger',
+    confirmText: 'Delete User',
+    cancelText: 'Cancel',
+  });
+  if (!confirmed) return;
 
   try {
     const resp = await fetch(`/api/auth/users/${encodeURIComponent(username)}`, {
@@ -971,12 +984,13 @@ async function deleteUserAccount(username) {
       headers: { 'Authorization': `Bearer ${App.token}` }
     });
     if (resp.ok) {
+      showToast(`User '${username}' deleted`, 'success');
       loadUsersTable();
     } else {
-      alert('Failed to delete user: ' + await resp.text());
+      showToast('Failed to delete user: ' + await resp.text(), 'error');
     }
   } catch (e) {
-    alert('Delete error: ' + e);
+    showToast('Delete error: ' + e, 'error');
   }
 }
 
@@ -1100,12 +1114,13 @@ async function handlePaneDrop(e, targetPaneIndex, subfolderPath) {
         headers: { 'Authorization': `Bearer ${App.token}` }
       });
       if (resp.ok) {
+        showToast('Upload completed successfully!', 'success');
         refreshPane(targetPaneIndex);
       } else {
-        alert(`Upload failed: ${await resp.text()}`);
+        showToast(`Upload failed: ${await resp.text()}`, 'error');
       }
     } catch (err) {
-      alert(`Upload error: ${err}`);
+      showToast(`Upload error: ${err}`, 'error');
     }
     return;
   }
@@ -1165,10 +1180,11 @@ async function executeTransfer(action, sources, destination, refreshTargetPaneId
   });
 
   if (resp.ok) {
+    showToast(`${action === 'move' ? 'Moved' : 'Copied'} ${sources.length} item(s)`, 'success');
     refreshPane(refreshTargetPaneIdx);
     refreshPane(App.activePaneIndex);
   } else {
-    alert(`Transfer failed: ${await resp.text()}`);
+    showToast(`Transfer failed: ${await resp.text()}`, 'error');
   }
 }
 
@@ -1368,7 +1384,7 @@ async function openEditorWithFile(filePath) {
 
     showModal('editor-modal');
   } else {
-    alert('Failed to read file: ' + await resp.text());
+    showToast('Failed to read file: ' + await resp.text(), 'error');
   }
 }
 
@@ -1489,12 +1505,13 @@ async function saveEditorContent() {
         if (window.lucide) lucide.createIcons();
         setTimeout(() => { btn.innerHTML = origText; if (window.lucide) lucide.createIcons(); }, 1500);
       }
+      showToast('File saved successfully!', 'success');
       refreshPane(App.activePaneIndex);
     } else {
-      alert('Failed to save file: ' + await resp.text());
+      showToast('Failed to save file: ' + await resp.text(), 'error');
     }
   } catch (e) {
-    alert('Save error: ' + e);
+    showToast('Save error: ' + e, 'error');
   }
 }
 
@@ -1838,7 +1855,7 @@ function handleTargetFormatChange(fmt) {
 
 async function executeFileConversion() {
   if (!activeConverterFile) {
-    alert('Please select a valid file to convert');
+    showToast('Please select a valid file to convert', 'warning');
     return;
   }
 
@@ -1896,6 +1913,65 @@ async function executeFileConversion() {
 
 // ---------------- USER PROFILE & DROPDOWNS & FAVORITES ----------------
 
+function renderAvatarElement(el, avatar) {
+  if (!el) return;
+  const isImage = avatar && (avatar.startsWith('data:image') || avatar.startsWith('http://') || avatar.startsWith('https://') || avatar.startsWith('/'));
+  if (isImage) {
+    el.innerHTML = `<img src="${escapeHtml(avatar)}" alt="Avatar">`;
+  } else {
+    el.textContent = avatar || '👤';
+  }
+}
+
+function handleAvatarFileUpload(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+
+  if (!file.type.startsWith('image/')) {
+    showToast('Please select a valid image file (JPEG, PNG, WebP, GIF)', 'warning');
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const img = new Image();
+    img.onload = function() {
+      // Create square canvas with high quality resize
+      const canvas = document.createElement('canvas');
+      const targetSize = 160;
+      canvas.width = targetSize;
+      canvas.height = targetSize;
+      const ctx = canvas.getContext('2d');
+
+      // Crop to center square
+      const minDim = Math.min(img.width, img.height);
+      const startX = (img.width - minDim) / 2;
+      const startY = (img.height - minDim) / 2;
+
+      ctx.drawImage(img, startX, startY, minDim, minDim, 0, 0, targetSize, targetSize);
+
+      // Output as compressed WebP
+      const dataUri = canvas.toDataURL('image/webp', 0.85);
+
+      const avatarInput = document.getElementById('profile-input-avatar');
+      const avatarPreview = document.getElementById('profile-edit-avatar');
+      if (avatarInput) avatarInput.value = dataUri;
+      if (avatarPreview) renderAvatarElement(avatarPreview, dataUri);
+      showToast('Profile photo ready! Click "Save Profile" to apply.', 'info');
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function resetAvatarToDefault() {
+  const avatarInput = document.getElementById('profile-input-avatar');
+  const avatarPreview = document.getElementById('profile-edit-avatar');
+  if (avatarInput) avatarInput.value = '👤';
+  if (avatarPreview) renderAvatarElement(avatarPreview, '👤');
+  showToast('Avatar reset to default', 'info');
+}
+
 function updateHeaderProfile(user) {
   if (!user) return;
   const uname = user.nickname || user.username || 'User';
@@ -1907,7 +1983,7 @@ function updateHeaderProfile(user) {
   const headerAvatar = document.getElementById('header-avatar-thumb');
   if (headerLabel) headerLabel.textContent = uname;
   if (headerBadge) headerBadge.textContent = roleStr;
-  if (headerAvatar) headerAvatar.textContent = avatar;
+  if (headerAvatar) renderAvatarElement(headerAvatar, avatar);
 
   const menuName = document.getElementById('menu-user-name');
   const menuEmail = document.getElementById('menu-user-email');
@@ -1916,7 +1992,7 @@ function updateHeaderProfile(user) {
   if (menuName) menuName.textContent = uname;
   if (menuEmail) menuEmail.textContent = user.email || `${user.username}@localhost`;
   if (menuBadge) menuBadge.textContent = roleStr;
-  if (menuAvatar) menuAvatar.textContent = avatar;
+  if (menuAvatar) renderAvatarElement(menuAvatar, avatar);
 
   // Show/Hide Admin Control Panel item based on role (Admin only)
   const isAdmin = user.role === 'admin';
@@ -1974,7 +2050,7 @@ function openUserProfileModal() {
   const editBadge = document.getElementById('profile-edit-role-badge');
   const editAuthType = document.getElementById('profile-edit-auth-type');
 
-  if (editAvatar) editAvatar.textContent = user.avatar_url || '👤';
+  if (editAvatar) renderAvatarElement(editAvatar, user.avatar_url || '👤');
   if (editUname) editUname.textContent = user.username || 'User';
   if (editBadge) editBadge.textContent = (user.role || 'USER').toUpperCase();
   if (editAuthType) editAuthType.textContent = user.is_pam ? 'PAM / Local Linux Account' : 'Internal Database Account';
@@ -1992,6 +2068,7 @@ function openUserProfileModal() {
   const statusMsg = document.getElementById('profile-status-msg');
   if (statusMsg) statusMsg.style.display = 'none';
 
+  if (window.lucide) lucide.createIcons();
   showModal('profile-modal');
 }
 
@@ -2046,7 +2123,7 @@ async function saveUserProfile() {
 function openAdminPanel() {
   document.getElementById('profile-dropdown-menu')?.classList.remove('active');
   if (App.user?.role !== 'admin') {
-    alert('Access restricted to Administrators.');
+    showToast('Access restricted to Administrators.', 'warning');
     return;
   }
   showModal('admin-panel-modal');
@@ -2367,21 +2444,24 @@ function showEmptySpaceContextMenu(x, y, paneIndex) {
   menu.style.top = `${Math.min(y, window.innerHeight - 380)}px`;
 }
 
+
 function triggerCopyClipboard() {
   const paths = getSelectedOrCursorPaths();
   if (paths.length === 0) return;
   App.clipboard = { action: 'copy', paths };
+  showToast(`Copied ${paths.length} item(s) to clipboard`, 'info');
 }
 
 function triggerCutClipboard() {
   const paths = getSelectedOrCursorPaths();
   if (paths.length === 0) return;
   App.clipboard = { action: 'cut', paths };
+  showToast(`Cut ${paths.length} item(s) to clipboard`, 'info');
 }
 
 async function triggerPaste(targetPaneIdx = App.activePaneIndex) {
   if (!App.clipboard || !App.clipboard.paths || App.clipboard.paths.length === 0) {
-    alert('Clipboard is empty. Copy or Cut items first (Ctrl+C / Ctrl+X).');
+    showToast('Clipboard is empty. Copy or Cut items first (Ctrl+C / Ctrl+X).', 'warning');
     return;
   }
 
@@ -2397,10 +2477,17 @@ async function triggerPaste(targetPaneIdx = App.activePaneIndex) {
 }
 
 async function triggerNewFile() {
-  const name = prompt('Enter new file name (e.g. notes.txt, config.json, script.py):');
-  if (!name) return;
+  const name = await showPromptDialog({
+    title: 'Create New File',
+    subtitle: 'Text document or script',
+    message: 'Enter name for the new file:',
+    placeholder: 'notes.txt, script.py, config.yaml...',
+    confirmText: 'Create & Edit',
+    cancelText: 'Cancel'
+  });
+  if (!name || !name.trim()) return;
   const pane = App.panes[App.activePaneIndex];
-  const newFilePath = `${pane.path.replace(/\/$/, '')}/${name}`;
+  const newFilePath = `${pane.path.replace(/\/$/, '')}/${name.trim()}`;
 
   try {
     const resp = await fetch('/api/fs/write', {
@@ -2410,13 +2497,14 @@ async function triggerNewFile() {
     });
 
     if (resp.ok) {
+      showToast(`Created '${name.trim()}'`, 'success');
       refreshPane(App.activePaneIndex);
       openEditorWithFile(newFilePath);
     } else {
-      alert(`Failed to create file: ${await resp.text()}`);
+      showToast(`Failed to create file: ${await resp.text()}`, 'error');
     }
   } catch (e) {
-    alert(`Error: ${e}`);
+    showToast(`Error: ${e}`, 'error');
   }
 }
 
@@ -2480,7 +2568,7 @@ function openCustomDestModal(action) {
 function executeCustomDestTransfer() {
   const dest = document.getElementById('custom-dest-input').value.trim();
   if (!dest) {
-    alert('Please provide a destination directory path');
+    showToast('Please provide a destination directory path', 'warning');
     return;
   }
 
@@ -2493,11 +2581,21 @@ function executeCustomDestTransfer() {
   quickTransferToPath(customDestAction, dest);
 }
 
-function addCurrentPaneToQuickDest() {
+async function addCurrentPaneToQuickDest() {
   const currentPath = App.panes[App.activePaneIndex].path;
-  const name = prompt('Enter a label for this quick destination:', currentPath.split('/').pop() || currentPath);
-  if (name) {
-    addCustomDestination(name, currentPath);
+  const defaultLabel = currentPath.split('/').pop() || currentPath;
+  const name = await showPromptDialog({
+    title: 'Add Quick Destination',
+    subtitle: 'Favorites & Bookmarks',
+    message: `Enter label for directory: <code>${escapeHtml(currentPath)}</code>`,
+    defaultValue: defaultLabel,
+    placeholder: 'My Downloads, Projects, Backups...',
+    confirmText: 'Add Destination',
+    cancelText: 'Cancel'
+  });
+  if (name && name.trim()) {
+    addCustomDestination(name.trim(), currentPath);
+    showToast(`Added '${name.trim()}' to Quick Destinations`, 'success');
   }
 }
 
@@ -2741,6 +2839,15 @@ function openSettingsModal() {
     };
   }
 
+  const autoOpenTasksCheckbox = document.getElementById('setting-auto-open-tasks');
+  if (autoOpenTasksCheckbox) {
+    autoOpenTasksCheckbox.checked = App.autoOpenTasks;
+    autoOpenTasksCheckbox.onchange = (e) => {
+      App.autoOpenTasks = e.target.checked;
+      localStorage.setItem('cd_auto_open_tasks', e.target.checked);
+    };
+  }
+
   const dotfilesCheckbox = document.getElementById('setting-show-hidden');
   if (dotfilesCheckbox) {
     dotfilesCheckbox.checked = App.panes[0]?.showHidden || false;
@@ -2839,17 +2946,39 @@ function triggerRename() {
   };
 }
 
-function triggerDelete() {
+async function triggerDelete() {
   const pane = App.panes[App.activePaneIndex];
   const paths = pane.selected.size > 0 ? Array.from(pane.selected) : (pane.entries[pane.cursorIndex] ? [pane.entries[pane.cursorIndex].path] : []);
   if (paths.length === 0) return;
 
-  if (confirm(`Move ${paths.length} item(s) to trash?`)) {
-    fetch('/api/fs/delete', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
-      body: JSON.stringify({ paths, use_trash: true })
-    }).then(() => refreshPane(App.activePaneIndex));
+  const itemNames = paths.map(p => p.split('/').pop() || p);
+  const confirmed = await showConfirmDialog({
+    title: 'Delete Confirmation',
+    subtitle: `Move ${paths.length} item(s) to Trash`,
+    message: `Are you sure you want to delete ${paths.length === 1 ? `'${itemNames[0]}'` : `${paths.length} selected items`}?`,
+    items: itemNames,
+    icon: 'trash-2',
+    type: 'danger',
+    confirmText: 'Move to Trash (F8)',
+    cancelText: 'Cancel',
+  });
+
+  if (confirmed) {
+    try {
+      const resp = await fetch('/api/fs/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
+        body: JSON.stringify({ paths, use_trash: true })
+      });
+      if (resp.ok) {
+        showToast(`Moved ${paths.length} item(s) to Trash`, 'success');
+        refreshPane(App.activePaneIndex);
+      } else {
+        showToast(`Delete failed: ${await resp.text()}`, 'error');
+      }
+    } catch (err) {
+      showToast(`Delete error: ${err}`, 'error');
+    }
   }
 }
 
@@ -2914,10 +3043,10 @@ async function executeDeltaCopy() {
 
   if (resp.ok) {
     pollTasks();
-    showModal('tasks-modal');
+    openFloatingTaskManager();
     setTimeout(() => refreshPane(pendingDeltaTransfer.targetIdx), 1500);
   } else {
-    alert('Failed to start DeltaCopy: ' + await resp.text());
+    showToast('Failed to start DeltaCopy: ' + await resp.text(), 'error');
   }
 }
 
@@ -2954,7 +3083,16 @@ async function triggerChecksum() {
 
   if (resp.ok) {
     const data = await resp.json();
-    alert(`File: ${data.path}\nSHA-256: ${data.hash}\nSize: ${formatBytes(data.file_size)}`);
+    await showAlertDialog({
+      title: 'Cryptographic Checksum',
+      subtitle: 'SHA-256 Verification',
+      message: `<strong>File:</strong> <code>${escapeHtml(data.path)}</code><br><strong>Size:</strong> ${formatBytes(data.file_size)}<br><br><strong>SHA-256 Hash:</strong><br><input type="text" class="input" readonly value="${data.hash}" style="width: 100%; font-family: var(--font-mono); margin-top: 6px; font-size: 11px; box-sizing: border-box;" onclick="this.select(); navigator.clipboard.writeText('${data.hash}'); showToast('Hash copied to clipboard!', 'success');">`,
+      icon: 'shield-check',
+      type: 'info',
+      okText: 'Done',
+    });
+  } else {
+    showToast('Failed to calculate checksum: ' + await resp.text(), 'error');
   }
 }
 
@@ -3084,6 +3222,209 @@ function closeModal(id) {
   else document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('active'));
 }
 
+// ---------------- UNIVERSAL CUSTOM DIALOG & TOAST SYSTEM ----------------
+let currentDialogResolver = null;
+
+function showConfirmDialog({
+  title = 'Confirmation',
+  subtitle = 'Please confirm your action',
+  message = 'Are you sure you want to proceed?',
+  items = [],
+  icon = 'help-circle',
+  type = 'warning', // 'warning', 'danger', 'info', 'success'
+  confirmText = 'Confirm',
+  cancelText = 'Cancel',
+} = {}) {
+  return new Promise((resolve) => {
+    currentDialogResolver = resolve;
+
+    const titleEl = document.getElementById('dialog-title');
+    const subEl = document.getElementById('dialog-subtitle');
+    const msgEl = document.getElementById('dialog-message');
+    if (titleEl) titleEl.textContent = title;
+    if (subEl) subEl.textContent = subtitle;
+    if (msgEl) msgEl.textContent = message;
+
+    const iconWrap = document.getElementById('dialog-icon-wrapper');
+    if (iconWrap) iconWrap.className = `dialog-icon-wrapper ${type}`;
+    const iconEl = document.getElementById('dialog-icon');
+    if (iconEl) iconEl.setAttribute('data-lucide', icon);
+
+    const itemsBox = document.getElementById('dialog-items-preview');
+    if (itemsBox) {
+      if (items && items.length > 0) {
+        itemsBox.style.display = 'flex';
+        itemsBox.innerHTML = items.map(it => `<div>• ${escapeHtml(it)}</div>`).join('');
+      } else {
+        itemsBox.style.display = 'none';
+      }
+    }
+
+    const inputGroup = document.getElementById('dialog-input-group');
+    if (inputGroup) inputGroup.style.display = 'none';
+
+    const btnCancel = document.getElementById('dialog-btn-cancel');
+    if (btnCancel) {
+      btnCancel.textContent = cancelText;
+      btnCancel.style.display = 'inline-block';
+    }
+
+    const btnConfirm = document.getElementById('dialog-btn-confirm');
+    if (btnConfirm) {
+      btnConfirm.textContent = confirmText;
+      btnConfirm.className = `btn ${type === 'danger' ? 'btn-danger' : (type === 'success' ? 'btn-success' : 'btn-accent')}`;
+    }
+
+    showModal('app-dialog-modal');
+    if (window.lucide) lucide.createIcons();
+
+    setTimeout(() => btnConfirm?.focus(), 50);
+  });
+}
+
+function showAlertDialog({
+  title = 'Notice',
+  subtitle = 'Information',
+  message = '',
+  icon = 'info',
+  type = 'info',
+  okText = 'OK',
+} = {}) {
+  return new Promise((resolve) => {
+    currentDialogResolver = resolve;
+
+    const titleEl = document.getElementById('dialog-title');
+    const subEl = document.getElementById('dialog-subtitle');
+    const msgEl = document.getElementById('dialog-message');
+    if (titleEl) titleEl.textContent = title;
+    if (subEl) subEl.textContent = subtitle;
+    if (msgEl) msgEl.innerHTML = message.replace(/\n/g, '<br>');
+
+    const iconWrap = document.getElementById('dialog-icon-wrapper');
+    if (iconWrap) iconWrap.className = `dialog-icon-wrapper ${type}`;
+    const iconEl = document.getElementById('dialog-icon');
+    if (iconEl) iconEl.setAttribute('data-lucide', icon);
+
+    const itemsBox = document.getElementById('dialog-items-preview');
+    if (itemsBox) itemsBox.style.display = 'none';
+    const inputGroup = document.getElementById('dialog-input-group');
+    if (inputGroup) inputGroup.style.display = 'none';
+
+    const btnCancel = document.getElementById('dialog-btn-cancel');
+    if (btnCancel) btnCancel.style.display = 'none';
+
+    const btnConfirm = document.getElementById('dialog-btn-confirm');
+    if (btnConfirm) {
+      btnConfirm.textContent = okText;
+      btnConfirm.className = `btn ${type === 'danger' ? 'btn-danger' : 'btn-accent'}`;
+    }
+
+    showModal('app-dialog-modal');
+    if (window.lucide) lucide.createIcons();
+
+    setTimeout(() => btnConfirm?.focus(), 50);
+  });
+}
+
+function showPromptDialog({
+  title = 'Input Required',
+  subtitle = 'Enter value',
+  message = 'Please enter a value:',
+  defaultValue = '',
+  placeholder = '',
+  confirmText = 'OK',
+  cancelText = 'Cancel',
+} = {}) {
+  return new Promise((resolve) => {
+    currentDialogResolver = resolve;
+
+    const titleEl = document.getElementById('dialog-title');
+    const subEl = document.getElementById('dialog-subtitle');
+    const msgEl = document.getElementById('dialog-message');
+    if (titleEl) titleEl.textContent = title;
+    if (subEl) subEl.textContent = subtitle;
+    if (msgEl) msgEl.textContent = message;
+
+    const iconWrap = document.getElementById('dialog-icon-wrapper');
+    if (iconWrap) iconWrap.className = 'dialog-icon-wrapper info';
+    const iconEl = document.getElementById('dialog-icon');
+    if (iconEl) iconEl.setAttribute('data-lucide', 'edit-3');
+
+    const itemsBox = document.getElementById('dialog-items-preview');
+    if (itemsBox) itemsBox.style.display = 'none';
+
+    const inputGroup = document.getElementById('dialog-input-group');
+    const inputField = document.getElementById('dialog-input-field');
+    if (inputGroup) inputGroup.style.display = 'block';
+    if (inputField) {
+      inputField.value = defaultValue;
+      inputField.placeholder = placeholder;
+      inputField.onkeydown = (e) => {
+        if (e.key === 'Enter') closeAppDialog(inputField.value);
+        else if (e.key === 'Escape') closeAppDialog(null);
+      };
+    }
+
+    const btnCancel = document.getElementById('dialog-btn-cancel');
+    if (btnCancel) {
+      btnCancel.textContent = cancelText;
+      btnCancel.style.display = 'inline-block';
+    }
+
+    const btnConfirm = document.getElementById('dialog-btn-confirm');
+    if (btnConfirm) {
+      btnConfirm.textContent = confirmText;
+      btnConfirm.className = 'btn btn-accent';
+    }
+
+    showModal('app-dialog-modal');
+    if (window.lucide) lucide.createIcons();
+
+    setTimeout(() => {
+      inputField?.focus();
+      inputField?.select();
+    }, 50);
+  });
+}
+
+function closeAppDialog(result) {
+  closeModal('app-dialog-modal');
+  if (currentDialogResolver) {
+    if (document.getElementById('dialog-input-group')?.style.display !== 'none' && result === true) {
+      result = document.getElementById('dialog-input-field')?.value;
+    }
+    const resolver = currentDialogResolver;
+    currentDialogResolver = null;
+    resolver(result);
+  }
+}
+
+function showToast(message, type = 'info', duration = 3500) {
+  const container = document.getElementById('toast-container');
+  if (!container) return;
+
+  const toast = document.createElement('div');
+  toast.className = `toast toast-${type}`;
+  toast.style.setProperty('--toast-duration', `${duration / 1000}s`);
+
+  let iconName = 'info';
+  if (type === 'success') iconName = 'check-circle';
+  else if (type === 'error') iconName = 'alert-triangle';
+  else if (type === 'warning') iconName = 'alert-circle';
+
+  toast.innerHTML = `
+    <i data-lucide="${iconName}" style="width: 16px; height: 16px; flex-shrink: 0;"></i>
+    <span>${escapeHtml(message)}</span>
+  `;
+
+  container.appendChild(toast);
+  if (window.lucide) lucide.createIcons({ root: toast });
+
+  setTimeout(() => {
+    toast.remove();
+  }, duration + 300);
+}
+
 function setupHistoryNavigation() {
   if (!window.history || !history.pushState) return;
 
@@ -3116,6 +3457,14 @@ function setupHistoryNavigation() {
     const termDrawer = document.getElementById('terminal-drawer');
     if (termDrawer && termDrawer.classList.contains('active')) {
       toggleTerminal(false);
+      history.pushState({ type: 'dir', paneIndex: App.activePaneIndex, path: App.panes[App.activePaneIndex]?.path || '/' }, '', '');
+      return;
+    }
+
+    // 4. If floating task manager is open, minimize/close it!
+    const taskWin = document.getElementById('floating-task-manager');
+    if (taskWin && taskWin.classList.contains('active') && !taskWin.classList.contains('minimized')) {
+      minimizeFloatingTaskManager();
       history.pushState({ type: 'dir', paneIndex: App.activePaneIndex, path: App.panes[App.activePaneIndex]?.path || '/' }, '', '');
       return;
     }
@@ -3251,21 +3600,21 @@ function toggleMountAllUsers(checked) {
 
 async function saveGlobalRemoteMount() {
   const proto = document.getElementById('remote-proto-select').value;
-  const host = document.getElementById('remote-host')?.value || '';
+  const host = document.getElementById('remote-host')?.value.trim() || '';
   const port = parseInt(document.getElementById('remote-port')?.value || '22', 10);
-  const user = document.getElementById('remote-user')?.value || '';
+  const user = document.getElementById('remote-user')?.value.trim() || '';
   const pass = document.getElementById('remote-pass')?.value || '';
   const path = document.getElementById('remote-path')?.value || '/';
   const mountName = document.getElementById('remote-global-mount-name')?.value.trim() || `${proto.toUpperCase()} - ${host}`;
 
   let target_uri = '';
   if (proto === 'sftp') {
-    if (!host) { alert('Please specify host'); return; }
+    if (!host) { showToast('Please specify host', 'warning'); return; }
     target_uri = `sftp://${user ? `${user}@` : ''}${host}:${port}${path.startsWith('/') ? path : '/' + path}`;
   } else if (proto === 'smb') {
     const share = document.getElementById('remote-smb-share')?.value || '';
     const domain = document.getElementById('remote-smb-domain')?.value || '';
-    if (!host || !share) { alert('Please specify Samba host and share name'); return; }
+    if (!host || !share) { showToast('Please specify Samba host and share name', 'warning'); return; }
     const domPrefix = domain && domain !== 'WORKGROUP' ? `${domain};` : '';
     const userAuth = user ? (pass ? `${domPrefix}${user}:${pass}@` : `${domPrefix}${user}@`) : '';
     const portSuffix = port !== 445 ? `:${port}` : '';
@@ -3273,17 +3622,17 @@ async function saveGlobalRemoteMount() {
     target_uri = `smb://${userAuth}${host}${portSuffix}/${share}${sub === '/' ? '' : sub}`;
   } else if (proto === 'nfs') {
     const exportPath = document.getElementById('remote-nfs-export')?.value || '/';
-    if (!host) { alert('Please specify NFS host'); return; }
+    if (!host) { showToast('Please specify NFS host', 'warning'); return; }
     const portSuffix = port !== 2049 ? `:${port}` : '';
     const cleanExport = exportPath.startsWith('/') ? exportPath : '/' + exportPath;
     const sub = path && path !== '/' ? (path.startsWith('/') ? path : '/' + path) : '';
     target_uri = `nfs://${host}${portSuffix}${cleanExport}${sub}`;
   } else if (proto === 'webdav') {
-    if (!host) { alert('Please specify WebDAV URL'); return; }
+    if (!host) { showToast('Please specify WebDAV URL', 'warning'); return; }
     target_uri = `webdav://${host.replace(/^https?:\/\//, '')}${path.startsWith('/') ? path : '/' + path}`;
   } else if (proto === 's3') {
     const bucket = document.getElementById('remote-bucket')?.value || '';
-    if (!bucket) { alert('Please specify S3 bucket name'); return; }
+    if (!bucket) { showToast('Please specify S3 bucket name', 'warning'); return; }
     target_uri = `s3://${bucket}${path.startsWith('/') ? path : '/' + path}`;
   } else if (proto === 'hetzner-box') {
     const hMode = document.getElementById('hetzner-mode')?.value || 'sftp';
@@ -3305,7 +3654,7 @@ async function saveGlobalRemoteMount() {
       allowed_users.push(cb.value);
     });
     if (allowed_users.length === 0) {
-      alert('Please select at least one user or choose All Users (*)');
+      showToast('Please select at least one user or choose All Users (*)', 'warning');
       return;
     }
   }
@@ -3324,14 +3673,14 @@ async function saveGlobalRemoteMount() {
     });
 
     if (resp.ok) {
-      alert(`Global mount '${mountName}' saved! Assigned users will see it in Favorites automatically.`);
+      showToast(`Global mount '${mountName}' saved! Assigned users will see it in Favorites automatically.`, 'success');
       closeModal('remote-modal');
       loadAdminGlobalMounts();
     } else {
-      alert(`Failed to save global mount: ${await resp.text()}`);
+      showToast(`Failed to save global mount: ${await resp.text()}`, 'error');
     }
   } catch (err) {
-    alert(`Save error: ${err}`);
+    showToast(`Save error: ${err}`, 'error');
   }
 }
 
@@ -3415,7 +3764,16 @@ async function loadAdminGlobalMounts() {
 }
 
 async function deleteGlobalMount(id, name) {
-  if (!confirm(`Are you sure you want to remove global network mount '${name}'?`)) return;
+  const confirmed = await showConfirmDialog({
+    title: 'Remove Global Mount',
+    subtitle: 'Remote Storage Management',
+    message: `Are you sure you want to remove global network mount '${name}'?`,
+    icon: 'network',
+    type: 'danger',
+    confirmText: 'Remove Mount',
+    cancelText: 'Cancel',
+  });
+  if (!confirmed) return;
 
   try {
     const resp = await fetch(`/api/mounts/${id}`, {
@@ -3424,12 +3782,13 @@ async function deleteGlobalMount(id, name) {
     });
 
     if (resp.ok) {
+      showToast(`Global mount '${name}' removed`, 'success');
       loadAdminGlobalMounts();
     } else {
-      alert(`Failed to delete mount: ${await resp.text()}`);
+      showToast(`Failed to delete mount: ${await resp.text()}`, 'error');
     }
   } catch (err) {
-    alert(`Delete error: ${err}`);
+    showToast(`Delete error: ${err}`, 'error');
   }
 }
 
@@ -3602,22 +3961,22 @@ async function testRemoteConnection() {
 
 function connectRemoteToActivePane() {
   const proto = document.getElementById('remote-proto-select').value;
-  const host = document.getElementById('remote-host')?.value || '';
+  const host = document.getElementById('remote-host')?.value.trim() || '';
   const port = parseInt(document.getElementById('remote-port')?.value || '22', 10);
-  const user = document.getElementById('remote-user')?.value || '';
+  const user = document.getElementById('remote-user')?.value.trim() || '';
   const pass = document.getElementById('remote-pass')?.value || '';
-  const bucket = document.getElementById('remote-bucket')?.value || '';
+  const bucket = document.getElementById('remote-bucket')?.value.trim() || '';
   const path = document.getElementById('remote-path')?.value || '/';
 
   let remoteUrl = '';
   if (proto === 'sftp') {
-    if (!host) { alert('Please specify a server host / URL'); return; }
+    if (!host) { showToast('Please specify a server host / URL', 'warning'); return; }
     remoteUrl = `sftp://${user}@${host}:${port}${path.startsWith('/') ? path : '/' + path}`;
   } else if (proto === 'smb') {
     const share = document.getElementById('remote-smb-share')?.value || '';
     const domain = document.getElementById('remote-smb-domain')?.value || '';
-    if (!host) { alert('Please specify Samba / NAS host'); return; }
-    if (!share) { alert('Please specify Share Name (e.g. public or data)'); return; }
+    if (!host) { showToast('Please specify Samba / NAS host', 'warning'); return; }
+    if (!share) { showToast('Please specify Share Name (e.g. public or data)', 'warning'); return; }
     const domPrefix = domain && domain !== 'WORKGROUP' ? `${domain};` : '';
     const userAuth = user ? (pass ? `${domPrefix}${user}:${pass}@` : `${domPrefix}${user}@`) : '';
     const portSuffix = port !== 445 ? `:${port}` : '';
@@ -3625,7 +3984,7 @@ function connectRemoteToActivePane() {
     remoteUrl = `smb://${userAuth}${host}${portSuffix}/${share}${sub === '/' ? '' : sub}`;
   } else if (proto === 'nfs') {
     const exportPath = document.getElementById('remote-nfs-export')?.value || '/';
-    if (!host) { alert('Please specify NFS host'); return; }
+    if (!host) { showToast('Please specify NFS host', 'warning'); return; }
     const portSuffix = port !== 2049 ? `:${port}` : '';
     const cleanExport = exportPath.startsWith('/') ? exportPath : '/' + exportPath;
     const sub = path && path !== '/' ? (path.startsWith('/') ? path : '/' + path) : '';
@@ -3638,10 +3997,10 @@ function connectRemoteToActivePane() {
       remoteUrl = `webdav://${host.replace(/^https?:\/\//, '')}${path.startsWith('/') ? path : '/' + path}`;
     }
   } else if (proto === 'webdav') {
-    if (!host) { alert('Please specify a server host / URL'); return; }
+    if (!host) { showToast('Please specify a server host / URL', 'warning'); return; }
     remoteUrl = `webdav://${host.replace(/^https?:\/\//, '')}${path.startsWith('/') ? path : '/' + path}`;
   } else if (proto === 's3') {
-    if (!host) { alert('Please specify S3 endpoint'); return; }
+    if (!host) { showToast('Please specify S3 endpoint', 'warning'); return; }
     remoteUrl = `s3://${bucket}${path.startsWith('/') ? path : '/' + path}`;
   } else if (proto === 'proton') {
     remoteUrl = `proton://${path.startsWith('/') ? path.substring(1) : path}`;
@@ -3846,12 +4205,92 @@ function appendTerminalTextFallback(str) {
   out.scrollTop = out.scrollHeight;
 }
 
-// ---------------- BACKGROUND TASKS MONITOR ----------------
+// ---------------- TERACOPY-STYLE FLOATING TASK & TRANSFER MANAGER ----------------
 let tasksPollTimer = null;
+let lastKnownTasksList = [];
+let wasAnyRunningLastCheck = false;
 
 function startTasksPolling() {
   if (tasksPollTimer) clearInterval(tasksPollTimer);
-  tasksPollTimer = setInterval(pollTasks, 3000);
+  tasksPollTimer = setInterval(pollTasks, 1500);
+  initTaskWindowDragResize();
+}
+
+function toggleFloatingTaskManager() {
+  const win = document.getElementById('floating-task-manager');
+  if (win && win.classList.contains('active') && !win.classList.contains('minimized')) {
+    closeFloatingTaskManager();
+  } else {
+    openFloatingTaskManager();
+  }
+}
+
+function openFloatingTaskManager() {
+  const win = document.getElementById('floating-task-manager');
+  const pill = document.getElementById('tasks-pill');
+  if (win) {
+    win.classList.remove('minimized');
+    win.classList.add('active');
+  }
+  if (pill) pill.classList.remove('active');
+  App.taskManagerVisible = true;
+  App.taskManagerMinimized = false;
+
+  const sel = document.getElementById('task-verbosity-selector');
+  if (sel) sel.value = App.taskVerbosity;
+  applyTaskVerbosityUI(App.taskVerbosity);
+
+  pollTasks();
+}
+
+function closeFloatingTaskManager() {
+  const win = document.getElementById('floating-task-manager');
+  if (win) win.classList.remove('active', 'minimized');
+  App.taskManagerVisible = false;
+  App.taskManagerMinimized = false;
+  updateTasksPillState(lastKnownTasksList);
+}
+
+function minimizeFloatingTaskManager() {
+  const win = document.getElementById('floating-task-manager');
+  if (win) win.classList.add('minimized');
+  App.taskManagerMinimized = true;
+  updateTasksPillState(lastKnownTasksList);
+}
+
+function restoreFloatingTaskManager() {
+  openFloatingTaskManager();
+}
+
+function maximizeFloatingTaskManager() {
+  const win = document.getElementById('floating-task-manager');
+  if (win) win.classList.toggle('maximized');
+}
+
+function setTaskVerbosity(mode) {
+  App.taskVerbosity = mode;
+  localStorage.setItem('cd_task_verbosity', mode);
+  applyTaskVerbosityUI(mode);
+}
+
+function applyTaskVerbosityUI(mode) {
+  const queueCont = document.getElementById('task-queue-container');
+  const logCont = document.getElementById('task-log-container');
+  const activeFileCard = document.getElementById('task-active-file-card');
+
+  if (mode === 'compact') {
+    if (queueCont) queueCont.style.display = 'none';
+    if (logCont) logCont.style.display = 'none';
+    if (activeFileCard) activeFileCard.style.display = 'block';
+  } else if (mode === 'log') {
+    if (queueCont) queueCont.style.display = 'none';
+    if (logCont) logCont.style.display = 'block';
+    if (activeFileCard) activeFileCard.style.display = 'block';
+  } else { // 'detailed' (TeraCopy standard)
+    if (queueCont) queueCont.style.display = 'block';
+    if (logCont) logCont.style.display = 'none';
+    if (activeFileCard) activeFileCard.style.display = 'block';
+  }
 }
 
 async function pollTasks() {
@@ -3861,79 +4300,305 @@ async function pollTasks() {
     });
     if (resp.ok) {
       const list = await resp.json();
+      lastKnownTasksList = list;
       const running = list.filter(t => t.status === 'running');
-      const pill = document.getElementById('tasks-pill');
 
-      if (running.length > 0) {
-        pill.classList.add('active');
-        document.getElementById('tasks-pill-text').textContent = `${running.length} Active Transfer${running.length > 1 ? 's' : ''}...`;
-      } else {
-        pill.classList.remove('active');
+      // Auto-open on new active transfers if enabled in settings
+      if (running.length > 0 && !wasAnyRunningLastCheck && App.autoOpenTasks && !App.taskManagerMinimized) {
+        openFloatingTaskManager();
       }
+      wasAnyRunningLastCheck = running.length > 0;
 
-      if (document.getElementById('tasks-modal')?.classList.contains('active')) {
-        renderTasksTable(list);
-      }
+      updateTasksPillState(list);
+      renderFloatingTaskManager(list);
     }
   } catch (e) {
     // Ignore polling errors
   }
 }
 
-async function loadTasksTable() {
-  const resp = await fetch('/api/tasks', {
-    headers: { 'Authorization': `Bearer ${App.token}` }
-  });
-  if (resp.ok) {
-    const list = await resp.json();
-    renderTasksTable(list);
+function updateTasksPillState(list) {
+  const pill = document.getElementById('tasks-pill');
+  const headerBtn = document.getElementById('btn-header-tasks');
+  const headerCount = document.getElementById('header-task-count');
+  const headerSpeed = document.getElementById('header-task-speed');
+
+  const running = list.filter(t => t.status === 'running');
+  const win = document.getElementById('floating-task-manager');
+  const isWinOpen = win && win.classList.contains('active') && !win.classList.contains('minimized');
+  const totalSpeed = running.reduce((acc, t) => acc + (t.speed_bytes_per_sec || 0), 0);
+  const speedStr = totalSpeed > 0 ? `${formatBytes(totalSpeed)}/s` : '';
+
+  // Update Header Button (Left of Profile)
+  if (headerBtn) {
+    if (running.length > 0) {
+      headerBtn.classList.add('has-running');
+      if (headerCount) headerCount.textContent = `${running.length}`;
+      if (headerSpeed) {
+        headerSpeed.style.display = totalSpeed > 0 ? 'inline-block' : 'none';
+        headerSpeed.textContent = speedStr;
+      }
+    } else {
+      headerBtn.classList.remove('has-running');
+      if (headerCount) headerCount.textContent = `${list.length}`;
+      if (headerSpeed) headerSpeed.style.display = 'none';
+    }
+  }
+
+  // Update Floating Pill
+  if (pill) {
+    if (running.length > 0 && !isWinOpen) {
+      pill.classList.add('active');
+      document.getElementById('tasks-pill-text').textContent = `${running.length} Job${running.length > 1 ? 's' : ''}`;
+      document.getElementById('tasks-pill-speed').textContent = speedStr || 'Processing';
+    } else {
+      pill.classList.remove('active');
+    }
   }
 }
 
-function renderTasksTable(list) {
-  const tbody = document.getElementById('tasks-table-body');
-  if (!tbody) return;
+function initTaskWindowDragResize() {
+  const win = document.getElementById('floating-task-manager');
+  const handle = document.getElementById('task-win-resize-handle');
+  if (!win || !handle || handle.dataset.resizeInitialized) return;
+  handle.dataset.resizeInitialized = 'true';
 
-  if (list.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 20px;">No background tasks recorded</td></tr>';
-    return;
+  // Restore saved height if any
+  const savedHeight = localStorage.getItem('cd_task_win_height');
+  if (savedHeight) {
+    applyTaskWindowHeight(parseInt(savedHeight, 10));
   }
 
-  tbody.innerHTML = list.map(t => {
-    const percent = t.total_bytes > 0 ? Math.min(100, Math.round((t.bytes_processed / t.total_bytes) * 100)) : (t.status === 'completed' ? 100 : 0);
-    const speedStr = t.speed_bytes_per_sec > 0 ? `${formatBytes(t.speed_bytes_per_sec)}/s` : '';
+  let startY = 0;
+  let startHeight = 0;
+  let isDragging = false;
 
-    return `
-      <tr class="file-row">
-        <td>
-          <div style="font-weight: 600;">${escapeHtml(t.name)}</div>
-          ${t.status === 'running' ? `
-            <div style="background: rgba(255,255,255,0.08); height: 6px; border-radius: 3px; margin-top: 4px; overflow: hidden;">
-              <div style="background: var(--accent); width: ${percent}%; height: 100%; transition: width 0.3s ease;"></div>
+  function onMouseDown(e) {
+    isDragging = true;
+    startY = e.clientY || (e.touches ? e.touches[0].clientY : 0);
+    startHeight = win.offsetHeight;
+    handle.classList.add('dragging');
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'ns-resize';
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+    window.addEventListener('touchmove', onMouseMove, { passive: false });
+    window.addEventListener('touchend', onMouseUp);
+  }
+
+  function onMouseMove(e) {
+    if (!isDragging) return;
+    const clientY = e.clientY || (e.touches ? e.touches[0].clientY : 0);
+    const deltaY = startY - clientY; // dragging up increases height
+    const newHeight = Math.max(180, Math.min(window.innerHeight - 80, startHeight + deltaY));
+    applyTaskWindowHeight(newHeight);
+    if (e.preventDefault && e.cancelable) e.preventDefault();
+  }
+
+  function onMouseUp() {
+    if (!isDragging) return;
+    isDragging = false;
+    handle.classList.remove('dragging');
+    document.body.style.userSelect = '';
+    document.body.style.cursor = '';
+    localStorage.setItem('cd_task_win_height', win.offsetHeight);
+
+    window.removeEventListener('mousemove', onMouseMove);
+    window.removeEventListener('mouseup', onMouseUp);
+    window.removeEventListener('touchmove', onMouseMove);
+    window.removeEventListener('touchend', onMouseUp);
+  }
+
+  handle.addEventListener('mousedown', onMouseDown);
+  handle.addEventListener('touchstart', onMouseDown, { passive: false });
+}
+
+function applyTaskWindowHeight(h) {
+  const win = document.getElementById('floating-task-manager');
+  if (!win) return;
+  win.style.height = `${h}px`;
+
+  const queueCont = document.getElementById('task-queue-container');
+  const logCont = document.getElementById('task-log-container');
+  const internalHeight = Math.max(80, h - 220);
+  if (queueCont) queueCont.style.maxHeight = `${internalHeight}px`;
+  if (logCont) logCont.style.maxHeight = `${internalHeight}px`;
+}
+
+function renderFloatingTaskManager(list) {
+  const win = document.getElementById('floating-task-manager');
+  if (!win) return;
+
+  const running = list.filter(t => t.status === 'running');
+  const totalSpeed = running.reduce((acc, t) => acc + (t.speed_bytes_per_sec || 0), 0);
+  const speedStr = totalSpeed > 0 ? `${formatBytes(totalSpeed)}/s` : '0 B/s';
+
+  // 1. Header State
+  const titleEl = document.getElementById('task-header-title');
+  const indEl = document.getElementById('task-status-indicator');
+  const speedEl = document.getElementById('task-speed-badge');
+
+  if (titleEl) titleEl.textContent = `⚡ Transfers (${running.length} active${list.length > running.length ? `, ${list.length - running.length} done` : ''})`;
+  if (indEl) {
+    if (running.length > 0) indEl.classList.add('active');
+    else indEl.classList.remove('active');
+  }
+  if (speedEl) speedEl.textContent = speedStr;
+
+  // 2. Batch Summary Progress (Total files & bytes across running/all jobs)
+  let totalBatchBytes = 0;
+  let totalProcessedBytes = 0;
+  let totalBatchFiles = 0;
+  let totalProcessedFiles = 0;
+  let activeCurrentFile = null;
+  let activeCurBytes = 0;
+  let activeCurTotal = 0;
+  let activeSpeed = 0;
+
+  list.forEach(t => {
+    totalBatchBytes += t.total_bytes || 0;
+    totalProcessedBytes += t.bytes_processed || 0;
+    totalBatchFiles += t.total_files || 1;
+    totalProcessedFiles += t.files_processed || (t.status === 'completed' ? (t.total_files || 1) : 0);
+
+    if (t.status === 'running' && !activeCurrentFile) {
+      activeCurrentFile = t.current_file || t.name;
+      activeCurBytes = t.current_file_bytes || t.bytes_processed;
+      activeCurTotal = t.current_file_total_bytes || t.total_bytes;
+      activeSpeed = t.speed_bytes_per_sec || 0;
+    }
+  });
+
+  const overallPercent = totalBatchBytes > 0 ? Math.min(100, Math.round((totalProcessedBytes / totalBatchBytes) * 100)) : (running.length === 0 && list.length > 0 ? 100 : 0);
+
+  const batchFill = document.getElementById('task-batch-progress-fill');
+  const batchPercent = document.getElementById('task-batch-percent-text');
+  const batchFiles = document.getElementById('task-batch-files-text');
+  const batchBytes = document.getElementById('task-batch-bytes-text');
+  const batchEta = document.getElementById('task-batch-eta-text');
+
+  if (batchFill) batchFill.style.width = `${overallPercent}%`;
+  if (batchPercent) batchPercent.textContent = `${overallPercent}%`;
+  if (batchFiles) batchFiles.textContent = `${totalProcessedFiles} / ${totalBatchFiles} files`;
+  if (batchBytes) batchBytes.textContent = `${formatBytes(totalProcessedBytes)} / ${formatBytes(totalBatchBytes)}`;
+
+  if (batchEta) {
+    if (running.length > 0 && totalSpeed > 0 && totalBatchBytes > totalProcessedBytes) {
+      const etaSec = Math.round((totalBatchBytes - totalProcessedBytes) / totalSpeed);
+      const mins = Math.floor(etaSec / 60);
+      const secs = etaSec % 60;
+      batchEta.textContent = `ETA: ${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    } else if (running.length === 0) {
+      batchEta.textContent = list.length > 0 ? '✓ Completed' : 'Idle';
+    } else {
+      batchEta.textContent = 'ETA: calculating...';
+    }
+  }
+
+  // 3. Current Active File Card (TeraCopy Stream)
+  const curNameEl = document.getElementById('task-cur-filename');
+  const curSpeedEl = document.getElementById('task-cur-speed');
+  const curFillEl = document.getElementById('task-file-progress-fill');
+  const curBytesEl = document.getElementById('task-cur-bytes');
+  const curPercentEl = document.getElementById('task-cur-percent');
+
+  if (activeCurrentFile) {
+    if (curNameEl) curNameEl.textContent = activeCurrentFile;
+    if (curSpeedEl) curSpeedEl.textContent = activeSpeed > 0 ? `${formatBytes(activeSpeed)}/s` : '';
+    const filePct = activeCurTotal > 0 ? Math.min(100, Math.round((activeCurBytes / activeCurTotal) * 100)) : 0;
+    if (curFillEl) curFillEl.style.width = `${filePct}%`;
+    if (curBytesEl) curBytesEl.textContent = `${formatBytes(activeCurBytes)} / ${formatBytes(activeCurTotal)}`;
+    if (curPercentEl) curPercentEl.textContent = `${filePct}%`;
+  } else {
+    if (curNameEl) curNameEl.textContent = running.length === 0 ? 'No active file transfer' : 'Preparing next file...';
+    if (curSpeedEl) curSpeedEl.textContent = '';
+    if (curFillEl) curFillEl.style.width = '0%';
+    if (curBytesEl) curBytesEl.textContent = '0 B / 0 B';
+    if (curPercentEl) curPercentEl.textContent = '0%';
+  }
+
+  // 4. Job Queue List
+  const queueList = document.getElementById('task-queue-list');
+  if (queueList) {
+    if (list.length === 0) {
+      queueList.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-muted); font-size: 11px;">No active background jobs</div>';
+    } else {
+      queueList.innerHTML = list.map(t => {
+        const pct = t.total_bytes > 0 ? Math.min(100, Math.round((t.bytes_processed / t.total_bytes) * 100)) : (t.status === 'completed' ? 100 : 0);
+        const badgeClass = `task-badge-${t.status || 'running'}`;
+        const isRunning = t.status === 'running';
+        const isPaused = t.status === 'paused';
+
+        return `
+          <div class="task-queue-item">
+            <div class="task-queue-details">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span class="task-queue-name">${escapeHtml(t.name)}</span>
+                <span class="task-queue-badge ${badgeClass}">${escapeHtml(t.status)}</span>
+              </div>
+              <div class="task-queue-sub">${escapeHtml(t.source)} ➔ ${escapeHtml(t.destination)}</div>
+              ${isRunning || isPaused ? `
+                <div style="height: 3px; background: rgba(255,255,255,0.06); border-radius: 2px; margin-top: 3px; overflow: hidden;">
+                  <div style="height: 100%; width: ${pct}%; background: var(--accent);"></div>
+                </div>
+              ` : ''}
             </div>
-            <div style="font-size: 10px; color: var(--text-muted); margin-top: 2px; display: flex; justify-content: space-between;">
-              <span>${percent}% (${formatBytes(t.bytes_processed)} / ${formatBytes(t.total_bytes)})</span>
-              <span>${speedStr}</span>
+            <div style="display: flex; gap: 4px; align-items: center;">
+              ${isRunning ? `
+                <button class="btn btn-sm btn-icon" onclick="pauseTask('${t.id}')" title="Pause"><i data-lucide="pause" style="width: 11px; height: 11px;"></i></button>
+                <button class="btn btn-sm btn-icon btn-danger" onclick="cancelTask('${t.id}')" title="Cancel"><i data-lucide="x" style="width: 11px; height: 11px;"></i></button>
+              ` : (isPaused ? `
+                <button class="btn btn-sm btn-icon" onclick="resumeTask('${t.id}')" title="Resume"><i data-lucide="play" style="width: 11px; height: 11px;"></i></button>
+                <button class="btn btn-sm btn-icon btn-danger" onclick="cancelTask('${t.id}')" title="Cancel"><i data-lucide="x" style="width: 11px; height: 11px;"></i></button>
+              ` : '✓')}
             </div>
-          ` : ''}
-        </td>
-        <td><span style="color:var(--accent); text-transform:uppercase; font-size:10px; font-weight:700;">${escapeHtml(t.action)}</span></td>
-        <td style="font-family:var(--font-mono); font-size:11px;" title="${escapeHtml(t.source)} ➔ ${escapeHtml(t.destination)}">
-          ${escapeHtml(t.source.slice(0, 18))} ➔ ${escapeHtml(t.destination.slice(0, 18))}
-        </td>
-        <td>
-          <span style="color:${t.status === 'completed' ? 'var(--success)' : (t.status === 'running' ? 'var(--accent)' : 'var(--danger)')}; font-weight:600; font-size:11px;">
-            ${t.status.toUpperCase()}
-          </span>
-        </td>
-        <td>
-          ${t.status === 'running' ? `<button class="btn btn-icon btn-danger" onclick="cancelTask('${t.id}')" title="Cancel Task"><i data-lucide="x" style="width:12px;"></i></button>` : '✓'}
-        </td>
-      </tr>
-    `;
-  }).join('');
+          </div>
+        `;
+      }).join('');
+    }
+  }
+
+  // 5. Diagnostic Log Stream
+  const logConsole = document.getElementById('task-log-console');
+  if (logConsole) {
+    const allLogs = [];
+    list.forEach(t => {
+      if (t.log_entries && t.log_entries.length > 0) {
+        allLogs.push(`--- [Job: ${t.name}] ---`);
+        t.log_entries.forEach(l => allLogs.push(l));
+      }
+    });
+
+    if (allLogs.length === 0) {
+      logConsole.textContent = '// CommanderDog Diagnostic Transfer Log...\n// No events logged yet.';
+    } else {
+      const text = allLogs.join('\n');
+      if (logConsole.textContent !== text) {
+        logConsole.textContent = text;
+        const logContainer = document.getElementById('task-log-container');
+        if (logContainer) logContainer.scrollTop = logContainer.scrollHeight;
+      }
+    }
+  }
 
   if (window.lucide) lucide.createIcons();
+}
+
+async function pauseTask(id) {
+  await fetch(`/api/tasks/${id}/pause`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${App.token}` }
+  });
+  pollTasks();
+}
+
+async function resumeTask(id) {
+  await fetch(`/api/tasks/${id}/resume`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${App.token}` }
+  });
+  pollTasks();
 }
 
 async function cancelTask(id) {
@@ -3941,7 +4606,37 @@ async function cancelTask(id) {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${App.token}` }
   });
-  loadTasksTable();
+  pollTasks();
+}
+
+async function pauseAllTasks() {
+  const running = lastKnownTasksList.filter(t => t.status === 'running');
+  for (const t of running) {
+    await pauseTask(t.id);
+  }
+}
+
+async function resumeAllTasks() {
+  const paused = lastKnownTasksList.filter(t => t.status === 'paused');
+  for (const t of paused) {
+    await resumeTask(t.id);
+  }
+}
+
+async function clearCompletedTasks() {
+  await fetch('/api/tasks/clear-completed', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${App.token}` }
+  });
+  pollTasks();
+}
+
+function copyTaskLogs() {
+  const consoleEl = document.getElementById('task-log-console');
+  if (consoleEl && navigator.clipboard) {
+    navigator.clipboard.writeText(consoleEl.textContent);
+    showToast('Transfer diagnostic log copied to clipboard!', 'success');
+  }
 }
 
 // ---------------- RICH IMAGE VIEWER ----------------
@@ -4411,7 +5106,7 @@ function triggerBulkRename() {
     : (pane.entries[pane.cursorIndex] ? [pane.entries[pane.cursorIndex]] : []);
 
   if (bulkRenameFiles.length === 0) {
-    alert('Please select one or more files to rename.');
+    showToast('Please select one or more files to rename.', 'warning');
     return;
   }
 
@@ -4566,10 +5261,11 @@ async function executeBulkRename() {
   });
 
   if (resp.ok) {
+    showToast(`Renamed ${renames.length} file(s)`, 'success');
     closeModal('bulk-rename-modal');
     refreshPane(App.activePaneIndex);
   } else {
-    alert('Batch Rename failed: ' + await resp.text());
+    showToast('Batch Rename failed: ' + await resp.text(), 'error');
   }
 }
 
@@ -4594,7 +5290,7 @@ async function analyzeSync() {
   const verify_checksum = document.getElementById('sync-verify-crc32').checked;
 
   if (!source || !destination) {
-    alert('Please specify source and destination directories');
+    showToast('Please specify source and destination directories', 'warning');
     return;
   }
 
@@ -4632,7 +5328,7 @@ async function executeSync() {
   const dry_run = document.getElementById('sync-dry-run').checked;
 
   if (!source || !destination) {
-    alert('Please specify source and destination directories');
+    showToast('Please specify source and destination directories', 'warning');
     return;
   }
 
@@ -4645,13 +5341,13 @@ async function executeSync() {
   });
 
   if (resp.ok) {
+    showToast('Sync initiated successfully', 'success');
     if (!dry_run) {
       for (let i = 0; i < getVisiblePaneCount(); i++) refreshPane(i);
-      showModal('tasks-modal');
-      loadTasksTable();
+      openFloatingTaskManager();
     }
   } else {
-    alert('Sync error: ' + await resp.text());
+    showToast('Sync error: ' + await resp.text(), 'error');
   }
 }
 
@@ -4790,7 +5486,7 @@ async function runPredefinedAction(command, label) {
 
 function copyActionOutput() {
   const text = document.getElementById('action-output-text').textContent;
-  navigator.clipboard.writeText(text).then(() => alert('Output copied to clipboard!'));
+  navigator.clipboard.writeText(text).then(() => showToast('Output copied to clipboard!', 'success'));
 }
 
 // ---------------- TOUCH & MOBILE GESTURE ENGINE ----------------
@@ -4958,12 +5654,13 @@ async function triggerSyncthingScan(folderId) {
       body: JSON.stringify({ folder_id: folderId || null })
     });
     if (resp.ok) {
+      showToast('Scan initiated', 'success');
       loadSyncthingDashboard();
     } else {
-      alert(`Scan failed: ${await resp.text()}`);
+      showToast(`Scan failed: ${await resp.text()}`, 'error');
     }
   } catch (e) {
-    alert(`Error: ${e}`);
+    showToast(`Error: ${e}`, 'error');
   }
 }
 

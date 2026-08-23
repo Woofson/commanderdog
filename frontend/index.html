@@ -29,7 +29,13 @@
 
     <!-- Right-Aligned Tools & Controls (Desktop & Mobile) -->
     <div class="header-actions header-actions-right">
-      <!-- Layout Switcher -->
+      <!-- 1. Refresh All Button (Most Left in Toolbar) -->
+      <button class="btn btn-icon desktop-only" id="btn-refresh-all" onclick="refreshAllPanes()" title="Refresh All Panels"><i data-lucide="rotate-cw"></i></button>
+
+      <!-- Separator -->
+      <div class="header-sep desktop-only"></div>
+
+      <!-- 2. Layout Switcher -->
       <div class="desktop-only" style="display: flex; gap: 2px; background: var(--bg-dark); padding: 2px; border-radius: 4px; border: 1px solid var(--border);">
         <button class="btn btn-icon" id="layout-1" title="Single Pane (Alt+1)"><i data-lucide="square"></i></button>
         <button class="btn btn-icon" id="layout-2v" title="Dual Vertical Split (Alt+2)"><i data-lucide="columns-2"></i></button>
@@ -38,9 +44,22 @@
         <button class="btn btn-icon" id="layout-4" title="Quad Pane 2x2 (Alt+4)"><i data-lucide="grid-2x2"></i></button>
       </div>
 
-      <!-- Tools Dropdown Menu -->
+      <!-- Separator -->
+      <div class="header-sep desktop-only"></div>
+
+      <!-- 3. Terminal Button -->
+      <button class="btn btn-icon" id="btn-toggle-terminal" onclick="toggleTerminal()" title="Terminal Console (\`)"><i data-lucide="terminal"></i></button>
+
+      <!-- 4. Task-List Header Button (Consistent icon + counter design) -->
+      <button class="btn header-task-btn" id="btn-header-tasks" onclick="toggleFloatingTaskManager()" title="Background Tasks & Transfers (Click to toggle)">
+        <i data-lucide="activity" id="header-task-icon" style="width: 14px; height: 14px;"></i>
+        <span class="header-task-badge" id="header-task-count">0</span>
+        <span class="header-task-speed" id="header-task-speed" style="display: none;">0 B/s</span>
+      </button>
+
+      <!-- 5. Tools Dropdown Menu (Icon with hover text) -->
       <div class="tools-dropdown-wrapper desktop-only">
-        <button class="btn" id="btn-tools-menu" onclick="toggleToolsMenu(event)" title="Tools & Utilities"><i data-lucide="wrench"></i> Tools ▾</button>
+        <button class="btn btn-icon" id="btn-tools-menu" onclick="toggleToolsMenu(event)" title="Tools & Utilities (Diff, Editor, Sync, Syncthing, ConvertX, Search)"><i data-lucide="wrench"></i></button>
         <div class="tools-dropdown-menu" id="tools-dropdown-menu">
           <div class="dropdown-item" onclick="triggerDiff()"><i data-lucide="git-compare"></i> Compare / Diff (F9)</div>
           <div class="dropdown-item" onclick="showModal('editor-modal')"><i data-lucide="code"></i> Dual-Pane Editor (F4)</div>
@@ -48,22 +67,17 @@
           <div class="dropdown-item" onclick="openSyncthingModal()"><i data-lucide="repeat"></i> Syncthing Dashboard</div>
           <div class="dropdown-item" onclick="openConverterModal()"><i data-lucide="file-output"></i> ConvertX Converters</div>
           <div class="dropdown-item" onclick="openSearchModal()"><i data-lucide="search"></i> Deep File Search (Ctrl+F)</div>
-          <div class="dropdown-item" onclick="showModal('tasks-modal'); loadTasksTable();"><i data-lucide="list-checks"></i> Background Tasks Queue</div>
+          <div class="dropdown-item" onclick="openFloatingTaskManager()"><i data-lucide="list-checks"></i> Background Transfers & Queue</div>
           <div class="dropdown-sep"></div>
           <div class="dropdown-item" onclick="toggleParanoidMode()"><i data-lucide="shield-check"></i> Paranoid Mode: <span id="tools-paranoid-badge" style="color:var(--accent); font-weight:bold; margin-left:4px;">ON</span></div>
         </div>
       </div>
 
-      <!-- Dedicated Terminal Button -->
-      <button class="btn" id="btn-toggle-terminal" onclick="toggleTerminal()" title="Toggle Integrated Terminal"><i data-lucide="terminal"></i> Terminal</button>
-      <button class="btn btn-icon desktop-only" id="btn-refresh-all" onclick="refreshAllPanes()" title="Refresh All Panels"><i data-lucide="rotate-cw"></i></button>
-      
-      <!-- User Profile & Admin Menu -->
+      <!-- 6. User Profile & Admin Menu -->
       <div class="profile-dropdown-wrapper">
         <button class="btn profile-btn" id="btn-user-profile" onclick="toggleProfileMenu(event)">
           <div class="profile-avatar-thumb" id="header-avatar-thumb">👤</div>
           <span id="header-username-label">User</span>
-          <span class="user-role-badge" id="header-role-badge">ADMIN</span>
           <i data-lucide="chevron-down" style="width: 12px; margin-left: 2px;"></i>
         </button>
         <div class="profile-dropdown-menu" id="profile-dropdown-menu">
@@ -75,7 +89,7 @@
               <span class="user-role-badge" id="menu-role-badge" style="margin-top: 4px; display: inline-block;">ADMIN</span>
             </div>
           </div>
-          <div class="dropdown-item" id="menu-admin-panel-item" onclick="openAdminPanel()"><i data-lucide="shield-alert" style="color: var(--accent);"></i> 👑 Admin Control Panel</div>
+          <div class="dropdown-item" id="menu-admin-panel-item" onclick="openAdminPanel()"><i data-lucide="shield-alert" style="color: var(--accent);"></i> Admin Control Panel</div>
           <div class="dropdown-item" onclick="openUserProfileModal()"><i data-lucide="user"></i> Edit Profile & Account</div>
           <div class="dropdown-item" onclick="openSettingsModal()"><i data-lucide="settings"></i> User Settings & Themes</div>
           <div class="dropdown-item" onclick="openAboutModal()"><i data-lucide="info"></i> About CommanderDog</div>
@@ -121,7 +135,7 @@
           <button class="mobile-drawer-item" onclick="openSyncthingModal(); closeMobileMenu();"><i data-lucide="repeat"></i> Syncthing Dashboard</button>
           <button class="mobile-drawer-item" onclick="openSearchModal(); closeMobileMenu();"><i data-lucide="search"></i> Deep File Search (Ctrl+F)</button>
           <button class="mobile-drawer-item" onclick="toggleTerminal(); closeMobileMenu();"><i data-lucide="terminal"></i> Slide-Up Terminal (\`)</button>
-          <button class="mobile-drawer-item" onclick="showModal('tasks-modal'); loadTasksTable(); closeMobileMenu();"><i data-lucide="list-checks"></i> Background Tasks Queue</button>
+          <button class="mobile-drawer-item" onclick="openFloatingTaskManager(); closeMobileMenu();"><i data-lucide="list-checks"></i> Background Transfers & Queue</button>
           <button class="mobile-drawer-item" onclick="refreshAllPanes(); closeMobileMenu();"><i data-lucide="rotate-cw"></i> Refresh All Panels</button>
         </div>
       </div>
@@ -155,7 +169,7 @@
 
       <!-- Settings & Logout -->
       <div class="mobile-drawer-section">
-        <button class="mobile-drawer-item" id="mobile-admin-panel-item" onclick="openAdminPanel(); closeMobileMenu();" style="display:none;"><i data-lucide="shield-alert" style="color:var(--accent);"></i> 👑 Admin Control Panel</button>
+        <button class="mobile-drawer-item" id="mobile-admin-panel-item" onclick="openAdminPanel(); closeMobileMenu();" style="display:none;"><i data-lucide="shield-alert" style="color:var(--accent);"></i> Admin Control Panel</button>
         <button class="mobile-drawer-item" onclick="openSettingsModal(); closeMobileMenu();"><i data-lucide="settings"></i> User Settings & Themes (F10)</button>
         <button class="mobile-drawer-item" onclick="openAboutModal(); closeMobileMenu();"><i data-lucide="info"></i> About CommanderDog</button>
         <button class="mobile-drawer-item" style="color: var(--danger);" onclick="logout(); closeMobileMenu();"><i data-lucide="log-out"></i> Log Out</button>
@@ -357,6 +371,7 @@
               <label style="font-weight: normal;"><input type="checkbox" id="setting-remember-paths" checked> Remember last opened directories across sessions</label>
               <label style="font-weight: normal;"><input type="checkbox" id="setting-dblclick-up" checked> <b>Double-Click Navigation:</b> Double-click in empty panel space jumps up to parent directory</label>
               <label style="font-weight: normal;"><input type="checkbox" id="setting-show-parent-dir" checked> <b>Parent Directory ("..") Row:</b> Show ".." parent entry at the top of file tables</label>
+              <label style="font-weight: normal;"><input type="checkbox" id="setting-auto-open-tasks" checked> <b>Floating Transfer Window:</b> Automatically open floating transfer manager (TeraCopy style) on background jobs</label>
             </div>
           </div>
 
@@ -495,7 +510,7 @@
     <div class="modal-box" style="width: 88vw; max-width: 1100px; height: 85vh;">
       <div class="modal-header">
         <div style="display: flex; align-items: center; gap: 8px;">
-          <span style="font-weight: 700; color: var(--accent); font-size: 14px;">👑 Administrator Control Panel</span>
+          <span style="font-weight: 700; color: var(--accent); font-size: 14px;">Administrator Control Panel</span>
           <span class="user-role-badge">GLOBAL SERVER CONFIG</span>
         </div>
         <button class="btn" onclick="closeModal('admin-panel-modal')"><i data-lucide="x"></i></button>
@@ -660,11 +675,25 @@
       </div>
       <div class="modal-body">
         <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 16px; background: var(--bg-header); padding: 12px; border-radius: var(--radius);">
-          <div class="profile-avatar-large" id="profile-edit-avatar">👤</div>
-          <div>
-            <div style="font-weight: 700; font-size: 15px;" id="profile-edit-username">User</div>
-            <div style="font-size: 12px; color: var(--text-dim);" id="profile-edit-auth-type">PAM / Local Linux Account</div>
-            <span class="user-role-badge" id="profile-edit-role-badge" style="margin-top: 4px; display: inline-block;">ADMIN</span>
+          <div style="position: relative; display: inline-block;">
+            <div class="profile-avatar-large" id="profile-edit-avatar" onclick="document.getElementById('profile-avatar-file-input').click()" title="Click to upload profile photo" style="cursor: pointer;">👤</div>
+            <button type="button" class="btn btn-sm btn-icon" onclick="document.getElementById('profile-avatar-file-input').click()" title="Upload Photo" style="position: absolute; bottom: -3px; right: -3px; border-radius: 50%; width: 22px; height: 22px; background: var(--accent); color: #000; border: none; padding: 0; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 5px rgba(0,0,0,0.5); cursor: pointer;">
+              <i data-lucide="camera" style="width: 12px; height: 12px;"></i>
+            </button>
+          </div>
+          <input type="file" id="profile-avatar-file-input" accept="image/png,image/jpeg,image/webp,image/gif" style="display: none;" onchange="handleAvatarFileUpload(event)">
+          <div style="flex: 1;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+              <div>
+                <div style="font-weight: 700; font-size: 15px;" id="profile-edit-username">User</div>
+                <div style="font-size: 11px; color: var(--text-dim);" id="profile-edit-auth-type">PAM / Local Linux Account</div>
+              </div>
+              <span class="user-role-badge" id="profile-edit-role-badge">ADMIN</span>
+            </div>
+            <div style="display: flex; gap: 6px; margin-top: 8px;">
+              <button type="button" class="btn btn-sm" onclick="document.getElementById('profile-avatar-file-input').click()"><i data-lucide="upload" style="width: 12px;"></i> Upload Photo</button>
+              <button type="button" class="btn btn-sm" onclick="resetAvatarToDefault()"><i data-lucide="rotate-ccw" style="width: 12px;"></i> Reset</button>
+            </div>
           </div>
         </div>
 
@@ -679,8 +708,8 @@
         </div>
 
         <div class="form-group">
-          <label>Avatar Emoji / URL:</label>
-          <input type="text" id="profile-input-avatar" class="pane-quick-filter" style="width: 100%; padding: 8px;" placeholder="e.g. 🐕 or https://example.com/avatar.png">
+          <label>Avatar Emoji / URL / Image Data:</label>
+          <input type="text" id="profile-input-avatar" class="pane-quick-filter" style="width: 100%; padding: 8px;" placeholder="e.g. 🐕 or https://example.com/avatar.png" oninput="renderAvatarElement(document.getElementById('profile-edit-avatar'), this.value)">
         </div>
 
         <div class="form-group" id="profile-password-section">
@@ -1570,7 +1599,7 @@
           <div style="display: flex; align-items: center; justify-content: space-between;">
             <label style="display: flex; align-items: center; gap: 8px; font-weight: 700; color: var(--accent); margin: 0; cursor: pointer;">
               <input type="checkbox" id="remote-is-global-mount" onchange="toggleRemoteGlobalMountUI(this.checked)">
-              <span>👑 Save as Global Network Mount for Users</span>
+              <span>Save as Global Network Mount for Users</span>
             </label>
           </div>
           <div id="remote-global-mount-options" style="display: none; margin-top: 10px;">
@@ -1619,28 +1648,7 @@
     <div class="terminal-body" id="terminal-output" tabindex="0"></div>
   </div>
 
-  <!-- Background Tasks & Transfers Modal -->
-  <div class="modal-overlay" id="tasks-modal">
-    <div class="modal-box" style="width: 650px; max-height: 80vh;">
-      <div class="modal-header">
-        <span>📋 Background Transfers & Task Queue</span>
-        <button class="btn" onclick="closeModal('tasks-modal')"><i data-lucide="x"></i></button>
-      </div>
-      <div class="modal-body">
-        <table class="file-table">
-          <thead>
-            <tr><th>Task</th><th>Action</th><th>Source ➔ Dest</th><th>Status</th><th>Control</th></tr>
-          </thead>
-          <tbody id="tasks-table-body">
-            <tr><td colspan="5" style="text-align: center; color: var(--text-muted);">No active background transfers</td></tr>
-          </tbody>
-        </table>
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-accent" onclick="closeModal('tasks-modal')">Close</button>
-      </div>
-    </div>
-  </div>
+
 
   <!-- About CommanderDog Modal -->
   <div class="modal-overlay" id="about-modal">
@@ -1659,7 +1667,7 @@
           <div style="font-size: 18px; font-weight: 800; color: var(--accent); letter-spacing: 0.5px;">CommanderDog</div>
           <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 10px;">High-Performance Multi-Pane Web File Commander</div>
           <div style="display: flex; justify-content: center; gap: 6px; flex-wrap: wrap;">
-            <span class="badge" style="background: rgba(245, 158, 11, 0.2); color: var(--accent); border: 1px solid rgba(245, 158, 11, 0.4); font-weight: 700;">v0.2.1 (Release)</span>
+            <span class="badge" style="background: rgba(245, 158, 11, 0.2); color: var(--accent); border: 1px solid rgba(245, 158, 11, 0.4); font-weight: 700;">v0.2.2 (Release)</span>
             <span class="badge" style="background: rgba(56, 189, 248, 0.15); color: var(--info); border: 1px solid rgba(56, 189, 248, 0.3);">Rust + Axum + Tokio</span>
             <span class="badge" style="background: rgba(34, 197, 94, 0.15); color: var(--success); border: 1px solid rgba(34, 197, 94, 0.3);">MIT Open Source</span>
           </div>
@@ -1841,11 +1849,125 @@
     </div>
   </div>
 
-  <!-- Floating Tasks Status Pill -->
-  <div class="tasks-pill" id="tasks-pill" onclick="showModal('tasks-modal')">
-    <i data-lucide="loader-2" class="animate-spin" style="width: 14px; height: 14px;"></i>
-    <span id="tasks-pill-text">1 Transfer in progress...</span>
+  <!-- TeraCopy-Style Floating Transfer Manager Window -->
+  <div id="floating-task-manager" class="floating-task-window">
+    <!-- Drag-Resize Handle -->
+    <div class="task-win-resize-handle" id="task-win-resize-handle" title="Drag up/down to resize height">
+      <div class="resize-handle-bar"></div>
+    </div>
+    <div class="task-win-header" id="task-win-header">
+      <div class="task-win-title">
+        <span class="task-status-indicator" id="task-status-indicator"></span>
+        <span id="task-header-title">⚡ Transfers (0 active)</span>
+        <span class="task-speed-badge" id="task-speed-badge">0 B/s</span>
+      </div>
+      <div class="task-win-controls">
+        <select id="task-verbosity-selector" class="task-verbosity-select" onchange="setTaskVerbosity(this.value)" title="Display Detail Level">
+          <option value="detailed">TeraCopy Detailed</option>
+          <option value="compact">Compact</option>
+          <option value="log">Diagnostic Log</option>
+        </select>
+        <button class="btn-task-control" onclick="minimizeFloatingTaskManager()" title="Minimize to Pill"><i data-lucide="minus"></i></button>
+        <button class="btn-task-control" onclick="maximizeFloatingTaskManager()" title="Expand / Restore"><i data-lucide="maximize-2"></i></button>
+        <button class="btn-task-control btn-task-close" onclick="closeFloatingTaskManager()" title="Hide Transfer Window"><i data-lucide="x"></i></button>
+      </div>
+    </div>
+
+    <!-- Overall Batch Progress Bar (Always visible in Detailed & Compact) -->
+    <div class="task-batch-summary" id="task-batch-summary">
+      <div class="task-progress-meta">
+        <span id="task-batch-files-text">0 / 0 files</span>
+        <span id="task-batch-percent-text">0%</span>
+        <span id="task-batch-bytes-text">0 B / 0 B</span>
+        <span id="task-batch-eta-text" style="color: var(--accent); font-weight: 700;">ETA: --:--</span>
+      </div>
+      <div class="task-progress-bar-track">
+        <div class="task-progress-bar-fill" id="task-batch-progress-fill" style="width: 0%;"></div>
+      </div>
+    </div>
+
+    <!-- Active File Progress Bar (TeraCopy Single-File stream) -->
+    <div class="task-active-file-card" id="task-active-file-card">
+      <div class="task-file-info">
+        <div style="display: flex; align-items: center; gap: 6px; overflow: hidden;">
+          <i data-lucide="file-text" style="width: 14px; height: 14px; color: var(--accent); flex-shrink: 0;"></i>
+          <span class="task-cur-filename" id="task-cur-filename">Idle (No active file)</span>
+        </div>
+        <span class="task-cur-speed" id="task-cur-speed">0 B/s</span>
+      </div>
+      <div class="task-progress-bar-track task-file-track">
+        <div class="task-progress-bar-fill task-file-fill" id="task-file-progress-fill" style="width: 0%;"></div>
+      </div>
+      <div class="task-file-stats" id="task-file-stats">
+        <span id="task-cur-bytes">0 B / 0 B</span>
+        <span id="task-cur-percent">0%</span>
+      </div>
+    </div>
+
+    <!-- Job Queue Table (Detailed View) -->
+    <div class="task-queue-container" id="task-queue-container">
+      <div class="task-queue-list" id="task-queue-list">
+        <!-- Rendered dynamically -->
+      </div>
+    </div>
+
+    <!-- Diagnostic Stream / Verbose Log (Log View) -->
+    <div class="task-log-container" id="task-log-container" style="display: none;">
+      <pre class="task-log-console" id="task-log-console">// CommanderDog Transfer Diagnostic Stream...</pre>
+    </div>
+
+    <!-- Action Toolbar Footer -->
+    <div class="task-win-footer" id="task-win-footer">
+      <div class="task-footer-left">
+        <button class="btn btn-sm" onclick="pauseAllTasks()" title="Pause All Transfers"><i data-lucide="pause" style="width: 12px;"></i> Pause All</button>
+        <button class="btn btn-sm" onclick="resumeAllTasks()" title="Resume All Transfers"><i data-lucide="play" style="width: 12px;"></i> Resume All</button>
+        <button class="btn btn-sm" onclick="clearCompletedTasks()" title="Clear Finished Jobs"><i data-lucide="trash" style="width: 12px;"></i> Clear Completed</button>
+      </div>
+      <div class="task-footer-right">
+        <button class="btn btn-sm" onclick="copyTaskLogs()" title="Copy Diagnostics"><i data-lucide="clipboard" style="width: 12px;"></i> Copy Log</button>
+      </div>
+    </div>
   </div>
+
+  <!-- Sleek Floating Minimized Pill Widget -->
+  <div class="tasks-pill" id="tasks-pill" onclick="restoreFloatingTaskManager()" title="Click to open Transfer Manager">
+    <div class="tasks-pill-pulse" id="tasks-pill-pulse"></div>
+    <i data-lucide="activity" style="width: 14px; height: 14px; color: var(--accent);"></i>
+    <span id="tasks-pill-text">0 Transfers</span>
+    <span class="tasks-pill-speed" id="tasks-pill-speed">0 B/s</span>
+  </div>
+
+  <!-- Universal Custom Confirm / Alert / Prompt Dialog Modal -->
+  <div class="modal-overlay" id="app-dialog-modal" style="z-index: 2100;">
+    <div class="modal-box dialog-box" id="app-dialog-box" style="width: 440px; max-width: calc(100vw - 32px);">
+      <div class="dialog-header">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div class="dialog-icon-wrapper" id="dialog-icon-wrapper">
+            <i data-lucide="help-circle" id="dialog-icon" style="width: 20px; height: 20px;"></i>
+          </div>
+          <div>
+            <div class="dialog-title" id="dialog-title">Confirmation</div>
+            <div class="dialog-subtitle" id="dialog-subtitle">Please confirm your action</div>
+          </div>
+        </div>
+        <button class="btn btn-icon" onclick="closeAppDialog(false)"><i data-lucide="x"></i></button>
+      </div>
+      <div class="dialog-body" id="dialog-body">
+        <div class="dialog-message" id="dialog-message">Are you sure you want to proceed?</div>
+        <div class="dialog-items-preview" id="dialog-items-preview" style="display: none;"></div>
+        <div class="dialog-input-group" id="dialog-input-group" style="display: none; margin-top: 12px;">
+          <input type="text" class="input dialog-input" id="dialog-input-field" placeholder="" style="width: 100%; box-sizing: border-box;">
+        </div>
+      </div>
+      <div class="dialog-footer" id="dialog-footer">
+        <button class="btn" id="dialog-btn-cancel" onclick="closeAppDialog(false)">Cancel</button>
+        <button class="btn btn-accent" id="dialog-btn-confirm" onclick="closeAppDialog(true)">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="toast-container"></div>
 
   <script src="app.js"></script>
 </body>

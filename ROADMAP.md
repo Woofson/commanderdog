@@ -56,6 +56,15 @@
 
 ---
 
+### 🎨 Themed Dialogs, Floating Task Manager & User Avatars (v0.2.2)
+- [x] **Custom Themed Dialog & Toast Engine**: Replaced all native browser `confirm()`, `alert()`, and `prompt()` dialogs with dark commander modals, item previews, copyable checksum dialogs, and non-blocking toast notifications.
+- [x] **Interactive Drag-Resize Floating Task Manager**: Top-level floating transfer window with resizable height handle, persistent height state, verbosity toggle, and speed charts.
+- [x] **Standardized Header Action Bar**: Clean icon-based toolbar layout `[Refresh All] | [Views] | [Terminal] [Tasks Activity] [Tools] [User Profile]` with inward right-aligned dropdown positioning.
+- [x] **User Profile Photo Upload**: Direct avatar image upload with automatic client-side crop and resize to compact WebP, persistent database storage, and universal rendering across header, dropdown, and admin tables.
+- [x] **Mobile-Optimized Down-Up Workflow**: Pull-to-refresh folder gesture, browser back button capture for parent navigation, and optional `..` parent entry toggle in user settings.
+
+---
+
 ## 📋 Upcoming Backlog (v0.3.0 & Future Milestones)
 
 ### 🔑 1. OAuth2 / OpenID Connect (OIDC) Single Sign-On (SSO)
