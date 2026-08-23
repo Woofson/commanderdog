@@ -181,20 +181,18 @@ impl AuthManager {
         if self.auth_mode == "pam" || self.auth_mode == "mixed" {
             #[cfg(feature = "pam")]
             {
-                let mut auth = pam_auth::Authenticator::with_password(&self.pam_service)
-                    .map_err(|e| format!("PAM init failed: {}", e))?;
-                auth.set_credentials(username, password);
-                if auth.authenticate().is_ok() {
-                    let home = dirs::home_dir()
-                        .map(|p| p.to_string_lossy().to_string())
-                        .unwrap_or_else(|| format!("/home/{}", username));
-                    return Ok(User {
-                        id: 0,
-                        username: username.to_string(),
-                        role: if username == "root" { "admin".to_string() } else { "user".to_string() },
-                        home_dir: home,
-                        is_pam: true,
-                    });
+                if let Some(mut auth) = pam_auth::Authenticator::new(&self.pam_service) {
+                    auth.set_credentials(username, password);
+                    if auth.authenticate().is_ok() {
+                        let (home_dir, role) = get_linux_user_info(username);
+                        return Ok(User {
+                            id: 0,
+                            username: username.to_string(),
+                            role,
+                            home_dir,
+                            is_pam: true,
+                        });
+                    }
                 }
             }
         }
@@ -234,4 +232,37 @@ impl AuthManager {
 
         Ok(token_data.claims)
     }
+}
+
+pub fn get_linux_user_info(username: &str) -> (String, String) {
+    let mut home_dir = format!("/home/{}", username);
+    let mut is_admin = username == "root";
+
+    if let Ok(passwd) = std::fs::read_to_string("/etc/passwd") {
+        for line in passwd.lines() {
+            let parts: Vec<&str> = line.split(':').collect();
+            if parts.len() >= 6 && parts[0] == username {
+                home_dir = parts[5].to_string();
+                break;
+            }
+        }
+    }
+
+    if let Ok(group) = std::fs::read_to_string("/etc/group") {
+        for line in group.lines() {
+            let parts: Vec<&str> = line.split(':').collect();
+            if parts.len() >= 4 {
+                let grp_name = parts[0];
+                let members: Vec<&str> = parts[3].split(',').map(|s| s.trim()).collect();
+                if (grp_name == "sudo" || grp_name == "wheel" || grp_name == "admin" || grp_name == "root")
+                    && (members.contains(&username) || grp_name == username)
+                {
+                    is_admin = true;
+                }
+            }
+        }
+    }
+
+    let role = if is_admin { "admin".to_string() } else { "user".to_string() };
+    (home_dir, role)
 }

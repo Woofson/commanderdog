@@ -15,8 +15,13 @@ echo "🐕 Building CommanderDog Release Packages (v${VERSION})..."
 echo "======================================================"
 
 # 1. Compile Release Binary
-echo "🔨 Compiling standalone release binary..."
-cargo build --release
+echo "🔨 Compiling standalone release binary with PAM support..."
+mkdir -p target/libs
+if [ -f "/usr/lib/x86_64-linux-gnu/libpam.so.0" ]; then
+    ln -sf /usr/lib/x86_64-linux-gnu/libpam.so.0 target/libs/libpam.so
+    ln -sf /usr/lib/x86_64-linux-gnu/libpam_misc.so.0 target/libs/libpam_misc.so
+fi
+cargo build --release --features pam
 
 mkdir -p "${DIST_DIR}"
 

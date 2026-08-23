@@ -46,7 +46,7 @@ pam-auth = { version = "0.5", optional = true }
 regex = "1.11"
 
 [features]
-default = []
+default = ["pam"]
 pam = ["dep:pam-auth"]
 
 [package.metadata.deb]
