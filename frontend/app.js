@@ -184,11 +184,7 @@ function createPaneElement(pane, index) {
       <table class="file-table">
         <thead>
           <tr>
-            <th style="width: 52px; text-align: center;" onclick="event.stopPropagation(); toggleSelectAll(${index})" title="Select All">
-              <div class="custom-checkbox" id="select-all-${index}">
-                <i data-lucide="check"></i>
-              </div>
-            </th>
+            <th style="width: 28px; text-align: center;"></th>
             <th onclick="sortPane(${index}, 'name')">Name</th>
             <th style="width: 75px;" onclick="sortPane(${index}, 'size')">Size</th>
             <th style="width: 125px;" onclick="sortPane(${index}, 'modified')">Modified</th>
@@ -334,16 +330,6 @@ function renderPaneTable(paneIndex) {
     return pane.sortAsc ? cmp : -cmp;
   });
 
-  // Update Header Select All Checkbox state
-  const selectAllEl = document.getElementById(`select-all-${paneIndex}`);
-  if (selectAllEl) {
-    if (filtered.length > 0 && pane.selected.size === filtered.length) {
-      selectAllEl.classList.add('checked');
-    } else {
-      selectAllEl.classList.remove('checked');
-    }
-  }
-
   filtered.forEach((entry, idx) => {
     const isSelected = pane.selected.has(entry.path);
     const tr = document.createElement('tr');
@@ -357,73 +343,102 @@ function renderPaneTable(paneIndex) {
       }));
     };
 
-    let touchTimer = null;
     let touchStartX = 0;
     let touchStartY = 0;
+    let touchStartTime = 0;
+    let isScrolling = false;
     let isLongPress = false;
+    let touchTimer = null;
 
-    // Standard Android tap-and-hold for multi-select
+    // Standard Android tap-and-hold (long-press 400ms) for multi-select
     tr.ontouchstart = (e) => {
+      if (!e.touches || e.touches.length === 0) return;
       touchStartX = e.touches[0].clientX;
       touchStartY = e.touches[0].clientY;
+      touchStartTime = Date.now();
+      isScrolling = false;
       isLongPress = false;
+
       touchTimer = setTimeout(() => {
+        if (isScrolling) return;
         isLongPress = true;
         setActivePane(paneIndex);
         App.contextItem = entry;
         App.contextPaneIndex = paneIndex;
-        // Select held item
-        if (!pane.selected.has(entry.path)) {
-          pane.selected.add(entry.path);
-          renderPaneTable(paneIndex);
-        }
-        updateTouchActionBar();
-        if (navigator.vibrate) navigator.vibrate(40);
-      }, 350);
-    };
 
-    tr.ontouchend = () => {
-      if (touchTimer) clearTimeout(touchTimer);
+        // Toggle selection on tap-and-hold
+        if (pane.selected.has(entry.path)) {
+          pane.selected.delete(entry.path);
+        } else {
+          pane.selected.add(entry.path);
+        }
+        renderPaneTable(paneIndex);
+        updateMobileBottomBar();
+
+        if (navigator.vibrate) navigator.vibrate(50);
+      }, 400);
     };
 
     tr.ontouchmove = (e) => {
+      if (!e.touches || e.touches.length === 0) return;
       const dx = Math.abs(e.touches[0].clientX - touchStartX);
       const dy = Math.abs(e.touches[0].clientY - touchStartY);
-      if (dx > 10 || dy > 10) {
-        if (touchTimer) clearTimeout(touchTimer);
+      if (dx > 8 || dy > 8) {
+        isScrolling = true;
+        if (touchTimer) {
+          clearTimeout(touchTimer);
+          touchTimer = null;
+        }
+      }
+    };
+
+    tr.ontouchend = (e) => {
+      if (touchTimer) {
+        clearTimeout(touchTimer);
+        touchTimer = null;
+      }
+
+      if (isLongPress) {
+        e.preventDefault();
+        return;
+      }
+
+      if (isScrolling) return;
+
+      const pressDuration = Date.now() - touchStartTime;
+      // Valid touch tap (<400ms without scrolling)
+      if (pressDuration < 400) {
+        e.preventDefault();
+        setActivePane(paneIndex);
+
+        // If in Multi-Select Mode (1 or more items selected):
+        if (pane.selected.size > 0) {
+          if (pane.selected.has(entry.path)) {
+            pane.selected.delete(entry.path);
+          } else {
+            pane.selected.add(entry.path);
+          }
+          renderPaneTable(paneIndex);
+          updateMobileBottomBar();
+          return;
+        }
+
+        // Normal browsing mode: Single tap opens folder / file
+        if (entry.is_dir || entry.is_archive) {
+          loadPaneDirectory(paneIndex, entry.path);
+        } else if (isImageExtension(entry.name)) {
+          openImageViewer(entry.path);
+        } else {
+          openEditorWithFile(entry.path);
+        }
       }
     };
 
     tr.onclick = (e) => {
-      if (isLongPress) return;
-      setActivePane(paneIndex);
-
-      if (e.target.closest('.file-cell-select') || e.target.closest('.custom-checkbox')) {
-        toggleRowSelect(paneIndex, entry.path, idx);
-        return;
-      }
-
       const isTouch = window.innerWidth <= 768 || window.matchMedia('(pointer: coarse)').matches;
+      if (isTouch) return; // Touch handled by touchend
 
-      if (isTouch) {
-        if (pane.selected.size > 0) {
-          // If in multi-select mode, tapping any row toggles selection
-          toggleRowSelect(paneIndex, entry.path, idx);
-          return;
-        } else {
-          // Single tap opens folder / file immediately on touch
-          if (entry.is_dir || entry.is_archive) {
-            loadPaneDirectory(paneIndex, entry.path);
-          } else if (isImageExtension(entry.name)) {
-            openImageViewer(entry.path);
-          } else {
-            openEditorWithFile(entry.path);
-          }
-          return;
-        }
-      }
-
-      // Desktop click
+      setActivePane(paneIndex);
       if (e.shiftKey || e.ctrlKey) {
         if (pane.selected.has(entry.path)) pane.selected.delete(entry.path);
         else pane.selected.add(entry.path);
@@ -433,7 +448,7 @@ function renderPaneTable(paneIndex) {
       }
       pane.cursorIndex = idx;
       renderPaneTable(paneIndex);
-      updateTouchActionBar();
+      updateMobileBottomBar();
     };
 
     tr.ondblclick = () => {
@@ -457,16 +472,15 @@ function renderPaneTable(paneIndex) {
     const iconName = entry.is_dir ? 'folder' : (entry.is_archive ? 'file-archive' : 'file-text');
 
     tr.innerHTML = `
-      <td class="file-cell file-cell-select" onclick="event.stopPropagation(); toggleRowSelect(${paneIndex}, '${escapeHtml(entry.path)}', ${idx})">
-        <div class="custom-checkbox ${isSelected ? 'checked' : ''}">
-          <i data-lucide="check"></i>
+      <td class="file-cell file-cell-icon">
+        <div class="row-icon-wrapper ${isSelected ? 'selected' : ''}">
+          <i data-lucide="${isSelected ? 'check' : iconName}" class="file-icon ${isSelected ? 'check-icon' : iconType}" style="width: 15px; height: 15px;"></i>
         </div>
-        <i data-lucide="${iconName}" class="file-icon ${iconType}" style="width: 15px; height: 15px; margin-left: 2px;"></i>
       </td>
       <td class="file-cell file-cell-name">
-        <span>${entry.name}</span>
+        <span class="file-name-text">${escapeHtml(entry.name)}</span>
       </td>
-      <td class="file-cell file-cell-mono">${entry.is_dir ? '<DIR>' : formatBytes(entry.size)}</td>
+      <td class="file-cell file-cell-mono file-cell-size">${entry.is_dir ? '<DIR>' : formatBytes(entry.size)}</td>
       <td class="file-cell file-cell-mono">${formatDate(entry.modified)}</td>
       <td class="file-cell file-cell-mono" title="${entry.permissions}">${entry.mode_octal || entry.permissions}</td>
       <td class="file-cell file-cell-mono">${entry.owner}:${entry.group}</td>
@@ -476,7 +490,7 @@ function renderPaneTable(paneIndex) {
   });
 
   if (window.lucide) lucide.createIcons();
-  updateTouchActionBar();
+  updateMobileBottomBar();
 }
 
 function updatePaneFooter(paneIndex, data) {
@@ -3151,19 +3165,40 @@ function logout() {
   location.reload();
 }
 
-function updateTouchActionBar() {
-  const bar = document.getElementById('touch-action-bar');
-  const countEl = document.getElementById('touch-selected-count');
-  if (!bar) return;
-
+function updateMobileBottomBar() {
   const pane = App.panes[App.activePaneIndex];
   const count = pane ? pane.selected.size : 0;
+  
+  const copyBtn = document.getElementById('mob-btn-copy');
+  const moveBtn = document.getElementById('mob-btn-move');
+  const delBtn = document.getElementById('mob-btn-delete');
+  const actLabel = document.getElementById('mob-actions-label');
+  const actBtn = document.getElementById('mob-btn-actions');
 
-  if (count > 0 && window.innerWidth <= 768) {
-    bar.classList.add('active');
-    if (countEl) countEl.textContent = `${count} selected`;
-  } else {
-    bar.classList.remove('active');
+  if (copyBtn) {
+    const span = copyBtn.querySelector('span');
+    if (span) span.textContent = count > 0 ? `Copy (${count})` : 'Copy';
+    if (count > 0) copyBtn.classList.add('has-selection');
+    else copyBtn.classList.remove('has-selection');
+  }
+  if (moveBtn) {
+    const span = moveBtn.querySelector('span');
+    if (span) span.textContent = count > 0 ? `Move (${count})` : 'Move';
+    if (count > 0) moveBtn.classList.add('has-selection');
+    else moveBtn.classList.remove('has-selection');
+  }
+  if (delBtn) {
+    const span = delBtn.querySelector('span');
+    if (span) span.textContent = count > 0 ? `Delete (${count})` : 'Delete';
+    if (count > 0) delBtn.classList.add('has-selection');
+    else delBtn.classList.remove('has-selection');
+  }
+  if (actLabel) {
+    actLabel.textContent = count > 0 ? `Actions (${count})` : 'Actions';
+  }
+  if (actBtn) {
+    if (count > 0) actBtn.classList.add('has-selection');
+    else actBtn.classList.remove('has-selection');
   }
 }
 
@@ -3176,6 +3211,7 @@ function toggleRowSelect(paneIndex, path, idx) {
   }
   pane.cursorIndex = idx;
   renderPaneTable(paneIndex);
+  updateMobileBottomBar();
 }
 
 function toggleSelectAll(paneIndex) {
@@ -3186,6 +3222,7 @@ function toggleSelectAll(paneIndex) {
     pane.entries.forEach(e => pane.selected.add(e.path));
   }
   renderPaneTable(paneIndex);
+  updateMobileBottomBar();
 }
 
 function clearActiveSelections() {
@@ -3194,6 +3231,7 @@ function clearActiveSelections() {
     pane.selected.clear();
     renderPaneTable(App.activePaneIndex);
   }
+  updateMobileBottomBar();
 }
 
 

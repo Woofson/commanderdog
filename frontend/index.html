@@ -141,20 +141,6 @@
     </div>
   </aside>
 
-  <!-- Floating Touch Multi-Select Action Bar -->
-  <div id="touch-action-bar" class="touch-action-bar">
-    <div class="touch-action-left">
-      <button class="btn btn-sm btn-icon" onclick="clearActiveSelections()" title="Close Selection Mode"><i data-lucide="x"></i></button>
-      <span class="touch-action-count" id="touch-selected-count">0 selected</span>
-    </div>
-    <div class="touch-action-btns">
-      <button class="btn btn-sm btn-accent" onclick="triggerCopy()"><i data-lucide="copy"></i> Copy</button>
-      <button class="btn btn-sm" onclick="triggerMove()"><i data-lucide="move"></i> Move</button>
-      <button class="btn btn-sm btn-danger btn-icon" onclick="triggerDelete()" title="Delete"><i data-lucide="trash-2"></i></button>
-      <button class="btn btn-sm" onclick="showTouchActionsMenu(event)"><i data-lucide="more-vertical"></i> Actions</button>
-    </div>
-  </div>
-
   <!-- Main Multi-Pane Workspace -->
   <main class="main-workspace">
     <div class="panes-container layout-dual-vertical" id="panes-grid">
@@ -162,7 +148,7 @@
     </div>
   </main>
 
-  <!-- Bottom Function Key Bar (Midnight Commander Style) -->
+  <!-- Desktop Midnight Commander Bottom F-Key Bar -->
   <footer class="bottom-fkey-bar">
     <button class="fkey-btn" onclick="openHelpModal()"><span class="fkey-num">F1</span> Help</button>
     <button class="fkey-btn" onclick="triggerRename()"><span class="fkey-num">F2</span> Rename</button>
@@ -174,6 +160,30 @@
     <button class="fkey-btn" onclick="triggerDelete()"><span class="fkey-num">F8</span> Delete</button>
     <button class="fkey-btn" onclick="triggerDiff()"><span class="fkey-num">F9</span> Diff</button>
     <button class="fkey-btn" onclick="openSettingsModal()"><span class="fkey-num">F10</span> Settings</button>
+  </footer>
+
+  <!-- Static Mobile Bottom Command Bar (Total Commander Style) -->
+  <footer class="mobile-bottom-bar" id="mobile-bottom-bar">
+    <button class="mob-cmd-btn" id="mob-btn-copy" onclick="triggerCopy()">
+      <i data-lucide="copy"></i>
+      <span>Copy</span>
+    </button>
+    <button class="mob-cmd-btn" id="mob-btn-move" onclick="triggerMove()">
+      <i data-lucide="move"></i>
+      <span>Move</span>
+    </button>
+    <button class="mob-cmd-btn" id="mob-btn-delete" onclick="triggerDelete()">
+      <i data-lucide="trash-2"></i>
+      <span>Delete</span>
+    </button>
+    <button class="mob-cmd-btn" id="mob-btn-mkdir" onclick="triggerMkdir()">
+      <i data-lucide="folder-plus"></i>
+      <span>New</span>
+    </button>
+    <button class="mob-cmd-btn mob-cmd-accent" id="mob-btn-actions" onclick="showTouchActionsMenu(event)">
+      <i data-lucide="zap"></i>
+      <span id="mob-actions-label">Actions</span>
+    </button>
   </footer>
 
   <!-- Right Click Context Menu -->

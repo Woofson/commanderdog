@@ -1130,98 +1130,106 @@ body {
   border-color: var(--accent);
 }
 
-/* Custom Styled Circular Checkboxes (Material / One UI style) */
-.custom-checkbox {
-  width: 20px;
-  height: 20px;
-  min-width: 20px;
-  min-height: 20px;
-  border-radius: 50%;
-  border: 2px solid var(--border);
-  background: var(--bg-dark);
+/* Row Icon & Checkmark Badge (Clean Android Total Commander style) */
+.file-cell-icon {
+  width: 28px !important;
+  min-width: 28px !important;
+  max-width: 28px !important;
+  padding: 0 4px !important;
+  text-align: center;
+}
+
+.row-icon-wrapper {
+  width: 24px;
+  height: 24px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
-  transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
-  flex-shrink: 0;
-  box-sizing: border-box;
+  border-radius: 50%;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  margin: 0 auto;
 }
 
-.custom-checkbox:hover {
-  border-color: var(--accent);
-}
-
-.custom-checkbox.checked {
+.row-icon-wrapper.selected {
   background: var(--accent);
-  border-color: var(--accent);
-  box-shadow: 0 0 8px rgba(245, 158, 11, 0.4);
+  color: #121214 !important;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.5);
   transform: scale(1.05);
 }
 
-.custom-checkbox svg, .custom-checkbox i {
-  width: 12px;
-  height: 12px;
-  color: #121214;
-  stroke-width: 3.5;
-  display: none;
+.row-icon-wrapper.selected .file-icon,
+.row-icon-wrapper.selected svg {
+  color: #121214 !important;
+  stroke: #121214 !important;
+  stroke-width: 3.5 !important;
 }
 
-.custom-checkbox.checked svg, .custom-checkbox.checked i {
+.file-cell-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.file-name-text {
   display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.file-cell-select {
-  cursor: pointer;
-  padding: 0 6px !important;
-  width: 52px !important;
-  min-width: 52px !important;
-  text-align: center;
+/* Static Mobile Bottom Command Bar (Total Commander Style) */
+.mobile-bottom-bar {
+  display: none;
+  height: 48px;
+  background: var(--bg-header);
+  border-top: 1px solid var(--border);
+  padding: 0 4px;
+  align-items: center;
+  justify-content: space-around;
+  flex-shrink: 0;
+  z-index: 100;
+}
+
+.mob-cmd-btn {
+  flex: 1;
+  max-width: 75px;
+  height: 42px;
+  background: transparent;
+  border: none;
+  color: var(--text-main);
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 2px;
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
 }
 
-/* Floating Touch Multi-Select Action Bar */
-.touch-action-bar {
-  display: none;
-  position: fixed;
-  bottom: 48px;
-  left: 10px;
-  right: 10px;
-  background: var(--bg-header);
-  border: 1px solid var(--accent);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.85);
-  border-radius: 12px;
-  padding: 8px 12px;
-  z-index: 1000;
-  align-items: center;
-  justify-content: space-between;
-  backdrop-filter: blur(8px);
+.mob-cmd-btn i, .mob-cmd-btn svg {
+  width: 16px;
+  height: 16px;
 }
 
-.touch-action-bar.active {
-  display: flex;
-}
-
-.touch-action-left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.touch-action-count {
-  font-size: 13px;
-  font-weight: 700;
+.mob-cmd-btn:active {
+  background: var(--bg-hover);
   color: var(--accent);
-  font-family: var(--font-mono);
+  transform: scale(0.95);
 }
 
-.touch-action-btns {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+.mob-cmd-btn.mob-cmd-accent {
+  color: var(--accent);
+}
+
+.mob-cmd-btn.has-selection {
+  background: var(--accent-subtle);
+  color: var(--accent);
 }
 
 /* Mobile & Touch Optimizations */
@@ -1352,7 +1360,9 @@ body {
   }
 
   .file-table th:nth-child(1), .file-table td:nth-child(1) {
-    width: 48px !important;
+    width: 28px !important;
+    min-width: 28px !important;
+    max-width: 28px !important;
     padding: 0 4px !important;
   }
 
@@ -1364,7 +1374,7 @@ body {
   }
 
   .file-table th:nth-child(3), .file-table td:nth-child(3) {
-    width: 65px !important;
+    width: 60px !important;
     text-align: right !important;
     font-size: 11px !important;
   }
@@ -1385,32 +1395,13 @@ body {
     background-color: var(--bg-hover) !important;
   }
 
-  /* Bottom Function Key Bar */
+  /* On mobile: Hide Desktop F-keys and Show Mobile Bottom Bar */
   .bottom-fkey-bar {
-    display: flex !important;
-    overflow-x: auto !important;
-    white-space: nowrap !important;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-    height: 40px !important;
-    min-height: 40px !important;
-    padding: 3px 6px !important;
-    gap: 6px !important;
-  }
-  .bottom-fkey-bar::-webkit-scrollbar {
-    display: none;
+    display: none !important;
   }
 
-  .fkey-btn {
-    flex: 0 0 auto !important;
-    min-width: 65px !important;
-    height: 32px !important;
-    padding: 0 8px !important;
-    font-size: 11px !important;
-    border-radius: 5px;
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
+  .mobile-bottom-bar {
+    display: flex !important;
   }
 
   .terminal-drawer {
