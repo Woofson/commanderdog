@@ -19,6 +19,8 @@ pub struct AppConfig {
     pub custom_actions: Vec<CustomAction>,
     #[serde(default)]
     pub bookmarks: Vec<BookmarkConfig>,
+    #[serde(default)]
+    pub syncthing: crate::tools::syncthing::SyncthingConfig,
 }
 
 impl Default for AppConfig {
@@ -31,6 +33,7 @@ impl Default for AppConfig {
             ui: UiConfig::default(),
             custom_actions: default_custom_actions(),
             bookmarks: default_bookmarks(),
+            syncthing: crate::tools::syncthing::SyncthingConfig::default(),
         }
     }
 }

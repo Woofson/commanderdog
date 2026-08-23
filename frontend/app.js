@@ -1176,6 +1176,7 @@ function setupEventListeners() {
   document.getElementById('btn-open-editor')?.addEventListener('click', () => showModal('editor-modal'));
   document.getElementById('btn-open-diff')?.addEventListener('click', () => triggerDiff());
   document.getElementById('btn-open-sync')?.addEventListener('click', () => openSyncModal());
+  document.getElementById('btn-open-syncthing')?.addEventListener('click', () => openSyncthingModal());
   document.getElementById('btn-open-search')?.addEventListener('click', () => openSearchModal());
   document.getElementById('btn-toggle-terminal')?.addEventListener('click', () => toggleTerminal());
   document.getElementById('btn-open-tasks')?.addEventListener('click', () => { showModal('tasks-modal'); loadTasksTable(); });
@@ -2641,6 +2642,181 @@ function setupTouchGestures() {
       }
     }
   }, { passive: true });
+}
+
+// ---------------- SYNCTHING INTEGRATION ----------------
+function openSyncthingModal() {
+  showModal('syncthing-modal');
+  loadSyncthingDashboard();
+}
+
+async function loadSyncthingDashboard() {
+  const badge = document.getElementById('syncthing-conn-badge');
+  const tbodyFolders = document.getElementById('syncthing-folders-tbody');
+  const tbodyPeers = document.getElementById('syncthing-peers-tbody');
+
+  if (badge) {
+    badge.style.background = 'rgba(245, 158, 11, 0.15)';
+    badge.style.color = 'var(--accent)';
+    badge.textContent = 'Connecting...';
+  }
+
+  try {
+    const resp = await fetch('/api/tools/syncthing/status', {
+      headers: { 'Authorization': `Bearer ${App.token}` }
+    });
+
+    if (!resp.ok) {
+      if (badge) {
+        badge.style.background = 'rgba(239, 68, 68, 0.15)';
+        badge.style.color = 'var(--danger)';
+        badge.textContent = 'Offline / Error';
+      }
+      if (tbodyFolders) tbodyFolders.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--danger); padding:16px;">Failed to reach Syncthing API: ${await resp.text()}</td></tr>`;
+      if (tbodyPeers) tbodyPeers.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--text-muted); padding:12px;">No peers available</td></tr>`;
+      return;
+    }
+
+    const data = await resp.json();
+
+    if (badge) {
+      if (data.available) {
+        badge.style.background = 'rgba(16, 185, 129, 0.15)';
+        badge.style.color = '#34d399';
+        badge.textContent = `🟢 Online (${data.peers.filter(p => p.connected).length} Connected)`;
+      } else {
+        badge.style.background = 'rgba(239, 68, 68, 0.15)';
+        badge.style.color = 'var(--danger)';
+        badge.textContent = '⚪ Disconnected / Not Running';
+      }
+    }
+
+    const downEl = document.getElementById('st-down-speed');
+    const upEl = document.getElementById('st-up-speed');
+    const fCountEl = document.getElementById('st-folders-count');
+    const pCountEl = document.getElementById('st-peers-count');
+
+    if (downEl) downEl.textContent = `${formatBytes(data.total_download_speed)}/s`;
+    if (upEl) upEl.textContent = `${formatBytes(data.total_upload_speed)}/s`;
+    if (fCountEl) fCountEl.textContent = data.folders.length;
+    if (pCountEl) pCountEl.textContent = data.peers.filter(p => p.connected).length;
+
+    const bannerText = document.getElementById('st-daemon-url-text');
+    const guiLink = document.getElementById('st-daemon-gui-link');
+    if (bannerText) bannerText.textContent = `🌐 Syncthing Daemon: ${data.url} ${data.my_id ? '(' + data.my_id.substring(0, 7) + '...)' : ''}`;
+    if (guiLink) guiLink.href = data.url;
+
+    // Render Folders
+    if (tbodyFolders) {
+      if (data.folders.length === 0) {
+        tbodyFolders.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--text-muted); padding:16px;">${data.available ? 'No synchronized folders configured yet' : data.message}</td></tr>`;
+      } else {
+        tbodyFolders.innerHTML = data.folders.map(f => {
+          const isUpToDate = f.in_sync_percent >= 99.9;
+          const statusColor = f.paused ? 'var(--text-muted)' : (isUpToDate ? 'var(--success)' : 'var(--accent)');
+          return `
+            <tr class="file-row">
+              <td><b>${escapeHtml(f.label)}</b> <span style="font-size:10px; color:var(--text-muted);">(${escapeHtml(f.id)})</span></td>
+              <td><code style="cursor:pointer; color:var(--accent);" onclick="jumpToFolderInPane('${escapeHtml(f.path)}')" title="Click to open in active pane">${escapeHtml(f.path)}</code></td>
+              <td><span style="color:${statusColor}; font-weight:600;">${f.state.toUpperCase()}</span></td>
+              <td>
+                <div style="display:flex; align-items:center; gap:6px;">
+                  <div style="flex:1; background:var(--bg-dark); height:6px; border-radius:3px; overflow:hidden; border:1px solid var(--border);">
+                    <div style="background:${statusColor}; height:100%; width:${f.in_sync_percent}%;"></div>
+                  </div>
+                  <span style="font-size:10px; font-family:var(--font-mono);">${f.in_sync_percent.toFixed(0)}%</span>
+                </div>
+              </td>
+              <td style="text-align:right;">
+                <button class="btn btn-sm" onclick="triggerSyncthingScan('${f.id}')" title="Scan Folder"><i data-lucide="rotate-cw"></i></button>
+                <button class="btn btn-sm" onclick="jumpToFolderInPane('${escapeHtml(f.path)}')" title="Open in Active Pane"><i data-lucide="folder-open"></i></button>
+              </td>
+            </tr>
+          `;
+        }).join('');
+      }
+    }
+
+    // Render Peers
+    if (tbodyPeers) {
+      if (data.peers.length === 0) {
+        tbodyPeers.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--text-muted); padding:12px;">No remote devices paired</td></tr>`;
+      } else {
+        tbodyPeers.innerHTML = data.peers.map(p => `
+          <tr class="file-row">
+            <td><b>${escapeHtml(p.name)}</b> <span style="font-size:10px; color:var(--text-muted);">(${p.id.substring(0, 7)}...)</span></td>
+            <td><span style="font-family:var(--font-mono); font-size:11px;">${escapeHtml(p.address || 'Dynamic')}</span></td>
+            <td><span style="color:${p.connected ? 'var(--success)' : 'var(--text-muted)'}; font-weight:600;">${p.connected ? '● CONNECTED' : '○ DISCONNECTED'}</span></td>
+            <td style="font-family:var(--font-mono); color:var(--success);">${formatBytes(p.in_bps)}/s</td>
+            <td style="font-family:var(--font-mono); color:var(--accent);">${formatBytes(p.out_bps)}/s</td>
+          </tr>
+        `).join('');
+      }
+    }
+
+    if (window.lucide) lucide.createIcons();
+  } catch (e) {
+    if (badge) {
+      badge.style.background = 'rgba(239, 68, 68, 0.15)';
+      badge.style.color = 'var(--danger)';
+      badge.textContent = 'Error';
+    }
+    if (tbodyFolders) tbodyFolders.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--danger); padding:16px;">Error connecting to Syncthing: ${e}</td></tr>`;
+  }
+}
+
+async function triggerSyncthingScan(folderId) {
+  try {
+    const resp = await fetch('/api/tools/syncthing/scan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
+      body: JSON.stringify({ folder_id: folderId || null })
+    });
+    if (resp.ok) {
+      loadSyncthingDashboard();
+    } else {
+      alert(`Scan failed: ${await resp.text()}`);
+    }
+  } catch (e) {
+    alert(`Error: ${e}`);
+  }
+}
+
+function jumpToFolderInPane(path) {
+  closeModal('syncthing-modal');
+  loadPaneDirectory(App.activePaneIndex, path);
+}
+
+async function testAndSaveSyncthingConfig() {
+  const status = document.getElementById('syncthing-settings-status');
+  if (status) {
+    status.style.display = 'block';
+    status.style.color = 'var(--accent)';
+    status.textContent = 'Testing connection...';
+  }
+
+  try {
+    const resp = await fetch('/api/tools/syncthing/status', {
+      headers: { 'Authorization': `Bearer ${App.token}` }
+    });
+    if (resp.ok) {
+      const st = await resp.json();
+      if (status) {
+        status.style.color = st.available ? 'var(--success)' : 'var(--warning)';
+        status.textContent = st.available ? `✓ Connected to Syncthing (${st.folders.length} folders, ${st.peers.length} peers)` : `⚠️ ${st.message}`;
+      }
+    } else {
+      if (status) {
+        status.style.color = 'var(--danger)';
+        status.textContent = `✗ ${await resp.text()}`;
+      }
+    }
+  } catch (e) {
+    if (status) {
+      status.style.color = 'var(--danger)';
+      status.textContent = `✗ Error: ${e}`;
+    }
+  }
 }
 
 

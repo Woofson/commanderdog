@@ -80,6 +80,8 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/tools/paranoid/dry-run", post(handle_paranoid_dry_run))
         .route("/api/tools/sync/analyze", post(handle_sync_analyze))
         .route("/api/tools/sync/execute", post(handle_sync_execute))
+        .route("/api/tools/syncthing/status", get(handle_syncthing_status))
+        .route("/api/tools/syncthing/scan", post(handle_syncthing_scan))
         .route("/api/tools/search", post(handle_search))
         .route("/api/actions/run", post(handle_run_action))
         .route("/api/tasks", get(handle_list_tasks))
@@ -873,6 +875,30 @@ async fn handle_run_action(
     crate::tools::actions::ActionRunner::execute(payload).await
         .map(Json)
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Action execution error: {}", e)))
+}
+
+async fn handle_syncthing_status(
+    State(state): State<AppState>,
+) -> Json<crate::tools::syncthing::SyncthingStatusResponse> {
+    let client = crate::tools::syncthing::SyncthingClient::new(state.config.syncthing.clone());
+    Json(client.get_status().await)
+}
+
+#[derive(Deserialize)]
+struct SyncthingScanRequest {
+    folder_id: Option<String>,
+    subpath: Option<String>,
+}
+
+async fn handle_syncthing_scan(
+    State(state): State<AppState>,
+    Json(payload): Json<SyncthingScanRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let client = crate::tools::syncthing::SyncthingClient::new(state.config.syncthing.clone());
+    match client.trigger_scan(payload.folder_id.as_deref(), payload.subpath.as_deref()).await {
+        Ok(msg) => Ok(Json(serde_json::json!({ "success": true, "message": msg }))),
+        Err(e) => Err((StatusCode::BAD_REQUEST, e)),
+    }
 }
 
 // ---------------- CONFIG & SYSTEM HANDLERS ----------------

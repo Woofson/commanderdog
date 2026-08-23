@@ -1,0 +1,5 @@
+# CommanderDog Syncthing Integration Configuration
+[syncthing]
+enabled = true
+url = "http://127.0.0.1:8384"
+api_key = "" # Leave blank to auto-discover from local ~/.config/syncthing/config.xml

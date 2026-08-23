@@ -40,6 +40,7 @@
       <button class="btn" id="btn-open-editor" title="Dual-Pane Editor / Markdown Reader (F4)"><i data-lucide="code"></i> Editor</button>
       <button class="btn" id="btn-open-diff" title="File & Folder Comparison (Ctrl+D)"><i data-lucide="git-compare"></i> Compare / Diff</button>
       <button class="btn" id="btn-open-sync" title="Directory Synchronization & Mirror Engine"><i data-lucide="refresh-cw"></i> Sync</button>
+      <button class="btn" id="btn-open-syncthing" title="Syncthing Real-Time Sync Dashboard"><i data-lucide="repeat"></i> Syncthing</button>
       <button class="btn" id="btn-open-search" title="Global Deep File & Content Search (Ctrl+F)"><i data-lucide="search"></i> Search</button>
       <button class="btn" id="btn-toggle-terminal" title="Toggle Integrated Terminal (Ctrl+`)"><i data-lucide="terminal"></i> Terminal</button>
       <button class="btn" id="btn-open-tasks" title="Background Transfers & Task Queue"><i data-lucide="list-checks"></i> Tasks</button>
@@ -205,6 +206,7 @@
         <button class="settings-tab-btn" onclick="switchSettingsTab('tab-palette')"><i data-lucide="palette"></i> Palette & Theme</button>
         <button class="settings-tab-btn" onclick="switchSettingsTab('tab-bookmarks')"><i data-lucide="bookmark"></i> Bookmarks</button>
         <button class="settings-tab-btn" onclick="switchSettingsTab('tab-users')"><i data-lucide="users"></i> Users</button>
+        <button class="settings-tab-btn" onclick="switchSettingsTab('tab-syncthing')"><i data-lucide="repeat"></i> Syncthing</button>
         <button class="settings-tab-btn" onclick="switchSettingsTab('tab-confd')"><i data-lucide="folder-cog"></i> conf.d Engine</button>
         <button class="settings-tab-btn" onclick="switchSettingsTab('tab-keys')"><i data-lucide="keyboard"></i> Keybindings</button>
       </div>
@@ -371,7 +373,32 @@
           </table>
         </div>
 
-        <!-- Tab 6: conf.d Inspector -->
+        <!-- Tab 6: Syncthing Configuration -->
+        <div class="settings-tab-content" id="tab-syncthing">
+          <div style="font-weight: 600; margin-bottom: 8px;">🔄 Syncthing Continuous Synchronization Engine</div>
+          <p style="color: var(--text-muted); font-size: 11px; margin-bottom: 12px;">
+            Configure your local or remote Syncthing daemon connection. CommanderDog automatically discovers the API key from <code>~/.config/syncthing/config.xml</code> if running on the same machine.
+          </p>
+          <div class="form-group">
+            <label>Syncthing Daemon URL:</label>
+            <input type="text" id="setting-syncthing-url" class="pane-quick-filter" style="width: 100%; padding: 8px;" value="http://127.0.0.1:8384">
+          </div>
+          <div class="form-group">
+            <label>REST API Key:</label>
+            <div style="position: relative;">
+              <input type="password" id="setting-syncthing-key" class="pane-quick-filter" style="width: 100%; padding: 8px 32px 8px 8px;" placeholder="Leave empty for auto-discovery">
+              <button type="button" class="btn btn-icon" onclick="togglePasswordVisibility('setting-syncthing-key')" style="position: absolute; right: 4px; top: 50%; transform: translateY(-50%); background: transparent; border: none;">
+                <i data-lucide="eye" style="width: 14px;"></i>
+              </button>
+            </div>
+          </div>
+          <div style="display: flex; gap: 8px; margin-top: 10px;">
+            <button class="btn btn-accent" onclick="testAndSaveSyncthingConfig()">Test Connection & Dashboard</button>
+          </div>
+          <div id="syncthing-settings-status" style="font-size: 11px; margin-top: 8px; display: none;"></div>
+        </div>
+
+        <!-- Tab 7: conf.d Inspector -->
         <div class="settings-tab-content" id="tab-confd">
           <p style="color: var(--text-muted); font-size: 11px; margin-bottom: 10px;">
             CommanderDog scans <code>./conf.d/*.toml</code>, <code>~/.config/commanderdog/conf.d/*.toml</code>, and <code>/etc/commanderdog/conf.d/*.toml</code> and deep-merges them in alphabetical/numerical sorting order.
@@ -751,6 +778,97 @@
 
       <div class="modal-footer">
         <button class="btn btn-accent" onclick="closeModal('search-modal')">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Syncthing Integration & Real-Time Sync Dashboard Modal -->
+  <div class="modal-overlay" id="syncthing-modal">
+    <div class="modal-box" style="width: 820px; max-height: 88vh; display: flex; flex-direction: column;">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="color: var(--accent); font-weight: 700;">🔄 Syncthing Real-Time Sync Dashboard</span>
+          <span id="syncthing-conn-badge" class="badge" style="background: rgba(16, 185, 129, 0.15); color: #34d399; font-size: 10px; padding: 2px 6px; border-radius: 4px;">Connecting...</span>
+        </div>
+        <button class="btn" onclick="closeModal('syncthing-modal')"><i data-lucide="x"></i></button>
+      </div>
+
+      <div class="modal-body" style="padding: 14px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto;">
+        <!-- Metrics Stats Bar -->
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;">
+          <div style="background: var(--bg-dark); border: 1px solid var(--border); border-radius: 6px; padding: 10px; text-align: center;">
+            <div style="font-size: 10px; color: var(--text-muted); text-transform: uppercase;">📥 Download Speed</div>
+            <div id="st-down-speed" style="font-size: 15px; font-weight: 700; color: var(--success); font-family: var(--font-mono); margin-top: 2px;">0 B/s</div>
+          </div>
+          <div style="background: var(--bg-dark); border: 1px solid var(--border); border-radius: 6px; padding: 10px; text-align: center;">
+            <div style="font-size: 10px; color: var(--text-muted); text-transform: uppercase;">📤 Upload Speed</div>
+            <div id="st-up-speed" style="font-size: 15px; font-weight: 700; color: var(--accent); font-family: var(--font-mono); margin-top: 2px;">0 B/s</div>
+          </div>
+          <div style="background: var(--bg-dark); border: 1px solid var(--border); border-radius: 6px; padding: 10px; text-align: center;">
+            <div style="font-size: 10px; color: var(--text-muted); text-transform: uppercase;">📁 Synced Folders</div>
+            <div id="st-folders-count" style="font-size: 15px; font-weight: 700; font-family: var(--font-mono); margin-top: 2px;">0</div>
+          </div>
+          <div style="background: var(--bg-dark); border: 1px solid var(--border); border-radius: 6px; padding: 10px; text-align: center;">
+            <div style="font-size: 10px; color: var(--text-muted); text-transform: uppercase;">👥 Connected Peers</div>
+            <div id="st-peers-count" style="font-size: 15px; font-weight: 700; font-family: var(--font-mono); margin-top: 2px;">0</div>
+          </div>
+        </div>
+
+        <!-- Synced Folders Table -->
+        <div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <span style="font-weight: 600; font-size: 12px; color: var(--accent);">📁 Synchronized Folders</span>
+            <button class="btn btn-sm" onclick="triggerSyncthingScan()"><i data-lucide="rotate-cw"></i> Rescan All</button>
+          </div>
+          <div style="max-height: 220px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px;">
+            <table class="file-table" style="margin: 0;">
+              <thead>
+                <tr>
+                  <th>Folder Label / ID</th>
+                  <th>Path</th>
+                  <th>Status</th>
+                  <th>Sync %</th>
+                  <th style="text-align: right;">Action</th>
+                </tr>
+              </thead>
+              <tbody id="syncthing-folders-tbody">
+                <tr><td colspan="5" style="text-align:center; padding: 12px;">Loading Syncthing folders...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Connected Devices Table -->
+        <div>
+          <div style="font-weight: 600; font-size: 12px; color: var(--accent); margin-bottom: 6px;">👥 Connected Devices / Peers</div>
+          <div style="max-height: 160px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px;">
+            <table class="file-table" style="margin: 0;">
+              <thead>
+                <tr>
+                  <th>Device Name / ID</th>
+                  <th>Address</th>
+                  <th>Status</th>
+                  <th>Download (In)</th>
+                  <th>Upload (Out)</th>
+                </tr>
+              </thead>
+              <tbody id="syncthing-peers-tbody">
+                <tr><td colspan="5" style="text-align:center; padding: 12px;">Loading connected devices...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Info / Daemon Link Banner -->
+        <div id="st-daemon-banner" style="font-size: 11px; background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.25); border-radius: 6px; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center;">
+          <span id="st-daemon-url-text">🌐 Syncthing Daemon: http://127.0.0.1:8384</span>
+          <a id="st-daemon-gui-link" href="http://127.0.0.1:8384" target="_blank" class="btn btn-sm" style="text-decoration: none;">Open Web GUI ↗</a>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn" onclick="closeModal('syncthing-modal')">Close</button>
+        <button class="btn btn-accent" onclick="loadSyncthingDashboard()">🔄 Refresh Status</button>
       </div>
     </div>
   </div>

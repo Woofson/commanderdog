@@ -1,6 +1,25 @@
 # 🗺️ CommanderDog Roadmap & Future Backlog
 
-## 📋 Backlog / Planned Features
+## ✅ Completed Features
+- [x] **Orthodox Quad-Pane Architecture**: 1-to-4 toggleable panels (`Alt+1..4`), dual vertical/horizontal/triple layouts.
+- [x] **Orthodox Keybindings**: Full Midnight Commander / Total Commander bindings (`Tab`, `F1`–`F10`, `Insert`, `Space`, `Ctrl+D`).
+- [x] **Native Linux PAM & SQLite Authentication**: Direct PAM login against local `/etc/shadow` accounts and auto-group administrator resolution.
+- [x] **Paranoid Mode & DeltaCopy / TeraCopy Engine**: Bit-for-bit CRC32 verification, auto-retry on locks, and pre-flight dry-runs.
+- [x] **Multi-Cloud & Remote VFS Support**:
+  - SFTP / SSH (Port 22 / 23)
+  - WebDAV (Nextcloud / Synology / ownCloud)
+  - S3 Object Storage (AWS, MinIO, Cloudflare R2, Backblaze B2, Hetzner S3)
+  - 📦 Hetzner Storage Box Quick Preset
+  - 🛡️ Proton Drive E2EE Cloud Bridge
+  - 🔄 Syncthing Real-Time Sync Dashboard & Scanner
+- [x] **Directory Sync & Deep Search**: 1-Way Mirror, Update, 2-Way Sync, filename globbing & full-text grep.
+- [x] **Slide-Up Linux PTY Terminal**: Full interactive PTY terminal drawer (`Ctrl+\``).
+- [x] **Mobile & Touch Optimization**: Long-press context menu, touchscreen swipe navigation, and responsive layout.
+- [x] **Containerization & Native Packaging**: Production `Dockerfile`, `docker-compose.yml`, Proxmox `LXC.md` guide, `scripts/lxc-install.sh`, Debian `.deb`, Arch `PKGBUILD`, and Alpine `APKBUILD`.
+
+---
+
+## 📋 Upcoming Backlog / Planned Features
 
 ### 🔑 1. OAuth2 / OIDC Single Sign-On (SSO)
 - Integration with OpenID Connect (OIDC) identity providers:
@@ -11,22 +30,6 @@
 - Group-to-role mapping (mapping OIDC groups to CommanderDog admin/editor/read-only roles).
 - Automatic user provisioning upon initial login.
 
-### 🔄 2. Syncthing Native Integration
-- REST API & Event listener integration with local and remote **Syncthing** daemons.
-- Real-time sync status badges on synchronized folders and files.
-- Connected peer devices overview and live transfer speed metrics.
-- 1-Click trigger for manual folder rescans and visual sync conflict resolution within panes.
-
-### 🛡️ 3. Proton Drive Integration (via Proton Drive CLI)
-- VFS adapter leveraging the official **Proton Drive CLI** tool.
-- End-to-end encrypted (E2EE) zero-knowledge cloud file storage mounted directly into CommanderDog panels.
-- Browse, stream, download, upload, and sync Proton Drive files and folders seamlessly alongside local and remote VFS.
-
-### 🧩 4. Plugin & Custom Extension API
+### 🧩 2. Plugin & Custom Extension API
 - WASM / Rust dynamic plugins for file format viewers and custom tools.
 - Webhook triggers on file upload, move, or deletion events.
-
-### 📦 5. Native Package Repository Releases
-- Debian `.deb` package generation via `cargo-deb`.
-- Arch Linux `PKGBUILD` and AUR package.
-- Alpine `.apk` package.
