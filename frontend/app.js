@@ -1142,6 +1142,22 @@ function setupEventListeners() {
     applyTheme(e.target.value);
   });
 
+  document.getElementById('login-form')?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    handleLoginSubmit();
+  });
+  document.getElementById('login-password')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleLoginSubmit();
+    }
+  });
+  document.getElementById('login-username')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      document.getElementById('login-password')?.focus();
+    }
+  });
   document.getElementById('btn-submit-login')?.addEventListener('click', handleLoginSubmit);
   document.getElementById('btn-logout')?.addEventListener('click', () => {
     localStorage.removeItem('cd_token');

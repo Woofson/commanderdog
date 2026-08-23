@@ -892,20 +892,22 @@
       <div class="modal-header" style="justify-content: center;">
         <span style="font-size: 16px; color: var(--accent);">🐕 CommanderDog Login</span>
       </div>
-      <div class="modal-body">
-        <div style="margin-bottom: 12px;">
-          <label style="display: block; margin-bottom: 4px; font-size: 11px;">Username:</label>
-          <input type="text" id="login-username" class="pane-quick-filter" style="width: 100%; padding: 8px;" value="admin">
+      <form id="login-form" onsubmit="event.preventDefault(); handleLoginSubmit();">
+        <div class="modal-body">
+          <div style="margin-bottom: 12px;">
+            <label style="display: block; margin-bottom: 4px; font-size: 11px;">Username:</label>
+            <input type="text" id="login-username" class="pane-quick-filter" style="width: 100%; padding: 8px;" value="admin" autocomplete="username">
+          </div>
+          <div style="margin-bottom: 12px;">
+            <label style="display: block; margin-bottom: 4px; font-size: 11px;">Password:</label>
+            <input type="password" id="login-password" class="pane-quick-filter" style="width: 100%; padding: 8px;" value="commanderdog" autocomplete="current-password">
+          </div>
+          <div id="login-error" style="color: var(--danger); font-size: 11px; display: none;"></div>
         </div>
-        <div style="margin-bottom: 12px;">
-          <label style="display: block; margin-bottom: 4px; font-size: 11px;">Password:</label>
-          <input type="password" id="login-password" class="pane-quick-filter" style="width: 100%; padding: 8px;" value="commanderdog">
+        <div class="modal-footer" style="justify-content: center;">
+          <button type="submit" class="btn btn-accent" id="btn-submit-login" style="width: 100%;">Log In</button>
         </div>
-        <div id="login-error" style="color: var(--danger); font-size: 11px; display: none;"></div>
-      </div>
-      <div class="modal-footer" style="justify-content: center;">
-        <button class="btn btn-accent" id="btn-submit-login" style="width: 100%;">Log In</button>
-      </div>
+      </form>
     </div>
   </div>
 
