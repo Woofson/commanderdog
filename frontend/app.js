@@ -184,7 +184,9 @@ function createPaneElement(pane, index) {
       <table class="file-table">
         <thead>
           <tr>
-            <th style="width: 24px;"></th>
+            <th style="width: 48px; text-align: center;" onclick="event.stopPropagation(); toggleSelectAll(${index})" title="Select All">
+              <input type="checkbox" id="select-all-${index}" style="cursor: pointer; width: 15px; height: 15px; accent-color: var(--accent); vertical-align: middle;">
+            </th>
             <th onclick="sortPane(${index}, 'name')">Name</th>
             <th style="width: 75px;" onclick="sortPane(${index}, 'size')">Size</th>
             <th style="width: 125px;" onclick="sortPane(${index}, 'modified')">Modified</th>
@@ -330,9 +332,16 @@ function renderPaneTable(paneIndex) {
     return pane.sortAsc ? cmp : -cmp;
   });
 
+  // Update Header Select All Checkbox state
+  const selectAllCb = document.getElementById(`select-all-${paneIndex}`);
+  if (selectAllCb) {
+    selectAllCb.checked = (filtered.length > 0 && pane.selected.size === filtered.length);
+  }
+
   filtered.forEach((entry, idx) => {
+    const isSelected = pane.selected.has(entry.path);
     const tr = document.createElement('tr');
-    tr.className = `file-row ${pane.selected.has(entry.path) ? 'selected' : ''} ${idx === pane.cursorIndex ? 'cursor-focus' : ''}`;
+    tr.className = `file-row ${isSelected ? 'selected' : ''} ${idx === pane.cursorIndex ? 'cursor-focus' : ''}`;
     tr.draggable = true;
 
     tr.ondragstart = (e) => {
@@ -342,8 +351,71 @@ function renderPaneTable(paneIndex) {
       }));
     };
 
+    let touchTimer = null;
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let isLongPress = false;
+
+    tr.ontouchstart = (e) => {
+      touchStartX = e.touches[0].clientX;
+      touchStartY = e.touches[0].clientY;
+      isLongPress = false;
+      touchTimer = setTimeout(() => {
+        isLongPress = true;
+        setActivePane(paneIndex);
+        App.contextItem = entry;
+        App.contextPaneIndex = paneIndex;
+        if (!pane.selected.has(entry.path)) {
+          pane.selected.add(entry.path);
+          renderPaneTable(paneIndex);
+        }
+        updateTouchActionBar();
+        if (navigator.vibrate) navigator.vibrate(40);
+        showContextMenu(touchStartX, touchStartY);
+      }, 400);
+    };
+
+    tr.ontouchend = () => {
+      if (touchTimer) clearTimeout(touchTimer);
+    };
+
+    tr.ontouchmove = (e) => {
+      const dx = Math.abs(e.touches[0].clientX - touchStartX);
+      const dy = Math.abs(e.touches[0].clientY - touchStartY);
+      if (dx > 12 || dy > 12) {
+        if (touchTimer) clearTimeout(touchTimer);
+      }
+    };
+
     tr.onclick = (e) => {
+      if (isLongPress) return;
       setActivePane(paneIndex);
+
+      if (e.target.closest('.file-cell-select') || e.target.classList.contains('row-checkbox')) {
+        toggleRowSelect(paneIndex, entry.path, idx);
+        return;
+      }
+
+      const isTouch = window.innerWidth <= 768 || window.matchMedia('(pointer: coarse)').matches;
+
+      if (isTouch) {
+        if (pane.selected.size > 0) {
+          toggleRowSelect(paneIndex, entry.path, idx);
+          return;
+        } else {
+          // Single tap opens folder / file immediately on touch
+          if (entry.is_dir || entry.is_archive) {
+            loadPaneDirectory(paneIndex, entry.path);
+          } else if (isImageExtension(entry.name)) {
+            openImageViewer(entry.path);
+          } else {
+            openEditorWithFile(entry.path);
+          }
+          return;
+        }
+      }
+
+      // Desktop click
       if (e.shiftKey || e.ctrlKey) {
         if (pane.selected.has(entry.path)) pane.selected.delete(entry.path);
         else pane.selected.add(entry.path);
@@ -353,6 +425,7 @@ function renderPaneTable(paneIndex) {
       }
       pane.cursorIndex = idx;
       renderPaneTable(paneIndex);
+      updateTouchActionBar();
     };
 
     tr.ondblclick = () => {
@@ -372,38 +445,12 @@ function renderPaneTable(paneIndex) {
       showContextMenu(e.clientX, e.clientY);
     };
 
-    let touchTimer = null;
-    let touchStartX = 0;
-    let touchStartY = 0;
-
-    tr.ontouchstart = (e) => {
-      touchStartX = e.touches[0].clientX;
-      touchStartY = e.touches[0].clientY;
-      touchTimer = setTimeout(() => {
-        App.contextItem = entry;
-        App.contextPaneIndex = paneIndex;
-        showContextMenu(touchStartX, touchStartY);
-        if (navigator.vibrate) navigator.vibrate(40);
-      }, 450);
-    };
-
-    tr.ontouchend = () => {
-      if (touchTimer) clearTimeout(touchTimer);
-    };
-
-    tr.ontouchmove = (e) => {
-      const dx = Math.abs(e.touches[0].clientX - touchStartX);
-      const dy = Math.abs(e.touches[0].clientY - touchStartY);
-      if (dx > 12 || dy > 12) {
-        if (touchTimer) clearTimeout(touchTimer);
-      }
-    };
-
     const iconType = entry.is_dir ? 'dir' : (entry.is_archive ? 'archive' : 'text');
     const iconName = entry.is_dir ? 'folder' : (entry.is_archive ? 'file-archive' : 'file-text');
 
     tr.innerHTML = `
-      <td class="file-cell" style="text-align: center;">
+      <td class="file-cell file-cell-select" onclick="event.stopPropagation(); toggleRowSelect(${paneIndex}, '${escapeHtml(entry.path)}', ${idx})">
+        <input type="checkbox" class="row-checkbox" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation(); toggleRowSelect(${paneIndex}, '${escapeHtml(entry.path)}', ${idx})">
         <i data-lucide="${iconName}" class="file-icon ${iconType}" style="width: 14px; height: 14px;"></i>
       </td>
       <td class="file-cell file-cell-name">
@@ -419,6 +466,7 @@ function renderPaneTable(paneIndex) {
   });
 
   if (window.lucide) lucide.createIcons();
+  updateTouchActionBar();
 }
 
 function updatePaneFooter(paneIndex, data) {
@@ -3000,6 +3048,103 @@ async function testAndSaveSyncthingConfig() {
       status.style.color = 'var(--danger)';
       status.textContent = `✗ Error: ${e}`;
     }
+  }
+}
+
+// ---------------- MOBILE DRAWER & TOUCH HELPERS ----------------
+function toggleMobileMenu() {
+  const drawer = document.getElementById('mobile-menu-drawer');
+  if (!drawer) return;
+  const isOpen = drawer.classList.contains('active');
+  if (isOpen) closeMobileMenu();
+  else openMobileMenu();
+}
+
+function openMobileMenu() {
+  const drawer = document.getElementById('mobile-menu-drawer');
+  const overlay = document.getElementById('mobile-menu-overlay');
+  const pBadge = document.getElementById('mobile-paranoid-badge');
+  const themeSel = document.getElementById('mobile-theme-selector');
+
+  if (pBadge) {
+    pBadge.textContent = App.paranoidMode ? 'ON' : 'OFF';
+    pBadge.style.color = App.paranoidMode ? 'var(--accent)' : 'var(--text-muted)';
+  }
+  if (themeSel) themeSel.value = document.getElementById('theme-selector')?.value || 'amber-charcoal';
+
+  if (drawer) drawer.classList.add('active');
+  if (overlay) overlay.classList.add('active');
+  if (window.lucide) lucide.createIcons();
+}
+
+function closeMobileMenu() {
+  const drawer = document.getElementById('mobile-menu-drawer');
+  const overlay = document.getElementById('mobile-menu-overlay');
+  if (drawer) drawer.classList.remove('active');
+  if (overlay) overlay.classList.remove('active');
+}
+
+function toggleParanoidMode() {
+  App.paranoidMode = !App.paranoidMode;
+  updateParanoidBadge();
+  const pBadge = document.getElementById('mobile-paranoid-badge');
+  if (pBadge) {
+    pBadge.textContent = App.paranoidMode ? 'ON' : 'OFF';
+    pBadge.style.color = App.paranoidMode ? 'var(--accent)' : 'var(--text-muted)';
+  }
+}
+
+function refreshAllPanes() {
+  for (let i = 0; i < getVisiblePaneCount(); i++) refreshPane(i);
+}
+
+function logout() {
+  localStorage.removeItem('cd_token');
+  location.reload();
+}
+
+function updateTouchActionBar() {
+  const bar = document.getElementById('touch-action-bar');
+  const countEl = document.getElementById('touch-selected-count');
+  if (!bar) return;
+
+  const pane = App.panes[App.activePaneIndex];
+  const count = pane ? pane.selected.size : 0;
+
+  if (count > 0 && window.innerWidth <= 768) {
+    bar.classList.add('active');
+    if (countEl) countEl.textContent = `${count} selected`;
+  } else {
+    bar.classList.remove('active');
+  }
+}
+
+function toggleRowSelect(paneIndex, path, idx) {
+  const pane = App.panes[paneIndex];
+  if (pane.selected.has(path)) {
+    pane.selected.delete(path);
+  } else {
+    pane.selected.add(path);
+  }
+  pane.cursorIndex = idx;
+  renderPaneTable(paneIndex);
+}
+
+function toggleSelectAll(paneIndex) {
+  const pane = App.panes[paneIndex];
+  if (pane.selected.size === pane.entries.length) {
+    pane.selected.clear();
+  } else {
+    pane.entries.forEach(e => pane.selected.add(e.path));
+  }
+  renderPaneTable(paneIndex);
+}
+
+function clearActiveSelections() {
+  const pane = App.panes[App.activePaneIndex];
+  if (pane) {
+    pane.selected.clear();
+    renderPaneTable(App.activePaneIndex);
   }
 }
 

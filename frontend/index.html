@@ -64,8 +64,94 @@
       </select>
       <button class="btn" id="btn-open-settings" title="Settings, Bookmarks & conf.d (F10)"><i data-lucide="settings"></i> Settings</button>
       <button class="btn btn-danger" id="btn-logout" title="Logout"><i data-lucide="log-out"></i></button>
+      <button class="btn btn-icon mobile-menu-btn" id="btn-mobile-menu" title="Open Menu" onclick="toggleMobileMenu()"><i data-lucide="menu"></i></button>
     </div>
   </header>
+
+  <!-- Mobile Slide-Out Burger Menu Drawer -->
+  <div class="mobile-drawer-overlay" id="mobile-menu-overlay" onclick="closeMobileMenu()"></div>
+  <aside class="mobile-drawer" id="mobile-menu-drawer">
+    <div class="mobile-drawer-header">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span style="font-weight: 700; color: var(--accent); font-size: 15px;">🐕 CommanderDog</span>
+      </div>
+      <button class="btn btn-icon" onclick="closeMobileMenu()"><i data-lucide="x"></i></button>
+    </div>
+    
+    <div class="mobile-drawer-body">
+      <!-- Layout Switcher Section -->
+      <div class="mobile-drawer-section">
+        <div class="mobile-drawer-title">📐 Panel Layout</div>
+        <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px;">
+          <button class="btn btn-icon" onclick="switchLayout('layout-single'); closeMobileMenu();" title="1 Pane"><i data-lucide="square"></i> 1</button>
+          <button class="btn btn-icon" onclick="switchLayout('layout-dual-vertical'); closeMobileMenu();" title="2 Panes (Vertical)"><i data-lucide="columns-2"></i> 2v</button>
+          <button class="btn btn-icon" onclick="switchLayout('layout-dual-horizontal'); closeMobileMenu();" title="2 Panes (Horizontal)"><i data-lucide="rows-2"></i> 2h</button>
+          <button class="btn btn-icon" onclick="switchLayout('layout-triple'); closeMobileMenu();" title="3 Panes"><i data-lucide="columns-3"></i> 3</button>
+          <button class="btn btn-icon" onclick="switchLayout('layout-quad'); closeMobileMenu();" title="4 Panes"><i data-lucide="grid-2x2"></i> 4</button>
+        </div>
+      </div>
+
+      <!-- Tools & Features Section -->
+      <div class="mobile-drawer-section">
+        <div class="mobile-drawer-title">⚡ Tools & Features</div>
+        <div class="mobile-drawer-links">
+          <button class="mobile-drawer-item" onclick="showModal('editor-modal'); closeMobileMenu();"><i data-lucide="code"></i> Dual-Pane Editor (F4)</button>
+          <button class="mobile-drawer-item" onclick="triggerDiff(); closeMobileMenu();"><i data-lucide="git-compare"></i> Compare / Diff (Ctrl+D)</button>
+          <button class="mobile-drawer-item" onclick="openSyncModal(); closeMobileMenu();"><i data-lucide="refresh-cw"></i> Directory Sync & Mirror</button>
+          <button class="mobile-drawer-item" onclick="openSyncthingModal(); closeMobileMenu();"><i data-lucide="repeat"></i> Syncthing Dashboard</button>
+          <button class="mobile-drawer-item" onclick="openSearchModal(); closeMobileMenu();"><i data-lucide="search"></i> Deep File Search (Ctrl+F)</button>
+          <button class="mobile-drawer-item" onclick="toggleTerminal(); closeMobileMenu();"><i data-lucide="terminal"></i> Slide-Up Terminal (\`)</button>
+          <button class="mobile-drawer-item" onclick="showModal('tasks-modal'); loadTasksTable(); closeMobileMenu();"><i data-lucide="list-checks"></i> Background Tasks Queue</button>
+          <button class="mobile-drawer-item" onclick="refreshAllPanes(); closeMobileMenu();"><i data-lucide="rotate-cw"></i> Refresh All Panels</button>
+        </div>
+      </div>
+
+      <!-- Mode & Security -->
+      <div class="mobile-drawer-section">
+        <div class="mobile-drawer-title">🛡️ Security & Modes</div>
+        <div class="mobile-drawer-item" style="justify-content: space-between;" onclick="toggleParanoidMode();">
+          <span style="display:flex; align-items:center; gap:8px;"><i data-lucide="shield-check"></i> Paranoid Mode</span>
+          <span id="mobile-paranoid-badge" class="badge" style="font-size: 10px; background: rgba(245, 158, 11, 0.2); color: var(--accent); padding: 2px 6px; border-radius: 4px;">ON</span>
+        </div>
+      </div>
+
+      <!-- Theme Selector -->
+      <div class="mobile-drawer-section">
+        <div class="mobile-drawer-title">🎨 Theme & Palette</div>
+        <select id="mobile-theme-selector" class="pane-quick-filter" style="width: 100%; padding: 8px;" onchange="applyTheme(this.value); const s = document.getElementById('theme-selector'); if(s) s.value = this.value;">
+          <option value="amber-charcoal">Woofson Amber (Default)</option>
+          <option value="gruvbox">Gruvbox Dark</option>
+          <option value="catppuccin-mocha">Catppuccin Mocha</option>
+          <option value="catppuccin-latte">Catppuccin Latte (Light)</option>
+          <option value="tokyo-night">Tokyo Night</option>
+          <option value="monokai">Monokai Pro</option>
+          <option value="solarized-dark">Solarized Dark</option>
+          <option value="ayu-dark">Ayu Dark</option>
+          <option value="nord">Nord Frost</option>
+          <option value="dracula">Dracula Dark</option>
+          <option value="midnight-blue">Midnight Commander Blue</option>
+        </select>
+      </div>
+
+      <!-- Settings & Logout -->
+      <div class="mobile-drawer-section">
+        <button class="mobile-drawer-item" onclick="openSettingsModal(); closeMobileMenu();"><i data-lucide="settings"></i> Settings & Bookmarks (F10)</button>
+        <button class="mobile-drawer-item" style="color: var(--danger);" onclick="logout(); closeMobileMenu();"><i data-lucide="log-out"></i> Log Out</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Floating Touch Multi-Select Action Bar -->
+  <div id="touch-action-bar" class="touch-action-bar">
+    <div class="touch-action-count" id="touch-selected-count">0 selected</div>
+    <div class="touch-action-btns">
+      <button class="btn btn-sm btn-accent" onclick="triggerCopy()"><i data-lucide="copy"></i> Copy</button>
+      <button class="btn btn-sm" onclick="triggerMove()"><i data-lucide="move"></i> Move</button>
+      <button class="btn btn-sm btn-danger" onclick="triggerDelete()"><i data-lucide="trash-2"></i> Delete</button>
+      <button class="btn btn-sm" onclick="showContextMenu(window.innerWidth/2, window.innerHeight/2)"><i data-lucide="more-horizontal"></i> More</button>
+      <button class="btn btn-sm btn-icon" onclick="clearActiveSelections()"><i data-lucide="x"></i></button>
+    </div>
+  </div>
 
   <!-- Main Multi-Pane Workspace -->
   <main class="main-workspace">
