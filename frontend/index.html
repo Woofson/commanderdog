@@ -970,9 +970,33 @@
           <select id="remote-proto-select" class="pane-quick-filter" style="width: 100%; padding: 6px;" onchange="updateRemoteProtoUI()">
             <option value="sftp" selected>SSH / SFTP (Secure File Transfer)</option>
             <option value="webdav">WebDAV (Nextcloud / ownCloud / Synology)</option>
-            <option value="s3">☁️ S3 / Cloud Storage (AWS, MinIO, Cloudflare R2, Backblaze B2)</option>
+            <option value="s3">☁️ S3 / Cloud Storage (AWS, MinIO, Cloudflare R2, Backblaze B2, Hetzner S3)</option>
+            <option value="hetzner-box">📦 Hetzner Storage Box (SFTP / WebDAV)</option>
             <option value="proton">🛡️ Proton Drive (End-to-End Encrypted Cloud)</option>
           </select>
+        </div>
+
+        <!-- Hetzner Storage Box Preset Helper Panel -->
+        <div id="remote-hetzner-group" style="display: none; background: rgba(225, 29, 72, 0.08); border: 1px solid rgba(225, 29, 72, 0.3); border-radius: 6px; padding: 12px; margin-bottom: 12px;">
+          <div style="font-weight: 600; font-size: 12px; color: #fb7185; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+            <span>📦 Hetzner Storage Box Fast Setup</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 8px;">
+            <div>
+              <label style="font-size: 11px;">Storage Box User / ID:</label>
+              <input type="text" id="hetzner-user" class="pane-quick-filter" style="width: 100%; padding: 8px;" placeholder="e.g. u123456" oninput="syncHetznerFields()">
+            </div>
+            <div>
+              <label style="font-size: 11px;">Hetzner Protocol Mode:</label>
+              <select id="hetzner-mode" class="pane-quick-filter" style="width: 100%; padding: 7px;" onchange="syncHetznerFields()">
+                <option value="sftp" selected>SFTP (Port 23 - High Speed)</option>
+                <option value="webdav">WebDAV (HTTPS Port 443)</option>
+              </select>
+            </div>
+          </div>
+          <div style="font-size: 11px; color: var(--text-muted);">
+            Resolved Target: <code id="hetzner-preview-host" style="color: var(--accent);">u123456.your-storagebox.de:23</code>
+          </div>
         </div>
 
         <div id="remote-standard-group">

@@ -1724,16 +1724,40 @@ function openRemoteModal(paneIndex) {
   showModal('remote-modal');
 }
 
+function syncHetznerFields() {
+  const user = document.getElementById('hetzner-user')?.value.trim() || 'u123456';
+  const mode = document.getElementById('hetzner-mode')?.value || 'sftp';
+  const preview = document.getElementById('hetzner-preview-host');
+  const hostInput = document.getElementById('remote-host');
+  const portInput = document.getElementById('remote-port');
+  const userInput = document.getElementById('remote-user');
+
+  if (mode === 'sftp') {
+    if (preview) preview.textContent = `${user}.your-storagebox.de:23 (SFTP)`;
+    if (hostInput) hostInput.value = `${user}.your-storagebox.de`;
+    if (portInput) portInput.value = '23';
+    if (userInput) userInput.value = user;
+  } else {
+    if (preview) preview.textContent = `https://${user}.your-storagebox.de (WebDAV)`;
+    if (hostInput) hostInput.value = `https://${user}.your-storagebox.de`;
+    if (portInput) portInput.value = '443';
+    if (userInput) userInput.value = user;
+  }
+}
+
 async function updateRemoteProtoUI() {
   const proto = document.getElementById('remote-proto-select').value;
   const portGroup = document.getElementById('remote-port-group');
   const s3Group = document.getElementById('remote-s3-group');
   const standardGroup = document.getElementById('remote-standard-group');
   const protonGroup = document.getElementById('remote-proton-group');
+  const hetznerGroup = document.getElementById('remote-hetzner-group');
   const hostInput = document.getElementById('remote-host');
   const hostLabel = document.getElementById('remote-host-label');
   const userLabel = document.getElementById('remote-user-label');
   const passLabel = document.getElementById('remote-pass-label');
+
+  if (hetznerGroup) hetznerGroup.style.display = proto === 'hetzner-box' ? 'block' : 'none';
 
   if (proto === 'sftp') {
     if (standardGroup) standardGroup.style.display = 'block';
@@ -1744,6 +1768,15 @@ async function updateRemoteProtoUI() {
     if (userLabel) userLabel.textContent = 'SSH Username:';
     if (passLabel) passLabel.textContent = 'SSH Password / Key:';
     if (hostInput) hostInput.placeholder = 'e.g. 192.168.1.100 or sftp.example.com';
+  } else if (proto === 'hetzner-box') {
+    if (standardGroup) standardGroup.style.display = 'block';
+    if (protonGroup) protonGroup.style.display = 'none';
+    if (portGroup) portGroup.style.display = 'block';
+    if (s3Group) s3Group.style.display = 'none';
+    if (hostLabel) hostLabel.textContent = 'Storage Box Host:';
+    if (userLabel) userLabel.textContent = 'Storage Box User:';
+    if (passLabel) passLabel.textContent = 'Storage Box Password / Key:';
+    syncHetznerFields();
   } else if (proto === 'webdav') {
     if (standardGroup) standardGroup.style.display = 'block';
     if (protonGroup) protonGroup.style.display = 'none';
@@ -1761,7 +1794,7 @@ async function updateRemoteProtoUI() {
     if (hostLabel) hostLabel.textContent = 'S3 Endpoint URL:';
     if (userLabel) userLabel.textContent = 'Access Key ID:';
     if (passLabel) passLabel.textContent = 'Secret Access Key:';
-    if (hostInput) hostInput.placeholder = 'e.g. https://s3.amazonaws.com or https://<account_id>.r2.cloudflarestorage.com';
+    if (hostInput) hostInput.placeholder = 'e.g. https://s3.amazonaws.com or https://fsn1.your-objectstorage.com';
   } else if (proto === 'proton') {
     if (standardGroup) standardGroup.style.display = 'none';
     if (protonGroup) protonGroup.style.display = 'block';
@@ -1788,13 +1821,18 @@ async function updateRemoteProtoUI() {
 }
 
 async function testRemoteConnection() {
-  const proto = document.getElementById('remote-proto-select').value;
+  let proto = document.getElementById('remote-proto-select').value;
   const host = document.getElementById('remote-host')?.value || '';
   const port = parseInt(document.getElementById('remote-port')?.value || '22', 10);
   const user = document.getElementById('remote-user')?.value || '';
   const pass = document.getElementById('remote-pass')?.value || '';
   const bucket = document.getElementById('remote-bucket')?.value || '';
   const region = document.getElementById('remote-region')?.value || 'us-east-1';
+
+  if (proto === 'hetzner-box') {
+    const hMode = document.getElementById('hetzner-mode')?.value || 'sftp';
+    proto = hMode;
+  }
 
   const status = document.getElementById('remote-test-status');
   status.style.display = 'block';
@@ -1834,6 +1872,13 @@ function connectRemoteToActivePane() {
   if (proto === 'sftp') {
     if (!host) { alert('Please specify a server host / URL'); return; }
     remoteUrl = `sftp://${user}@${host}:${port}${path.startsWith('/') ? path : '/' + path}`;
+  } else if (proto === 'hetzner-box') {
+    const hMode = document.getElementById('hetzner-mode')?.value || 'sftp';
+    if (hMode === 'sftp') {
+      remoteUrl = `sftp://${user}@${host}:${port}${path.startsWith('/') ? path : '/' + path}`;
+    } else {
+      remoteUrl = `webdav://${host.replace(/^https?:\/\//, '')}${path.startsWith('/') ? path : '/' + path}`;
+    }
   } else if (proto === 'webdav') {
     if (!host) { alert('Please specify a server host / URL'); return; }
     remoteUrl = `webdav://${host.replace(/^https?:\/\//, '')}${path.startsWith('/') ? path : '/' + path}`;
