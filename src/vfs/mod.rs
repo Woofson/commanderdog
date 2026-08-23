@@ -16,6 +16,7 @@ pub struct FileEntry {
     pub path: String,
     pub is_dir: bool,
     pub is_symlink: bool,
+    pub is_empty: Option<bool>,
     pub size: u64,
     pub modified: Option<u64>, // Unix timestamp in seconds
     pub permissions: String,   // "rwxr-xr-x"

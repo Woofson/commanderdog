@@ -95,6 +95,7 @@ impl SftpClient {
                 path: format!("sftp://{}@{}:{}{}", user, host, port, full_path),
                 is_dir,
                 is_symlink: false,
+                is_empty: None,
                 size,
                 modified,
                 permissions,

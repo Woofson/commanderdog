@@ -77,6 +77,7 @@ impl WebDavClient {
                 path: format!("webdav://{}{}", url.trim_start_matches("http://").trim_start_matches("https://"), href),
                 is_dir,
                 is_symlink: false,
+                is_empty: None,
                 size,
                 modified: None,
                 permissions: if is_dir { "drwxr-xr-x".to_string() } else { "-rw-r--r--".to_string() },

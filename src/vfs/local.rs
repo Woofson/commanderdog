@@ -113,6 +113,11 @@ impl LocalFs {
                     };
 
                     let is_archive = !is_dir && is_archive_file(&file_name);
+                    let is_empty = if is_dir {
+                        std::fs::read_dir(&file_path).map(|mut r| r.next().is_none()).ok()
+                    } else {
+                        None
+                    };
 
                     if is_dir {
                         total_dirs += 1;
@@ -126,6 +131,7 @@ impl LocalFs {
                         path: file_path_str,
                         is_dir,
                         is_symlink,
+                        is_empty,
                         size,
                         modified,
                         permissions,

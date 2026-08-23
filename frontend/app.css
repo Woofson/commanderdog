@@ -369,24 +369,80 @@ body {
 }
 
 .file-cell {
-  padding: 4px 8px;
+  padding: 0 8px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  vertical-align: middle !important;
+  line-height: normal;
+}
+
+.file-cell-icon {
+  width: 28px !important;
+  min-width: 28px !important;
+  max-width: 28px !important;
+  padding: 0 4px !important;
+  text-align: center;
+  vertical-align: middle !important;
+}
+
+.row-icon-wrapper {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  border-radius: 50%;
+  margin: 0 auto;
+  line-height: 1;
+}
+
+.row-icon-wrapper svg,
+.row-icon-wrapper i {
+  display: inline-block;
+  vertical-align: middle;
 }
 
 .file-cell-name {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  vertical-align: middle !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.file-name-text {
+  display: inline-block;
+  vertical-align: middle;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: normal;
 }
 
 .file-icon {
   font-size: 14px;
   flex-shrink: 0;
+  vertical-align: middle;
 }
 
-.file-icon.dir { color: #fbbf24; }
+.file-icon.dir {
+  color: var(--accent);
+}
+
+.file-icon.dir.dir-filled {
+  fill: var(--accent);
+  color: var(--accent);
+}
+
+.file-icon.dir.dir-empty {
+  fill: transparent;
+  color: var(--accent);
+  stroke: var(--accent);
+}
+
 .file-icon.archive { color: #f472b6; }
 .file-icon.text { color: #60a5fa; }
 .file-icon.code { color: #34d399; }
@@ -396,6 +452,7 @@ body {
   font-family: var(--font-mono);
   font-size: 11px;
   color: var(--text-muted);
+  vertical-align: middle !important;
 }
 
 .pane-footer {
@@ -1145,26 +1202,7 @@ body {
   border-color: var(--accent);
 }
 
-/* Row Icon & Checkmark Badge (Clean Android Total Commander style) */
-.file-cell-icon {
-  width: 28px !important;
-  min-width: 28px !important;
-  max-width: 28px !important;
-  padding: 0 4px !important;
-  text-align: center;
-}
-
-.row-icon-wrapper {
-  width: 24px;
-  height: 24px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
-  margin: 0 auto;
-}
-
+/* Selected row icon checkmark styling */
 .row-icon-wrapper.selected {
   background: var(--accent);
   color: #121214 !important;
@@ -1177,21 +1215,6 @@ body {
   color: #121214 !important;
   stroke: #121214 !important;
   stroke-width: 3.5 !important;
-}
-
-.file-cell-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.file-name-text {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 /* Static Mobile Bottom Command Bar (Total Commander Style) */

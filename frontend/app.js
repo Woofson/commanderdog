@@ -468,8 +468,18 @@ function renderPaneTable(paneIndex) {
       showContextMenu(e.clientX, e.clientY);
     };
 
-    const iconType = entry.is_dir ? 'dir' : (entry.is_archive ? 'archive' : 'text');
-    const iconName = entry.is_dir ? 'folder' : (entry.is_archive ? 'file-archive' : 'file-text');
+    let iconType = 'text';
+    let iconName = 'file-text';
+    if (entry.is_dir) {
+      iconName = 'folder';
+      iconType = entry.is_empty === true ? 'dir dir-empty' : 'dir dir-filled';
+    } else if (entry.is_archive) {
+      iconType = 'archive';
+      iconName = 'file-archive';
+    } else if (isImageExtension(entry.name)) {
+      iconType = 'image';
+      iconName = 'image';
+    }
 
     tr.innerHTML = `
       <td class="file-cell file-cell-icon">
