@@ -48,3 +48,27 @@ regex = "1.11"
 [features]
 default = []
 pam = ["dep:pam-auth"]
+
+[package.metadata.deb]
+maintainer = "Bolt J Woofson <bolt@boop.no>"
+copyright = "2026, Bolt J Woofson <bolt@boop.no>"
+license-file = ["LICENSE", "4"]
+extended-description = """\
+Quad-pane web file browser blending the orthodox speed of Total Commander / \
+Midnight Commander with the modern responsiveness of Next Explorer. Features \
+1-to-4 toggleable panes, WebDAV/SFTP, S3 Cloud Storage, DeltaCopy/TeraCopy \
+engine, dual-pane editor with Mermaid diagrams, slide-up web terminal, \
+directory sync, and 11 customizable themes."""
+section = "utils"
+priority = "optional"
+depends = "$auto, ca-certificates, libsqlite3-0, libssh2-1, tar, bzip2, p7zip-full"
+assets = [
+    ["target/release/commanderdog", "usr/local/bin/commanderdog", "755"],
+    ["commanderdog.service", "lib/systemd/system/commanderdog.service", "644"],
+    ["conf.d/00-server.toml", "etc/commanderdog/conf.d/00-server.toml", "644"],
+    ["conf.d/10-auth.toml", "etc/commanderdog/conf.d/10-auth.toml", "644"],
+    ["conf.d/20-themes.toml", "etc/commanderdog/conf.d/20-themes.toml", "644"],
+    ["conf.d/30-actions.toml", "etc/commanderdog/conf.d/30-actions.toml", "644"],
+    ["assets/commanderdog.png", "usr/share/pixmaps/commanderdog.png", "644"],
+    ["README.md", "usr/share/doc/commanderdog/README.md", "644"],
+]

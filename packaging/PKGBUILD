@@ -1,0 +1,30 @@
+# Maintainer: Bolt J Woofson <bolt@boop.no>
+pkgname=commanderdog
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Quad-pane web file commander with orthodox speed, WebDAV/SFTP, S3, and diffing"
+arch=('x86_64' 'aarch64')
+url="https://github.com/Woofson/commanderdog"
+license=('MIT')
+depends=('glibc' 'sqlite' 'libssh2' 'openssl' 'ca-certificates')
+makedepends=('cargo' 'rust')
+source=("$pkgname-$pkgver.tar.gz::https://github.com/Woofson/commanderdog/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+build() {
+    cd "$pkgname-$pkgver"
+    cargo build --release --locked
+}
+
+package() {
+    cd "$pkgname-$pkgver"
+    install -Dm755 "target/release/commanderdog" "$pkgdir/usr/local/bin/commanderdog"
+    install -Dm644 "commanderdog.service" "$pkgdir/usr/lib/systemd/system/commanderdog.service"
+    
+    install -d "$pkgdir/etc/commanderdog/conf.d"
+    install -m644 conf.d/*.toml "$pkgdir/etc/commanderdog/conf.d/"
+    
+    install -Dm644 "assets/commanderdog.png" "$pkgdir/usr/share/pixmaps/commanderdog.png"
+    install -Dm644 "LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+    install -Dm644 "README.md" "$pkgdir/usr/share/doc/$pkgname/README.md"
+}

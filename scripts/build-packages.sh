@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# 🐕 CommanderDog - Multi-Format Release Packaging Script
+# Generates: Standalone Tarballs (.tar.gz), Debian (.deb), and Checksums
+# ==============================================================================
+
+set -euo pipefail
+
+VERSION="0.1.0"
+ARCH=$(uname -m)
+DIST_DIR="./dist"
+
+echo "======================================================"
+echo "🐕 Building CommanderDog Release Packages (v${VERSION})..."
+echo "======================================================"
+
+# 1. Compile Release Binary
+echo "🔨 Compiling standalone release binary..."
+cargo build --release
+
+mkdir -p "${DIST_DIR}"
+
+# 2. Package Generic Tarball
+TARBALL_NAME="commanderdog-v${VERSION}-linux-${ARCH}"
+TARBALL_DIR="/tmp/${TARBALL_NAME}"
+rm -rf "${TARBALL_DIR}"
+mkdir -p "${TARBALL_DIR}/conf.d"
+
+cp "./target/release/commanderdog" "${TARBALL_DIR}/"
+cp -r ./conf.d/* "${TARBALL_DIR}/conf.d/"
+cp "./commanderdog.service" "${TARBALL_DIR}/"
+cp "./LICENSE" "${TARBALL_DIR}/"
+cp "./README.md" "${TARBALL_DIR}/"
+cp "./scripts/lxc-install.sh" "${TARBALL_DIR}/install.sh"
+
+echo "📦 Creating ${TARBALL_NAME}.tar.gz..."
+tar -czf "${DIST_DIR}/${TARBALL_NAME}.tar.gz" -C /tmp "${TARBALL_NAME}"
+
+# 3. Build Debian .deb Package
+DEB_DIR="/tmp/deb-pkg"
+rm -rf "${DEB_DIR}"
+mkdir -p "${DEB_DIR}/DEBIAN"
+mkdir -p "${DEB_DIR}/usr/local/bin"
+mkdir -p "${DEB_DIR}/etc/commanderdog/conf.d"
+mkdir -p "${DEB_DIR}/lib/systemd/system"
+mkdir -p "${DEB_DIR}/usr/share/pixmaps"
+mkdir -p "${DEB_DIR}/usr/share/doc/commanderdog"
+
+cat << DEBEOF > "${DEB_DIR}/DEBIAN/control"
+Package: commanderdog
+Version: ${VERSION}
+Section: utils
+Priority: optional
+Architecture: amd64
+Maintainer: Bolt J Woofson <bolt@boop.no>
+Depends: ca-certificates, libsqlite3-0, libssh2-1, tar, bzip2, p7zip-full
+Description: Quad-pane high-performance web file commander
+ Blending the orthodox speed of Total Commander / Midnight Commander
+ with the modern responsiveness of Next Explorer.
+DEBEOF
+
+cp "./target/release/commanderdog" "${DEB_DIR}/usr/local/bin/"
+cp -r ./conf.d/* "${DEB_DIR}/etc/commanderdog/conf.d/"
+cp "./commanderdog.service" "${DEB_DIR}/lib/systemd/system/"
+cp "./assets/commanderdog.png" "${DEB_DIR}/usr/share/pixmaps/"
+cp "./LICENSE" "${DEB_DIR}/usr/share/doc/commanderdog/copyright"
+cp "./README.md" "${DEB_DIR}/usr/share/doc/commanderdog/"
+
+chmod 755 "${DEB_DIR}/usr/local/bin/commanderdog"
+chmod 755 "${DEB_DIR}/DEBIAN"
+
+if command -v dpkg-deb >/dev/null 2>&1; then
+    echo "📦 Building Debian .deb package..."
+    dpkg-deb --build "${DEB_DIR}" "${DIST_DIR}/commanderdog_${VERSION}_amd64.deb"
+fi
+
+# 4. Generate SHA-256 Checksums
+echo "🔒 Generating SHA-256 Checksums..."
+cd "${DIST_DIR}"
+sha256sum * > SHA256SUMS
+cd ..
+
+echo "======================================================"
+echo "✅ Build Complete! Release artifacts generated in ./dist/:"
+ls -la "${DIST_DIR}"
+echo "======================================================"
