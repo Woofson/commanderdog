@@ -87,6 +87,9 @@ async function checkAuthAndLoad() {
   }
 
   showModal('login-modal');
+  setTimeout(() => {
+    document.getElementById('login-username')?.focus();
+  }, 100);
 }
 
 async function loadConfig() {
@@ -129,6 +132,7 @@ function renderAllPanes() {
     loadPaneDirectory(i, pane.path);
   }
 
+  applyPaneColors();
   if (window.lucide) lucide.createIcons();
 }
 
@@ -147,15 +151,20 @@ function createPaneElement(pane, index) {
   el.ondrop = (e) => handlePaneDrop(e, index);
 
   const visibleCount = getVisiblePaneCount();
+  const colors = getPaneColors();
   let mobileTabs = '';
   if (visibleCount > 1) {
     mobileTabs = `
       <div class="mobile-pane-switcher-bar">
-        ${Array.from({ length: visibleCount }).map((_, pIdx) => `
-          <button class="mobile-pane-tab ${pIdx === index ? 'active' : ''}" data-pane-idx="${pIdx}" onclick="event.stopPropagation(); setActivePane(${pIdx})">
-            📁 Pane ${pIdx + 1}
-          </button>
-        `).join('')}
+        ${Array.from({ length: visibleCount }).map((_, pIdx) => {
+          const color = colors[pIdx] || 'default';
+          const colorClass = color !== 'default' ? `pane-tab-color-${color}` : '';
+          return `
+            <button class="mobile-pane-tab ${colorClass} ${pIdx === index ? 'active' : ''}" data-pane-idx="${pIdx}" onclick="event.stopPropagation(); setActivePane(${pIdx})">
+              <img src="assets/folder-closed.png" style="width:13px; height:13px; vertical-align:middle; margin-right:4px;"> Pane ${pIdx + 1}
+            </button>
+          `;
+        }).join('')}
       </div>
     `;
   }
@@ -164,6 +173,7 @@ function createPaneElement(pane, index) {
     ${mobileTabs}
     <div class="pane-header">
       <div class="pane-nav-btns">
+        <span class="pane-idx-badge" id="pane-idx-badge-${index}" title="Pane ${index + 1} (Click to cycle border color)" onclick="event.stopPropagation(); cyclePaneColor(${index})">${index + 1}</span>
         <button onclick="navPaneHistory(${index}, -1)" title="Back"><i data-lucide="arrow-left" style="width:14px;"></i></button>
         <button onclick="navPaneHistory(${index}, 1)" title="Forward"><i data-lucide="arrow-right" style="width:14px;"></i></button>
         <button onclick="navPaneUp(${index})" title="Parent Directory (Backspace)"><i data-lucide="arrow-up" style="width:14px;"></i></button>
@@ -459,7 +469,7 @@ function renderPaneTable(paneIndex) {
     parentTr.innerHTML = `
       <td class="file-cell file-cell-icon">
         <div class="row-icon-wrapper">
-          <i data-lucide="corner-left-up" class="file-icon dir dir-filled" style="width: 15px; height: 15px; color: var(--accent);"></i>
+          <img src="assets/folder-open.png" class="file-icon-img" alt="Parent Directory" style="width: 17px; height: 17px;">
         </div>
       </td>
       <td class="file-cell file-cell-name">
@@ -624,40 +634,43 @@ function renderPaneTable(paneIndex) {
       showContextMenu(e.clientX, e.clientY);
     };
 
-    let iconType = 'text';
-    let iconName = 'file-text';
-    if (entry.is_dir) {
-      iconName = 'folder';
-      iconType = entry.is_empty === true ? 'dir dir-empty' : 'dir dir-filled';
-    } else if (entry.is_archive) {
-      iconType = 'archive';
-      iconName = 'file-archive';
-    } else if (isImageExtension(entry.name)) {
-      iconType = 'image';
-      iconName = 'image';
-    } else if (isPdfExtension(entry.name)) {
-      iconType = 'pdf';
-      iconName = 'file-text';
-    } else if (isAudioExtension(entry.name)) {
-      iconType = 'audio';
-      iconName = 'music';
-    } else if (isVideoExtension(entry.name)) {
-      iconType = 'video';
-      iconName = 'video';
-    } else if (isComicBookExtension(entry.name)) {
-      iconType = 'book';
-      iconName = 'book-open';
-    }
-
+    let iconHtml = '';
     const isMobile = window.innerWidth <= 768;
     const showCheckBadge = isSelected && isMobile;
-    const activeIconName = showCheckBadge ? 'check' : iconName;
-    const activeIconClass = showCheckBadge ? 'file-icon check-icon' : `file-icon ${iconType}`;
+
+    if (showCheckBadge) {
+      iconHtml = `<i data-lucide="check" class="file-icon check-icon" style="width: 15px; height: 15px;"></i>`;
+    } else if (entry.is_dir) {
+      iconHtml = `<img src="assets/folder-closed.png" class="file-icon-img" alt="Folder" style="width: 17px; height: 17px;">`;
+    } else {
+      let iconType = 'text';
+      let iconName = 'file-text';
+      if (entry.is_archive) {
+        iconType = 'archive';
+        iconName = 'file-archive';
+      } else if (isImageExtension(entry.name)) {
+        iconType = 'image';
+        iconName = 'image';
+      } else if (isPdfExtension(entry.name)) {
+        iconType = 'pdf';
+        iconName = 'file-text';
+      } else if (isAudioExtension(entry.name)) {
+        iconType = 'audio';
+        iconName = 'music';
+      } else if (isVideoExtension(entry.name)) {
+        iconType = 'video';
+        iconName = 'video';
+      } else if (isComicBookExtension(entry.name)) {
+        iconType = 'book';
+        iconName = 'book-open';
+      }
+      iconHtml = `<i data-lucide="${iconName}" class="file-icon ${iconType}" style="width: 15px; height: 15px;"></i>`;
+    }
 
     tr.innerHTML = `
       <td class="file-cell file-cell-icon">
         <div class="row-icon-wrapper ${showCheckBadge ? 'selected' : ''}">
-          <i data-lucide="${activeIconName}" class="${activeIconClass}" style="width: 15px; height: 15px;"></i>
+          ${iconHtml}
         </div>
       </td>
       <td class="file-cell file-cell-name">
@@ -856,7 +869,7 @@ async function loadUsersTable() {
         }
         const hasAll = allowed.includes('*');
 
-        const services = ['local', 'smb', 'nfs', 's3', 'sftp', 'webdav', 'terminal', 'syncthing', 'converters'];
+        const services = ['local', 'smb', 'nfs', 's3', 'sftp', 'webdav', 'terminal', 'syncthing', 'converters', 'upload', 'download'];
         const serviceLabels = {
           'local': 'Local',
           'smb': 'SMB/CIFS',
@@ -866,10 +879,13 @@ async function loadUsersTable() {
           'webdav': 'WebDAV',
           'terminal': 'Terminal',
           'syncthing': 'Syncthing',
-          'converters': 'ConvertX'
+          'converters': 'ConvertX',
+          'upload': 'Upload',
+          'download': 'Download'
         };
 
         const safeUname = escapeHtml(u.username);
+        const isDisabled = !!u.is_disabled;
 
         return `
           <tr class="admin-user-row">
@@ -881,7 +897,15 @@ async function loadUsersTable() {
                 <span>${safeUname}</span>
                 ${u.is_pam ? '<span class="badge" style="font-size:9px; background:rgba(56,189,248,0.2); color:var(--info); border:1px solid rgba(56,189,248,0.35);">PAM / LINUX</span>' : '<span class="badge" style="font-size:9px; background:rgba(245,158,11,0.2); color:var(--accent); border:1px solid rgba(245,158,11,0.35);">DATABASE</span>'}
               </div>
-              <div style="font-size: 11px; color: var(--text-dim); padding-left: 24px;">${escapeHtml(u.email || (u.nickname ? `@${u.nickname}` : 'System user account'))}</div>
+              <div style="font-size: 11px; color: var(--text-dim); padding-left: 30px;">${escapeHtml(u.email || (u.nickname ? `@${u.nickname}` : 'System user account'))}</div>
+              <div style="margin-top: 6px; padding-left: 30px;">
+                <label style="display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-size: 11px;">
+                  <input type="checkbox" id="user-disabled-${safeUname}" ${isDisabled ? 'checked' : ''} onchange="handleUserDisabledToggle('${safeUname}', this.checked)">
+                  <span id="user-disabled-badge-${safeUname}" style="font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; color: ${isDisabled ? 'var(--danger)' : 'var(--success)'}; background: ${isDisabled ? 'rgba(239, 68, 68, 0.15)' : 'rgba(34, 197, 94, 0.15)'}; border: 1px solid ${isDisabled ? 'rgba(239, 68, 68, 0.35)' : 'rgba(34, 197, 94, 0.35)'};">
+                    ${isDisabled ? '⛔ Account Disabled' : '🟢 Active'}
+                  </span>
+                </label>
+              </div>
             </td>
             <td class="admin-user-cell">
               <select id="user-role-${safeUname}" class="pane-quick-filter" style="padding: 6px 8px; font-size: 11px; width: 100%;">
@@ -928,13 +952,25 @@ async function loadUsersTable() {
   }
 }
 
+function handleUserDisabledToggle(username, isChecked) {
+  const badge = document.getElementById(`user-disabled-badge-${username}`);
+  if (badge) {
+    badge.textContent = isChecked ? '⛔ Account Disabled' : '🟢 Active';
+    badge.style.color = isChecked ? 'var(--danger)' : 'var(--success)';
+    badge.style.background = isChecked ? 'rgba(239, 68, 68, 0.15)' : 'rgba(34, 197, 94, 0.15)';
+    badge.style.borderColor = isChecked ? 'rgba(239, 68, 68, 0.35)' : 'rgba(34, 197, 94, 0.35)';
+  }
+}
+
 async function saveUserRbac(username) {
   const roleSelect = document.getElementById(`user-role-${username}`);
   const homeInput = document.getElementById(`user-home-${username}`);
+  const disabledCb = document.getElementById(`user-disabled-${username}`);
   const role = roleSelect?.value || 'user';
   const home_dir = homeInput?.value || '/';
+  const is_disabled = disabledCb ? disabledCb.checked : false;
 
-  const services = ['local', 'smb', 'nfs', 's3', 'sftp', 'webdav', 'terminal', 'syncthing', 'converters'];
+  const services = ['local', 'smb', 'nfs', 's3', 'sftp', 'webdav', 'terminal', 'syncthing', 'converters', 'upload', 'download'];
   const allowed_services = [];
 
   for (const svc of services) {
@@ -951,12 +987,13 @@ async function saveUserRbac(username) {
       body: JSON.stringify({
         role: role,
         allowed_services: allowed_services,
-        home_dir: home_dir
+        home_dir: home_dir,
+        is_disabled: is_disabled
       })
     });
 
     if (resp.ok) {
-      showToast(`RBAC settings for '${username}' saved!`, 'success');
+      showToast(`RBAC & status for '${username}' saved!`, 'success');
       loadUsersTable();
     } else {
       showToast(`Failed to save RBAC: ${await resp.text()}`, 'error');
@@ -2417,8 +2454,9 @@ function showEmptySpaceContextMenu(x, y, paneIndex) {
   const clipInfo = App.clipboard ? `(${App.clipboard.paths.length} item${App.clipboard.paths.length > 1 ? 's' : ''})` : '';
 
   menu.innerHTML = `
-    <div style="padding: 6px 12px; font-size: 11px; font-weight: 700; color: var(--accent); border-bottom: 1px solid var(--border); font-family: var(--font-mono); text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">
-      📁 ${escapeHtml(pane.path.split('/').pop() || pane.path || '/')}
+    <div style="padding: 6px 12px; font-size: 11px; font-weight: 700; color: var(--accent); border-bottom: 1px solid var(--border); font-family: var(--font-mono); text-overflow: ellipsis; overflow: hidden; white-space: nowrap; display: flex; align-items: center; gap: 6px;">
+      <img src="assets/folder-closed.png" style="width: 14px; height: 14px;">
+      <span>${escapeHtml(pane.path.split('/').pop() || pane.path || '/')}</span>
     </div>
     <div class="context-item" onclick="triggerMkdir()"><i data-lucide="folder-plus" style="width: 14px;"></i> New Folder... (F7)</div>
     <div class="context-item" onclick="triggerNewFile()"><i data-lucide="file-plus" style="width: 14px;"></i> New Text File...</div>
@@ -2788,8 +2826,22 @@ function applyTheme(themeId) {
 }
 
 async function handleLoginSubmit() {
-  const u = document.getElementById('login-username').value;
-  const p = document.getElementById('login-password').value;
+  const uInput = document.getElementById('login-username');
+  const pInput = document.getElementById('login-password');
+  const err = document.getElementById('login-error');
+
+  const u = uInput?.value.trim() || '';
+  const p = pInput?.value || '';
+
+  if (!u || !p) {
+    if (err) {
+      err.style.display = 'block';
+      err.textContent = 'Please enter both username and password.';
+    }
+    if (!u) uInput?.focus();
+    else pInput?.focus();
+    return;
+  }
 
   const resp = await fetch('/api/auth/login', {
     method: 'POST',
@@ -2804,13 +2856,20 @@ async function handleLoginSubmit() {
     updateHeaderProfile(App.user);
     localStorage.setItem('cd_token', data.token);
     hideModal('login-modal');
+    if (err) err.style.display = 'none';
+    if (pInput) pInput.value = '';
     await loadConfig();
     await loadSystemUsersGroups();
     renderAllPanes();
   } else {
-    const err = document.getElementById('login-error');
-    err.style.display = 'block';
-    err.textContent = 'Invalid credentials. Please try again.';
+    if (err) {
+      err.style.display = 'block';
+      err.textContent = 'Invalid credentials. Please try again.';
+    }
+    if (pInput) {
+      pInput.value = '';
+      pInput.focus();
+    }
   }
 }
 
@@ -3003,7 +3062,7 @@ function triggerCopy() {
   };
 
   const summary = document.getElementById('deltacopy-source-summary');
-  if (summary) summary.innerHTML = paths.map(p => `<div>📁 ${escapeHtml(p)}</div>`).join('');
+  if (summary) summary.innerHTML = paths.map(p => `<div style="display: flex; align-items: center; gap: 4px;"><img src="assets/folder-closed.png" style="width: 12px; height: 12px;"> ${escapeHtml(p)}</div>`).join('');
   const destInput = document.getElementById('deltacopy-dest-input');
   if (destInput) destInput.value = targetPane.path;
 
@@ -3130,6 +3189,147 @@ function triggerExtract() {
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
     body: JSON.stringify({ archive_path: item.path, target_dir: pane.path })
   }).then(() => refreshPane(App.activePaneIndex));
+}
+
+// ---------------- MULTI-FILE & BATCH DOWNLOAD ----------------
+async function triggerDownload() {
+  const pane = App.panes[App.activePaneIndex];
+  if (!pane) return;
+
+  let paths = [];
+  if (pane.selected.size > 0) {
+    paths = Array.from(pane.selected);
+  } else if (App.contextItem) {
+    paths = [App.contextItem.path];
+  } else if (pane.entries && pane.entries[pane.cursorIndex]) {
+    paths = [pane.entries[pane.cursorIndex].path];
+  }
+
+  if (paths.length === 0) {
+    showToast('No files or folders selected for download', 'info');
+    return;
+  }
+
+  // If exactly 1 file selected and it is NOT a directory
+  if (paths.length === 1) {
+    const singlePath = paths[0];
+    const entry = pane.entries.find(e => e.path === singlePath);
+    if (entry && !entry.is_dir) {
+      window.open(`/api/fs/download?path=${encodeURIComponent(singlePath)}`, '_blank');
+      showToast('Download started', 'success');
+      return;
+    }
+  }
+
+  // Multiple files or folder selected -> batch download as dynamic zip archive
+  await downloadBatchArchive(paths);
+}
+
+async function downloadBatchArchive(paths) {
+  showToast('Creating batch zip archive for download...', 'info');
+  try {
+    const resp = await fetch('/api/fs/download/batch', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${App.token}`
+      },
+      body: JSON.stringify({ paths })
+    });
+
+    if (!resp.ok) {
+      const errText = await resp.text();
+      throw new Error(errText || 'Failed to create batch archive');
+    }
+
+    const blob = await resp.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = url;
+    const cd = resp.headers.get('content-disposition');
+    let filename = 'commanderdog_download.zip';
+    if (cd && cd.includes('filename=')) {
+      const match = cd.match(/filename=["']?([^"';]+)["']?/);
+      if (match && match[1]) filename = match[1];
+    }
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    a.remove();
+    showToast('Batch download archive ready!', 'success');
+  } catch (err) {
+    await showAlertDialog({
+      title: 'Download Failed',
+      message: 'Failed to generate batch zip archive: ' + err.message,
+      icon: 'alert-triangle',
+      type: 'error',
+      okText: 'Close'
+    });
+  }
+}
+
+// ---------------- PANE IDENTIFICATION BORDER COLORS ----------------
+const PANE_COLOR_PALETTE = ['default', 'amber', 'emerald', 'sky', 'purple', 'rose', 'indigo', 'teal', 'orange'];
+
+function getPaneColors() {
+  try {
+    return JSON.parse(localStorage.getItem('cd_pane_colors')) || {};
+  } catch (e) {
+    return {};
+  }
+}
+
+function setPaneColorPref(paneIdx, colorName) {
+  const colors = getPaneColors();
+  if (colorName === 'default' || !colorName) {
+    delete colors[paneIdx];
+  } else {
+    colors[paneIdx] = colorName;
+  }
+  localStorage.setItem('cd_pane_colors', JSON.stringify(colors));
+  applyPaneColors();
+}
+
+function cyclePaneColor(paneIdx) {
+  const colors = getPaneColors();
+  const current = colors[paneIdx] || 'default';
+  const curIdx = PANE_COLOR_PALETTE.indexOf(current);
+  const nextColor = PANE_COLOR_PALETTE[(curIdx + 1) % PANE_COLOR_PALETTE.length];
+  setPaneColorPref(paneIdx, nextColor);
+  showToast(`Pane ${paneIdx + 1} color: ${nextColor.toUpperCase()}`, 'info');
+}
+
+function applyPaneColors() {
+  const colors = getPaneColors();
+  for (let i = 0; i < 4; i++) {
+    const paneEl = document.getElementById(`pane-${i}`);
+    const color = colors[i] || 'default';
+    if (paneEl) {
+      PANE_COLOR_PALETTE.forEach(c => {
+        if (c !== 'default') paneEl.classList.remove(`pane-color-${c}`);
+      });
+      if (color !== 'default') {
+        paneEl.classList.add(`pane-color-${color}`);
+      }
+    }
+
+    // Dynamically update mobile pane indicator tabs with custom color tints
+    document.querySelectorAll(`.mobile-pane-tab[data-pane-idx="${i}"]`).forEach(tab => {
+      PANE_COLOR_PALETTE.forEach(c => {
+        if (c !== 'default') tab.classList.remove(`pane-tab-color-${c}`);
+      });
+      if (color !== 'default') {
+        tab.classList.add(`pane-tab-color-${color}`);
+      }
+    });
+
+    const selectEl = document.getElementById(`setting-pane-color-${i}`);
+    if (selectEl) {
+      selectEl.value = color;
+    }
+  }
 }
 
 function navPaneUp(index) {
@@ -3445,15 +3645,7 @@ function setupHistoryNavigation() {
       return;
     }
 
-    // 2. If mobile menu drawer is open, close it!
-    const mobileDrawer = document.getElementById('mobile-menu-drawer');
-    if (mobileDrawer && mobileDrawer.classList.contains('active')) {
-      closeMobileMenu();
-      history.pushState({ type: 'dir', paneIndex: App.activePaneIndex, path: App.panes[App.activePaneIndex]?.path || '/' }, '', '');
-      return;
-    }
-
-    // 3. If terminal drawer is open, close it!
+    // 2. If terminal drawer is open, close it!
     const termDrawer = document.getElementById('terminal-drawer');
     if (termDrawer && termDrawer.classList.contains('active')) {
       toggleTerminal(false);
@@ -5701,47 +5893,10 @@ async function testAndSaveSyncthingConfig() {
   }
 }
 
-// ---------------- MOBILE DRAWER & TOUCH HELPERS ----------------
-function toggleMobileMenu() {
-  const drawer = document.getElementById('mobile-menu-drawer');
-  if (!drawer) return;
-  const isOpen = drawer.classList.contains('active');
-  if (isOpen) closeMobileMenu();
-  else openMobileMenu();
-}
-
-function openMobileMenu() {
-  const drawer = document.getElementById('mobile-menu-drawer');
-  const overlay = document.getElementById('mobile-menu-overlay');
-  const pBadge = document.getElementById('mobile-paranoid-badge');
-  const themeSel = document.getElementById('mobile-theme-selector');
-
-  if (pBadge) {
-    pBadge.textContent = App.paranoidMode ? 'ON' : 'OFF';
-    pBadge.style.color = App.paranoidMode ? 'var(--accent)' : 'var(--text-muted)';
-  }
-  if (themeSel) themeSel.value = document.getElementById('theme-selector')?.value || 'amber-charcoal';
-
-  if (drawer) drawer.classList.add('active');
-  if (overlay) overlay.classList.add('active');
-  if (window.lucide) lucide.createIcons();
-}
-
-function closeMobileMenu() {
-  const drawer = document.getElementById('mobile-menu-drawer');
-  const overlay = document.getElementById('mobile-menu-overlay');
-  if (drawer) drawer.classList.remove('active');
-  if (overlay) overlay.classList.remove('active');
-}
-
 function toggleParanoidMode() {
   App.paranoidMode = !App.paranoidMode;
   updateParanoidBadge();
-  const pBadge = document.getElementById('mobile-paranoid-badge');
-  if (pBadge) {
-    pBadge.textContent = App.paranoidMode ? 'ON' : 'OFF';
-    pBadge.style.color = App.paranoidMode ? 'var(--accent)' : 'var(--text-muted)';
-  }
+  showToast(`Paranoid Mode: ${App.paranoidMode ? 'ON' : 'OFF'}`, 'info');
 }
 
 function refreshAllPanes() {

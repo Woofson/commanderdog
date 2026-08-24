@@ -1,6 +1,6 @@
 [package]
 name = "commanderdog"
-version = "0.2.3"
+version = "0.2.4"
 edition = "2021"
 authors = ["Bolt J Woofson <bolt@boop.no>"]
 description = "Quad-pane web file browser with orthodox commander power, WebDAV/SFTP, diffing, and paranoid file handling"

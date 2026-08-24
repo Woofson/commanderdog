@@ -74,6 +74,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/fs/chown", post(handle_chown))
         .route("/api/fs/upload", post(handle_upload))
         .route("/api/fs/download", get(handle_download))
+        .route("/api/fs/download/batch", post(handle_download_batch))
         .route("/api/fs/archive/create", post(handle_archive_create))
         .route("/api/fs/archive/extract", post(handle_archive_extract))
         .route("/api/fs/checksum", post(handle_calculate_checksum))
@@ -171,6 +172,7 @@ async fn handle_get_me(
                     role: claims.role,
                     home_dir: claims.home_dir,
                     is_pam: claims.is_pam,
+                    is_disabled: false,
                     allowed_services: "[\"*\"]".to_string(),
                 }))
             }
@@ -221,6 +223,8 @@ struct UpdateUserRbacRequest {
     role: String,
     allowed_services: Vec<String>,
     home_dir: Option<String>,
+    #[serde(default)]
+    is_disabled: Option<bool>,
 }
 
 async fn handle_update_user_rbac(
@@ -237,8 +241,14 @@ async fn handle_update_user_rbac(
         }
 
         let services_json = serde_json::to_string(&payload.allowed_services).unwrap_or_else(|_| "[\"*\"]".to_string());
-        let updated = state.auth.update_user_rbac(&username, &payload.role, &services_json, payload.home_dir.as_deref())
-            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to update user RBAC: {}", e)))?;
+        let updated = state.auth.update_user_rbac(
+            &username,
+            &payload.role,
+            &services_json,
+            payload.home_dir.as_deref(),
+            payload.is_disabled.unwrap_or(false),
+        )
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to update user RBAC: {}", e)))?;
 
         return Ok(Json(serde_json::json!({ "success": updated })));
     }
@@ -1011,7 +1021,34 @@ async fn handle_download(
     let path = Path::new(path_str);
 
     if !path.exists() {
-        return Err((StatusCode::NOT_FOUND, "File not found".to_string()));
+        return Err((StatusCode::NOT_FOUND, "File or folder not found".to_string()));
+    }
+
+    if path.is_dir() {
+        let temp_zip = tempfile::Builder::new()
+            .prefix("commanderdog_folder_")
+            .suffix(".zip")
+            .tempfile()
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Temp file error: {}", e)))?;
+        let temp_path = temp_zip.path().to_str().unwrap().to_string();
+
+        ArchiveHandler::create_zip(&[path_str.to_string()], &temp_path)
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Zip creation failed: {}", e)))?;
+
+        let file_bytes = std::fs::read(&temp_path).map_err(|e| {
+            (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to read generated zip: {}", e))
+        })?;
+
+        let dir_name = path.file_name().unwrap_or_default().to_string_lossy();
+        let zip_name = if dir_name.is_empty() { "folder.zip".to_string() } else { format!("{}.zip", dir_name) };
+
+        let response = Response::builder()
+            .header(header::CONTENT_TYPE, "application/zip")
+            .header(header::CONTENT_DISPOSITION, format!("attachment; filename=\"{}\"", zip_name))
+            .body(Body::from(file_bytes))
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Response build error: {}", e)))?;
+
+        return Ok(response);
     }
 
     let file_bytes = std::fs::read(path).map_err(|e| {
@@ -1032,6 +1069,50 @@ async fn handle_download(
         .header(header::CONTENT_TYPE, mime)
         .header(header::CONTENT_DISPOSITION, disposition)
         .header(header::ACCEPT_RANGES, "bytes")
+        .body(Body::from(file_bytes))
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Response build error: {}", e)))?;
+
+    Ok(response)
+}
+
+#[derive(Deserialize)]
+struct BatchDownloadRequest {
+    paths: Vec<String>,
+}
+
+async fn handle_download_batch(
+    Json(payload): Json<BatchDownloadRequest>,
+) -> Result<Response, (StatusCode, String)> {
+    if payload.paths.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "No paths specified for download".to_string()));
+    }
+
+    let temp_zip = tempfile::Builder::new()
+        .prefix("commanderdog_batch_")
+        .suffix(".zip")
+        .tempfile()
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Temp file error: {}", e)))?;
+    let temp_path = temp_zip.path().to_str().unwrap().to_string();
+
+    ArchiveHandler::create_zip(&payload.paths, &temp_path)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Batch zip creation failed: {}", e)))?;
+
+    let file_bytes = std::fs::read(&temp_path).map_err(|e| {
+        (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to read generated zip: {}", e))
+    })?;
+
+    let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
+    let zip_name = if payload.paths.len() == 1 {
+        let p = Path::new(&payload.paths[0]);
+        let base = p.file_name().unwrap_or_default().to_string_lossy();
+        format!("{}.zip", base)
+    } else {
+        format!("commanderdog_download_{}.zip", timestamp)
+    };
+
+    let response = Response::builder()
+        .header(header::CONTENT_TYPE, "application/zip")
+        .header(header::CONTENT_DISPOSITION, format!("attachment; filename=\"{}\"", zip_name))
         .body(Body::from(file_bytes))
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Response build error: {}", e)))?;
 

@@ -72,6 +72,15 @@
 
 ---
 
+### 🎨 Custom Icons, Assets, User Disabling & Mobile Indicators (v0.2.4)
+- [x] **Custom Logo & Folder Icons**: Integrated `logo.png`, `folder-closed.png`, and `folder-open.png` replacing emojis throughout UI and embedded in binary.
+- [x] **Touch / Mobile Pane Indicator Tinting**: Synchronized mobile indicator tabs ("Pane 1", "Pane 2") with per-pane custom border identification colors.
+- [x] **User Account Disabling**: Immediate account enable/disable toggle in Admin RBAC with login prevention.
+- [x] **Multi-File / Folder Batch Zip Streaming**: `POST /api/fs/download/batch` for instant streaming zip archives.
+- [x] **Mobile Header Streamlining**: Unified Tools and Profile menus across desktop and mobile.
+
+---
+
 ## 📋 Upcoming Backlog (v0.3.0 & Future Milestones)
 
 ### 🔑 1. OAuth2 / OpenID Connect (OIDC) Single Sign-On (SSO)
@@ -89,3 +98,24 @@
 
 ### ⚡ 3. WASM / Plugin Extensibility Architecture
 - [ ] WebAssembly (WASM) plugin hooks for custom file format previews, custom converters, and external cloud drivers.
+
+### 📥 4. Granular Upload/Download RBAC & Multi-File Batch Archive Download
+- [ ] RBAC permissions for `"upload"` and `"download"` operations toggleable per user.
+- [ ] Multi-file / folder batch download: automatically compress selected files into an on-the-fly `.zip` archive before downloading to the browser.
+
+### ☁️ 5. Cloud Drive Features (Public Links & Shares)
+- [ ] Time-limited & password-protected public share links for files and directories (Dropbox / Google Drive / Nextcloud style).
+- [ ] Fast public view/download landing pages for shared links.
+
+### 📱 6. Touch & Mobile Header Cleanup (Eliminate Redundant Burger Menu)
+- [ ] Remove redundant mobile burger drawer menu now that standard Profile and Tools buttons are present.
+- [ ] Ensure all tools, theme selectors, paranoid toggles, and user actions are fully responsive and accessible via standard header buttons across all screen widths.
+
+### 🎨 7. Custom Definable Pane Border Identification Colors
+- [ ] Allow users to configure distinct border/accent colors for each pane (Pane 1, 2, 3, 4) for instant visual orientation (e.g. Amber, Emerald, Sky Blue, Rose, Violet, or Theme Default).
+- [ ] Visual indicator tags and persistent per-pane color preferences.
+
+### 🚫 8. User Account Disabling (Disable Built-in Admin & User Accounts)
+- [ ] `disabled` status flag in SQLite user database.
+- [ ] Admin RBAC toggle switch to disable/enable user accounts (including built-in `admin`).
+- [ ] Login rejection for disabled accounts with clear diagnostic feedback.

@@ -1,0 +1,20 @@
+Upcoming Backlog (v0.3.0 & Future Milestones)
+1. OAuth2 / OpenID Connect (OIDC) Single Sign-On (SSO)
+Direct integration with OIDC identity providers:
+- Authentik
+- Authelia
+- Keycloak
+- Google / GitHub / Generic OAuth2 Provider
+Automatic OIDC group-to-role mapping (map IDP groups to CommanderDog admin/standard/readonly roles).
+Just-In-Time (JIT) user auto-provisioning upon initial SSO login.
+2. Webhooks & Automation Actions.
+Webhook triggers on file events (upload, rename, move, delete).
+Custom user script execution directly from the right-click context menu via conf.d/30-actions.toml.
+3. WASM / Plugin Extensibility Architecture.
+WebAssembly (WASM) plugin hooks for custom file format previews, custom converters, and external cloud drivers.
+4. Uploading and Downloading of files - function to be possible to enable/disable for users. 
+If multiple files are to be downloaded, .zip/.7z is created before download.
+5. Other useful functions cloud drives has (Dropbox, Google Drive, Proton Drive etc).
+6. Clean up the burger menu on the touch/mobile interface, it is redundant now with the profile button and tools button. Move the other functions under these buttons that are not already there.
+7. Custom defineable coloring of the borders - so we can define each panel with its own color for fast identification. Default is off/standard theme color.
+8. Possibility to disable users, like the built-in admin account.

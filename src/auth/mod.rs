@@ -19,7 +19,8 @@ pub struct User {
     pub role: String, // "admin", "user", "readonly"
     pub home_dir: String,
     pub is_pam: bool,
-    pub allowed_services: String, // JSON array e.g. ["*"] or ["local","smb","s3"]
+    pub is_disabled: bool,
+    pub allowed_services: String, // JSON array e.g. ["*"] or ["local","smb","s3","upload","download"]
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -75,6 +76,7 @@ impl AuthManager {
                 avatar_url TEXT,
                 allowed_services TEXT DEFAULT '[\"*\"]',
                 is_pam INTEGER DEFAULT 0,
+                is_disabled INTEGER DEFAULT 0,
                 created_at TEXT NOT NULL
             )",
             [],
@@ -99,6 +101,7 @@ impl AuthManager {
         let _ = conn.execute("ALTER TABLE users ADD COLUMN avatar_url TEXT", []);
         let _ = conn.execute("ALTER TABLE users ADD COLUMN allowed_services TEXT DEFAULT '[\"*\"]'", []);
         let _ = conn.execute("ALTER TABLE users ADD COLUMN is_pam INTEGER DEFAULT 0", []);
+        let _ = conn.execute("ALTER TABLE users ADD COLUMN is_disabled INTEGER DEFAULT 0", []);
 
         let auth = Self {
             db: Arc::new(Mutex::new(conn)),
@@ -142,7 +145,7 @@ impl AuthManager {
         let now = Utc::now().to_rfc3339();
 
         conn.execute(
-            "INSERT INTO users (username, password_hash, role, home_dir, allowed_services, is_pam, created_at) VALUES (?1, ?2, ?3, ?4, '[\"*\"]', 0, ?5)",
+            "INSERT INTO users (username, password_hash, role, home_dir, allowed_services, is_pam, is_disabled, created_at) VALUES (?1, ?2, ?3, ?4, '[\"*\"]', 0, 0, ?5)",
             params![username, password_hash, role, home_dir, now],
         )?;
 
@@ -157,6 +160,7 @@ impl AuthManager {
             role: role.to_string(),
             home_dir: home_dir.to_string(),
             is_pam: false,
+            is_disabled: false,
             allowed_services: "[\"*\"]".to_string(),
         })
     }
@@ -164,7 +168,7 @@ impl AuthManager {
     pub fn get_user_by_username(&self, username: &str) -> Result<Option<User>, Box<dyn std::error::Error + Send + Sync>> {
         let conn = self.db.lock().map_err(|_| "DB lock poisoned")?;
         let mut stmt = conn.prepare(
-            "SELECT id, username, nickname, email, avatar_url, role, home_dir, is_pam, allowed_services FROM users WHERE username = ?1"
+            "SELECT id, username, nickname, email, avatar_url, role, home_dir, is_pam, is_disabled, allowed_services FROM users WHERE username = ?1"
         )?;
 
         let user = stmt.query_row(params![username], |row| {
@@ -177,7 +181,8 @@ impl AuthManager {
                 role: row.get(5)?,
                 home_dir: row.get(6)?,
                 is_pam: row.get::<_, i64>(7)? != 0,
-                allowed_services: row.get::<_, Option<String>>(8)?.unwrap_or_else(|| "[\"*\"]".to_string()),
+                is_disabled: row.get::<_, i64>(8)? != 0,
+                allowed_services: row.get::<_, Option<String>>(9)?.unwrap_or_else(|| "[\"*\"]".to_string()),
             })
         }).optional()?;
 
@@ -187,7 +192,7 @@ impl AuthManager {
     pub fn list_users(&self) -> Result<Vec<User>, Box<dyn std::error::Error + Send + Sync>> {
         let conn = self.db.lock().map_err(|_| "DB lock poisoned")?;
         let mut stmt = conn.prepare(
-            "SELECT id, username, nickname, email, avatar_url, role, home_dir, is_pam, allowed_services FROM users ORDER BY username ASC"
+            "SELECT id, username, nickname, email, avatar_url, role, home_dir, is_pam, is_disabled, allowed_services FROM users ORDER BY username ASC"
         )?;
         let rows = stmt.query_map([], |row| {
             Ok(User {
@@ -199,7 +204,8 @@ impl AuthManager {
                 role: row.get(5)?,
                 home_dir: row.get(6)?,
                 is_pam: row.get::<_, i64>(7)? != 0,
-                allowed_services: row.get::<_, Option<String>>(8)?.unwrap_or_else(|| "[\"*\"]".to_string()),
+                is_disabled: row.get::<_, i64>(8)? != 0,
+                allowed_services: row.get::<_, Option<String>>(9)?.unwrap_or_else(|| "[\"*\"]".to_string()),
             })
         })?;
 
@@ -220,8 +226,8 @@ impl AuthManager {
         let now = Utc::now().to_rfc3339();
 
         conn.execute(
-            "INSERT INTO users (username, password_hash, role, home_dir, nickname, allowed_services, is_pam, created_at)
-             VALUES (?1, 'PAM_MANAGED', ?2, ?3, ?1, '[\"*\"]', 1, ?4)
+            "INSERT INTO users (username, password_hash, role, home_dir, nickname, allowed_services, is_pam, is_disabled, created_at)
+             VALUES (?1, 'PAM_MANAGED', ?2, ?3, ?1, '[\"*\"]', 1, 0, ?4)
              ON CONFLICT(username) DO UPDATE SET is_pam = 1",
             params![username, role, home_dir, now],
         )?;
@@ -272,17 +278,19 @@ impl AuthManager {
         role: &str,
         allowed_services: &str,
         home_dir: Option<&str>,
+        is_disabled: bool,
     ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
         let conn = self.db.lock().map_err(|_| "DB lock poisoned")?;
+        let dis_int = if is_disabled { 1 } else { 0 };
         let affected = if let Some(hd) = home_dir {
             conn.execute(
-                "UPDATE users SET role = ?1, allowed_services = ?2, home_dir = ?3 WHERE username = ?4",
-                params![role, allowed_services, hd, username],
+                "UPDATE users SET role = ?1, allowed_services = ?2, home_dir = ?3, is_disabled = ?4 WHERE username = ?5",
+                params![role, allowed_services, hd, dis_int, username],
             )?
         } else {
             conn.execute(
-                "UPDATE users SET role = ?1, allowed_services = ?2 WHERE username = ?3",
-                params![role, allowed_services, username],
+                "UPDATE users SET role = ?1, allowed_services = ?2, is_disabled = ?3 WHERE username = ?4",
+                params![role, allowed_services, dis_int, username],
             )?
         };
         Ok(affected > 0)
@@ -304,7 +312,7 @@ impl AuthManager {
             let user_res = {
                 let conn = self.db.lock().map_err(|_| "DB lock poisoned")?;
                 let mut stmt = conn.prepare(
-                    "SELECT id, username, password_hash, role, home_dir, nickname, email, avatar_url, allowed_services, is_pam FROM users WHERE username = ?1"
+                    "SELECT id, username, password_hash, role, home_dir, nickname, email, avatar_url, allowed_services, is_pam, is_disabled FROM users WHERE username = ?1"
                 )?;
                 stmt.query_row(params![username], |row| {
                     Ok((
@@ -318,11 +326,16 @@ impl AuthManager {
                         row.get::<_, Option<String>>(7)?,
                         row.get::<_, Option<String>>(8)?.unwrap_or_else(|| "[\"*\"]".to_string()),
                         row.get::<_, i64>(9)? != 0,
+                        row.get::<_, i64>(10)? != 0,
                     ))
                 }).optional()?
             };
 
-            if let Some((id, uname, hash_str, role, home_dir, nickname, email, avatar_url, allowed_services, is_pam)) = user_res {
+            if let Some((id, uname, hash_str, role, home_dir, nickname, email, avatar_url, allowed_services, is_pam, is_disabled)) = user_res {
+                if is_disabled {
+                    return Err("Account is disabled. Please contact an administrator.".into());
+                }
+
                 // Only verify Argon2 if this is a native DB user (not PAM_MANAGED)
                 if !is_pam && hash_str != "PAM_MANAGED" {
                     if let Ok(parsed_hash) = PasswordHash::new(&hash_str) {
@@ -336,6 +349,7 @@ impl AuthManager {
                                 role,
                                 home_dir,
                                 is_pam,
+                                is_disabled,
                                 allowed_services,
                             });
                         }
@@ -363,6 +377,9 @@ impl AuthManager {
                             
                             // Check if this PAM user already has a linked DB record
                             if let Ok(Some(mut existing)) = self.get_user_by_username(username) {
+                                if existing.is_disabled {
+                                    return Err("Account is disabled. Please contact an administrator.".into());
+                                }
                                 existing.is_pam = true;
                                 return Ok(existing);
                             }
@@ -371,7 +388,7 @@ impl AuthManager {
                             let conn = self.db.lock().map_err(|_| "DB lock poisoned")?;
                             let now = Utc::now().to_rfc3339();
                             let _ = conn.execute(
-                                "INSERT OR IGNORE INTO users (username, password_hash, role, home_dir, allowed_services, is_pam, created_at) VALUES (?1, 'PAM_MANAGED', ?2, ?3, '[\"*\"]', 1, ?4)",
+                                "INSERT OR IGNORE INTO users (username, password_hash, role, home_dir, allowed_services, is_pam, is_disabled, created_at) VALUES (?1, 'PAM_MANAGED', ?2, ?3, '[\"*\"]', 1, 0, ?4)",
                                 params![username, def_role, home_dir, now],
                             );
                             let id = conn.last_insert_rowid();
@@ -385,6 +402,7 @@ impl AuthManager {
                                 role: def_role,
                                 home_dir,
                                 is_pam: true,
+                                is_disabled: false,
                                 allowed_services: "[\"*\"]".to_string(),
                             });
                         }
