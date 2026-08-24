@@ -173,12 +173,11 @@ function createPaneElement(pane, index) {
     ${mobileTabs}
     <div class="pane-header">
       <div class="pane-nav-btns">
-        <button class="btn btn-icon pane-idx-badge" id="pane-idx-badge-${index}" title="Pane ${index + 1} (Click to cycle border color)" onclick="event.stopPropagation(); cyclePaneColor(${index})">${index + 1}</button>
-        <button onclick="navPaneHistory(${index}, -1)" title="Back"><i data-lucide="arrow-left" style="width:14px;"></i></button>
-        <button onclick="navPaneHistory(${index}, 1)" title="Forward"><i data-lucide="arrow-right" style="width:14px;"></i></button>
-        <button onclick="navPaneUp(${index})" title="Parent Directory (Backspace)"><i data-lucide="arrow-up" style="width:14px;"></i></button>
-        <button onclick="refreshPane(${index})" title="Refresh"><i data-lucide="rotate-cw" style="width:14px;"></i></button>
-        <button onclick="openRemoteModal(${index})" title="Connect Remote SFTP / WebDAV Server"><i data-lucide="network" style="width:14px;"></i></button>
+        <button onclick="navPaneHistory(${index}, -1)" title="Back"><i data-lucide="arrow-left" style="width:14px; height:14px;"></i></button>
+        <button onclick="navPaneHistory(${index}, 1)" title="Forward"><i data-lucide="arrow-right" style="width:14px; height:14px;"></i></button>
+        <button onclick="navPaneUp(${index})" title="Parent Directory (Backspace)"><i data-lucide="arrow-up" style="width:14px; height:14px;"></i></button>
+        <button onclick="refreshPane(${index})" title="Refresh"><i data-lucide="rotate-cw" style="width:14px; height:14px;"></i></button>
+        <button onclick="openRemoteModal(${index})" title="Connect Remote SFTP / WebDAV Server"><i data-lucide="network" style="width:14px; height:14px;"></i></button>
       </div>
 
       <!-- Path bar & Breadcrumbs -->
@@ -191,6 +190,13 @@ function createPaneElement(pane, index) {
       <div class="pane-favorites-wrapper">
         <button class="btn btn-icon" id="btn-favorites-${index}" onclick="openPaneFavoritesMenu(event, ${index})" oncontextmenu="event.preventDefault(); openBookmarksManager();" title="Favorites & Bookmarks (Left-click: Quick Jump, Right-click: Manage)">
           <i data-lucide="star" style="width: 13px; height: 13px; color: var(--accent);"></i>
+        </button>
+      </div>
+
+      <!-- Pane Border Identification Color Selector -->
+      <div class="pane-color-wrapper">
+        <button class="btn btn-icon pane-idx-badge" id="pane-idx-badge-${index}" onclick="event.stopPropagation(); cyclePaneColor(${index})" title="Pane ${index + 1} Identification Color (Click to cycle)">
+          <i data-lucide="palette" style="width: 13px; height: 13px;"></i>
         </button>
       </div>
 
@@ -3313,6 +3319,11 @@ function applyPaneColors() {
       if (color !== 'default') {
         paneEl.classList.add(`pane-color-${color}`);
       }
+    }
+
+    const colorBtn = document.getElementById(`pane-idx-badge-${i}`);
+    if (colorBtn) {
+      colorBtn.title = `Pane ${i + 1} Color: ${color.toUpperCase()} (Click to cycle)`;
     }
 
     // Dynamically update mobile pane indicator tabs with custom color tints

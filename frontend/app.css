@@ -243,7 +243,9 @@ body {
 
 .pane-nav-btns {
   display: flex;
+  align-items: center;
   gap: 2px;
+  height: 26px;
 }
 
 .pane-nav-btns button {
@@ -251,9 +253,17 @@ body {
   border: none;
   color: var(--text-muted);
   cursor: pointer;
-  padding: 4px;
+  padding: 0;
+  width: 24px;
+  height: 26px;
   border-radius: 4px;
   font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  margin: 0;
+  line-height: 1;
 }
 
 .pane-nav-btns button:hover {
@@ -1136,9 +1146,12 @@ body {
   box-shadow: 0 0 0 1.5px #f59e0b;
 }
 .pane.pane-color-amber .pane-idx-badge {
-  background: rgba(245, 158, 11, 0.25);
+  background: rgba(245, 158, 11, 0.15);
+  border-color: #f59e0b;
+}
+.pane.pane-color-amber .pane-idx-badge i,
+.pane.pane-color-amber .pane-idx-badge svg {
   color: #f59e0b;
-  border: 1px solid #f59e0b;
 }
 
 .pane.pane-color-emerald {
@@ -1149,9 +1162,12 @@ body {
   box-shadow: 0 0 0 1.5px #10b981;
 }
 .pane.pane-color-emerald .pane-idx-badge {
-  background: rgba(16, 185, 129, 0.25);
+  background: rgba(16, 185, 129, 0.15);
+  border-color: #10b981;
+}
+.pane.pane-color-emerald .pane-idx-badge i,
+.pane.pane-color-emerald .pane-idx-badge svg {
   color: #10b981;
-  border: 1px solid #10b981;
 }
 
 .pane.pane-color-sky {
@@ -1162,9 +1178,12 @@ body {
   box-shadow: 0 0 0 1.5px #38bdf8;
 }
 .pane.pane-color-sky .pane-idx-badge {
-  background: rgba(56, 189, 248, 0.25);
+  background: rgba(56, 189, 248, 0.15);
+  border-color: #38bdf8;
+}
+.pane.pane-color-sky .pane-idx-badge i,
+.pane.pane-color-sky .pane-idx-badge svg {
   color: #38bdf8;
-  border: 1px solid #38bdf8;
 }
 
 .pane.pane-color-purple {
@@ -1175,9 +1194,12 @@ body {
   box-shadow: 0 0 0 1.5px #c084fc;
 }
 .pane.pane-color-purple .pane-idx-badge {
-  background: rgba(192, 132, 252, 0.25);
+  background: rgba(192, 132, 252, 0.15);
+  border-color: #c084fc;
+}
+.pane.pane-color-purple .pane-idx-badge i,
+.pane.pane-color-purple .pane-idx-badge svg {
   color: #c084fc;
-  border: 1px solid #c084fc;
 }
 
 .pane.pane-color-rose {
@@ -1188,9 +1210,12 @@ body {
   box-shadow: 0 0 0 1.5px #f43f5e;
 }
 .pane.pane-color-rose .pane-idx-badge {
-  background: rgba(244, 63, 94, 0.25);
+  background: rgba(244, 63, 94, 0.15);
+  border-color: #f43f5e;
+}
+.pane.pane-color-rose .pane-idx-badge i,
+.pane.pane-color-rose .pane-idx-badge svg {
   color: #f43f5e;
-  border: 1px solid #f43f5e;
 }
 
 .pane.pane-color-indigo {
@@ -1201,9 +1226,12 @@ body {
   box-shadow: 0 0 0 1.5px #6366f1;
 }
 .pane.pane-color-indigo .pane-idx-badge {
-  background: rgba(99, 102, 241, 0.25);
+  background: rgba(99, 102, 241, 0.15);
+  border-color: #6366f1;
+}
+.pane.pane-color-indigo .pane-idx-badge i,
+.pane.pane-color-indigo .pane-idx-badge svg {
   color: #6366f1;
-  border: 1px solid #6366f1;
 }
 
 .pane.pane-color-teal {
@@ -1214,9 +1242,12 @@ body {
   box-shadow: 0 0 0 1.5px #14b8a6;
 }
 .pane.pane-color-teal .pane-idx-badge {
-  background: rgba(20, 184, 166, 0.25);
+  background: rgba(20, 184, 166, 0.15);
+  border-color: #14b8a6;
+}
+.pane.pane-color-teal .pane-idx-badge i,
+.pane.pane-color-teal .pane-idx-badge svg {
   color: #14b8a6;
-  border: 1px solid #14b8a6;
 }
 
 .pane.pane-color-orange {
@@ -1227,9 +1258,12 @@ body {
   box-shadow: 0 0 0 1.5px #f97316;
 }
 .pane.pane-color-orange .pane-idx-badge {
-  background: rgba(249, 115, 22, 0.25);
+  background: rgba(249, 115, 22, 0.15);
+  border-color: #f97316;
+}
+.pane.pane-color-orange .pane-idx-badge i,
+.pane.pane-color-orange .pane-idx-badge svg {
   color: #f97316;
-  border: 1px solid #f97316;
 }
 
 /* Mobile Pane Switcher Tab Color Tinting */
@@ -1321,12 +1355,22 @@ body {
   box-shadow: 0 0 10px rgba(249, 115, 22, 0.3);
 }
 
+.pane-favorites-wrapper,
+.pane-color-wrapper {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.pane-favorites-wrapper .btn-icon,
+.pane-color-wrapper .btn-icon,
 .pane-idx-badge {
-  font-size: 11px;
-  font-weight: 700;
+  width: 26px;
   min-width: 26px;
   height: 26px;
-  padding: 0 6px;
+  padding: 0;
   border-radius: var(--radius);
   background: var(--bg-panel);
   color: var(--text-muted);
@@ -1338,11 +1382,16 @@ body {
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
+  margin: 0;
+  line-height: 1;
 }
+
+.pane-favorites-wrapper .btn-icon:hover,
+.pane-color-wrapper .btn-icon:hover,
 .pane-idx-badge:hover {
   background: var(--bg-hover);
   border-color: var(--accent);
-  color: var(--accent-hover);
+  color: var(--accent);
 }
 
 /* Selected row icon checkmark styling strictly for mobile / narrow touch screens */
@@ -1644,7 +1693,7 @@ body {
 }
 
 /* ---------------- HEADER DROPDOWNS & PROFILE MENU ---------------- */
-.tools-dropdown-wrapper, .profile-dropdown-wrapper, .pane-favorites-wrapper {
+.tools-dropdown-wrapper, .profile-dropdown-wrapper, .pane-favorites-wrapper, .pane-color-wrapper {
   position: relative;
   display: inline-flex;
 }
