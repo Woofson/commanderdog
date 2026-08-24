@@ -158,9 +158,11 @@ function createPaneElement(pane, index) {
       <div class="mobile-pane-switcher-bar">
         ${Array.from({ length: visibleCount }).map((_, pIdx) => {
           const color = colors[pIdx] || 'default';
-          const colorClass = color !== 'default' ? `pane-tab-color-${color}` : '';
+          const isCustom = color.startsWith('#') || color.startsWith('rgb');
+          const colorClass = (!isCustom && color !== 'default') ? `pane-tab-color-${color}` : (isCustom ? 'pane-tab-color-custom' : '');
+          const customStyle = isCustom ? `style="border-color:${color}; color:${color}; --pane-custom-border:${color};"` : '';
           return `
-            <button class="mobile-pane-tab ${colorClass} ${pIdx === index ? 'active' : ''}" data-pane-idx="${pIdx}" onclick="event.stopPropagation(); setActivePane(${pIdx})">
+            <button class="mobile-pane-tab ${colorClass} ${pIdx === index ? 'active' : ''}" ${customStyle} data-pane-idx="${pIdx}" onclick="event.stopPropagation(); setActivePane(${pIdx})">
               <img src="assets/folder-closed.png" style="width:13px; height:13px; vertical-align:middle; margin-right:4px;"> Pane ${pIdx + 1}
             </button>
           `;
@@ -195,7 +197,7 @@ function createPaneElement(pane, index) {
 
       <!-- Pane Border Identification Color Selector -->
       <div class="pane-color-wrapper">
-        <button class="btn btn-icon pane-idx-badge" id="pane-idx-badge-${index}" onclick="event.stopPropagation(); cyclePaneColor(${index})" title="Pane ${index + 1} Identification Color (Click to cycle)">
+        <button class="btn btn-icon pane-idx-badge" id="pane-idx-badge-${index}" onclick="event.stopPropagation(); cyclePaneColor(${index})" oncontextmenu="event.preventDefault(); event.stopPropagation(); openPaneColorPicker(event, ${index})" title="Pane ${index + 1} Identification Color (Left-click: Cycle, Right-click: Palette & Color Picker)">
           <i data-lucide="palette" style="width: 13px; height: 13px;"></i>
         </button>
       </div>
@@ -3307,23 +3309,130 @@ function cyclePaneColor(paneIdx) {
   showToast(`Pane ${paneIdx + 1} color: ${nextColor.toUpperCase()}`, 'info');
 }
 
+function openPaneColorPicker(e, paneIndex) {
+  if (e) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+  document.getElementById('pane-color-popup')?.remove();
+  document.getElementById('pane-favorites-popup')?.remove();
+
+  const colors = getPaneColors();
+  const currentColor = colors[paneIndex] || 'default';
+
+  const presets = [
+    { id: 'default', name: 'Default', hex: 'rgba(255,255,255,0.2)' },
+    { id: 'amber', name: 'Amber', hex: '#f59e0b' },
+    { id: 'emerald', name: 'Emerald', hex: '#10b981' },
+    { id: 'sky', name: 'Sky Blue', hex: '#38bdf8' },
+    { id: 'purple', name: 'Purple', hex: '#c084fc' },
+    { id: 'rose', name: 'Rose Red', hex: '#f43f5e' },
+    { id: 'indigo', name: 'Indigo', hex: '#6366f1' },
+    { id: 'teal', name: 'Teal', hex: '#14b8a6' },
+    { id: 'orange', name: 'Orange', hex: '#f97316' }
+  ];
+
+  const isCustomHex = currentColor.startsWith('#') || currentColor.startsWith('rgb');
+  const currentHexVal = isCustomHex ? currentColor : '#f59e0b';
+
+  const popup = document.createElement('div');
+  popup.id = 'pane-color-popup';
+  popup.className = 'pane-color-dropdown active';
+
+  popup.innerHTML = `
+    <div style="padding: 8px 12px; font-weight: 700; font-size: 11px; color: var(--accent); background: var(--bg-dark); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+      <span style="display: flex; align-items: center; gap: 6px;"><i data-lucide="palette" style="width: 13px; height: 13px;"></i> Pane ${paneIndex + 1} Color Palette</span>
+      <span style="font-size: 11px; color: var(--text-dim); cursor: pointer;" onclick="document.getElementById('pane-color-popup')?.remove();">✕</span>
+    </div>
+    
+    <div style="padding: 10px 12px;">
+      <div style="font-size: 10px; color: var(--text-muted); font-weight: 700; text-transform: uppercase; margin-bottom: 8px;">Preset Swatches</div>
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 12px;">
+        ${presets.map(p => {
+          const isSelected = currentColor === p.id;
+          return `
+            <button type="button" class="color-swatch-btn ${isSelected ? 'active' : ''}" 
+                    style="display: flex; align-items: center; gap: 6px; padding: 5px 6px; background: var(--bg-panel); border: 1px solid ${isSelected ? 'var(--accent)' : 'var(--border)'}; border-radius: 4px; cursor: pointer; color: var(--text-main); font-size: 10px; width: 100%; text-align: left;"
+                    onclick="setPaneColorPref(${paneIndex}, '${p.id}'); document.getElementById('pane-color-popup')?.remove();">
+              <span style="display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: ${p.hex}; border: 1px solid rgba(255,255,255,0.25); flex-shrink: 0;"></span>
+              <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; ${isSelected ? 'font-weight: 700; color: var(--accent);' : ''}">${p.name}</span>
+            </button>
+          `;
+        }).join('')}
+      </div>
+
+      <div style="border-top: 1px solid var(--border); padding-top: 10px;">
+        <div style="font-size: 10px; color: var(--text-muted); font-weight: 700; text-transform: uppercase; margin-bottom: 6px;">Custom Color Picker</div>
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <input type="color" id="pane-hex-picker-${paneIndex}" value="${currentHexVal}" style="width: 32px; height: 26px; border: 1px solid var(--border); border-radius: 4px; padding: 0; background: transparent; cursor: pointer;" oninput="document.getElementById('pane-hex-text-${paneIndex}').value = this.value; setPaneColorPref(${paneIndex}, this.value);">
+          <input type="text" id="pane-hex-text-${paneIndex}" value="${isCustomHex ? currentColor : ''}" placeholder="#RRGGBB" style="flex: 1; height: 26px; padding: 0 6px; font-family: var(--font-mono); font-size: 11px; background: var(--bg-dark); border: 1px solid var(--border); border-radius: 4px; color: var(--text-main);" onchange="if(this.value){ document.getElementById('pane-hex-picker-${paneIndex}').value = this.value; setPaneColorPref(${paneIndex}, this.value); }">
+          <button type="button" class="btn btn-sm btn-accent" style="height: 26px; padding: 0 8px; font-size: 10px;" onclick="const val = document.getElementById('pane-hex-text-${paneIndex}').value; if(val){ setPaneColorPref(${paneIndex}, val); document.getElementById('pane-color-popup')?.remove(); }">Apply</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  const wrapper = document.querySelector(`#pane-${paneIndex} .pane-color-wrapper`);
+  if (wrapper) {
+    wrapper.appendChild(popup);
+  } else {
+    document.body.appendChild(popup);
+    popup.style.position = 'fixed';
+    popup.style.left = `${e.clientX}px`;
+    popup.style.top = `${e.clientY}px`;
+  }
+
+  if (window.lucide) lucide.createIcons();
+
+  const closeHandler = (evt) => {
+    if (!popup.contains(evt.target) && !evt.target.closest(`#pane-idx-badge-${paneIndex}`)) {
+      popup.remove();
+      document.removeEventListener('click', closeHandler);
+      document.removeEventListener('contextmenu', closeHandler);
+    }
+  };
+  setTimeout(() => {
+    document.addEventListener('click', closeHandler);
+    document.addEventListener('contextmenu', closeHandler);
+  }, 10);
+}
+
 function applyPaneColors() {
   const colors = getPaneColors();
   for (let i = 0; i < 4; i++) {
     const paneEl = document.getElementById(`pane-${i}`);
     const color = colors[i] || 'default';
+    const isCustomHex = color.startsWith('#') || color.startsWith('rgb');
+
     if (paneEl) {
       PANE_COLOR_PALETTE.forEach(c => {
         if (c !== 'default') paneEl.classList.remove(`pane-color-${c}`);
       });
-      if (color !== 'default') {
-        paneEl.classList.add(`pane-color-${color}`);
+      if (isCustomHex) {
+        paneEl.style.setProperty('--pane-custom-border', color);
+        paneEl.classList.add('pane-color-custom');
+      } else {
+        paneEl.style.removeProperty('--pane-custom-border');
+        paneEl.classList.remove('pane-color-custom');
+        if (color !== 'default') {
+          paneEl.classList.add(`pane-color-${color}`);
+        }
       }
     }
 
     const colorBtn = document.getElementById(`pane-idx-badge-${i}`);
     if (colorBtn) {
-      colorBtn.title = `Pane ${i + 1} Color: ${color.toUpperCase()} (Click to cycle)`;
+      colorBtn.title = `Pane ${i + 1} Color: ${color.toUpperCase()} (Left-click: Cycle, Right-click: Palette & Color Picker)`;
+      const icon = colorBtn.querySelector('i, svg');
+      if (isCustomHex) {
+        colorBtn.style.borderColor = color;
+        colorBtn.style.background = `${color}25`;
+        if (icon) icon.style.color = color;
+      } else {
+        colorBtn.style.borderColor = '';
+        colorBtn.style.background = '';
+        if (icon) icon.style.color = '';
+      }
     }
 
     // Dynamically update mobile pane indicator tabs with custom color tints
@@ -3331,14 +3440,25 @@ function applyPaneColors() {
       PANE_COLOR_PALETTE.forEach(c => {
         if (c !== 'default') tab.classList.remove(`pane-tab-color-${c}`);
       });
-      if (color !== 'default') {
-        tab.classList.add(`pane-tab-color-${color}`);
+      if (isCustomHex) {
+        tab.style.borderColor = color;
+        tab.style.color = color;
+        tab.style.setProperty('--pane-custom-border', color);
+        tab.classList.add('pane-tab-color-custom');
+      } else {
+        tab.style.borderColor = '';
+        tab.style.color = '';
+        tab.style.removeProperty('--pane-custom-border');
+        tab.classList.remove('pane-tab-color-custom');
+        if (color !== 'default') {
+          tab.classList.add(`pane-tab-color-${color}`);
+        }
       }
     });
 
     const selectEl = document.getElementById(`setting-pane-color-${i}`);
     if (selectEl) {
-      selectEl.value = color;
+      selectEl.value = PANE_COLOR_PALETTE.includes(color) ? color : 'default';
     }
   }
 }
