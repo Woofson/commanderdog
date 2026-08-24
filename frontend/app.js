@@ -173,7 +173,7 @@ function createPaneElement(pane, index) {
     ${mobileTabs}
     <div class="pane-header">
       <div class="pane-nav-btns">
-        <span class="pane-idx-badge" id="pane-idx-badge-${index}" title="Pane ${index + 1} (Click to cycle border color)" onclick="event.stopPropagation(); cyclePaneColor(${index})">${index + 1}</span>
+        <button class="btn btn-icon pane-idx-badge" id="pane-idx-badge-${index}" title="Pane ${index + 1} (Click to cycle border color)" onclick="event.stopPropagation(); cyclePaneColor(${index})">${index + 1}</button>
         <button onclick="navPaneHistory(${index}, -1)" title="Back"><i data-lucide="arrow-left" style="width:14px;"></i></button>
         <button onclick="navPaneHistory(${index}, 1)" title="Forward"><i data-lucide="arrow-right" style="width:14px;"></i></button>
         <button onclick="navPaneUp(${index})" title="Parent Directory (Backspace)"><i data-lucide="arrow-up" style="width:14px;"></i></button>

@@ -1322,11 +1322,13 @@ body {
 }
 
 .pane-idx-badge {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
-  padding: 2px 6px;
-  border-radius: 3px;
-  background: var(--bg-dark);
+  min-width: 26px;
+  height: 26px;
+  padding: 0 6px;
+  border-radius: var(--radius);
+  background: var(--bg-panel);
   color: var(--text-muted);
   border: 1px solid var(--border);
   cursor: pointer;
@@ -1335,10 +1337,12 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  box-sizing: border-box;
 }
 .pane-idx-badge:hover {
-  filter: brightness(1.2);
+  background: var(--bg-hover);
   border-color: var(--accent);
+  color: var(--accent-hover);
 }
 
 /* Selected row icon checkmark styling strictly for mobile / narrow touch screens */
