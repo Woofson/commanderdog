@@ -2076,7 +2076,7 @@
           <div style="font-size: 18px; font-weight: 800; color: var(--accent); letter-spacing: 0.5px;">CommanderDog</div>
           <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 10px;">Multi-Tab Web Commander - By Woofson</div>
           <div style="display: flex; justify-content: center; gap: 6px; flex-wrap: wrap;">
-            <span class="badge" style="background: rgba(245, 158, 11, 0.2); color: var(--accent); border: 1px solid rgba(245, 158, 11, 0.4); font-weight: 700;">v0.2.8 (Release)</span>
+            <span class="badge" style="background: rgba(245, 158, 11, 0.2); color: var(--accent); border: 1px solid rgba(245, 158, 11, 0.4); font-weight: 700;">v0.2.9 (Release)</span>
             <span class="badge" style="background: rgba(56, 189, 248, 0.15); color: var(--info); border: 1px solid rgba(56, 189, 248, 0.3);">Rust + Axum + Tokio</span>
             <span class="badge" style="background: rgba(34, 197, 94, 0.15); color: var(--success); border: 1px solid rgba(34, 197, 94, 0.3);">MIT Open Source</span>
           </div>
@@ -2133,22 +2133,63 @@
     </div>
   </div>
 
-  <!-- PDF Document Reader Modal -->
-  <div class="modal-overlay" id="pdf-viewer-modal">
-    <div class="modal-box" style="width: 90vw; height: 90vh; display: flex; flex-direction: column; padding: 0; overflow: hidden;">
-      <div class="modal-header" style="padding: 10px 16px; background: var(--bg-header); border-bottom: 1px solid var(--border); flex-shrink: 0;">
-        <div style="display: flex; align-items: center; gap: 8px; overflow: hidden;">
-          <i data-lucide="file-text" style="color: var(--accent); width: 16px;"></i>
-          <span id="pdf-viewer-title" style="font-weight: 700; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; overflow: hidden;">Document.pdf</span>
+  <!-- Universal Document & PDF Reader Modal -->
+  <div class="modal-overlay" id="doc-viewer-modal" style="z-index: 2800;">
+    <div class="modal-box doc-viewer-box" id="doc-viewer-box">
+      <!-- Modal Header & Toolbar -->
+      <div class="modal-header doc-viewer-header">
+        <!-- Left: File Info -->
+        <div class="doc-viewer-title-group">
+          <i data-lucide="file-text" id="doc-viewer-icon" style="color: var(--accent); width: 18px; height: 18px; flex-shrink: 0;"></i>
+          <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+            <div id="doc-viewer-title" style="font-weight: 700; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; overflow: hidden;">Document.pdf</div>
+            <div id="doc-viewer-meta" style="font-size: 10px; color: var(--text-muted); font-family: var(--font-mono); margin-top: 1px;">PDF Document</div>
+          </div>
         </div>
-        <div style="display: flex; align-items: center; gap: 6px;">
-          <a id="pdf-viewer-download" class="btn btn-icon" href="#" download title="Download PDF"><i data-lucide="download" style="width: 13px;"></i></a>
-          <a id="pdf-viewer-external" class="btn btn-icon" href="#" target="_blank" title="Open in New Tab"><i data-lucide="external-link" style="width: 13px;"></i></a>
-          <button class="btn btn-icon" onclick="closeModal('pdf-viewer-modal')"><i data-lucide="x" style="width: 13px;"></i></button>
+
+        <!-- Center: Dynamic Controls (PDF, Markdown, CSV, etc.) -->
+        <div class="doc-viewer-toolbar-center" id="doc-viewer-controls">
+          <!-- Dynamically populated per format -->
+        </div>
+
+        <!-- Right: Universal Actions -->
+        <div class="doc-viewer-actions-right">
+          <button class="btn btn-icon" id="doc-viewer-edit-btn" onclick="docViewerEditFile()" title="Edit in Multi-Tab Power Editor (F4)"><i data-lucide="code"></i></button>
+          <a id="doc-viewer-download" class="btn btn-icon" href="#" download title="Download File"><i data-lucide="download"></i></a>
+          <a id="doc-viewer-external" class="btn btn-icon" href="#" target="_blank" title="Open in New Tab"><i data-lucide="external-link"></i></a>
+          <button class="btn btn-icon" id="doc-viewer-fullscreen" onclick="toggleDocViewerFullscreen()" title="Toggle Fullscreen"><i data-lucide="maximize-2"></i></button>
+          <button class="btn btn-icon" onclick="closeDocViewerModal()" title="Close (Esc)"><i data-lucide="x"></i></button>
         </div>
       </div>
-      <div style="flex: 1; background: #525659; overflow: hidden; position: relative;">
-        <iframe id="pdf-viewer-frame" style="width: 100%; height: 100%; border: none;"></iframe>
+
+      <!-- Document Content Body -->
+      <div class="doc-viewer-body" id="doc-viewer-body">
+        <!-- 1. PDF Container -->
+        <div id="doc-view-pdf" class="doc-view-panel" style="display: none; width: 100%; height: 100%;">
+          <iframe id="doc-pdf-frame" style="width: 100%; height: 100%; border: none; background: #2a2a2e;"></iframe>
+        </div>
+
+        <!-- 2. Markdown Container -->
+        <div id="doc-view-md" class="doc-view-panel markdown-preview-pane" style="display: none; padding: 24px 32px; overflow-y: auto; height: 100%;">
+        </div>
+
+        <!-- 3. CSV / Data Table Container -->
+        <div id="doc-view-csv" class="doc-view-panel" style="display: none; overflow: auto; height: 100%; padding: 0;">
+        </div>
+
+        <!-- 4. Web & HTML Sandboxed Preview -->
+        <div id="doc-view-web" class="doc-view-panel" style="display: none; width: 100%; height: 100%;">
+          <iframe id="doc-web-frame" sandbox="allow-scripts allow-same-origin" style="width: 100%; height: 100%; border: none; background: #ffffff;"></iframe>
+        </div>
+
+        <!-- 5. Code & Raw Text Container -->
+        <div id="doc-view-text" class="doc-view-panel" style="display: none; height: 100%; overflow: auto;">
+          <pre id="doc-text-content" style="margin: 0; padding: 16px; font-family: var(--font-mono); font-size: 12px; line-height: 1.5; color: var(--text-main); white-space: pre-wrap; word-break: break-word;"></pre>
+        </div>
+
+        <!-- 6. Office / Fallback Container -->
+        <div id="doc-view-office" class="doc-view-panel" style="display: none; padding: 32px; text-align: center; height: 100%; overflow-y: auto;">
+        </div>
       </div>
     </div>
   </div>

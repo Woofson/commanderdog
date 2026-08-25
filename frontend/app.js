@@ -2951,7 +2951,7 @@ function renderAvatarElement(el, avatar) {
   if (!el) return;
   const isImage = avatar && (avatar.startsWith('data:image') || avatar.startsWith('http://') || avatar.startsWith('https://') || avatar.startsWith('/'));
   if (isImage) {
-    el.innerHTML = `<img src="${escapeHtml(avatar)}" alt="Avatar">`;
+    el.innerHTML = `<img src="${escapeHtml(avatar)}" alt="Avatar" style="width: 100%; height: 100%; object-fit: cover; border-radius: inherit; display: block;">`;
   } else {
     el.textContent = avatar || '👤';
   }
@@ -4510,8 +4510,8 @@ function triggerView() {
     loadPaneDirectory(App.activePaneIndex, item.path);
     return;
   }
-  if (isPdfExtension(item.name)) {
-    openPdfViewer(item.path);
+  if (isDocumentExtension(item.name)) {
+    openDocumentViewer(item.path);
     return;
   }
   if (isAudioExtension(item.name)) {
@@ -4531,13 +4531,7 @@ function triggerView() {
     return;
   }
 
-  fetch(`/api/fs/read?path=${encodeURIComponent(item.path)}`, {
-    headers: { 'Authorization': `Bearer ${App.token}` }
-  }).then(r => r.json()).then(data => {
-    document.getElementById('preview-title').textContent = item.name;
-    document.getElementById('preview-body').textContent = data.content;
-    showModal('preview-modal');
-  });
+  openDocumentViewer(item.path);
 }
 
 function triggerEditor() {
@@ -7567,10 +7561,25 @@ function downloadCurrentImage() {
   }
 }
 
-// ---------------- DOCUMENT & MEDIA READERS ----------------
+// ---------------- UNIVERSAL DOCUMENT & PDF READERS ----------------
+let currentDocViewerPath = '';
+let currentDocViewerRawText = '';
+let currentDocViewerMode = 'rendered'; // 'rendered' or 'raw'
+let docCsvRows = [];
+let docCsvHeaders = [];
+let docCsvFiltered = [];
+let docPdfZoom = 100;
+let docPdfRotation = 0;
+
 function isPdfExtension(filename) {
   if (!filename) return false;
   return filename.split('.').pop().toLowerCase() === 'pdf';
+}
+
+function isDocumentExtension(filename) {
+  if (!filename) return false;
+  const ext = filename.split('.').pop().toLowerCase();
+  return ['pdf', 'md', 'markdown', 'rst', 'csv', 'tsv', 'tab', 'json', 'html', 'htm', 'xml', 'svg', 'docx', 'xlsx', 'pptx', 'odt', 'ods', 'doc', 'xls', 'ppt', 'log', 'txt', 'rtf'].includes(ext);
 }
 
 function isAudioExtension(filename) {
@@ -7594,8 +7603,8 @@ function isComicBookExtension(filename) {
 function openFileByType(entry, paneIndex) {
   if (entry.is_dir || entry.is_archive) {
     loadPaneDirectory(paneIndex, entry.path);
-  } else if (isPdfExtension(entry.name)) {
-    openPdfViewer(entry.path);
+  } else if (isPdfExtension(entry.name) || isDocumentExtension(entry.name)) {
+    openDocumentViewer(entry.path);
   } else if (isAudioExtension(entry.name)) {
     openMediaPlayer(entry.path, 'audio');
   } else if (isVideoExtension(entry.name)) {
@@ -7609,25 +7618,533 @@ function openFileByType(entry, paneIndex) {
   }
 }
 
-// PDF Reader
+// PDF Reader backward compatibility alias
 function openPdfViewer(filePath) {
-  const titleEl = document.getElementById('pdf-viewer-title');
-  const frameEl = document.getElementById('pdf-viewer-frame');
-  const dlEl = document.getElementById('pdf-viewer-download');
-  const extEl = document.getElementById('pdf-viewer-external');
+  openDocumentViewer(filePath);
+}
+
+async function openDocumentViewer(filePath) {
+  currentDocViewerPath = filePath;
+  currentDocViewerRawText = '';
+  currentDocViewerMode = 'rendered';
+  docPdfZoom = 100;
+  docPdfRotation = 0;
 
   const fileName = filePath.split('/').pop() || filePath;
-  if (titleEl) titleEl.textContent = fileName;
+  const ext = fileName.split('.').pop().toLowerCase();
 
-  const url = `/api/fs/download?path=${encodeURIComponent(filePath)}&inline=true`;
-  if (frameEl) frameEl.src = url;
+  const titleEl = document.getElementById('doc-viewer-title');
+  const metaEl = document.getElementById('doc-viewer-meta');
+  const iconEl = document.getElementById('doc-viewer-icon');
+  const controlsEl = document.getElementById('doc-viewer-controls');
+  const dlEl = document.getElementById('doc-viewer-download');
+  const extEl = document.getElementById('doc-viewer-external');
+
+  if (titleEl) titleEl.textContent = fileName;
+  const downloadUrl = `/api/fs/download?path=${encodeURIComponent(filePath)}`;
+  const streamUrl = `/api/fs/download?path=${encodeURIComponent(filePath)}&inline=true`;
+
   if (dlEl) {
-    dlEl.href = `/api/fs/download?path=${encodeURIComponent(filePath)}`;
+    dlEl.href = downloadUrl;
     dlEl.download = fileName;
   }
-  if (extEl) extEl.href = url;
+  if (extEl) extEl.href = streamUrl;
 
-  showModal('pdf-viewer-modal');
+  // Hide all panels initially
+  ['doc-view-pdf', 'doc-view-md', 'doc-view-csv', 'doc-view-web', 'doc-view-text', 'doc-view-office'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
+
+  // Setup format-specific view and toolbar
+  if (ext === 'pdf') {
+    if (metaEl) metaEl.textContent = 'PDF Document • In-Browser Reader';
+    if (iconEl) iconEl.setAttribute('data-lucide', 'file-text');
+
+    if (controlsEl) {
+      controlsEl.innerHTML = `
+        <button class="btn btn-icon" onclick="changeDocPdfZoom(-15)" title="Zoom Out (-)"><i data-lucide="zoom-out"></i></button>
+        <span id="doc-pdf-zoom-label" style="font-size: 11px; font-weight: 700; color: var(--text-muted); min-width: 42px; text-align: center;">100%</span>
+        <button class="btn btn-icon" onclick="changeDocPdfZoom(15)" title="Zoom In (+)"><i data-lucide="zoom-in"></i></button>
+        <button class="btn btn-icon" onclick="rotateDocPdf()" title="Rotate Clockwise (90°)"><i data-lucide="rotate-cw"></i></button>
+        <button class="btn btn-icon" onclick="printDocViewer()" title="Print Document (Ctrl+P)"><i data-lucide="printer"></i></button>
+      `;
+    }
+
+    const pdfPanel = document.getElementById('doc-view-pdf');
+    const frame = document.getElementById('doc-pdf-frame');
+    if (pdfPanel) pdfPanel.style.display = 'block';
+    if (frame) frame.src = streamUrl;
+
+  } else if (['md', 'markdown', 'rst'].includes(ext)) {
+    if (metaEl) metaEl.textContent = 'Markdown Document • Rich GitHub Preview';
+    if (iconEl) iconEl.setAttribute('data-lucide', 'file-code-2');
+
+    if (controlsEl) {
+      controlsEl.innerHTML = `
+        <button class="btn btn-icon" id="doc-md-toggle-btn" onclick="toggleDocRawRenderMode()" title="Toggle Rendered Preview / Raw Markdown" style="font-size: 11px; font-weight: 600; padding: 0 8px; gap: 4px;">
+          <i data-lucide="code"></i> <span id="doc-md-mode-label">Raw Source</span>
+        </button>
+      `;
+    }
+
+    const mdPanel = document.getElementById('doc-view-md');
+    if (mdPanel) {
+      mdPanel.style.display = 'block';
+      mdPanel.innerHTML = '<div style="color: var(--text-muted); padding: 24px; text-align: center;">Loading Markdown...</div>';
+    }
+
+    try {
+      const resp = await fetch(`/api/fs/read?path=${encodeURIComponent(filePath)}`, {
+        headers: { 'Authorization': `Bearer ${App.token}` }
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        currentDocViewerRawText = data.content || '';
+        if (mdPanel) {
+          mdPanel.innerHTML = renderRichMarkdown(currentDocViewerRawText);
+          if (window.mermaid) {
+            try { mermaid.init(undefined, mdPanel.querySelectorAll('.mermaid')); } catch (e) {}
+          }
+        }
+      }
+    } catch (e) {
+      if (mdPanel) mdPanel.innerHTML = `<div style="color: var(--danger); padding: 24px;">Failed to load markdown: ${escapeHtml(e.message)}</div>`;
+    }
+
+  } else if (['csv', 'tsv', 'tab'].includes(ext)) {
+    const delim = ext === 'tsv' || ext === 'tab' ? '\t' : ',';
+    if (metaEl) metaEl.textContent = `${ext.toUpperCase()} Data Sheet • Interactive Table`;
+    if (iconEl) iconEl.setAttribute('data-lucide', 'table');
+
+    if (controlsEl) {
+      controlsEl.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <input type="text" id="doc-csv-filter" placeholder="Filter rows..." style="background: var(--bg-dark); border: 1px solid var(--border); border-radius: 4px; padding: 2px 8px; font-size: 11px; color: var(--text-main); width: 140px;" oninput="filterDocCsv(this.value)">
+          <span id="doc-csv-stats" style="font-size: 10px; color: var(--text-dim); font-family: var(--font-mono);">0 rows</span>
+        </div>
+      `;
+    }
+
+    const csvPanel = document.getElementById('doc-view-csv');
+    if (csvPanel) {
+      csvPanel.style.display = 'block';
+      csvPanel.innerHTML = '<div style="color: var(--text-muted); padding: 24px; text-align: center;">Parsing CSV table...</div>';
+    }
+
+    try {
+      const resp = await fetch(`/api/fs/read?path=${encodeURIComponent(filePath)}`, {
+        headers: { 'Authorization': `Bearer ${App.token}` }
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        currentDocViewerRawText = data.content || '';
+        renderCsvData(currentDocViewerRawText, delim);
+      }
+    } catch (e) {
+      if (csvPanel) csvPanel.innerHTML = `<div style="color: var(--danger); padding: 24px;">Failed to read CSV: ${escapeHtml(e.message)}</div>`;
+    }
+
+  } else if (['html', 'htm', 'xhtml', 'svg', 'xml'].includes(ext)) {
+    if (metaEl) metaEl.textContent = `${ext.toUpperCase()} Document • Web Preview`;
+    if (iconEl) iconEl.setAttribute('data-lucide', 'globe');
+
+    if (controlsEl) {
+      controlsEl.innerHTML = `
+        <button class="btn btn-icon" onclick="toggleDocRawRenderMode()" title="Toggle Web Preview / Source Code" style="font-size: 11px; font-weight: 600; padding: 0 8px; gap: 4px;">
+          <i data-lucide="code"></i> <span id="doc-md-mode-label">View Source</span>
+        </button>
+      `;
+    }
+
+    const webPanel = document.getElementById('doc-view-web');
+    const frame = document.getElementById('doc-web-frame');
+    if (webPanel) webPanel.style.display = 'block';
+    if (frame) frame.src = streamUrl;
+
+  } else if (['docx', 'xlsx', 'pptx', 'odt', 'ods', 'doc', 'xls', 'ppt'].includes(ext)) {
+    if (metaEl) metaEl.textContent = `${ext.toUpperCase()} Office Document`;
+    if (iconEl) iconEl.setAttribute('data-lucide', 'file-text');
+
+    if (controlsEl) controlsEl.innerHTML = '';
+
+    const officePanel = document.getElementById('doc-view-office');
+    if (officePanel) {
+      officePanel.style.display = 'block';
+      officePanel.innerHTML = `
+        <div style="max-width: 480px; margin: 40px auto; padding: 28px; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+          <div style="font-size: 42px; margin-bottom: 12px;">📄</div>
+          <div style="font-size: 16px; font-weight: 700; color: var(--text-main); margin-bottom: 6px;">${escapeHtml(fileName)}</div>
+          <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 20px;">Binary Office document format (${ext.toUpperCase()}).</div>
+          <div style="display: flex; gap: 10px; justify-content: center;">
+            <a class="btn btn-accent" href="${downloadUrl}" download style="padding: 8px 16px; font-weight: 600;"><i data-lucide="download"></i> Download File</a>
+            <a class="btn" href="${streamUrl}" target="_blank" style="padding: 8px 16px;"><i data-lucide="external-link"></i> Open Externally</a>
+          </div>
+        </div>
+      `;
+    }
+
+  } else {
+    // Plain text / Code / Logs / Conf
+    if (metaEl) metaEl.textContent = `${ext.toUpperCase() || 'TEXT'} Document`;
+    if (iconEl) iconEl.setAttribute('data-lucide', 'file-text');
+    if (controlsEl) controlsEl.innerHTML = '';
+
+    const textPanel = document.getElementById('doc-view-text');
+    const contentEl = document.getElementById('doc-text-content');
+    if (textPanel) textPanel.style.display = 'block';
+    if (contentEl) contentEl.textContent = 'Loading...';
+
+    try {
+      const resp = await fetch(`/api/fs/read?path=${encodeURIComponent(filePath)}`, {
+        headers: { 'Authorization': `Bearer ${App.token}` }
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        currentDocViewerRawText = data.content || '';
+        if (contentEl) contentEl.textContent = currentDocViewerRawText;
+      }
+    } catch (e) {
+      if (contentEl) contentEl.textContent = `Error reading file: ${e.message}`;
+    }
+  }
+
+  showModal('doc-viewer-modal');
+  if (window.lucide) lucide.createIcons();
+}
+
+function closeDocViewerModal() {
+  closeModal('doc-viewer-modal');
+  const pdfFrame = document.getElementById('doc-pdf-frame');
+  if (pdfFrame) pdfFrame.src = 'about:blank';
+  const webFrame = document.getElementById('doc-web-frame');
+  if (webFrame) webFrame.src = 'about:blank';
+}
+
+function toggleDocViewerFullscreen() {
+  const box = document.getElementById('doc-viewer-box');
+  if (!box) return;
+  box.classList.toggle('fullscreen');
+  const icon = document.getElementById('doc-viewer-fullscreen')?.querySelector('i, svg');
+  if (icon) {
+    const isFs = box.classList.contains('fullscreen');
+    icon.setAttribute('data-lucide', isFs ? 'minimize-2' : 'maximize-2');
+    if (window.lucide) lucide.createIcons();
+  }
+}
+
+function docViewerEditFile() {
+  if (currentDocViewerPath) {
+    closeDocViewerModal();
+    openEditorWithFile(currentDocViewerPath);
+  }
+}
+
+function toggleDocRawRenderMode() {
+  const fileName = currentDocViewerPath.split('/').pop() || '';
+  const ext = fileName.split('.').pop().toLowerCase();
+  const label = document.getElementById('doc-md-mode-label');
+
+  if (currentDocViewerMode === 'rendered') {
+    currentDocViewerMode = 'raw';
+    if (label) label.textContent = 'Rendered View';
+
+    if (['md', 'markdown', 'rst'].includes(ext)) {
+      document.getElementById('doc-view-md').style.display = 'none';
+      const textPanel = document.getElementById('doc-view-text');
+      const textEl = document.getElementById('doc-text-content');
+      if (textPanel) textPanel.style.display = 'block';
+      if (textEl) textEl.textContent = currentDocViewerRawText;
+    } else if (['html', 'htm', 'xhtml', 'svg', 'xml'].includes(ext)) {
+      document.getElementById('doc-view-web').style.display = 'none';
+      const textPanel = document.getElementById('doc-view-text');
+      const textEl = document.getElementById('doc-text-content');
+      if (textPanel) textPanel.style.display = 'block';
+      if (textEl) textEl.textContent = currentDocViewerRawText;
+    }
+  } else {
+    currentDocViewerMode = 'rendered';
+    if (label) label.textContent = ext.startsWith('m') ? 'Raw Source' : 'View Source';
+
+    if (['md', 'markdown', 'rst'].includes(ext)) {
+      document.getElementById('doc-view-text').style.display = 'none';
+      const mdPanel = document.getElementById('doc-view-md');
+      if (mdPanel) {
+        mdPanel.style.display = 'block';
+        mdPanel.innerHTML = renderRichMarkdown(currentDocViewerRawText);
+      }
+    } else if (['html', 'htm', 'xhtml', 'svg', 'xml'].includes(ext)) {
+      document.getElementById('doc-view-text').style.display = 'none';
+      document.getElementById('doc-view-web').style.display = 'block';
+    }
+  }
+  if (window.lucide) lucide.createIcons();
+}
+
+function renderRichMarkdown(content) {
+  if (!content) return '<p style="color: var(--text-muted); font-style: italic;">(Empty markdown document)</p>';
+  
+  let lines = content.split('\n');
+  let inCodeBlock = false;
+  let codeBlockLang = '';
+  let codeBlockContent = [];
+  let inTable = false;
+  let tableRows = [];
+  let outHtml = [];
+
+  const escapeH = (str) => (str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  const inlineFormat = (txt) => {
+    return txt
+      .replace(/`([^`]+)`/g, '<code style="background: rgba(255,255,255,0.08); padding: 1px 5px; border-radius: 3px; font-family: var(--font-mono); font-size: 11px;">$1</code>')
+      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+      .replace(/~~([^~]+)~~/g, '<del>$1</del>')
+      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" style="color: var(--accent); text-decoration: underline;">$1</a>')
+      .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" style="max-width: 100%; border-radius: 6px; margin: 8px 0;">');
+  };
+
+  const flushTable = () => {
+    if (!inTable || tableRows.length === 0) return;
+    let tbl = '<div style="overflow-x: auto; margin: 16px 0;"><table class="doc-csv-table" style="border: 1px solid var(--border); border-radius: 6px; overflow: hidden;">';
+    if (tableRows.length > 0) {
+      tbl += '<thead><tr>';
+      tableRows[0].forEach(cell => {
+        tbl += `<th>${inlineFormat(escapeH(cell.trim()))}</th>`;
+      });
+      tbl += '</tr></thead>';
+    }
+    if (tableRows.length > 1) {
+      tbl += '<tbody>';
+      for (let r = 1; r < tableRows.length; r++) {
+        tbl += '<tr>';
+        tableRows[r].forEach(cell => {
+          tbl += `<td>${inlineFormat(escapeH(cell.trim()))}</td>`;
+        });
+        tbl += '</tr>';
+      }
+      tbl += '</tbody>';
+    }
+    tbl += '</table></div>';
+    outHtml.push(tbl);
+    inTable = false;
+    tableRows = [];
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    let line = lines[i];
+
+    if (line.trim().startsWith('```')) {
+      if (inCodeBlock) {
+        const code = codeBlockContent.join('\n');
+        if (codeBlockLang === 'mermaid') {
+          outHtml.push(`<div class="mermaid">${escapeH(code)}</div>`);
+        } else {
+          const prismLang = window.Prism ? (Prism.languages[codeBlockLang] || Prism.languages.markup) : null;
+          const highlighted = (window.Prism && prismLang) ? Prism.highlight(code, prismLang, codeBlockLang) : escapeH(code);
+          outHtml.push(`<pre class="language-${codeBlockLang}" style="background: var(--bg-dark); border: 1px solid var(--border); padding: 12px; border-radius: 6px; overflow-x: auto; margin: 12px 0;"><code class="language-${codeBlockLang}">${highlighted}</code></pre>`);
+        }
+        inCodeBlock = false;
+        codeBlockLang = '';
+        codeBlockContent = [];
+      } else {
+        flushTable();
+        inCodeBlock = true;
+        codeBlockLang = line.trim().replace(/^```/, '').trim();
+        codeBlockContent = [];
+      }
+      continue;
+    }
+
+    if (inCodeBlock) {
+      codeBlockContent.push(line);
+      continue;
+    }
+
+    if (line.trim().startsWith('|') && line.trim().endsWith('|')) {
+      const cells = line.trim().slice(1, -1).split('|');
+      const isSep = cells.every(c => /^[\s-:]+$/.test(c));
+      if (!isSep) {
+        inTable = true;
+        tableRows.push(cells);
+      }
+      continue;
+    } else {
+      flushTable();
+    }
+
+    if (line.startsWith('# ')) {
+      outHtml.push(`<h1 style="color: var(--text-main); font-size: 20px; font-weight: 800; border-bottom: 1px solid var(--border); padding-bottom: 6px; margin: 18px 0 10px 0;">${inlineFormat(escapeH(line.slice(2)))}</h1>`);
+    } else if (line.startsWith('## ')) {
+      outHtml.push(`<h2 style="color: var(--text-main); font-size: 17px; font-weight: 700; border-bottom: 1px solid var(--border); padding-bottom: 4px; margin: 16px 0 8px 0;">${inlineFormat(escapeH(line.slice(3)))}</h2>`);
+    } else if (line.startsWith('### ')) {
+      outHtml.push(`<h3 style="color: var(--accent); font-size: 14px; font-weight: 700; margin: 14px 0 6px 0;">${inlineFormat(escapeH(line.slice(4)))}</h3>`);
+    } else if (line.startsWith('#### ')) {
+      outHtml.push(`<h4 style="color: var(--text-main); font-size: 13px; font-weight: 600; margin: 12px 0 4px 0;">${inlineFormat(escapeH(line.slice(5)))}</h4>`);
+    } else if (line.startsWith('> ')) {
+      outHtml.push(`<blockquote style="border-left: 3px solid var(--accent); padding: 6px 12px; margin: 8px 0; background: rgba(245,158,11,0.05); color: var(--text-muted);">${inlineFormat(escapeH(line.slice(2)))}</blockquote>`);
+    } else if (line.startsWith('- [x] ') || line.startsWith('* [x] ')) {
+      outHtml.push(`<div style="display: flex; align-items: center; gap: 8px; margin: 4px 0;"><input type="checkbox" checked disabled><span style="text-decoration: line-through; color: var(--text-dim);">${inlineFormat(escapeH(line.slice(6)))}</span></div>`);
+    } else if (line.startsWith('- [ ] ') || line.startsWith('* [ ] ')) {
+      outHtml.push(`<div style="display: flex; align-items: center; gap: 8px; margin: 4px 0;"><input type="checkbox" disabled><span>${inlineFormat(escapeH(line.slice(6)))}</span></div>`);
+    } else if (line.startsWith('- ') || line.startsWith('* ')) {
+      outHtml.push(`<li style="margin: 3px 0; margin-left: 18px;">${inlineFormat(escapeH(line.slice(2)))}</li>`);
+    } else if (/^\d+\.\s/.test(line)) {
+      const match = line.match(/^(\d+\.)\s(.*)/);
+      outHtml.push(`<li style="margin: 3px 0; margin-left: 18px;" value="${parseInt(match[1])}"><b>${match[1]}</b> ${inlineFormat(escapeH(match[2]))}</li>`);
+    } else if (line.trim() === '---' || line.trim() === '***') {
+      outHtml.push(`<hr style="border: none; border-top: 1px solid var(--border); margin: 16px 0;">`);
+    } else if (line.trim() === '') {
+      outHtml.push('<div style="height: 8px;"></div>');
+    } else {
+      outHtml.push(`<p style="margin: 6px 0; line-height: 1.6; color: var(--text-main); font-size: 13px;">${inlineFormat(escapeH(line))}</p>`);
+    }
+  }
+
+  flushTable();
+  return outHtml.join('\n');
+}
+
+function renderCsvData(csvText, delimiter = ',') {
+  if (!csvText) return;
+  const parseLine = (line) => {
+    let result = [];
+    let current = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') {
+        if (inQuotes && line[i + 1] === '"') {
+          current += '"';
+          i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (ch === delimiter && !inQuotes) {
+        result.push(current);
+        current = '';
+      } else {
+        current += ch;
+      }
+    }
+    result.push(current);
+    return result;
+  };
+
+  const rawLines = csvText.split(/\r?\n/).filter(l => l.trim().length > 0);
+  if (rawLines.length === 0) return;
+
+  docCsvHeaders = parseLine(rawLines[0]);
+  docCsvRows = [];
+  for (let i = 1; i < rawLines.length; i++) {
+    docCsvRows.push(parseLine(rawLines[i]));
+  }
+  docCsvFiltered = [...docCsvRows];
+  renderDocCsvTable();
+}
+
+function renderDocCsvTable() {
+  const panel = document.getElementById('doc-view-csv');
+  const stats = document.getElementById('doc-csv-stats');
+  if (!panel) return;
+
+  if (stats) {
+    stats.textContent = `${docCsvFiltered.length} / ${docCsvRows.length} rows (${docCsvHeaders.length} cols)`;
+  }
+
+  let html = `
+    <div class="doc-csv-table-wrapper">
+      <table class="doc-csv-table">
+        <thead>
+          <tr>
+            <th class="row-num-header">#</th>
+            ${docCsvHeaders.map((h, idx) => `
+              <th onclick="sortDocCsv(${idx})" title="Click to sort by ${escapeHtml(h)}">
+                ${escapeHtml(h || `Col ${idx + 1}`)} ⇕
+              </th>
+            `).join('')}
+          </tr>
+        </thead>
+        <tbody>
+          ${docCsvFiltered.map((row, rIdx) => `
+            <tr>
+              <td class="row-num">${rIdx + 1}</td>
+              ${row.map(cell => `<td>${escapeHtml(cell)}</td>`).join('')}
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+  panel.innerHTML = html;
+}
+
+function filterDocCsv(query) {
+  const q = (query || '').toLowerCase().trim();
+  if (!q) {
+    docCsvFiltered = [...docCsvRows];
+  } else {
+    docCsvFiltered = docCsvRows.filter(row => {
+      return row.some(cell => cell.toLowerCase().includes(q));
+    });
+  }
+  renderDocCsvTable();
+}
+
+let docCsvSortOrder = 1;
+let docCsvLastSortedCol = -1;
+
+function sortDocCsv(colIdx) {
+  if (docCsvLastSortedCol === colIdx) {
+    docCsvSortOrder = -docCsvSortOrder;
+  } else {
+    docCsvSortOrder = 1;
+    docCsvLastSortedCol = colIdx;
+  }
+
+  docCsvFiltered.sort((a, b) => {
+    const valA = (a[colIdx] || '').trim();
+    const valB = (b[colIdx] || '').trim();
+    const numA = parseFloat(valA);
+    const numB = parseFloat(valB);
+    if (!isNaN(numA) && !isNaN(numB)) {
+      return (numA - numB) * docCsvSortOrder;
+    }
+    return valA.localeCompare(valB) * docCsvSortOrder;
+  });
+
+  renderDocCsvTable();
+}
+
+function changeDocPdfZoom(delta) {
+  docPdfZoom = Math.max(30, Math.min(300, docPdfZoom + delta));
+  const label = document.getElementById('doc-pdf-zoom-label');
+  if (label) label.textContent = `${docPdfZoom}%`;
+  const frame = document.getElementById('doc-pdf-frame');
+  if (frame) {
+    frame.style.transform = `scale(${docPdfZoom / 100}) rotate(${docPdfRotation}deg)`;
+    frame.style.transformOrigin = 'top center';
+  }
+}
+
+function rotateDocPdf() {
+  docPdfRotation = (docPdfRotation + 90) % 360;
+  const frame = document.getElementById('doc-pdf-frame');
+  if (frame) {
+    frame.style.transform = `scale(${docPdfZoom / 100}) rotate(${docPdfRotation}deg)`;
+    frame.style.transformOrigin = 'center center';
+  }
+}
+
+function printDocViewer() {
+  const frame = document.getElementById('doc-pdf-frame') || document.getElementById('doc-web-frame');
+  if (frame && frame.contentWindow) {
+    try {
+      frame.contentWindow.print();
+      return;
+    } catch (e) {}
+  }
+  window.print();
 }
 
 // Media Player (Audio & Video)
