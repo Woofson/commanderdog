@@ -63,6 +63,14 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/mounts/:id", delete(handle_delete_mount))
         .route("/api/bookmarks", get(handle_list_bookmarks).post(handle_create_bookmark))
         .route("/api/bookmarks/:id", delete(handle_delete_bookmark))
+        // Public Link Sharing & Guest Dropbox
+        .route("/share/:token", get(handle_public_share_page))
+        .route("/api/shares", get(handle_list_shares).post(handle_create_share))
+        .route("/api/shares/:id", delete(handle_delete_share))
+        .route("/api/public/shares/:token", get(handle_public_get_share_meta))
+        .route("/api/public/shares/:token/verify", post(handle_public_verify_share))
+        .route("/api/public/shares/:token/download", get(handle_public_download_share))
+        .route("/api/public/shares/:token/upload", post(handle_public_upload_share))
         // VFS File Operations
         .route("/api/fs/list", get(handle_list_dir))
         .route("/api/fs/read", get(handle_read_file))
@@ -527,6 +535,606 @@ async fn handle_update_security_settings(
     } else {
         Err((StatusCode::UNAUTHORIZED, "Missing authorization token".to_string()))
     }
+}
+
+// ---------------- LINK SHARING & DROPBOX HANDLERS ----------------
+
+#[derive(Deserialize)]
+struct CreateShareRequest {
+    path: String,
+    name: Option<String>,
+    is_dir: bool,
+    allow_upload: Option<bool>,
+    password: Option<String>,
+    expires_in_hours: Option<u64>,
+    max_downloads: Option<u64>,
+}
+
+async fn handle_create_share(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<CreateShareRequest>,
+) -> Result<Json<crate::auth::ShareItem>, (StatusCode, String)> {
+    let auth_header = headers.get(header::AUTHORIZATION)
+        .and_then(|h| h.to_str().ok())
+        .ok_or((StatusCode::UNAUTHORIZED, "Missing authorization header".to_string()))?;
+
+    let token_str = auth_header.strip_prefix("Bearer ").unwrap_or(auth_header);
+    let claims = state.auth.verify_token(token_str)
+        .map_err(|e| (StatusCode::UNAUTHORIZED, format!("Invalid token: {}", e)))?;
+
+    let name = payload.name.unwrap_or_else(|| {
+        Path::new(&payload.path)
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string()
+    });
+
+    let expires_at = payload.expires_in_hours.map(|hrs| {
+        (chrono::Utc::now() + chrono::Duration::hours(hrs as i64)).to_rfc3339()
+    });
+
+    let share = state.auth.create_share(
+        &claims.sub,
+        &payload.path,
+        &name,
+        payload.is_dir,
+        payload.allow_upload.unwrap_or(false),
+        payload.password.as_deref(),
+        expires_at.as_deref(),
+        payload.max_downloads.unwrap_or(0),
+    ).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to create share: {}", e)))?;
+
+    Ok(Json(share))
+}
+
+async fn handle_list_shares(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<Json<Vec<crate::auth::ShareItem>>, (StatusCode, String)> {
+    let auth_header = headers.get(header::AUTHORIZATION)
+        .and_then(|h| h.to_str().ok())
+        .ok_or((StatusCode::UNAUTHORIZED, "Missing authorization header".to_string()))?;
+
+    let token_str = auth_header.strip_prefix("Bearer ").unwrap_or(auth_header);
+    let claims = state.auth.verify_token(token_str)
+        .map_err(|e| (StatusCode::UNAUTHORIZED, format!("Invalid token: {}", e)))?;
+
+    let is_admin = claims.role == "admin";
+    let list = state.auth.list_shares(&claims.sub, is_admin)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to list shares: {}", e)))?;
+
+    Ok(Json(list))
+}
+
+async fn handle_delete_share(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    AxumPath(id): AxumPath<i64>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let auth_header = headers.get(header::AUTHORIZATION)
+        .and_then(|h| h.to_str().ok())
+        .ok_or((StatusCode::UNAUTHORIZED, "Missing authorization header".to_string()))?;
+
+    let token_str = auth_header.strip_prefix("Bearer ").unwrap_or(auth_header);
+    let claims = state.auth.verify_token(token_str)
+        .map_err(|e| (StatusCode::UNAUTHORIZED, format!("Invalid token: {}", e)))?;
+
+    let is_admin = claims.role == "admin";
+    state.auth.delete_share(id, &claims.sub, is_admin)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to delete share: {}", e)))?;
+
+    Ok(Json(serde_json::json!({ "success": true })))
+}
+
+async fn handle_public_get_share_meta(
+    State(state): State<AppState>,
+    AxumPath(token): AxumPath<String>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let share = state.auth.get_share_by_token(&token)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("DB error: {}", e)))?
+        .ok_or((StatusCode::NOT_FOUND, "Share not found or expired".to_string()))?;
+
+    if let Some(ref exp) = share.expires_at {
+        if let Ok(exp_time) = chrono::DateTime::parse_from_rfc3339(exp) {
+            if chrono::Utc::now() > exp_time {
+                return Err((StatusCode::GONE, "This share link has expired".to_string()));
+            }
+        }
+    }
+
+    if share.max_downloads > 0 && share.download_count >= share.max_downloads {
+        return Err((StatusCode::GONE, "This share link has reached its maximum download limit".to_string()));
+    }
+
+    let p = Path::new(&share.path);
+    let size = if p.is_file() {
+        std::fs::metadata(p).map(|m| m.len()).unwrap_or(0)
+    } else {
+        0
+    };
+
+    Ok(Json(serde_json::json!({
+        "token": share.token,
+        "name": share.name,
+        "is_dir": share.is_dir,
+        "allow_upload": share.allow_upload,
+        "has_password": share.has_password,
+        "size": size,
+        "created_at": share.created_at,
+        "expires_at": share.expires_at,
+    })))
+}
+
+#[derive(Deserialize)]
+struct VerifyPassRequest {
+    password: String,
+}
+
+async fn handle_public_verify_share(
+    State(state): State<AppState>,
+    AxumPath(token): AxumPath<String>,
+    Json(payload): Json<VerifyPassRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let valid = state.auth.verify_share_password(&token, &payload.password)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Verification error: {}", e)))?;
+
+    if valid {
+        Ok(Json(serde_json::json!({ "valid": true })))
+    } else {
+        Err((StatusCode::UNAUTHORIZED, "Incorrect password for this share".to_string()))
+    }
+}
+
+async fn handle_public_download_share(
+    State(state): State<AppState>,
+    AxumPath(token): AxumPath<String>,
+    Query(query): Query<HashMap<String, String>>,
+) -> Result<Response, (StatusCode, String)> {
+    let share = state.auth.get_share_by_token(&token)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("DB error: {}", e)))?
+        .ok_or((StatusCode::NOT_FOUND, "Share not found or expired".to_string()))?;
+
+    if let Some(ref exp) = share.expires_at {
+        if let Ok(exp_time) = chrono::DateTime::parse_from_rfc3339(exp) {
+            if chrono::Utc::now() > exp_time {
+                return Err((StatusCode::GONE, "This share link has expired".to_string()));
+            }
+        }
+    }
+
+    if share.max_downloads > 0 && share.download_count >= share.max_downloads {
+        return Err((StatusCode::GONE, "This share link has reached its maximum download limit".to_string()));
+    }
+
+    if share.has_password {
+        let pass = query.get("password").map(|s| s.as_str()).unwrap_or("");
+        let valid = state.auth.verify_share_password(&token, pass).unwrap_or(false);
+        if !valid {
+            return Err((StatusCode::UNAUTHORIZED, "Password required for this share".to_string()));
+        }
+    }
+
+    let path = Path::new(&share.path);
+    if !path.exists() {
+        return Err((StatusCode::NOT_FOUND, "Target file or folder not found on server".to_string()));
+    }
+
+    let _ = state.auth.increment_share_downloads(&token);
+
+    if path.is_dir() {
+        let temp_zip = tempfile::Builder::new()
+            .prefix("commanderdog_share_")
+            .suffix(".zip")
+            .tempfile()
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Temp file error: {}", e)))?;
+        let temp_path = temp_zip.path().to_str().unwrap().to_string();
+
+        ArchiveHandler::create_zip(&[share.path.clone()], &temp_path)
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Zip creation failed: {}", e)))?;
+
+        let file_bytes = std::fs::read(&temp_path).map_err(|e| {
+            (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to read generated zip: {}", e))
+        })?;
+
+        let zip_name = format!("{}.zip", share.name);
+        let response = Response::builder()
+            .header(header::CONTENT_TYPE, "application/zip")
+            .header(header::CONTENT_DISPOSITION, format!("attachment; filename=\"{}\"", zip_name))
+            .body(Body::from(file_bytes))
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Response build error: {}", e)))?;
+
+        return Ok(response);
+    }
+
+    let file_bytes = std::fs::read(path).map_err(|e| {
+        (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to read file: {}", e))
+    })?;
+
+    let mime = mime_guess::from_path(path).first_or_octet_stream().to_string();
+    let response = Response::builder()
+        .header(header::CONTENT_TYPE, mime)
+        .header(header::CONTENT_DISPOSITION, format!("attachment; filename=\"{}\"", share.name))
+        .body(Body::from(file_bytes))
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Response build error: {}", e)))?;
+
+    Ok(response)
+}
+
+async fn handle_public_upload_share(
+    State(state): State<AppState>,
+    AxumPath(token): AxumPath<String>,
+    mut multipart: Multipart,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let share = state.auth.get_share_by_token(&token)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("DB error: {}", e)))?
+        .ok_or((StatusCode::NOT_FOUND, "Share not found or expired".to_string()))?;
+
+    if !share.is_dir || !share.allow_upload {
+        return Err((StatusCode::FORBIDDEN, "Guest uploads are not enabled for this share".to_string()));
+    }
+
+    if let Some(ref exp) = share.expires_at {
+        if let Ok(exp_time) = chrono::DateTime::parse_from_rfc3339(exp) {
+            if chrono::Utc::now() > exp_time {
+                return Err((StatusCode::GONE, "This share link has expired".to_string()));
+            }
+        }
+    }
+
+    let target_dir = Path::new(&share.path);
+    if !target_dir.exists() || !target_dir.is_dir() {
+        return Err((StatusCode::NOT_FOUND, "Target dropbox folder does not exist on server".to_string()));
+    }
+
+    let mut saved_count = 0;
+    while let Some(field) = multipart.next_field().await.map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))? {
+        let file_name = field.file_name().unwrap_or("uploaded_file").to_string();
+        let safe_name = Path::new(&file_name).file_name().unwrap_or_default().to_string_lossy().to_string();
+        if safe_name.is_empty() {
+            continue;
+        }
+
+        let target_path = target_dir.join(&safe_name);
+        let data = field.bytes().await.map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+        std::fs::write(&target_path, &data).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to write file {}: {}", safe_name, e)))?;
+        saved_count += 1;
+    }
+
+    Ok(Json(serde_json::json!({ "success": true, "uploaded_files": saved_count })))
+}
+
+async fn handle_public_share_page(
+    AxumPath(token): AxumPath<String>,
+) -> Response {
+    let html = format!(r#"<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CommanderDog Share Portal</title>
+  <link rel="icon" type="image/png" href="/assets/favicon.png">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {{
+      --bg-dark: #121214;
+      --bg-panel: #18181b;
+      --bg-header: #202024;
+      --accent: #f59e0b;
+      --accent-hover: #fbbf24;
+      --text-main: #f4f4f5;
+      --text-muted: #a1a1aa;
+      --border: #3f3f46;
+      --radius: 8px;
+    }}
+    * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+    body {{
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-dark);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }}
+    .share-card {{
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      width: 100%;
+      max-width: 480px;
+      padding: 28px;
+      box-shadow: 0 12px 32px rgba(0,0,0,0.5);
+    }}
+    .share-header {{
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }}
+    .share-logo {{
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      background: rgba(245, 158, 11, 0.15);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+    }}
+    .share-title {{
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text-main);
+    }}
+    .share-subtitle {{
+      font-size: 12px;
+      color: var(--text-muted);
+    }}
+    .file-info-box {{
+      background: var(--bg-header);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 16px;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }}
+    .file-icon {{
+      font-size: 32px;
+    }}
+    .file-name {{
+      font-size: 14px;
+      font-weight: 600;
+      word-break: break-all;
+    }}
+    .file-meta {{
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }}
+    .btn {{
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      padding: 12px;
+      font-size: 14px;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+      border: none;
+      transition: all 0.15s ease;
+      text-decoration: none;
+    }}
+    .btn-accent {{
+      background: var(--accent);
+      color: #121214;
+    }}
+    .btn-accent:hover {{
+      background: var(--accent-hover);
+    }}
+    .dropzone {{
+      border: 2px dashed var(--border);
+      border-radius: 6px;
+      padding: 24px;
+      text-align: center;
+      margin-top: 20px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      background: rgba(0,0,0,0.15);
+    }}
+    .dropzone.drag-over {{
+      border-color: var(--accent);
+      background: rgba(245, 158, 11, 0.08);
+    }}
+    .input-field {{
+      width: 100%;
+      padding: 10px 12px;
+      background: var(--bg-dark);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text-main);
+      font-size: 13px;
+      margin-bottom: 12px;
+      outline: none;
+    }}
+    .input-field:focus {{
+      border-color: var(--accent);
+    }}
+    .footer-text {{
+      margin-top: 16px;
+      font-size: 11px;
+      color: var(--text-muted);
+      text-align: center;
+    }}
+  </style>
+</head>
+<body>
+  <div class="share-card" id="share-card">
+    <div class="share-header">
+      <div class="share-logo">📦</div>
+      <div>
+        <div class="share-title">CommanderDog Public Share</div>
+        <div class="share-subtitle">Multi-Tab Web Commander - By Woofson</div>
+      </div>
+    </div>
+
+    <div id="loading-state" style="text-align: center; padding: 24px; color: var(--text-muted);">
+      Loading shared file information...
+    </div>
+
+    <div id="error-state" style="display: none; text-align: center; padding: 20px; color: #ef4444;"></div>
+
+    <div id="password-state" style="display: none;">
+      <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">🔒 This share is password protected. Enter the password to unlock download:</p>
+      <input type="password" id="share-pass-input" class="input-field" placeholder="Enter share password...">
+      <button class="btn btn-accent" onclick="unlockWithPassword()">Unlock Share</button>
+    </div>
+
+    <div id="content-state" style="display: none;">
+      <div class="file-info-box">
+        <div class="file-icon" id="item-icon">📄</div>
+        <div style="flex: 1; min-width: 0;">
+          <div class="file-name" id="item-name">Loading...</div>
+          <div class="file-meta" id="item-meta">Calculating size...</div>
+        </div>
+      </div>
+
+      <button class="btn btn-accent" id="btn-download" onclick="startDownload()">
+        ⬇️ Download File
+      </button>
+
+      <div id="dropbox-section" style="display: none;">
+        <div class="dropzone" id="dropzone" onclick="document.getElementById('file-input').click()">
+          <input type="file" id="file-input" multiple style="display:none;" onchange="handleFileInput(this.files)">
+          <div style="font-size: 24px; margin-bottom: 6px;">📥</div>
+          <div style="font-weight: 600; font-size: 13px;">Guest Upload Dropbox</div>
+          <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Drag & drop files here or click to browse</div>
+        </div>
+        <div id="upload-status" style="margin-top: 10px; font-size: 12px; text-align: center; color: var(--accent);"></div>
+      </div>
+    </div>
+
+    <div class="footer-text">
+      Powered by CommanderDog • High Performance Fast File Transport
+    </div>
+  </div>
+
+  <script>
+    const token = "{token}";
+    let shareMeta = null;
+    let unlockedPass = "";
+
+    function formatBytes(bytes) {{
+      if (!bytes || bytes === 0) return '0 B';
+      const k = 1024;
+      const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return (bytes / Math.pow(k, i)).toFixed(1) + ' ' + sizes[i];
+    }}
+
+    async function loadMeta() {{
+      try {{
+        const res = await fetch(`/api/public/shares/${{token}}`);
+        if (!res.ok) {{
+          const err = await res.text();
+          showError(err || 'Share not found or expired');
+          return;
+        }}
+        shareMeta = await res.json();
+        document.getElementById('loading-state').style.display = 'none';
+
+        if (shareMeta.has_password && !unlockedPass) {{
+          document.getElementById('password-state').style.display = 'block';
+        }} else {{
+          renderContent();
+        }}
+      }} catch (e) {{
+        showError('Network error loading share');
+      }}
+    }}
+
+    function showError(msg) {{
+      document.getElementById('loading-state').style.display = 'none';
+      document.getElementById('password-state').style.display = 'none';
+      document.getElementById('content-state').style.display = 'none';
+      const errEl = document.getElementById('error-state');
+      errEl.style.display = 'block';
+      errEl.textContent = '❌ ' + msg;
+    }}
+
+    async function unlockWithPassword() {{
+      const pass = document.getElementById('share-pass-input').value;
+      if (!pass) return;
+      try {{
+        const res = await fetch(`/api/public/shares/${{token}}/verify`, {{
+          method: 'POST',
+          headers: {{ 'Content-Type': 'application/json' }},
+          body: JSON.stringify({{ password: pass }})
+        }});
+        if (res.ok) {{
+          unlockedPass = pass;
+          document.getElementById('password-state').style.display = 'none';
+          renderContent();
+        }} else {{
+          alert('Incorrect password');
+        }}
+      }} catch (e) {{
+        alert('Verification failed');
+      }}
+    }}
+
+    function renderContent() {{
+      document.getElementById('content-state').style.display = 'block';
+      document.getElementById('item-name').textContent = shareMeta.name;
+      document.getElementById('item-icon').textContent = shareMeta.is_dir ? '📁' : '📄';
+      document.getElementById('item-meta').textContent = shareMeta.is_dir ? 'Folder (Downloads as Zip)' : formatBytes(shareMeta.size);
+      
+      const btn = document.getElementById('btn-download');
+      btn.textContent = shareMeta.is_dir ? '⬇️ Download Folder (.zip)' : '⬇️ Download File';
+
+      if (shareMeta.is_dir && shareMeta.allow_upload) {{
+        document.getElementById('dropbox-section').style.display = 'block';
+        setupDropzone();
+      }}
+    }}
+
+    function startDownload() {{
+      const url = `/api/public/shares/${{token}}/download${{unlockedPass ? '?password=' + encodeURIComponent(unlockedPass) : ''}}`;
+      window.location.href = url;
+    }}
+
+    function setupDropzone() {{
+      const dz = document.getElementById('dropzone');
+      dz.ondragover = (e) => {{ e.preventDefault(); dz.classList.add('drag-over'); }};
+      dz.ondragleave = () => dz.classList.remove('drag-over');
+      dz.ondrop = (e) => {{
+        e.preventDefault();
+        dz.classList.remove('drag-over');
+        if (e.dataTransfer.files) handleFileInput(e.dataTransfer.files);
+      }};
+    }}
+
+    async function handleFileInput(files) {{
+      if (!files || files.length === 0) return;
+      const status = document.getElementById('upload-status');
+      status.textContent = `Uploading ${{files.length}} file(s)...`;
+
+      const fd = new FormData();
+      for (let f of files) fd.append('files', f);
+
+      try {{
+        const res = await fetch(`/api/public/shares/${{token}}/upload`, {{
+          method: 'POST',
+          body: fd
+        }});
+        if (res.ok) {{
+          status.textContent = `✅ Successfully uploaded ${{files.length}} file(s)!`;
+        }} else {{
+          status.textContent = `❌ Upload failed: ${{await res.text()}}`;
+        }}
+      }} catch (e) {{
+        status.textContent = '❌ Upload failed due to network error';
+      }}
+    }}
+
+    loadMeta();
+  </script>
+</body>
+</html>"#, token = token);
+
+    Response::builder()
+        .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
+        .body(Body::from(html))
+        .unwrap_or_else(|_| (StatusCode::INTERNAL_SERVER_ERROR, "HTML load error").into_response())
 }
 
 // ---------------- VFS HANDLERS ----------------

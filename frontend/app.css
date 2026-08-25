@@ -22,6 +22,8 @@
   --font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   --radius: 6px;
+  --pane-border-width: 1px;
+  --pane-active-ring-width: 1px;
   --shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
 }
 
@@ -245,18 +247,18 @@ body {
 /* Individual Pane */
 .pane {
   background-color: var(--bg-panel);
-  border: 1px solid var(--border);
+  border: var(--pane-border-width, 1px) solid var(--border);
   border-radius: var(--radius);
   display: flex;
   flex-direction: column;
   overflow: hidden;
   position: relative;
-  transition: border-color 0.15s ease;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .pane.active {
   border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent);
+  box-shadow: 0 0 0 var(--pane-active-ring-width, 1px) var(--accent);
 }
 
 .pane-header {
@@ -1536,7 +1538,7 @@ body {
 }
 .pane.pane-color-amber.active {
   border-color: #f59e0b;
-  box-shadow: 0 0 0 1.5px #f59e0b;
+  box-shadow: 0 0 0 var(--pane-active-ring-width, 1px) #f59e0b;
 }
 .pane.pane-color-amber .pane-idx-badge {
   background: rgba(245, 158, 11, 0.15);
@@ -1552,7 +1554,7 @@ body {
 }
 .pane.pane-color-emerald.active {
   border-color: #10b981;
-  box-shadow: 0 0 0 1.5px #10b981;
+  box-shadow: 0 0 0 var(--pane-active-ring-width, 1px) #10b981;
 }
 .pane.pane-color-emerald .pane-idx-badge {
   background: rgba(16, 185, 129, 0.15);
@@ -1568,7 +1570,7 @@ body {
 }
 .pane.pane-color-sky.active {
   border-color: #38bdf8;
-  box-shadow: 0 0 0 1.5px #38bdf8;
+  box-shadow: 0 0 0 var(--pane-active-ring-width, 1px) #38bdf8;
 }
 .pane.pane-color-sky .pane-idx-badge {
   background: rgba(56, 189, 248, 0.15);
@@ -1584,7 +1586,7 @@ body {
 }
 .pane.pane-color-purple.active {
   border-color: #c084fc;
-  box-shadow: 0 0 0 1.5px #c084fc;
+  box-shadow: 0 0 0 var(--pane-active-ring-width, 1px) #c084fc;
 }
 .pane.pane-color-purple .pane-idx-badge {
   background: rgba(192, 132, 252, 0.15);
@@ -1600,7 +1602,7 @@ body {
 }
 .pane.pane-color-rose.active {
   border-color: #f43f5e;
-  box-shadow: 0 0 0 1.5px #f43f5e;
+  box-shadow: 0 0 0 var(--pane-active-ring-width, 1px) #f43f5e;
 }
 .pane.pane-color-rose .pane-idx-badge {
   background: rgba(244, 63, 94, 0.15);
@@ -1616,7 +1618,7 @@ body {
 }
 .pane.pane-color-indigo.active {
   border-color: #6366f1;
-  box-shadow: 0 0 0 1.5px #6366f1;
+  box-shadow: 0 0 0 var(--pane-active-ring-width, 1px) #6366f1;
 }
 .pane.pane-color-indigo .pane-idx-badge {
   background: rgba(99, 102, 241, 0.15);
@@ -1632,7 +1634,7 @@ body {
 }
 .pane.pane-color-teal.active {
   border-color: #14b8a6;
-  box-shadow: 0 0 0 1.5px #14b8a6;
+  box-shadow: 0 0 0 var(--pane-active-ring-width, 1px) #14b8a6;
 }
 .pane.pane-color-teal .pane-idx-badge {
   background: rgba(20, 184, 166, 0.15);
@@ -1648,7 +1650,7 @@ body {
 }
 .pane.pane-color-orange.active {
   border-color: #f97316;
-  box-shadow: 0 0 0 1.5px #f97316;
+  box-shadow: 0 0 0 var(--pane-active-ring-width, 1px) #f97316;
 }
 .pane.pane-color-orange .pane-idx-badge {
   background: rgba(249, 115, 22, 0.15);
@@ -1976,10 +1978,6 @@ body {
 }
 
 @media (max-width: 768px) {
-  .mobile-pane-switcher-bar {
-    display: flex;
-  }
-
   .header-actions {
     gap: 6px !important;
     margin-left: auto;
@@ -2025,64 +2023,160 @@ body {
     white-space: nowrap !important;
   }
 
-  /* Panes Container: Force 1 active pane on mobile */
-  .panes-container,
-  .panes-container.layout-single,
-  .panes-container.layout-dual-vertical,
-  .panes-container.layout-dual-horizontal,
-  .panes-container.layout-triple,
-  .panes-container.layout-quad {
-    display: flex !important;
-    flex-direction: column !important;
-    width: 100% !important;
-    height: 100% !important;
-    padding: 0 !important;
-    gap: 0 !important;
+  /* ---------------- NARROW MOBILE SCREENS (<= 600px, e.g. Folded Outer Phone Screen) ---------------- */
+  @media (max-width: 600px) {
+    .mobile-pane-switcher-bar {
+      display: flex !important;
+    }
+
+    /* Panes Container: Force 1 active pane on narrow mobile */
+    .panes-container,
+    .panes-container.layout-single,
+    .panes-container.layout-dual-vertical,
+    .panes-container.layout-dual-horizontal,
+    .panes-container.layout-triple,
+    .panes-container.layout-quad {
+      display: flex !important;
+      flex-direction: column !important;
+      width: 100% !important;
+      height: 100% !important;
+      padding: 0 !important;
+      gap: 0 !important;
+    }
+
+    .panes-container .pane:not(.active) {
+      display: none !important;
+    }
+
+    .panes-container .pane.active {
+      display: flex !important;
+      flex-direction: column !important;
+      width: 100% !important;
+      height: 100% !important;
+      flex: 1 1 auto !important;
+      border-radius: 0 !important;
+      border: none !important;
+    }
   }
 
-  .panes-container .pane:not(.active) {
-    display: none !important;
+  /* ---------------- FOLDABLE PHONES (UNFOLDED) & TABLETS (601px to 1024px) ---------------- */
+  @media (min-width: 601px) and (max-width: 1024px) {
+    /* Hide single-pane tabs since dual panes are displayed side-by-side */
+    .mobile-pane-switcher-bar {
+      display: none !important;
+    }
+
+    /* Dual Vertical Layout Active by default on Foldable Unfolded Screens */
+    .panes-container,
+    .panes-container.layout-dual-vertical,
+    .panes-container.layout-triple,
+    .panes-container.layout-quad {
+      display: grid !important;
+      grid-template-columns: 1fr 1fr !important;
+      grid-template-rows: 1fr !important;
+      gap: 6px !important;
+      padding: 4px !important;
+      height: 100% !important;
+      overflow: hidden !important;
+    }
+
+    .panes-container.layout-single {
+      display: grid !important;
+      grid-template-columns: 1fr !important;
+      grid-template-rows: 1fr !important;
+      gap: 0 !important;
+    }
+
+    .panes-container.layout-dual-horizontal {
+      display: grid !important;
+      grid-template-columns: 1fr !important;
+      grid-template-rows: 1fr 1fr !important;
+      gap: 4px !important;
+    }
+
+    /* In dual layout, show both Pane 0 and Pane 1 side-by-side */
+    .panes-container .pane {
+      display: flex !important;
+      flex-direction: column !important;
+      min-width: 0 !important;
+      overflow: hidden !important;
+      border-radius: 6px !important;
+    }
+
+    /* Hide panes beyond visible 2 on foldable dual screens */
+    .panes-container:not(.layout-single):not(.layout-triple):not(.layout-quad) .pane:nth-child(n+3) {
+      display: none !important;
+    }
   }
 
-  .panes-container .pane.active {
-    display: flex !important;
-    flex-direction: column !important;
-    width: 100% !important;
-    height: 100% !important;
-    flex: 1 1 auto !important;
-    border-radius: 0 !important;
-    border: none !important;
+  /* ---------------- DUAL-SCREEN / FOLDABLE VIEWPORT SEGMENTS & HINGE AWARENESS ---------------- */
+  @media (horizontal-viewport-segments: 2) {
+    .panes-container,
+    .panes-container.layout-dual-vertical {
+      display: grid !important;
+      grid-template-columns: env(viewport-segment-width 0 0, 1fr) env(viewport-segment-width 1 0, 1fr) !important;
+      gap: max(8px, calc(env(viewport-segment-left 1 0, 50vw) - env(viewport-segment-width 0 0, 50vw))) !important;
+      padding: 4px env(viewport-segment-left 0 0, 4px) !important;
+    }
+  }
+
+  @media (screen-spanning: single-fold-vertical) {
+    .panes-container,
+    .panes-container.layout-dual-vertical {
+      display: grid !important;
+      grid-template-columns: env(fold-left, 1fr) calc(100vw - env(fold-left, 50vw) - env(fold-width, 0px)) !important;
+      gap: max(8px, env(fold-width, 8px)) !important;
+    }
   }
 
   /* Pane Header wrap */
   .pane-header {
     flex-wrap: wrap !important;
     height: auto !important;
-    padding: 6px 8px !important;
-    gap: 6px !important;
+    padding: 4px 6px !important;
+    gap: 4px !important;
   }
 
   .pane-nav-btns {
     display: flex;
-    gap: 3px;
+    gap: 2px;
   }
 
   .pane-nav-btns button {
-    padding: 5px 7px !important;
+    padding: 4px 6px !important;
   }
 
   .pane-path-bar {
-    flex: 1 1 140px !important;
-    min-width: 100px !important;
-    height: 30px !important;
+    flex: 1 1 110px !important;
+    min-width: 70px !important;
+    height: 28px !important;
     font-size: 11px !important;
   }
 
   .pane-quick-filter {
     width: 100% !important;
-    height: 30px !important;
+    height: 28px !important;
     font-size: 11px !important;
     margin-top: 2px;
+  }
+
+  /* Quick Cross-Pane Transfer Button */
+  .pane-quick-transfer-btn {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 6px !important;
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--accent);
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .pane-quick-transfer-btn:active {
+    background: var(--accent-subtle);
+    border-color: var(--accent);
   }
 
   /* Table styling */
@@ -2092,15 +2186,15 @@ body {
   }
 
   .file-table th, .file-table td {
-    padding: 8px 6px;
-    font-size: 12px;
+    padding: 7px 5px;
+    font-size: 11.5px;
   }
 
   .file-table th:nth-child(1), .file-table td:nth-child(1) {
-    width: 28px !important;
-    min-width: 28px !important;
-    max-width: 28px !important;
-    padding: 0 4px !important;
+    width: 26px !important;
+    min-width: 26px !important;
+    max-width: 26px !important;
+    padding: 0 3px !important;
   }
 
   .file-table th:nth-child(2), .file-table td:nth-child(2) {
@@ -2111,20 +2205,20 @@ body {
   }
 
   .file-table th:nth-child(3), .file-table td:nth-child(3) {
-    width: 60px !important;
+    width: 52px !important;
     text-align: right !important;
-    font-size: 11px !important;
+    font-size: 10.5px !important;
   }
 
-  /* Hide Mode and Owner */
+  /* Hide Mode and Owner on all touch/narrow displays */
   .file-table th:nth-child(5), .file-table td:nth-child(5),
   .file-table th:nth-child(6), .file-table td:nth-child(6) {
     display: none !important;
   }
 
   .file-row {
-    height: 44px !important;
-    min-height: 44px;
+    height: 42px !important;
+    min-height: 42px;
     cursor: pointer;
   }
 

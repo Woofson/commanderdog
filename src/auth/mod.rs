@@ -116,6 +116,24 @@ impl AuthManager {
             [],
         )?;
 
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS shares (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                token TEXT UNIQUE NOT NULL,
+                path TEXT NOT NULL,
+                name TEXT NOT NULL,
+                is_dir INTEGER NOT NULL DEFAULT 0,
+                allow_upload INTEGER NOT NULL DEFAULT 0,
+                password_hash TEXT,
+                expires_at TEXT,
+                created_by TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                download_count INTEGER NOT NULL DEFAULT 0,
+                max_downloads INTEGER NOT NULL DEFAULT 0
+            )",
+            [],
+        )?;
+
         // Safe migrations for newly added columns
         let _ = conn.execute("ALTER TABLE users ADD COLUMN nickname TEXT", []);
         let _ = conn.execute("ALTER TABLE users ADD COLUMN email TEXT", []);
@@ -655,6 +673,206 @@ impl AuthManager {
         conn.execute("INSERT OR REPLACE INTO security_settings (key, value) VALUES ('lock_prevented_by_tasks', ?1)", params![settings.lock_prevented_by_tasks.to_string()])?;
         Ok(())
     }
+
+    // ---------------- LINK SHARING & DROPBOX ----------------
+    pub fn create_share(
+        &self,
+        username: &str,
+        path: &str,
+        name: &str,
+        is_dir: bool,
+        allow_upload: bool,
+        password: Option<&str>,
+        expires_at: Option<&str>,
+        max_downloads: u64,
+    ) -> Result<ShareItem, Box<dyn std::error::Error + Send + Sync>> {
+        let token = uuid::Uuid::new_v4().to_string().replace('-', "")[..16].to_string();
+        let now = Utc::now().to_rfc3339();
+
+        let password_hash = if let Some(pass) = password {
+            if !pass.trim().is_empty() {
+                let salt = SaltString::generate(&mut OsRng);
+                let argon2 = Argon2::default();
+                Some(
+                    argon2
+                        .hash_password(pass.as_bytes(), &salt)
+                        .map_err(|e| format!("Password hashing failed: {}", e))?
+                        .to_string(),
+                )
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        let has_password = password_hash.is_some();
+        let conn = self.db.lock().map_err(|_| "DB lock poisoned")?;
+
+        conn.execute(
+            "INSERT INTO shares (token, path, name, is_dir, allow_upload, password_hash, expires_at, created_by, created_at, download_count, max_downloads)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 0, ?10)",
+            params![
+                token,
+                path,
+                name,
+                if is_dir { 1 } else { 0 },
+                if allow_upload { 1 } else { 0 },
+                password_hash,
+                expires_at,
+                username,
+                now,
+                max_downloads as i64,
+            ],
+        )?;
+
+        let id = conn.last_insert_rowid();
+
+        Ok(ShareItem {
+            id,
+            token,
+            path: path.to_string(),
+            name: name.to_string(),
+            is_dir,
+            allow_upload,
+            has_password,
+            password_hash: None,
+            expires_at: expires_at.map(|s| s.to_string()),
+            created_by: username.to_string(),
+            created_at: now,
+            download_count: 0,
+            max_downloads,
+        })
+    }
+
+    pub fn list_shares(&self, username: &str, is_admin: bool) -> Result<Vec<ShareItem>, Box<dyn std::error::Error + Send + Sync>> {
+        let conn = self.db.lock().map_err(|_| "DB lock poisoned")?;
+        let mut list = Vec::new();
+
+        if is_admin {
+            let mut stmt = conn.prepare("SELECT id, token, path, name, is_dir, allow_upload, password_hash, expires_at, created_by, created_at, download_count, max_downloads FROM shares ORDER BY id DESC")?;
+            let rows = stmt.query_map([], |r| {
+                let pass_hash: Option<String> = r.get(6)?;
+                Ok(ShareItem {
+                    id: r.get(0)?,
+                    token: r.get(1)?,
+                    path: r.get(2)?,
+                    name: r.get(3)?,
+                    is_dir: r.get::<_, i64>(4)? == 1,
+                    allow_upload: r.get::<_, i64>(5)? == 1,
+                    has_password: pass_hash.is_some(),
+                    password_hash: None,
+                    expires_at: r.get(7)?,
+                    created_by: r.get(8)?,
+                    created_at: r.get(9)?,
+                    download_count: r.get::<_, i64>(10)? as u64,
+                    max_downloads: r.get::<_, i64>(11)? as u64,
+                })
+            })?;
+            for r in rows {
+                list.push(r?);
+            }
+        } else {
+            let mut stmt = conn.prepare("SELECT id, token, path, name, is_dir, allow_upload, password_hash, expires_at, created_by, created_at, download_count, max_downloads FROM shares WHERE created_by = ?1 ORDER BY id DESC")?;
+            let rows = stmt.query_map(params![username], |r| {
+                let pass_hash: Option<String> = r.get(6)?;
+                Ok(ShareItem {
+                    id: r.get(0)?,
+                    token: r.get(1)?,
+                    path: r.get(2)?,
+                    name: r.get(3)?,
+                    is_dir: r.get::<_, i64>(4)? == 1,
+                    allow_upload: r.get::<_, i64>(5)? == 1,
+                    has_password: pass_hash.is_some(),
+                    password_hash: None,
+                    expires_at: r.get(7)?,
+                    created_by: r.get(8)?,
+                    created_at: r.get(9)?,
+                    download_count: r.get::<_, i64>(10)? as u64,
+                    max_downloads: r.get::<_, i64>(11)? as u64,
+                })
+            })?;
+            for r in rows {
+                list.push(r?);
+            }
+        }
+
+        Ok(list)
+    }
+
+    pub fn get_share_by_token(&self, token: &str) -> Result<Option<ShareItem>, Box<dyn std::error::Error + Send + Sync>> {
+        let conn = self.db.lock().map_err(|_| "DB lock poisoned")?;
+        let mut stmt = conn.prepare("SELECT id, token, path, name, is_dir, allow_upload, password_hash, expires_at, created_by, created_at, download_count, max_downloads FROM shares WHERE token = ?1")?;
+        let mut rows = stmt.query(params![token])?;
+
+        if let Some(r) = rows.next()? {
+            let pass_hash: Option<String> = r.get(6)?;
+            Ok(Some(ShareItem {
+                id: r.get(0)?,
+                token: r.get(1)?,
+                path: r.get(2)?,
+                name: r.get(3)?,
+                is_dir: r.get::<_, i64>(4)? == 1,
+                allow_upload: r.get::<_, i64>(5)? == 1,
+                has_password: pass_hash.is_some(),
+                password_hash: pass_hash,
+                expires_at: r.get(7)?,
+                created_by: r.get(8)?,
+                created_at: r.get(9)?,
+                download_count: r.get::<_, i64>(10)? as u64,
+                max_downloads: r.get::<_, i64>(11)? as u64,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub fn delete_share(&self, id: i64, username: &str, is_admin: bool) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let conn = self.db.lock().map_err(|_| "DB lock poisoned")?;
+        if is_admin {
+            conn.execute("DELETE FROM shares WHERE id = ?1", params![id])?;
+        } else {
+            conn.execute("DELETE FROM shares WHERE id = ?1 AND created_by = ?2", params![id, username])?;
+        }
+        Ok(())
+    }
+
+    pub fn increment_share_downloads(&self, token: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let conn = self.db.lock().map_err(|_| "DB lock poisoned")?;
+        conn.execute("UPDATE shares SET download_count = download_count + 1 WHERE token = ?1", params![token])?;
+        Ok(())
+    }
+
+    pub fn verify_share_password(&self, token: &str, password: &str) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
+        if let Some(share) = self.get_share_by_token(token)? {
+            if let Some(hash_str) = share.password_hash {
+                let parsed_hash = PasswordHash::new(&hash_str).map_err(|e| format!("Invalid hash format: {}", e))?;
+                Ok(Argon2::default().verify_password(password.as_bytes(), &parsed_hash).is_ok())
+            } else {
+                Ok(true) // no password required
+            }
+        } else {
+            Ok(false)
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ShareItem {
+    pub id: i64,
+    pub token: String,
+    pub path: String,
+    pub name: String,
+    pub is_dir: bool,
+    pub allow_upload: bool,
+    pub has_password: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub password_hash: Option<String>,
+    pub expires_at: Option<String>,
+    pub created_by: String,
+    pub created_at: String,
+    pub download_count: u64,
+    pub max_downloads: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

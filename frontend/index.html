@@ -72,6 +72,7 @@
           <div class="dropdown-item" onclick="openFloatingEditor()"><i data-lucide="code"></i> Multi-Tab Power Editor (F4)</div>
           <div class="dropdown-item" onclick="triggerDiff()"><i data-lucide="git-compare"></i> Compare / Diff (F9)</div>
           <div class="dropdown-item" onclick="openSearchModal()"><i data-lucide="search"></i> Deep File Search (Ctrl+F)</div>
+          <div class="dropdown-item" onclick="openSharesManager()"><i data-lucide="share-2"></i> Active Shares & Dropboxes</div>
           <div class="dropdown-item" onclick="openSyncModal()"><i data-lucide="refresh-cw"></i> Directory Sync & Mirror</div>
           <div class="dropdown-item" onclick="openSyncthingModal()"><i data-lucide="repeat"></i> Syncthing Dashboard</div>
           <div class="dropdown-item" onclick="openConverterModal()"><i data-lucide="file-output"></i> ConvertX Converters</div>
@@ -160,6 +161,10 @@
     </div>
   </div>
 
+  <!-- Hidden Device File & Folder Uploaders -->
+  <input type="file" id="direct-file-uploader" multiple style="display:none;" onchange="handleDirectFileUpload(this.files)">
+  <input type="file" id="direct-folder-uploader" webkitdirectory directory multiple style="display:none;" onchange="handleDirectFileUpload(this.files)">
+
   <!-- Static Mobile Bottom Command Bar (Total Commander Style) -->
   <footer class="mobile-bottom-bar" id="mobile-bottom-bar">
     <button class="mob-cmd-btn" id="mob-btn-copy" onclick="triggerCopy()">
@@ -170,13 +175,17 @@
       <i data-lucide="move"></i>
       <span>Move</span>
     </button>
+    <button class="mob-cmd-btn" id="mob-btn-upload" onclick="triggerDeviceUpload()" title="Upload files from device">
+      <i data-lucide="upload-cloud"></i>
+      <span>Upload</span>
+    </button>
+    <button class="mob-cmd-btn" id="mob-btn-download" onclick="triggerDownload()" title="Download selected to device">
+      <i data-lucide="download"></i>
+      <span>Download</span>
+    </button>
     <button class="mob-cmd-btn" id="mob-btn-delete" onclick="triggerDelete()">
       <i data-lucide="trash-2"></i>
       <span>Delete</span>
-    </button>
-    <button class="mob-cmd-btn" id="mob-btn-mkdir" onclick="triggerMkdir()">
-      <i data-lucide="folder-plus"></i>
-      <span>New</span>
     </button>
     <button class="mob-cmd-btn mob-cmd-accent" id="mob-btn-actions" onclick="showTouchActionsMenu(event)">
       <i data-lucide="zap"></i>
@@ -192,6 +201,7 @@
     <div class="context-item" onclick="triggerView()"><i data-lucide="eye" style="width: 14px;"></i> Quick View (F3)</div>
     <div class="context-item" onclick="triggerEditor()"><i data-lucide="file-edit" style="width: 14px;"></i> Edit File (F4)</div>
     <div class="context-item" onclick="triggerDownload()"><i data-lucide="download" style="width: 14px;"></i> Download / Batch Zip</div>
+    <div class="context-item" onclick="triggerShare()"><i data-lucide="share-2" style="width: 14px; color: var(--accent);"></i> Share Link / Guest Dropbox...</div>
     <div class="context-item" onclick="triggerDiff()"><i data-lucide="git-compare" style="width: 14px;"></i> Compare / Diff</div>
     <div class="context-sep"></div>
     <div class="context-item" onclick="triggerPermissions()"><i data-lucide="lock" style="width: 14px;"></i> Permissions & Ownership</div>
@@ -202,9 +212,8 @@
     <div class="context-sep"></div>
     <div class="context-item" onclick="triggerChecksum()"><i data-lucide="shield-check" style="width: 14px;"></i> Calculate SHA-256 Hash</div>
     <div class="context-item" onclick="triggerConvertFile()"><i data-lucide="file-output" style="width: 14px;"></i> Convert File (ConvertX)...</div>
-    <div class="context-item" onclick="triggerArchiveZip()"><i data-lucide="archive" style="width: 14px;"></i> Compress to .zip</div>
-    <div class="context-item" onclick="triggerArchiveTarGz()"><i data-lucide="archive" style="width: 14px;"></i> Compress to .tar.gz</div>
-    <div class="context-item" onclick="triggerExtract()"><i data-lucide="folder-archive" style="width: 14px;"></i> Extract Archive Here</div>
+    <div class="context-item" onclick="triggerCompressModal()"><i data-lucide="archive" style="width: 14px;"></i> Compress to Archive...</div>
+    <div class="context-item" onclick="triggerExtractModal()"><i data-lucide="folder-archive" style="width: 14px;"></i> Extract Archive...</div>
   </div>
 
   <!-- Linux / Unix Permissions & Ownership Manager Modal -->
@@ -288,6 +297,169 @@
       <div class="modal-footer">
         <button class="btn" onclick="closeModal('permissions-modal')">Cancel</button>
         <button class="btn btn-accent" id="btn-save-permissions">Apply Permissions</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Share Creator Modal (Public Link & Guest Dropbox) -->
+  <div class="modal-overlay" id="share-create-modal">
+    <div class="modal-box" style="width: 520px;">
+      <div class="modal-header">
+        <span>🔗 Share Link & Guest Upload Dropbox</span>
+        <button class="btn" onclick="closeModal('share-create-modal')"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <div style="background: var(--bg-header); border: 1px solid var(--border); padding: 12px; border-radius: 6px; margin-bottom: 14px;">
+          <div style="font-weight: 700; font-size: 13px;" id="share-item-name">item_name</div>
+          <div style="font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); margin-top: 2px;" id="share-item-path">/path/to/item</div>
+        </div>
+
+        <div class="form-group">
+          <label>Link Expiration:</label>
+          <select id="share-expiry-select" class="pane-quick-filter" style="width: 100%; padding: 8px;">
+            <option value="1">1 Hour</option>
+            <option value="24" selected>24 Hours (1 Day)</option>
+            <option value="168">7 Days (1 Week)</option>
+            <option value="720">30 Days (1 Month)</option>
+            <option value="0">Never Expire (Permanent)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Password Protection (Optional):</label>
+          <input type="password" id="share-password-input" class="pane-quick-filter" style="width: 100%; padding: 8px;" placeholder="Leave empty for public access...">
+        </div>
+
+        <div class="form-group">
+          <label>Max Downloads Limit (Optional):</label>
+          <input type="number" id="share-max-downloads" class="pane-quick-filter" style="width: 100%; padding: 8px;" min="0" value="0" placeholder="0 = Unlimited downloads">
+        </div>
+
+        <div id="share-dropbox-toggle-group" style="margin-top: 10px; display: none; background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.2); padding: 10px; border-radius: 6px;">
+          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: var(--accent); font-weight: 600;">
+            <input type="checkbox" id="share-allow-upload">
+            <span>📥 Enable Guest Upload Dropbox (Allow anyone with link to upload files here)</span>
+          </label>
+        </div>
+
+        <!-- Generated Link Display Section -->
+        <div id="share-result-box" style="display: none; margin-top: 14px; background: var(--bg-dark); border: 1px solid var(--border); padding: 12px; border-radius: 6px;">
+          <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 6px;">Shareable Public URL:</div>
+          <div style="display: flex; gap: 8px;">
+            <input type="text" id="share-result-url" readonly class="pane-quick-filter" style="flex: 1; font-family: var(--font-mono); font-size: 12px; padding: 6px 8px; color: var(--accent);">
+            <button class="btn btn-accent" onclick="copyShareUrl()"><i data-lucide="copy" style="width: 14px;"></i> Copy</button>
+            <a id="share-result-open-btn" target="_blank" class="btn" style="text-decoration: none; padding: 6px 10px;"><i data-lucide="external-link" style="width: 14px;"></i></a>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="closeModal('share-create-modal')">Close</button>
+        <button class="btn btn-accent" id="btn-generate-share" onclick="executeCreateShare()"><i data-lucide="link"></i> Generate Share Link</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Shares Manager Dashboard Modal -->
+  <div class="modal-overlay" id="shares-manager-modal">
+    <div class="modal-box" style="width: 750px; max-height: 80vh;">
+      <div class="modal-header">
+        <span>🔗 Active Public Shares & Guest Dropboxes</span>
+        <button class="btn" onclick="closeModal('shares-manager-modal')"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body" style="padding: 12px;">
+        <div style="overflow-x: auto;">
+          <table class="file-table" style="width: 100%;">
+            <thead>
+              <tr>
+                <th style="width: 30px;">Type</th>
+                <th>Name / Shared Path</th>
+                <th style="width: 90px;">Expires</th>
+                <th style="width: 70px; text-align: center;">Downloads</th>
+                <th style="width: 60px; text-align: center;">Dropbox</th>
+                <th style="width: 120px; text-align: right;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="shares-table-tbody">
+              <tr>
+                <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 20px;">Loading active shares...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="loadActiveShares()"><i data-lucide="refresh-cw"></i> Refresh</button>
+        <button class="btn" onclick="closeModal('shares-manager-modal')">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Archive Compressor Modal -->
+  <div class="modal-overlay" id="archive-compress-modal">
+    <div class="modal-box" style="width: 480px;">
+      <div class="modal-header">
+        <span>📦 Compress to Archive</span>
+        <button class="btn" onclick="closeModal('archive-compress-modal')"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <div style="background: var(--bg-header); border: 1px solid var(--border); padding: 10px; border-radius: 6px; margin-bottom: 12px;" id="compress-summary">
+          Compressing items...
+        </div>
+        <div class="form-group">
+          <label>Archive Name:</label>
+          <input type="text" id="compress-name-input" class="pane-quick-filter" style="width: 100%; padding: 8px;" placeholder="archive.zip">
+        </div>
+        <div class="form-group">
+          <label>Archive Format:</label>
+          <select id="compress-format-select" class="pane-quick-filter" style="width: 100%; padding: 8px;" onchange="updateCompressExt(this.value)">
+            <option value="zip" selected>ZIP Archive (.zip)</option>
+            <option value="targz">GZipped Tarball (.tar.gz)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Destination Directory:</label>
+          <div style="display: flex; gap: 6px;">
+            <input type="text" id="compress-dest-input" class="pane-quick-filter" style="flex: 1; padding: 8px;">
+            <button class="btn" onclick="setCompressDestToOpposite()" title="Use Opposite Pane Path"><i data-lucide="arrow-right-left"></i></button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="closeModal('archive-compress-modal')">Cancel</button>
+        <button class="btn btn-accent" onclick="executeCompressArchive()"><i data-lucide="archive"></i> Create Archive</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Archive Extractor Modal -->
+  <div class="modal-overlay" id="archive-extract-modal">
+    <div class="modal-box" style="width: 480px;">
+      <div class="modal-header">
+        <span>📂 Extract Archive</span>
+        <button class="btn" onclick="closeModal('archive-extract-modal')"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <div style="background: var(--bg-header); border: 1px solid var(--border); padding: 10px; border-radius: 6px; margin-bottom: 12px;">
+          <div style="font-weight: 700; font-size: 13px;" id="extract-archive-name">archive.zip</div>
+          <div style="font-size: 11px; color: var(--text-muted); font-family: var(--font-mono);" id="extract-archive-path">/path/to/archive</div>
+        </div>
+        <div class="form-group">
+          <label>Extraction Destination:</label>
+          <select id="extract-mode-select" class="pane-quick-filter" style="width: 100%; padding: 8px;" onchange="handleExtractModeChange(this.value)">
+            <option value="here" selected>Extract Here (Current Folder)</option>
+            <option value="subfolder">Extract to New Subfolder (/<span id="extract-subfolder-label">name</span>/)</option>
+            <option value="opposite">Extract to Opposite Pane</option>
+            <option value="custom">Custom Path...</option>
+          </select>
+        </div>
+        <div class="form-group" id="extract-custom-path-group" style="display: none;">
+          <label>Target Directory Path:</label>
+          <input type="text" id="extract-target-dir-input" class="pane-quick-filter" style="width: 100%; padding: 8px;">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="closeModal('archive-extract-modal')">Cancel</button>
+        <button class="btn btn-accent" onclick="executeExtractArchive()"><i data-lucide="folder-archive"></i> Extract</button>
       </div>
     </div>
   </div>
@@ -396,30 +568,29 @@
               <option value="midnight-blue">Midnight Commander Blue</option>
             </select>
           </div>
-          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 16px; margin-bottom: 20px;">
-            <div style="background: #121214; border: 1px solid #3f3f46; padding: 8px; border-radius: 4px;">
-              <span style="display:inline-block; width:12px; height:12px; background:#121214; border:1px solid #71717a; border-radius:2px;"></span>
-              <b>bg-void</b>: <code>#121214</code>
+
+          <h4 style="color: var(--accent); margin-top: 16px; margin-bottom: 8px;">🖼️ Panel Border & Focus Ring Customization</h4>
+          <p style="color: var(--text-muted); font-size: 11px; margin-bottom: 12px;">Fine-tune panel border thickness and active focus highlight intensity.</p>
+          <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 16px;">
+            <div class="form-group" style="margin-bottom: 0;">
+              <label>Panel Border Width:</label>
+              <select id="setting-border-width" class="pane-quick-filter" style="width: 100%; padding: 8px;" onchange="applyBorderSettings(this.value, null)">
+                <option value="0px">0px (Borderless / Minimal)</option>
+                <option value="0.5px">0.5px (Ultra Hairline)</option>
+                <option value="1px" selected>1px (Subtle Hairline - Default)</option>
+                <option value="1.5px">1.5px (Solid Border)</option>
+                <option value="2px">2px (Medium Accent)</option>
+                <option value="3px">3px (Retro Bold)</option>
+              </select>
             </div>
-            <div style="background: #18181b; border: 1px solid #3f3f46; padding: 8px; border-radius: 4px;">
-              <span style="display:inline-block; width:12px; height:12px; background:#18181b; border:1px solid #71717a; border-radius:2px;"></span>
-              <b>bg-panel</b>: <code>#18181b</code>
-            </div>
-            <div style="background: #202024; border: 1px solid #3f3f46; padding: 8px; border-radius: 4px;">
-              <span style="display:inline-block; width:12px; height:12px; background:#202024; border:1px solid #71717a; border-radius:2px;"></span>
-              <b>bg-header</b>: <code>#202024</code>
-            </div>
-            <div style="background: #27272a; border: 1px solid #3f3f46; padding: 8px; border-radius: 4px;">
-              <span style="display:inline-block; width:12px; height:12px; background:#f59e0b; border-radius:2px;"></span>
-              <b>accent-core</b>: <code style="color:#f59e0b;">#f59e0b</code>
-            </div>
-            <div style="background: #27272a; border: 1px solid #3f3f46; padding: 8px; border-radius: 4px;">
-              <span style="display:inline-block; width:12px; height:12px; background:#fbbf24; border-radius:2px;"></span>
-              <b>accent-hover</b>: <code style="color:#fbbf24;">#fbbf24</code>
-            </div>
-            <div style="background: #27272a; border: 1px solid #3f3f46; padding: 8px; border-radius: 4px;">
-              <span style="display:inline-block; width:12px; height:12px; background:#3f3f46; border-radius:2px;"></span>
-              <b>border</b>: <code>#3f3f46</code>
+            <div class="form-group" style="margin-bottom: 0;">
+              <label>Active Pane Highlight Style:</label>
+              <select id="setting-ring-style" class="pane-quick-filter" style="width: 100%; padding: 8px;" onchange="applyBorderSettings(null, this.value)">
+                <option value="none">Border Color Only (No Extra Ring)</option>
+                <option value="subtle" selected>Subtle (1px Accent Ring)</option>
+                <option value="bold">Bold (2px Crisp Accent Ring)</option>
+                <option value="glow">Neon Glow (Aura Glow Highlight)</option>
+              </select>
             </div>
           </div>
 
@@ -1851,7 +2022,7 @@
           <div style="font-size: 18px; font-weight: 800; color: var(--accent); letter-spacing: 0.5px;">CommanderDog</div>
           <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 10px;">Multi-Tab Web Commander - By Woofson</div>
           <div style="display: flex; justify-content: center; gap: 6px; flex-wrap: wrap;">
-            <span class="badge" style="background: rgba(245, 158, 11, 0.2); color: var(--accent); border: 1px solid rgba(245, 158, 11, 0.4); font-weight: 700;">v0.2.6 (Release)</span>
+            <span class="badge" style="background: rgba(245, 158, 11, 0.2); color: var(--accent); border: 1px solid rgba(245, 158, 11, 0.4); font-weight: 700;">v0.2.7 (Release)</span>
             <span class="badge" style="background: rgba(56, 189, 248, 0.15); color: var(--info); border: 1px solid rgba(56, 189, 248, 0.3);">Rust + Axum + Tokio</span>
             <span class="badge" style="background: rgba(34, 197, 94, 0.15); color: var(--success); border: 1px solid rgba(34, 197, 94, 0.3);">MIT Open Source</span>
           </div>

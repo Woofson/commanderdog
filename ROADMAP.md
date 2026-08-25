@@ -1,121 +1,79 @@
-# 🗺️ CommanderDog Roadmap & Engineering Backlog
+# 🗺️ CommanderDog Product Roadmap
 
-## ✅ Completed Features (v0.1.0 & v0.2.0)
+> **Slogan**: *Multi-Tab Web Commander - By Woofson*
 
-### 🗂️ Core Navigation & UI Architecture
-- [x] **Dynamic Multi-Pane Workspace**: 1-to-4 toggleable panels (`Alt+1..4`), single, dual-vertical, dual-horizontal, triple, and quad 2x2 layouts.
-- [x] **Orthodox Keyboard & Function Keys**: Full Midnight Commander bindings (`Tab`, `F1`–`F10`, `Insert`, `Space`, `Ctrl+D`, `Shift+F6`).
-- [x] **Touch & Empty-Space Gestures**: 450ms long-press context menu, double-click empty space parent jump, and mobile swipe navigation.
-- [x] **Streamlined Top Toolbar**: Clean left-aligned logo with right-aligned layout switcher, unified `Tools ▾` menu, dedicated `Terminal` button, and `User Profile` dropdown.
-- [x] **11 Built-in Themes**: Woofson Amber (Default), Gruvbox, Catppuccin Mocha, Catppuccin Latte, Tokyo Night, Monokai Pro, Solarized Dark, Ayu Dark, Nord Frost, Dracula, and Midnight Commander Blue.
-
-### 👑 Administration, RBAC & Multi-User Auth
-- [x] **Dedicated Administrator Control Panel (`👑 Admin Control Panel`)**: Strict role-guarded access for admins, completely separated from user preferences (`F10`).
-- [x] **Granular Per-User RBAC Engine**: Assign user roles (`Admin`, `Standard User`, `Read-Only`), set home directories, and grant/restrict individual service access (`Local`, `SMB/CIFS`, `NFS`, `S3`, `SFTP`, `WebDAV`, `Terminal`, `Syncthing`, `ConvertX`).
-- [x] **Native Linux PAM & Sudo Auto-Promotion**: Authenticate against local `/etc/shadow` accounts, automatically resolve Linux `sudo`/`wheel` group membership to Admin, and auto-sync user profiles to SQLite.
-- [x] **User Profile Management**: In-app avatar selection, nickname customization, email management, and self-service password updates.
-
-### 🌐 Storage, Network Mounts & Cloud Integrations
-- [x] **Global Network Mounts with RBAC**: Admins can mount network shares (SMB/CIFS, NFS, S3, SFTP, WebDAV) and assign access permissions per user.
-- [x] **Auto-Discovery in ⭐ Favorites**: Assigned network shares automatically appear under `🌐 Network & Global Mounts` in users' Favorites menu for 1-click jump.
-- [x] **Protocols Supported**:
-  - 🪟 Samba / Windows Shares (SMB / CIFS) via native client & domain auth
-  - 🐧 Linux NFS (Network File System) automated export mounting to `/run/commanderdog/mounts/nfs/`
-  - ☁️ S3 Object Storage (AWS, MinIO, Cloudflare R2, Backblaze B2, Hetzner S3) with AWS SigV4
-  - 📦 Hetzner Storage Box 1-click fast preset (SFTP Port 23 & WebDAV HTTPS)
-  - 🔒 SSH / SFTP remote servers
-  - 🌐 WebDAV (Nextcloud, ownCloud, Synology, Apache/Nginx)
-  - 🛡️ Proton Drive E2EE bridge
-  - 🔄 Syncthing real-time continuous background synchronization dashboard
-  - 🗄️ Virtual Archives (browse `.zip`, `.tar.gz`, `.tar.bz2`, `.tar.xz`, `.7z` as virtual directories).
-
-### 🛠️ Built-in Tools, Comparison & Utilities
-- [x] **ConvertX Universal File Converter**: Convert Images (WebP, PNG, JPEG, AVIF, BMP, TIFF), Audio (MP3, WAV, AAC, FLAC, OGG), Video (MP4, WebM, MKV, AVI, GIF), and Documents (PDF, TXT, HTML, DOCX).
-- [x] **Syntax-Highlighted Editor**: Prism.js highlighting for 12+ languages, interactive Find & Replace with match navigation, and Mermaid.js markdown preview.
-- [x] **Advanced File & Folder Diff Engine**: Fast folder comparison, selected files diff, deep cryptographic hash verification, and side-by-side text diff.
-- [x] **Interactive Slide-Up Web Terminal (PTY)**: Linux pseudo-terminal running over WebSockets with shell mode locking.
-- [x] **Paranoid Mode & DeltaCopy / TeraCopy Engine**: Pre-flight dry-runs, bit-for-bit SHA-256 verification, atomic writes, and XDG Trash recovery.
-- [x] **Advanced Multi-File Bulk Renamer**: Regex find/replace, sequential numbering, case conversion, and real-time side-by-side preview.
-
-### 📦 Packaging & Infrastructure
-- [x] **Debian / Ubuntu `.deb` Package**: `dist/commanderdog_0.2.0_amd64.deb` with systemd unit.
-- [x] **Arch Linux `PKGBUILD` & Alpine Linux `APKBUILD`**.
-- [x] **Proxmox VE & Linux LXC Guide (`LXC.md`) & 1-Click Installer Script (`scripts/lxc-install.sh`)**.
-- [x] **Docker & Docker Compose Deployment**.
-- [x] **conf.d Snippet Hierarchy Engine** (`/etc/commanderdog/conf.d/*.toml`, `~/.config/commanderdog/conf.d/*.toml`, `./conf.d/*.toml`).
+This roadmap outlines planned capabilities, UX enhancements, and architectural milestones for CommanderDog, informed by an architectural evaluation of orthodox file commanders, modern cloud file managers (including [NextExplorer](https://github.com/Woofson/NextExplorer)), and adaptive multi-pane mobile form factors.
 
 ---
 
-### 🖱️ Drag-and-Drop & Document Readers (v0.2.0)
-- [x] **Cross-Pane Drag-and-Drop Transfers**: Drag files between open panels in the dual/quad grid with folder hover targets (`.drag-over-row`), Transfer Action Modal (`[Copy (F5)]` / `[Move (F6)]`), and `Shift`/`Alt` modifier shortcuts.
-- [x] **OS Desktop Drag-and-Drop Upload**: Drop external files from your host OS directly into any active panel or subfolder with live progress tracking in the floating task pill.
-- [x] **Embedded PDF Document Reader**: Full-featured in-browser PDF viewing with zoom, search, print, download, and external window popout.
-- [x] **In-Browser Audio & Video Media Player**: Seamless streaming of MP3, WAV, AAC, FLAC, OGG, MP4, WebM, MKV, AVI with scrubber seeking, speed control (0.5x–2.0x), volume, loop, and auto-playlist folder discovery (`⏮️ Previous` / `⏭️ Next`).
-- [x] **Comic Book (`.cbz`/`.cbr`) & EPUB Book Reader**: High-resolution page rendering directly from archives with page counter, zoom, and arrow key (`◀` / `▶`) navigation.
-- [x] **About CommanderDog Modal**: Information page under the User Profile menu with architecture specs, developer credits, and quick links.
+## 📱 1. Foldable & Tablet Adaptive Multi-Pane (Immediate Priority)
+
+### 📐 The Challenge:
+Current responsive design collapses viewports $\le 768\text{px}$ into a single-pane vertical stack. Modern foldable devices (such as Samsung Galaxy Z Fold, Google Pixel Fold, OnePlus Open) feature outer screens ($\sim 380\text{px}$–$420\text{px}$) and inner unfolded screens ($\sim 600\text{px}$–$900\text{px}$) with square/portrait aspect ratios ($\approx 4:3$, $6:5$, or $1:1$). Users unfolding their devices expect **at least two active panes side-by-side** for true orthodox dual-pane file management.
+
+### 🎯 Roadmap Initiatives:
+- **Dual-Pane Foldable Breakpoint ($\ge 600\text{px}$)**:
+  - Transition from strict $768\text{px}$ single-pane to an adaptive dual-pane layout when horizontal width $\ge 600\text{px}$.
+  - Support dual vertical panes (`layout-dual-vertical`) with compact columns (Icon + Name + Size) on foldable screens.
+- **CSS Screen-Spanning & Viewport Segments**:
+  - Leverage `@media (horizontal-viewport-segments: 2)` and `screen-spanning: single-fold-vertical` to place Pane 1 on the left display half and Pane 2 on the right display half, avoiding the center hinge/fold seam.
+- **Touch-Optimized Drag & Swipe Across Folded Panes**:
+  - Direct touch drag-and-drop or 1-tap "Transfer to Opposite Pane" buttons on foldable touch interfaces.
+  - Quick-switch tabs for Pane 3 & 4 while preserving the primary dual-pane split on screen.
 
 ---
 
-### 🎨 Themed Dialogs, Floating Task Manager & User Avatars (v0.2.2)
-- [x] **Custom Themed Dialog & Toast Engine**: Replaced all native browser `confirm()`, `alert()`, and `prompt()` dialogs with dark commander modals, item previews, copyable checksum dialogs, and non-blocking toast notifications.
-- [x] **Interactive Drag-Resize Floating Task Manager**: Top-level floating transfer window with resizable height handle, persistent height state, verbosity toggle, and speed charts.
-- [x] **Standardized Header Action Bar**: Clean icon-based toolbar layout `[Refresh All] | [Views] | [Terminal] [Tasks Activity] [Tools] [User Profile]` with inward right-aligned dropdown positioning.
-- [x] **User Profile Photo Upload**: Direct avatar image upload with automatic client-side crop and resize to compact WebP, persistent database storage, and universal rendering across header, dropdown, and admin tables.
-- [x] **Mobile-Optimized Down-Up Workflow**: Pull-to-refresh folder gesture, browser back button capture for parent navigation, and optional `..` parent entry toggle in user settings.
+## 🔍 2. Evaluated Features from NextExplorer (`../NextExplorer/`)
+
+NextExplorer offers a modern web explorer interface with rich media, sharing, and integration capabilities. The following high-value features have been evaluated and prioritized for CommanderDog:
+
+### 🔗 A. Temporary Link Sharing & Guest Upload Dropboxes
+- **Public & Password-Protected Shares**: Generate secure, time-limited share links for individual files or entire folders (`1 hour`, `24 hours`, `7 days`, `custom expiration`).
+- **Read-Write Guest Dropboxes**: Allow external collaborators to upload files directly into a designated target directory via a clean web drop-zone without requiring a user account.
+- **Active Shares Dashboard**: Built-in tab in the Settings/Profile Hub to monitor, audit access logs, extend expiry, or revoke active links in one click.
+
+### 📄 B. Document Viewing & Collaborative Editing (ONLYOFFICE & Collabora WOPI)
+- **WOPI / ONLYOFFICE Integration**: Connect to an external or self-hosted ONLYOFFICE DocumentServer or Collabora Online instance.
+- **In-Browser Office Editing**: Edit `.docx`, `.xlsx`, `.pptx`, `.odt`, `.ods` directly within CommanderDog floating windows with real-time multi-user collaboration.
+
+### 🗺️ C. Rich Media Inspector & EXIF GPS Map Preview
+- **EXIF Metadata Inspector**: View detailed camera metadata (shutter speed, aperture, ISO, focal length, camera body & lens model).
+- **Interactive GPS Location Preview**: For geotagged photos, embed a lightweight interactive map preview showing the exact coordinates where the image was captured.
+- **Audio & Video Codec Details**: Inspect bitrates, audio channels, video codecs, and container formats.
+
+### ⚡ D. Global Spotlight Quick-Switcher (`Ctrl+K` / `Cmd+K`)
+- **Spotlight Search Bar**: Modal overlay triggered anywhere via `Ctrl+K` for instantaneous fuzzy matching across recent files, bookmarks, active mounts, commands, and settings.
+- **Keyboard-First Navigation**: Instant directory jumping without leaving the active panel.
+
+### 📦 E. Archive Manager & In-Browser Unpacker
+- **Multi-Format Extraction**: In-browser decompression and extraction for `.zip`, `.tar.gz`, `.tar.bz2`, `.tar.xz`, `.7z`, and `.rar` directly to the active or opposite pane.
+- **Archive Creation**: Select multiple files/folders and compress directly to `.zip` or `.tar.gz` with custom compression levels.
+
+### 🔐 F. POSIX & ACL Visual Permissions Editor
+- **Visual Chmod/Chown**: Intuitive octal (`755`, `644`) permission matrix with checkbox grid for Owner, Group, and Others (Read, Write, Execute, SUID, SGID, Sticky).
+- **Recursive Permission Apply**: Option to recursively apply ownership/permissions to subdirectories and files.
+
+### 🌐 G. OpenID Connect (OIDC) & SSO Integration
+- **Enterprise SSO**: Support OpenID Connect (OIDC) authentication flows (Authelia, Authentik, Keycloak, Okta, Google Workspace) alongside existing Linux PAM and SQLite auth engines.
+- **Role & Group Mapping**: Map OIDC group claims directly to CommanderDog RBAC roles (`admin`, `power_user`, `user`, `viewer`).
 
 ---
 
-### 🛡️ Linux PAM Authentication & Fallback Chain (v0.2.3)
-- [x] **PAM / Local Linux Account Fix**: Clean separation between database Argon2 verification and PAM authentication so `PAM_MANAGED` users log in seamlessly.
-- [x] **PAM Service Fallback Chain**: Multi-service auth chain (`login`, `common-auth`, `sudo`, `other`, `passwd`) for reliable authentication across all Linux distros, containers, and systemd services.
-- [x] **Auth Tracing & Audit Logs**: Detailed diagnostic logging for authentication attempts and role resolutions.
+## 📋 3. Architecture & Release Milestone Phasing
 
----
+```mermaid
+graph TD
+    A["v0.2.6 (Current)"] --> B["v0.3.0: Foldable & Adaptive Multi-Pane"]
+    B --> C["v0.3.5: Archive Engine & Permissions Manager"]
+    C --> D["v0.4.0: Link Sharing & Guest Upload Dropboxes"]
+    D --> E["v0.4.5: Spotlight Search & EXIF Map Inspector"]
+    E --> F["v0.5.0: OIDC SSO & ONLYOFFICE / Collabora WOPI"]
+```
 
-### 🎨 Custom Icons, Assets, User Disabling & Mobile Indicators (v0.2.4)
-- [x] **Custom Logo & Folder Icons**: Integrated `logo.png`, `folder-closed.png`, and `folder-open.png` replacing emojis throughout UI and embedded in binary.
-- [x] **Touch / Mobile Pane Indicator Tinting**: Synchronized mobile indicator tabs ("Pane 1", "Pane 2") with per-pane custom border identification colors.
-- [x] **User Account Disabling**: Immediate account enable/disable toggle in Admin RBAC with login prevention.
-- [x] **Multi-File / Folder Batch Zip Streaming**: `POST /api/fs/download/batch` for instant streaming zip archives.
-- [x] **Mobile Header Streamlining**: Unified Tools and Profile menus across desktop and mobile.
-
----
-
-## 📋 Upcoming Backlog (v0.3.0 & Future Milestones)
-
-### 🔑 1. OAuth2 / OpenID Connect (OIDC) Single Sign-On (SSO)
-- [ ] Direct integration with OIDC identity providers:
-  - **Authentik**
-  - **Authelia**
-  - **Keycloak**
-  - **Google / GitHub / Generic OAuth2 Provider**
-- [ ] Automatic OIDC group-to-role mapping (map IDP groups to CommanderDog admin/standard/readonly roles).
-- [ ] Just-In-Time (JIT) user auto-provisioning upon initial SSO login.
-
-### 🧩 2. Webhooks & Automation Actions
-- [ ] Webhook triggers on file events (upload, rename, move, delete).
-- [ ] Custom user script execution directly from the right-click context menu via `conf.d/30-actions.toml`.
-
-### ⚡ 3. WASM / Plugin Extensibility Architecture
-- [ ] WebAssembly (WASM) plugin hooks for custom file format previews, custom converters, and external cloud drivers.
-
-### 📥 4. Granular Upload/Download RBAC & Multi-File Batch Archive Download
-- [ ] RBAC permissions for `"upload"` and `"download"` operations toggleable per user.
-- [ ] Multi-file / folder batch download: automatically compress selected files into an on-the-fly `.zip` archive before downloading to the browser.
-
-### ☁️ 5. Cloud Drive Features (Public Links & Shares)
-- [ ] Time-limited & password-protected public share links for files and directories (Dropbox / Google Drive / Nextcloud style).
-- [ ] Fast public view/download landing pages for shared links.
-
-### 📱 6. Touch & Mobile Header Cleanup (Eliminate Redundant Burger Menu)
-- [ ] Remove redundant mobile burger drawer menu now that standard Profile and Tools buttons are present.
-- [ ] Ensure all tools, theme selectors, paranoid toggles, and user actions are fully responsive and accessible via standard header buttons across all screen widths.
-
-### 🎨 7. Custom Definable Pane Border Identification Colors
-- [ ] Allow users to configure distinct border/accent colors for each pane (Pane 1, 2, 3, 4) for instant visual orientation (e.g. Amber, Emerald, Sky Blue, Rose, Violet, or Theme Default).
-- [ ] Visual indicator tags and persistent per-pane color preferences.
-
-### 🚫 8. User Account Disabling (Disable Built-in Admin & User Accounts)
-- [ ] `disabled` status flag in SQLite user database.
-- [ ] Admin RBAC toggle switch to disable/enable user accounts (including built-in `admin`).
-- [ ] Login rejection for disabled accounts with clear diagnostic feedback.
+| Phase | Milestone | Focus Areas |
+| :--- | :--- | :--- |
+| **Phase 1** | **`v0.3.0`** | Foldable phone ($\ge 600\text{px}$) dual-pane UX, hinge/seam-aware layout, touch splitter. |
+| **Phase 2** | **`v0.3.5`** | In-browser Archive Extractor (`.zip`, `.tar.gz`, `.7z`), Visual POSIX Chmod/Chown panel. |
+| **Phase 3** | **`v0.4.0`** | Link-based sharing, guest upload dropboxes, password & expiry tokens, shares dashboard. |
+| **Phase 4** | **`v0.4.5`** | Global Spotlight switcher (<kbd>Ctrl+K</kbd>), EXIF GPS Map preview, media audio/video inspection. |
+| **Phase 5** | **`v0.5.0`** | OIDC / SSO integration, ONLYOFFICE & Collabora document editing integration. |

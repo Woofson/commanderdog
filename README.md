@@ -172,6 +172,12 @@ conf.d/
 
 ---
 
+## 🗺️ Roadmap
+
+Check out the full [**CommanderDog Product & Architecture Roadmap**](ROADMAP.md) covering upcoming features (Link Sharing, Foldable/Tablet Dual-Pane UX, In-Browser Archive Unpacker, Visual Permissions Editor, EXIF GPS Maps, and OIDC SSO).
+
+---
+
 ## 📜 License
 
 MIT © Bolt J Woofson

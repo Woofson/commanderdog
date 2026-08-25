@@ -55,6 +55,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupHistoryNavigation();
   applyFKeyBarState();
   applyFontSize(App.fontSize);
+  applyBorderSettings();
+  applyTheme(localStorage.getItem('cd_theme') || 'amber-charcoal');
   startTasksPolling();
   initInactivityTracker();
   checkAuthAndLoad();
@@ -210,6 +212,16 @@ function createPaneElement(pane, index) {
           <i data-lucide="palette" style="width: 13px; height: 13px;"></i>
         </button>
       </div>
+
+      <!-- Foldable & Touch Cross-Pane Transfer Button -->
+      <button class="btn btn-icon pane-quick-transfer-btn" onclick="event.stopPropagation(); setActivePane(${index}); triggerCopy();" title="Transfer / Copy to Other Pane (F5)">
+        <i data-lucide="arrow-right-left" style="width: 13px; height: 13px; color: var(--accent);"></i>
+      </button>
+
+      <!-- Direct Device Upload Button -->
+      <button class="btn btn-icon" onclick="event.stopPropagation(); setActivePane(${index}); triggerDeviceUpload(${index});" title="Upload Files from Device to this Directory">
+        <i data-lucide="upload-cloud" style="width: 13px; height: 13px;"></i>
+      </button>
 
       <input type="text" class="pane-quick-filter" placeholder="Filter (/)..." id="pane-filter-${index}" oninput="handleFilterInput(${index}, this.value)">
     </div>
@@ -3487,6 +3499,11 @@ function showEmptySpaceContextMenu(x, y, paneIndex) {
       <img src="assets/folder-closed.png" style="width: 14px; height: 14px;">
       <span>${escapeHtml(pane.path.split('/').pop() || pane.path || '/')}</span>
     </div>
+    <div class="context-item" onclick="triggerDeviceUpload(${paneIndex})"><i data-lucide="upload-cloud" style="width: 14px; color: var(--accent);"></i> Upload Files from Device...</div>
+    <div class="context-item" onclick="triggerDeviceFolderUpload(${paneIndex})"><i data-lucide="folder-up" style="width: 14px;"></i> Upload Folder from Device...</div>
+    <div class="context-item" onclick="triggerDownloadCurrentDirectory(${paneIndex})"><i data-lucide="download" style="width: 14px;"></i> Download Directory (.zip)</div>
+    <div class="context-item" onclick="triggerShareDirectory(${paneIndex})"><i data-lucide="share-2" style="width: 14px; color: var(--accent);"></i> Share Directory / Guest Dropbox...</div>
+    <div class="context-sep"></div>
     <div class="context-item" onclick="triggerMkdir()"><i data-lucide="folder-plus" style="width: 14px;"></i> New Folder... (F7)</div>
     <div class="context-item" onclick="triggerNewFile()"><i data-lucide="file-plus" style="width: 14px;"></i> New Text File...</div>
     <div class="context-item ${App.clipboard ? '' : 'disabled'}" onclick="triggerPaste(${paneIndex})" style="${App.clipboard ? '' : 'opacity: 0.5; pointer-events: none;'}">
@@ -4205,10 +4222,45 @@ function openParanoidSettings() {
   switchSettingsTab('tab-security');
 }
 
+function applyBorderSettings(borderWidth, ringStyle) {
+  if (borderWidth !== undefined && borderWidth !== null) {
+    localStorage.setItem('cd_border_width', borderWidth);
+  } else {
+    borderWidth = localStorage.getItem('cd_border_width') || '1px';
+  }
+
+  if (ringStyle !== undefined && ringStyle !== null) {
+    localStorage.setItem('cd_ring_style', ringStyle);
+  } else {
+    ringStyle = localStorage.getItem('cd_ring_style') || 'subtle';
+  }
+
+  const root = document.documentElement;
+  root.style.setProperty('--pane-border-width', borderWidth);
+
+  if (ringStyle === 'none') {
+    root.style.setProperty('--pane-active-ring-width', '0px');
+  } else if (ringStyle === 'bold') {
+    root.style.setProperty('--pane-active-ring-width', '2px');
+  } else if (ringStyle === 'glow') {
+    root.style.setProperty('--pane-active-ring-width', '1.5px');
+  } else { // 'subtle' default
+    root.style.setProperty('--pane-active-ring-width', '1px');
+  }
+
+  const borderSelect = document.getElementById('setting-border-width');
+  if (borderSelect) borderSelect.value = borderWidth;
+
+  const ringSelect = document.getElementById('setting-ring-style');
+  if (ringSelect) ringSelect.value = ringStyle;
+}
+
 function applyTheme(themeId) {
   localStorage.setItem('cd_theme', themeId);
   const sel = document.getElementById('theme-selector');
+  const selSettings = document.getElementById('settings-theme-selector');
   if (sel) sel.value = themeId;
+  if (selSettings) selSettings.value = themeId;
 
   const root = document.documentElement;
 
@@ -4418,6 +4470,16 @@ function openSettingsModal() {
   const themeSel = document.getElementById('settings-theme-selector');
   if (themeSel) {
     themeSel.value = localStorage.getItem('cd_theme') || 'amber-charcoal';
+  }
+
+  const borderSel = document.getElementById('setting-border-width');
+  if (borderSel) {
+    borderSel.value = localStorage.getItem('cd_border_width') || '1px';
+  }
+
+  const ringSel = document.getElementById('setting-ring-style');
+  if (ringSel) {
+    ringSel.value = localStorage.getItem('cd_ring_style') || 'subtle';
   }
 
   showModal('settings-modal');
@@ -4666,40 +4728,432 @@ async function triggerChecksum() {
   }
 }
 
-function triggerArchiveZip() {
-  const pane = App.panes[App.activePaneIndex];
-  const paths = pane.selected.size > 0 ? Array.from(pane.selected) : [pane.entries[pane.cursorIndex].path];
-  const target = `${pane.path.replace(/\/$/, '')}/archive_${Date.now()}.zip`;
+// ---------------- DEVICE UPLOADS & DOWNLOADS (PHONE / TABLET / DESKTOP) ----------------
+let targetUploadPaneIndex = null;
 
-  fetch('/api/fs/archive/create', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
-    body: JSON.stringify({ sources: paths, target_path: target, format: 'zip' })
-  }).then(() => refreshPane(App.activePaneIndex));
+function triggerDeviceUpload(paneIndex) {
+  targetUploadPaneIndex = paneIndex !== undefined ? paneIndex : App.activePaneIndex;
+  const input = document.getElementById('direct-file-uploader');
+  if (input) {
+    input.value = '';
+    input.click();
+  }
+}
+
+function triggerDeviceFolderUpload(paneIndex) {
+  targetUploadPaneIndex = paneIndex !== undefined ? paneIndex : App.activePaneIndex;
+  const input = document.getElementById('direct-folder-uploader');
+  if (input) {
+    input.value = '';
+    input.click();
+  }
+}
+
+async function handleDirectFileUpload(files) {
+  if (!files || files.length === 0) return;
+
+  const paneIdx = targetUploadPaneIndex !== null ? targetUploadPaneIndex : App.activePaneIndex;
+  const pane = App.panes[paneIdx];
+  if (!pane) return;
+
+  const destPath = pane.path;
+  const fileCount = files.length;
+  const formData = new FormData();
+  
+  for (let i = 0; i < files.length; i++) {
+    formData.append('files', files[i]);
+  }
+
+  showToast(`Uploading ${fileCount} item(s) from device to ${pane.path}...`, 'info');
+
+  const pill = document.getElementById('tasks-pill');
+  const pillText = document.getElementById('tasks-pill-text');
+  if (pill && pillText) {
+    pill.style.display = 'flex';
+    pillText.textContent = `Uploading ${fileCount} file(s)...`;
+  }
+
+  try {
+    const resp = await fetch(`/api/fs/upload?destination=${encodeURIComponent(destPath)}`, {
+      method: 'POST',
+      body: formData,
+      headers: { 'Authorization': `Bearer ${App.token}` }
+    });
+
+    if (resp.ok) {
+      showToast(`Uploaded ${fileCount} file(s) successfully!`, 'success');
+      refreshPane(paneIdx);
+    } else {
+      showToast(`Upload failed: ${await resp.text()}`, 'error');
+    }
+  } catch (err) {
+    showToast(`Upload error: ${err}`, 'error');
+  } finally {
+    if (pill) pill.style.display = 'none';
+  }
+}
+
+function triggerDownloadCurrentDirectory(paneIndex) {
+  const pane = App.panes[paneIndex !== undefined ? paneIndex : App.activePaneIndex];
+  if (!pane) return;
+  const url = `/api/fs/download?path=${encodeURIComponent(pane.path)}`;
+  window.location.href = url;
+}
+
+function triggerShareDirectory(paneIndex) {
+  const pane = App.panes[paneIndex !== undefined ? paneIndex : App.activePaneIndex];
+  if (!pane) return;
+  const dirName = pane.path.split('/').filter(Boolean).pop() || 'root';
+  App.contextItem = {
+    name: dirName,
+    path: pane.path,
+    is_dir: true,
+  };
+  App.contextPaneIndex = paneIndex !== undefined ? paneIndex : App.activePaneIndex;
+  triggerShare();
+}
+
+// ---------------- LINK SHARING & GUEST DROPBOX ----------------
+let pendingShareItem = null;
+
+function triggerShare() {
+  const pane = App.panes[App.activePaneIndex];
+  const item = App.contextItem || (pane.entries && pane.entries[pane.cursorIndex]);
+  if (!item) {
+    showToast('Please select a file or folder to share', 'info');
+    return;
+  }
+
+  pendingShareItem = item;
+  document.getElementById('share-item-name').textContent = item.name;
+  document.getElementById('share-item-path').textContent = item.path;
+  document.getElementById('share-password-input').value = '';
+  document.getElementById('share-max-downloads').value = '0';
+  document.getElementById('share-expiry-select').value = '24';
+  
+  const dropboxToggleGroup = document.getElementById('share-dropbox-toggle-group');
+  const allowUploadCheckbox = document.getElementById('share-allow-upload');
+  if (item.is_dir) {
+    if (dropboxToggleGroup) dropboxToggleGroup.style.display = 'block';
+    if (allowUploadCheckbox) allowUploadCheckbox.checked = false;
+  } else {
+    if (dropboxToggleGroup) dropboxToggleGroup.style.display = 'none';
+    if (allowUploadCheckbox) allowUploadCheckbox.checked = false;
+  }
+
+  document.getElementById('share-result-box').style.display = 'none';
+  showModal('share-create-modal');
+}
+
+async function executeCreateShare() {
+  if (!pendingShareItem) return;
+
+  const expiryHours = parseInt(document.getElementById('share-expiry-select').value, 10);
+  const password = document.getElementById('share-password-input').value.trim();
+  const maxDownloads = parseInt(document.getElementById('share-max-downloads').value, 10) || 0;
+  const allowUpload = pendingShareItem.is_dir && document.getElementById('share-allow-upload').checked;
+
+  try {
+    const resp = await fetch('/api/shares', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${App.token}`
+      },
+      body: JSON.stringify({
+        path: pendingShareItem.path,
+        name: pendingShareItem.name,
+        is_dir: pendingShareItem.is_dir,
+        allow_upload: allowUpload,
+        password: password ? password : null,
+        expires_in_hours: expiryHours > 0 ? expiryHours : null,
+        max_downloads: maxDownloads
+      })
+    });
+
+    if (!resp.ok) {
+      showToast('Failed to create share: ' + await resp.text(), 'error');
+      return;
+    }
+
+    const share = await resp.json();
+    const fullUrl = `${window.location.origin}/share/${share.token}`;
+    
+    document.getElementById('share-result-url').value = fullUrl;
+    document.getElementById('share-result-open-btn').href = fullUrl;
+    document.getElementById('share-result-box').style.display = 'block';
+    
+    showToast('Share link created successfully!', 'success');
+  } catch (err) {
+    showToast('Error creating share: ' + err, 'error');
+  }
+}
+
+function copyShareUrl() {
+  const input = document.getElementById('share-result-url');
+  if (input && input.value) {
+    navigator.clipboard.writeText(input.value);
+    showToast('Share URL copied to clipboard!', 'success');
+  }
+}
+
+function openSharesManager() {
+  const toolsMenu = document.getElementById('tools-dropdown-menu');
+  if (toolsMenu) toolsMenu.classList.remove('active');
+  showModal('shares-manager-modal');
+  loadActiveShares();
+}
+
+async function loadActiveShares() {
+  const tbody = document.getElementById('shares-table-tbody');
+  if (!tbody) return;
+
+  tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:var(--text-muted); padding:16px;">Loading active shares...</td></tr>';
+
+  try {
+    const resp = await fetch('/api/shares', {
+      headers: { 'Authorization': `Bearer ${App.token}` }
+    });
+
+    if (!resp.ok) {
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--danger); padding:16px;">Failed to load shares: ${await resp.text()}</td></tr>`;
+      return;
+    }
+
+    const shares = await resp.json();
+    if (!shares || shares.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:var(--text-muted); padding:20px;">No active link shares found. Create one from any file/folder right-click menu!</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = shares.map(s => {
+      const typeIcon = s.is_dir ? (s.allow_upload ? '📥' : '📁') : '📄';
+      const expiryStr = s.expires_at ? new Date(s.expires_at).toLocaleString() : 'Permanent';
+      const fullUrl = `${window.location.origin}/share/${s.token}`;
+      return `
+        <tr class="file-row">
+          <td style="font-size:16px; text-align:center;">${typeIcon}</td>
+          <td>
+            <div style="font-weight:600;">${escapeHtml(s.name)}</div>
+            <div style="font-size:11px; color:var(--text-muted); font-family:var(--font-mono);">${escapeHtml(s.path)}</div>
+          </td>
+          <td style="font-size:11px; color:var(--text-muted);">${expiryStr}</td>
+          <td style="text-align:center; font-weight:700;">${s.download_count}</td>
+          <td style="text-align:center;">${s.allow_upload ? '<span style="color:#10b981; font-weight:700;">Yes</span>' : '<span style="color:var(--text-muted);">No</span>'}</td>
+          <td style="text-align:right;">
+            <button class="btn btn-icon" onclick="navigator.clipboard.writeText('${fullUrl}'); showToast('Share URL copied!', 'success');" title="Copy Public URL"><i data-lucide="copy" style="width:13px;"></i></button>
+            <a href="${fullUrl}" target="_blank" class="btn btn-icon" title="Open Link"><i data-lucide="external-link" style="width:13px;"></i></a>
+            <button class="btn btn-icon" onclick="revokeShare(${s.id})" title="Revoke Share" style="color:var(--danger);"><i data-lucide="trash-2" style="width:13px;"></i></button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    if (window.lucide) lucide.createIcons();
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--danger); padding:16px;">Network error loading shares</td></tr>`;
+  }
+}
+
+async function revokeShare(id) {
+  if (!confirm('Are you sure you want to revoke this public share link? Anyone using it will immediately lose access.')) return;
+
+  try {
+    const resp = await fetch(`/api/shares/${id}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${App.token}` }
+    });
+
+    if (resp.ok) {
+      showToast('Share link revoked successfully', 'info');
+      loadActiveShares();
+    } else {
+      showToast('Failed to revoke share: ' + await resp.text(), 'error');
+    }
+  } catch (err) {
+    showToast('Error revoking share: ' + err, 'error');
+  }
+}
+
+// ---------------- ARCHIVE COMPRESSOR & EXTRACTOR ----------------
+let pendingCompressSources = [];
+
+function triggerCompressModal() {
+  const pane = App.panes[App.activePaneIndex];
+  if (!pane) return;
+
+  let paths = [];
+  if (pane.selected.size > 0) {
+    paths = Array.from(pane.selected);
+  } else if (App.contextItem) {
+    paths = [App.contextItem.path];
+  } else if (pane.entries && pane.entries[pane.cursorIndex]) {
+    paths = [pane.entries[pane.cursorIndex].path];
+  }
+
+  if (paths.length === 0) {
+    showToast('Please select files or folders to compress', 'info');
+    return;
+  }
+
+  pendingCompressSources = paths;
+  const singleName = paths[0].split('/').filter(Boolean).pop() || 'archive';
+  const baseName = paths.length === 1 ? singleName : 'archive';
+  const defaultArchiveName = `${baseName.replace(/\.[^/.]+$/, '')}.zip`;
+
+  document.getElementById('compress-summary').innerHTML = `Compressing <strong>${paths.length} item(s)</strong>`;
+  document.getElementById('compress-name-input').value = defaultArchiveName;
+  document.getElementById('compress-format-select').value = 'zip';
+  document.getElementById('compress-dest-input').value = pane.path;
+
+  showModal('archive-compress-modal');
+}
+
+function setCompressDestToOpposite() {
+  const oppIdx = (App.activePaneIndex + 1) % getVisiblePaneCount();
+  const oppPane = App.panes[oppIdx];
+  if (oppPane) {
+    document.getElementById('compress-dest-input').value = oppPane.path;
+  }
+}
+
+function updateCompressExt(format) {
+  const nameInput = document.getElementById('compress-name-input');
+  if (!nameInput) return;
+  const current = nameInput.value;
+  const raw = current.replace(/(\.zip|\.tar\.gz|\.tar|\.tar\.bz2|\.tar\.xz)$/i, '');
+  if (format === 'zip') {
+    nameInput.value = `${raw}.zip`;
+  } else if (format === 'targz') {
+    nameInput.value = `${raw}.tar.gz`;
+  }
+}
+
+async function executeCompressArchive() {
+  if (pendingCompressSources.length === 0) return;
+
+  const name = document.getElementById('compress-name-input').value.trim();
+  const format = document.getElementById('compress-format-select').value;
+  const destDir = document.getElementById('compress-dest-input').value.trim();
+
+  if (!name) {
+    showToast('Please specify an archive name', 'error');
+    return;
+  }
+
+  const targetPath = `${destDir.replace(/\/$/, '')}/${name}`;
+  closeModal('archive-compress-modal');
+
+  showToast(`Creating ${format.toUpperCase()} archive in background...`, 'info');
+
+  try {
+    const resp = await fetch('/api/fs/archive/create', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${App.token}`
+      },
+      body: JSON.stringify({
+        sources: pendingCompressSources,
+        target_path: targetPath,
+        format: format
+      })
+    });
+
+    if (resp.ok) {
+      showToast(`Archive created successfully: ${name}`, 'success');
+      refreshPane(App.activePaneIndex);
+    } else {
+      showToast(`Archive creation failed: ${await resp.text()}`, 'error');
+    }
+  } catch (err) {
+    showToast(`Archive creation error: ${err}`, 'error');
+  }
+}
+
+let pendingExtractItem = null;
+
+function triggerExtractModal() {
+  const pane = App.panes[App.activePaneIndex];
+  const item = App.contextItem || (pane.entries && pane.entries[pane.cursorIndex]);
+  if (!item) return;
+
+  pendingExtractItem = item;
+  document.getElementById('extract-archive-name').textContent = item.name;
+  document.getElementById('extract-archive-path').textContent = item.path;
+
+  const rawSubName = item.name.replace(/(\.zip|\.tar\.gz|\.tgz|\.tar\.bz2|\.tar\.xz|\.7z|\.tar|\.cbz|\.epub)$/i, '');
+  const subLabel = document.getElementById('extract-subfolder-label');
+  if (subLabel) subLabel.textContent = rawSubName;
+
+  document.getElementById('extract-mode-select').value = 'here';
+  document.getElementById('extract-custom-path-group').style.display = 'none';
+  document.getElementById('extract-target-dir-input').value = pane.path;
+
+  showModal('archive-extract-modal');
+}
+
+function handleExtractModeChange(mode) {
+  const customGroup = document.getElementById('extract-custom-path-group');
+  if (customGroup) {
+    customGroup.style.display = mode === 'custom' ? 'block' : 'none';
+  }
+}
+
+async function executeExtractArchive() {
+  if (!pendingExtractItem) return;
+
+  const pane = App.panes[App.activePaneIndex];
+  const mode = document.getElementById('extract-mode-select').value;
+  let targetDir = pane.path;
+
+  if (mode === 'subfolder') {
+    const rawSubName = pendingExtractItem.name.replace(/(\.zip|\.tar\.gz|\.tgz|\.tar\.bz2|\.tar\.xz|\.7z|\.tar|\.cbz|\.epub)$/i, '');
+    targetDir = `${pane.path.replace(/\/$/, '')}/${rawSubName}`;
+  } else if (mode === 'opposite') {
+    const oppIdx = (App.activePaneIndex + 1) % getVisiblePaneCount();
+    targetDir = App.panes[oppIdx].path;
+  } else if (mode === 'custom') {
+    targetDir = document.getElementById('extract-target-dir-input').value.trim();
+  }
+
+  closeModal('archive-extract-modal');
+  showToast(`Extracting ${pendingExtractItem.name}...`, 'info');
+
+  try {
+    const resp = await fetch('/api/fs/archive/extract', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${App.token}`
+      },
+      body: JSON.stringify({
+        archive_path: pendingExtractItem.path,
+        target_dir: targetDir
+      })
+    });
+
+    if (resp.ok) {
+      showToast(`Extracted ${pendingExtractItem.name} successfully!`, 'success');
+      refreshPane(App.activePaneIndex);
+    } else {
+      showToast(`Extraction failed: ${await resp.text()}`, 'error');
+    }
+  } catch (err) {
+    showToast(`Extraction error: ${err}`, 'error');
+  }
+}
+
+function triggerArchiveZip() {
+  triggerCompressModal();
 }
 
 function triggerArchiveTarGz() {
-  const pane = App.panes[App.activePaneIndex];
-  const paths = pane.selected.size > 0 ? Array.from(pane.selected) : [pane.entries[pane.cursorIndex].path];
-  const target = `${pane.path.replace(/\/$/, '')}/archive_${Date.now()}.tar.gz`;
-
-  fetch('/api/fs/archive/create', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
-    body: JSON.stringify({ sources: paths, target_path: target, format: 'targz' })
-  }).then(() => refreshPane(App.activePaneIndex));
+  triggerCompressModal();
 }
 
 function triggerExtract() {
-  const pane = App.panes[App.activePaneIndex];
-  const item = App.contextItem || pane.entries[pane.cursorIndex];
-  if (!item) return;
-
-  fetch('/api/fs/archive/extract', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
-    body: JSON.stringify({ archive_path: item.path, target_dir: pane.path })
-  }).then(() => refreshPane(App.activePaneIndex));
+  triggerExtractModal();
 }
 
 // ---------------- MULTI-FILE & BATCH DOWNLOAD ----------------
@@ -7766,7 +8220,7 @@ function setupTouchGestures() {
   }, { passive: true });
 
   container.addEventListener('touchend', (e) => {
-    if (window.innerWidth > 768) return; // Only trigger pane swipe on mobile
+    if (window.innerWidth > 600) return; // In dual-pane mode (>= 600px, e.g. Foldables/Tablets) both panes are already visible side-by-side
     if (!e.changedTouches || e.changedTouches.length === 0) return;
     const dx = e.changedTouches[0].clientX - swipeStartX;
     const dy = e.changedTouches[0].clientY - swipeStartY;
