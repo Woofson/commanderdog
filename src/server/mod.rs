@@ -47,18 +47,22 @@ pub fn create_router(state: AppState) -> Router {
         .allow_headers(Any);
 
     Router::new()
-        // Auth API
+        // Auth & Security API
         .route("/api/auth/login", post(handle_login))
         .route("/api/auth/logout", post(handle_logout))
+        .route("/api/auth/unlock", post(handle_unlock_session))
+        .route("/api/auth/security-settings", get(handle_get_security_settings).post(handle_update_security_settings))
         .route("/api/auth/me", get(handle_get_me))
         .route("/api/auth/profile", post(handle_update_profile))
         .route("/api/auth/users", get(handle_list_users).post(handle_create_user))
         .route("/api/auth/users/:username", delete(handle_delete_user).post(handle_update_user_rbac))
-        // Global Network Mounts & Permissions API
+        // Global Network Mounts & Bookmarks API
         .route("/api/mounts/accessible", get(handle_list_accessible_mounts))
         .route("/api/mounts/all", get(handle_list_all_mounts))
         .route("/api/mounts", post(handle_create_or_update_mount))
         .route("/api/mounts/:id", delete(handle_delete_mount))
+        .route("/api/bookmarks", get(handle_list_bookmarks).post(handle_create_bookmark))
+        .route("/api/bookmarks/:id", delete(handle_delete_bookmark))
         // VFS File Operations
         .route("/api/fs/list", get(handle_list_dir))
         .route("/api/fs/read", get(handle_read_file))
@@ -400,6 +404,131 @@ async fn handle_delete_mount(
     }
 }
 
+#[derive(Deserialize)]
+struct CreateBookmarkRequest {
+    name: String,
+    protocol: String,
+    path: String,
+    password: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct UnlockRequest {
+    password: String,
+}
+
+async fn handle_unlock_session(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<UnlockRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let auth_header = headers.get(header::AUTHORIZATION).and_then(|v| v.to_str().ok());
+    if let Some(token_str) = auth_header.and_then(|h| h.strip_prefix("Bearer ")) {
+        let claims = state.auth.verify_token(token_str).map_err(|e| (StatusCode::UNAUTHORIZED, e.to_string()))?;
+        match state.auth.authenticate(&claims.sub, &payload.password) {
+            Ok(_) => Ok(Json(serde_json::json!({ "success": true, "message": "Session unlocked" }))),
+            Err(e) => Err((StatusCode::UNAUTHORIZED, e.to_string())),
+        }
+    } else {
+        Err((StatusCode::UNAUTHORIZED, "Missing authorization token".to_string()))
+    }
+}
+
+async fn handle_list_bookmarks(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<Json<Vec<crate::auth::UserBookmark>>, (StatusCode, String)> {
+    let auth_header = headers.get(header::AUTHORIZATION).and_then(|v| v.to_str().ok());
+    let username = if let Some(token_str) = auth_header.and_then(|h| h.strip_prefix("Bearer ")) {
+        match state.auth.verify_token(token_str) {
+            Ok(c) => c.sub,
+            Err(_) => "bolt".to_string(),
+        }
+    } else {
+        "bolt".to_string()
+    };
+
+    let bookmarks = state.auth.list_bookmarks(&username)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to list bookmarks: {}", e)))?;
+    Ok(Json(bookmarks))
+}
+
+async fn handle_create_bookmark(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<CreateBookmarkRequest>,
+) -> Result<Json<crate::auth::UserBookmark>, (StatusCode, String)> {
+    let auth_header = headers.get(header::AUTHORIZATION).and_then(|v| v.to_str().ok());
+    let username = if let Some(token_str) = auth_header.and_then(|h| h.strip_prefix("Bearer ")) {
+        match state.auth.verify_token(token_str) {
+            Ok(c) => c.sub,
+            Err(_) => "bolt".to_string(),
+        }
+    } else {
+        "bolt".to_string()
+    };
+
+    let bm = state.auth.create_bookmark(
+        &username,
+        &payload.name,
+        &payload.protocol,
+        &payload.path,
+        payload.password.as_deref(),
+    ).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to save bookmark: {}", e)))?;
+
+    Ok(Json(bm))
+}
+
+async fn handle_delete_bookmark(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    AxumPath(id): AxumPath<i64>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let auth_header = headers.get(header::AUTHORIZATION).and_then(|v| v.to_str().ok());
+    let (username, is_admin) = if let Some(token_str) = auth_header.and_then(|h| h.strip_prefix("Bearer ")) {
+        match state.auth.verify_token(token_str) {
+            Ok(c) => (c.sub.clone(), c.role == "admin"),
+            Err(_) => ("bolt".to_string(), false),
+        }
+    } else {
+        ("bolt".to_string(), false)
+    };
+
+    state.auth.delete_bookmark(id, &username, is_admin)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to delete bookmark: {}", e)))?;
+
+    Ok(Json(serde_json::json!({ "success": true, "message": "Bookmark removed" })))
+}
+
+async fn handle_get_security_settings(
+    State(state): State<AppState>,
+) -> Result<Json<crate::auth::SecuritySettings>, (StatusCode, String)> {
+    let settings = state.auth.get_security_settings()
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to get security settings: {}", e)))?;
+    Ok(Json(settings))
+}
+
+async fn handle_update_security_settings(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<crate::auth::SecuritySettings>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let auth_header = headers.get(header::AUTHORIZATION).and_then(|v| v.to_str().ok());
+    if let Some(token_str) = auth_header.and_then(|h| h.strip_prefix("Bearer ")) {
+        let claims = state.auth.verify_token(token_str).map_err(|e| (StatusCode::UNAUTHORIZED, e.to_string()))?;
+        if claims.role != "admin" {
+            return Err((StatusCode::FORBIDDEN, "Only administrators can update security settings".to_string()));
+        }
+
+        state.auth.update_security_settings(&payload)
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to update security settings: {}", e)))?;
+
+        Ok(Json(serde_json::json!({ "success": true, "message": "Security settings saved" })))
+    } else {
+        Err((StatusCode::UNAUTHORIZED, "Missing authorization token".to_string()))
+    }
+}
+
 // ---------------- VFS HANDLERS ----------------
 
 #[derive(Deserialize)]
@@ -563,9 +692,32 @@ struct MkdirRequest {
 async fn handle_mkdir(
     Json(payload): Json<MkdirRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    LocalFs::create_dir(&payload.path)
-        .map(|_| Json(serde_json::json!({ "success": true, "path": payload.path })))
-        .map_err(|e| (StatusCode::BAD_REQUEST, format!("Failed to create folder: {}", e)))
+    if payload.path.starts_with("smb://") {
+        let params = crate::vfs::smb::SmbClient::parse_uri(&payload.path, None, None)
+            .map_err(|e| (StatusCode::BAD_REQUEST, format!("Invalid SMB URI: {}", e)))?;
+        crate::vfs::smb::SmbClient::mkdir(&params)
+            .map(|_| Json(serde_json::json!({ "success": true, "path": payload.path })))
+            .map_err(|e| (StatusCode::BAD_REQUEST, format!("Failed to create SMB folder: {}", e)))
+    } else if payload.path.starts_with("sftp://") {
+        let params = crate::vfs::sftp::SftpClient::parse_uri(&payload.path, None, None)
+            .map_err(|e| (StatusCode::BAD_REQUEST, format!("Invalid SFTP URI: {}", e)))?;
+        crate::vfs::sftp::SftpClient::mkdir(&params)
+            .map(|_| Json(serde_json::json!({ "success": true, "path": payload.path })))
+            .map_err(|e| (StatusCode::BAD_REQUEST, format!("Failed to create SFTP folder: {}", e)))
+    } else if payload.path.starts_with("nfs://") {
+        let params = crate::vfs::nfs::NfsClient::parse_uri(&payload.path)
+            .map_err(|e| (StatusCode::BAD_REQUEST, format!("Invalid NFS URI: {}", e)))?;
+        let mount = crate::vfs::nfs::NfsClient::ensure_mounted(&params)
+            .map_err(|e| (StatusCode::BAD_REQUEST, format!("NFS mount error: {}", e)))?;
+        let local_target = mount.join(params.subpath.trim_start_matches('/'));
+        LocalFs::create_dir(&local_target.to_string_lossy())
+            .map(|_| Json(serde_json::json!({ "success": true, "path": payload.path })))
+            .map_err(|e| (StatusCode::BAD_REQUEST, format!("Failed to create NFS folder: {}", e)))
+    } else {
+        LocalFs::create_dir(&payload.path)
+            .map(|_| Json(serde_json::json!({ "success": true, "path": payload.path })))
+            .map_err(|e| (StatusCode::BAD_REQUEST, format!("Failed to create folder: {}", e)))
+    }
 }
 
 #[derive(Deserialize)]
@@ -577,9 +729,53 @@ struct RenameRequest {
 async fn handle_rename(
     Json(payload): Json<RenameRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    LocalFs::rename_entry(&payload.from, &payload.to)
-        .map(|_| Json(serde_json::json!({ "success": true })))
-        .map_err(|e| (StatusCode::BAD_REQUEST, format!("Failed to rename: {}", e)))
+    if payload.from.starts_with("smb://") {
+        let params_from = crate::vfs::smb::SmbClient::parse_uri(&payload.from, None, None)
+            .map_err(|e| (StatusCode::BAD_REQUEST, format!("Invalid SMB URI: {}", e)))?;
+        let target_subpath = if payload.to.starts_with("smb://") {
+            let params_to = crate::vfs::smb::SmbClient::parse_uri(&payload.to, None, None)
+                .map_err(|e| (StatusCode::BAD_REQUEST, format!("Invalid SMB URI: {}", e)))?;
+            params_to.subpath
+        } else {
+            payload.to.clone()
+        };
+        crate::vfs::smb::SmbClient::rename(&params_from, &target_subpath)
+            .map(|_| Json(serde_json::json!({ "success": true })))
+            .map_err(|e| (StatusCode::BAD_REQUEST, format!("Failed to rename SMB item: {}", e)))
+    } else if payload.from.starts_with("sftp://") {
+        let params_from = crate::vfs::sftp::SftpClient::parse_uri(&payload.from, None, None)
+            .map_err(|e| (StatusCode::BAD_REQUEST, format!("Invalid SFTP URI: {}", e)))?;
+        let target_remote = if payload.to.starts_with("sftp://") {
+            let params_to = crate::vfs::sftp::SftpClient::parse_uri(&payload.to, None, None)
+                .map_err(|e| (StatusCode::BAD_REQUEST, format!("Invalid SFTP URI: {}", e)))?;
+            params_to.remote_path
+        } else {
+            payload.to.clone()
+        };
+        crate::vfs::sftp::SftpClient::rename(&params_from, &target_remote)
+            .map(|_| Json(serde_json::json!({ "success": true })))
+            .map_err(|e| (StatusCode::BAD_REQUEST, format!("Failed to rename SFTP item: {}", e)))
+    } else if payload.from.starts_with("nfs://") {
+        let params_from = crate::vfs::nfs::NfsClient::parse_uri(&payload.from)
+            .map_err(|e| (StatusCode::BAD_REQUEST, format!("Invalid NFS URI: {}", e)))?;
+        let mount = crate::vfs::nfs::NfsClient::ensure_mounted(&params_from)
+            .map_err(|e| (StatusCode::BAD_REQUEST, format!("NFS mount error: {}", e)))?;
+        let local_from = mount.join(params_from.subpath.trim_start_matches('/'));
+        let local_to = if payload.to.starts_with("nfs://") {
+            let params_to = crate::vfs::nfs::NfsClient::parse_uri(&payload.to)
+                .map_err(|e| (StatusCode::BAD_REQUEST, format!("Invalid NFS URI: {}", e)))?;
+            mount.join(params_to.subpath.trim_start_matches('/'))
+        } else {
+            std::path::PathBuf::from(&payload.to)
+        };
+        LocalFs::rename_entry(&local_from.to_string_lossy(), &local_to.to_string_lossy())
+            .map(|_| Json(serde_json::json!({ "success": true })))
+            .map_err(|e| (StatusCode::BAD_REQUEST, format!("Failed to rename NFS item: {}", e)))
+    } else {
+        LocalFs::rename_entry(&payload.from, &payload.to)
+            .map(|_| Json(serde_json::json!({ "success": true })))
+            .map_err(|e| (StatusCode::BAD_REQUEST, format!("Failed to rename: {}", e)))
+    }
 }
 
 #[derive(Deserialize)]
@@ -630,9 +826,47 @@ async fn handle_delete(
     let mut errors = Vec::new();
 
     for path in &payload.paths {
-        match LocalFs::delete_entry(path, use_trash, state.config.paranoid.custom_trash_dir.as_deref()) {
-            Ok(_) => deleted.push(path.clone()),
-            Err(e) => errors.push(format!("{}: {}", path, e)),
+        if path.starts_with("smb://") {
+            match crate::vfs::smb::SmbClient::parse_uri(path, None, None) {
+                Ok(params) => {
+                    match crate::vfs::smb::SmbClient::delete(&params, false) {
+                        Ok(_) => deleted.push(path.clone()),
+                        Err(e) => errors.push(format!("{}: {}", path, e)),
+                    }
+                }
+                Err(e) => errors.push(format!("{}: {}", path, e)),
+            }
+        } else if path.starts_with("sftp://") {
+            match crate::vfs::sftp::SftpClient::parse_uri(path, None, None) {
+                Ok(params) => {
+                    match crate::vfs::sftp::SftpClient::delete(&params, false) {
+                        Ok(_) => deleted.push(path.clone()),
+                        Err(e) => errors.push(format!("{}: {}", path, e)),
+                    }
+                }
+                Err(e) => errors.push(format!("{}: {}", path, e)),
+            }
+        } else if path.starts_with("nfs://") {
+            match crate::vfs::nfs::NfsClient::parse_uri(path) {
+                Ok(params) => {
+                    match crate::vfs::nfs::NfsClient::ensure_mounted(&params) {
+                        Ok(mount) => {
+                            let local_target = mount.join(params.subpath.trim_start_matches('/'));
+                            match LocalFs::delete_entry(&local_target.to_string_lossy(), false, None) {
+                                Ok(_) => deleted.push(path.clone()),
+                                Err(e) => errors.push(format!("{}: {}", path, e)),
+                            }
+                        }
+                        Err(e) => errors.push(format!("{}: {}", path, e)),
+                    }
+                }
+                Err(e) => errors.push(format!("{}: {}", path, e)),
+            }
+        } else {
+            match LocalFs::delete_entry(path, use_trash, state.config.paranoid.custom_trash_dir.as_deref()) {
+                Ok(_) => deleted.push(path.clone()),
+                Err(e) => errors.push(format!("{}: {}", path, e)),
+            }
         }
     }
 
@@ -732,8 +966,6 @@ async fn handle_copy(
     Json(payload): Json<TransferRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let paranoid = payload.paranoid.unwrap_or(state.config.paranoid.verify_after_transfer);
-    let dest_dir = Path::new(&payload.destination);
-
     let task_id = state.tasks.create_task(
         &format!("Copy {} items", payload.sources.len()),
         "copy",
@@ -742,21 +974,22 @@ async fn handle_copy(
         0,
     ).await;
 
-    for src_str in &payload.sources {
-        let src_path = Path::new(src_str);
-        let target = if dest_dir.is_dir() {
-            dest_dir.join(src_path.file_name().unwrap_or_default())
-        } else {
-            dest_dir.to_path_buf()
-        };
+    let tasks_mgr = state.tasks.clone();
+    let tid = task_id.clone();
+    let sources = payload.sources.clone();
+    let destination = payload.destination.clone();
 
-        if let Err(e) = LocalFs::copy_file_paranoid(src_str, &target.to_string_lossy(), paranoid) {
-            state.tasks.fail_task(&task_id, &e.to_string()).await;
-            return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Copy failed for {}: {}", src_str, e)));
-        }
-    }
+    tokio::spawn(async move {
+        crate::vfs::transfer::VfsTransfer::execute_batch_transfer(
+            tasks_mgr,
+            tid,
+            sources,
+            destination,
+            false,
+            paranoid,
+        ).await;
+    });
 
-    state.tasks.complete_task(&task_id).await;
     Ok(Json(serde_json::json!({ "success": true, "task_id": task_id, "copied_count": payload.sources.len() })))
 }
 
@@ -796,8 +1029,6 @@ async fn handle_move(
     Json(payload): Json<TransferRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let paranoid = payload.paranoid.unwrap_or(state.config.paranoid.verify_after_transfer);
-    let dest_dir = Path::new(&payload.destination);
-
     let task_id = state.tasks.create_task(
         &format!("Move {} items", payload.sources.len()),
         "move",
@@ -806,24 +1037,22 @@ async fn handle_move(
         0,
     ).await;
 
-    for src_str in &payload.sources {
-        let src_path = Path::new(src_str);
-        let target = if dest_dir.is_dir() {
-            dest_dir.join(src_path.file_name().unwrap_or_default())
-        } else {
-            dest_dir.to_path_buf()
-        };
+    let tasks_mgr = state.tasks.clone();
+    let tid = task_id.clone();
+    let sources = payload.sources.clone();
+    let destination = payload.destination.clone();
 
-        if std::fs::rename(src_str, &target).is_err() {
-            if let Err(e) = LocalFs::copy_file_paranoid(src_str, &target.to_string_lossy(), paranoid) {
-                state.tasks.fail_task(&task_id, &e.to_string()).await;
-                return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Move copy failed: {}", e)));
-            }
-            let _ = LocalFs::delete_entry(src_str, false, None);
-        }
-    }
+    tokio::spawn(async move {
+        crate::vfs::transfer::VfsTransfer::execute_batch_transfer(
+            tasks_mgr,
+            tid,
+            sources,
+            destination,
+            true,
+            paranoid,
+        ).await;
+    });
 
-    state.tasks.complete_task(&task_id).await;
     Ok(Json(serde_json::json!({ "success": true, "task_id": task_id, "moved_count": payload.sources.len() })))
 }
 
@@ -985,7 +1214,6 @@ async fn handle_upload(
 
     while let Ok(Some(field)) = multipart.next_field().await {
         let file_name = field.file_name().unwrap_or("upload.bin").to_string();
-        let target_path = Path::new(&dest_dir).join(&file_name);
 
         if let Ok(data) = field.bytes().await {
             let file_size = data.len() as u64;
@@ -998,13 +1226,35 @@ async fn handle_upload(
                 uploaded_files.len() as u64 + 1,
                 file_size,
                 0,
+                None,
+                None,
                 Some(&format!("Uploaded {}", file_name)),
             ).await;
 
-            if let Err(e) = LocalFs::write_file(&target_path.to_string_lossy(), &data, true) {
-                let err_msg = format!("Failed to write upload: {}", e);
-                state.tasks.fail_task(&task_id, &err_msg).await;
-                return Err((StatusCode::INTERNAL_SERVER_ERROR, err_msg));
+            if dest_dir.starts_with("smb://") {
+                let params = match crate::vfs::smb::SmbClient::parse_uri(&dest_dir, None, None) {
+                    Ok(mut p) => {
+                        p.subpath = if p.subpath.is_empty() { file_name.clone() } else { format!("{}/{}", p.subpath, file_name) };
+                        p
+                    }
+                    Err(e) => {
+                        let err_msg = format!("Invalid SMB destination: {}", e);
+                        state.tasks.fail_task(&task_id, &err_msg).await;
+                        return Err((StatusCode::BAD_REQUEST, err_msg));
+                    }
+                };
+                if let Err(e) = crate::vfs::smb::SmbClient::write_file(&params, &data) {
+                    let err_msg = format!("Failed to write SMB upload: {}", e);
+                    state.tasks.fail_task(&task_id, &err_msg).await;
+                    return Err((StatusCode::INTERNAL_SERVER_ERROR, err_msg));
+                }
+            } else {
+                let target_path = Path::new(&dest_dir).join(&file_name);
+                if let Err(e) = LocalFs::write_file(&target_path.to_string_lossy(), &data, true) {
+                    let err_msg = format!("Failed to write upload: {}", e);
+                    state.tasks.fail_task(&task_id, &err_msg).await;
+                    return Err((StatusCode::INTERNAL_SERVER_ERROR, err_msg));
+                }
             }
             uploaded_files.push(file_name);
         }
@@ -1018,6 +1268,32 @@ async fn handle_download(
     Query(query): Query<HashMap<String, String>>,
 ) -> Result<Response, (StatusCode, String)> {
     let path_str = query.get("path").ok_or((StatusCode::BAD_REQUEST, "Missing path param".to_string()))?;
+
+    if path_str.starts_with("smb://") {
+        let params = crate::vfs::smb::SmbClient::parse_uri(path_str, None, None)
+            .map_err(|e| (StatusCode::BAD_REQUEST, format!("Invalid SMB URI: {}", e)))?;
+        let file_bytes = crate::vfs::smb::SmbClient::read_bytes(&params)
+            .map_err(|e| (StatusCode::BAD_REQUEST, format!("Failed to download SMB file: {}", e)))?;
+        let file_name = params.subpath.rsplit('/').next().unwrap_or(&params.subpath).to_string();
+        let mime = mime_guess::from_path(&file_name).first_or_octet_stream().to_string();
+        let is_inline = query.get("inline").map(|v| v == "true" || v == "1").unwrap_or(false);
+
+        let disposition = if is_inline {
+            format!("inline; filename=\"{}\"", file_name)
+        } else {
+            format!("attachment; filename=\"{}\"", file_name)
+        };
+
+        let response = Response::builder()
+            .header(header::CONTENT_TYPE, mime)
+            .header(header::CONTENT_DISPOSITION, disposition)
+            .header(header::ACCEPT_RANGES, "bytes")
+            .body(Body::from(file_bytes))
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Response build error: {}", e)))?;
+
+        return Ok(response);
+    }
+
     let path = Path::new(path_str);
 
     if !path.exists() {

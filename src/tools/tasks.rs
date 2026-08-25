@@ -25,11 +25,23 @@ pub struct TaskInfo {
     pub log_entries: Vec<String>,
     pub started_at: i64,
     pub finished_at: Option<i64>,
+    #[serde(default)]
+    pub paranoid: bool,
+    #[serde(default)]
+    pub verified_files: u64,
+    #[serde(default)]
+    pub last_hash: Option<String>,
 }
 
 #[derive(Clone)]
 pub struct TaskManager {
     tasks: Arc<RwLock<HashMap<String, TaskInfo>>>,
+}
+
+/// Masks credentials in any URI strings so passwords are never stored in task lists or logs
+pub fn sanitize_credentials(text: &str) -> String {
+    let re = regex::Regex::new(r"://([^:@\s/]+):([^@\s/]+)@").unwrap();
+    re.replace_all(text, "://$1:***@").to_string()
 }
 
 impl TaskManager {
@@ -48,12 +60,16 @@ impl TaskManager {
         total_bytes: u64,
     ) -> String {
         let id = Uuid::new_v4().to_string();
+        let safe_name = sanitize_credentials(name);
+        let safe_src = sanitize_credentials(source);
+        let safe_dest = sanitize_credentials(destination);
+
         let task = TaskInfo {
             id: id.clone(),
-            name: name.to_string(),
+            name: safe_name.clone(),
             action: action.to_string(),
-            source: source.to_string(),
-            destination: destination.to_string(),
+            source: safe_src,
+            destination: safe_dest,
             bytes_processed: 0,
             total_bytes,
             speed_bytes_per_sec: 0,
@@ -67,16 +83,26 @@ impl TaskManager {
             log_entries: vec![format!(
                 "[{}] Task started: {} (Action: {})",
                 Utc::now().format("%H:%M:%S"),
-                name,
+                safe_name,
                 action
             )],
             started_at: Utc::now().timestamp(),
             finished_at: None,
+            paranoid: false,
+            verified_files: 0,
+            last_hash: None,
         };
 
         let mut map = self.tasks.write().await;
         map.insert(id.clone(), task);
         id
+    }
+
+    pub async fn set_paranoid(&self, id: &str, paranoid: bool) {
+        let mut map = self.tasks.write().await;
+        if let Some(task) = map.get_mut(id) {
+            task.paranoid = paranoid;
+        }
     }
 
     pub async fn update_progress(&self, id: &str, bytes_processed: u64, speed_bps: u64) {
@@ -97,12 +123,14 @@ impl TaskManager {
         total_files: u64,
         total_bytes_processed: u64,
         speed_bps: u64,
+        verified_files: Option<u64>,
+        last_hash: Option<&str>,
         log_msg: Option<&str>,
     ) {
         let mut map = self.tasks.write().await;
         if let Some(task) = map.get_mut(id) {
             if let Some(f) = current_file {
-                task.current_file = Some(f.to_string());
+                task.current_file = Some(sanitize_credentials(f));
             }
             task.current_file_bytes = cur_file_bytes;
             task.current_file_total_bytes = cur_file_total;
@@ -110,9 +138,15 @@ impl TaskManager {
             task.total_files = total_files;
             task.bytes_processed = total_bytes_processed;
             task.speed_bytes_per_sec = speed_bps;
+            if let Some(v) = verified_files {
+                task.verified_files = v;
+            }
+            if let Some(h) = last_hash {
+                task.last_hash = Some(h.to_string());
+            }
 
             if let Some(msg) = log_msg {
-                let entry = format!("[{}] {}", Utc::now().format("%H:%M:%S"), msg);
+                let entry = format!("[{}] {}", Utc::now().format("%H:%M:%S"), sanitize_credentials(msg));
                 if task.log_entries.len() > 200 {
                     task.log_entries.remove(0);
                 }
@@ -124,7 +158,7 @@ impl TaskManager {
     pub async fn add_log_entry(&self, id: &str, log_msg: &str) {
         let mut map = self.tasks.write().await;
         if let Some(task) = map.get_mut(id) {
-            let entry = format!("[{}] {}", Utc::now().format("%H:%M:%S"), log_msg);
+            let entry = format!("[{}] {}", Utc::now().format("%H:%M:%S"), sanitize_credentials(log_msg));
             if task.log_entries.len() > 200 {
                 task.log_entries.remove(0);
             }
@@ -149,13 +183,14 @@ impl TaskManager {
     pub async fn fail_task(&self, id: &str, error: &str) {
         let mut map = self.tasks.write().await;
         if let Some(task) = map.get_mut(id) {
+            let safe_err = sanitize_credentials(error);
             task.status = "failed".to_string();
-            task.error_message = Some(error.to_string());
+            task.error_message = Some(safe_err.clone());
             task.finished_at = Some(Utc::now().timestamp());
             task.log_entries.push(format!(
                 "[{}] Error: {}",
                 Utc::now().format("%H:%M:%S"),
-                error
+                safe_err
             ));
         }
     }

@@ -348,6 +348,8 @@ async fn copy_stream_chunked(
                 stats.total_files as u64,
                 stats.bytes_copied,
                 speed,
+                Some(stats.verified_count as u64),
+                None,
                 None,
             ).await;
 

@@ -56,6 +56,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   applyFKeyBarState();
   applyFontSize(App.fontSize);
   startTasksPolling();
+  initInactivityTracker();
   checkAuthAndLoad();
 });
 
@@ -78,6 +79,14 @@ async function checkAuthAndLoad() {
         hideModal('login-modal');
         await loadConfig();
         await loadSystemUsersGroups();
+        await loadAdminSecuritySettings();
+
+        // If session was locked before browser refresh, keep session locked!
+        if (localStorage.getItem('cd_is_locked') === 'true') {
+          lockSession();
+          return;
+        }
+
         renderAllPanes();
         return;
       }
@@ -240,8 +249,11 @@ function createPaneElement(pane, index) {
       }
     };
     content.oncontextmenu = (e) => {
-      if (e.target.closest('tr.file-row')) return;
       e.preventDefault();
+      e.stopPropagation();
+      const isTouch = window.innerWidth <= 768 || window.matchMedia('(pointer: coarse)').matches;
+      if (isTouch) return false;
+      if (e.target.closest('tr.file-row')) return;
       setActivePane(index);
       showEmptySpaceContextMenu(e.clientX, e.clientY, index);
     };
@@ -351,10 +363,12 @@ function togglePaneDotfiles(paneIndex) {
   loadPaneDirectory(paneIndex, pane.path);
 }
 
-async function loadPaneDirectory(paneIndex, targetPath, pushHistory = true) {
+async function loadPaneDirectory(paneIndex, targetPath, pushHistory = true, selectItemName = null) {
   const pane = App.panes[paneIndex];
   pane.path = targetPath;
-  pane.selected.clear();
+  if (!selectItemName) {
+    pane.selected.clear();
+  }
   localStorage.setItem(`cd_pane_path_${paneIndex}`, targetPath);
 
   if (pushHistory && window.history && history.pushState) {
@@ -368,14 +382,28 @@ async function loadPaneDirectory(paneIndex, targetPath, pushHistory = true) {
     });
 
     if (!resp.ok) {
-      console.error(`Failed to load ${targetPath}`);
+      const errText = await resp.text();
+      showToast(`Failed to load directory: ${errText}`, 'error');
+      console.error(`Failed to load ${targetPath}:`, errText);
       return;
     }
 
     const data = await resp.json();
     pane.path = data.current_path;
+    pane.parentPath = data.parent_path;
     pane.entries = data.entries;
     pane.totalSize = data.total_size;
+
+    if (selectItemName && pane.entries) {
+      pane.selected.clear();
+      const cleanName = selectItemName.split('/').pop();
+      const match = pane.entries.find(e => e.name === cleanName || e.name === selectItemName || e.path === selectItemName || e.path.endsWith('/' + cleanName));
+      if (match) {
+        pane.selected.add(match.path);
+        const idx = pane.entries.indexOf(match);
+        if (idx !== -1) pane.cursorIndex = idx;
+      }
+    }
 
     renderPaneBreadcrumbs(paneIndex, pane.path);
     renderPaneTable(paneIndex);
@@ -388,10 +416,103 @@ async function loadPaneDirectory(paneIndex, targetPath, pushHistory = true) {
 function renderPaneBreadcrumbs(paneIndex, pathStr) {
   const container = document.getElementById(`pane-crumbs-${paneIndex}`);
   if (!container) return;
-
   container.innerHTML = '';
-  const parts = pathStr.split('/').filter(Boolean);
 
+  if (pathStr.startsWith('archive://')) {
+    const raw = pathStr.replace('archive://', '');
+    const [arch, sub] = raw.split('#');
+    const rootCrumb = document.createElement('span');
+    rootCrumb.className = 'crumb';
+    rootCrumb.textContent = '📦 ' + (arch.split('/').pop() || 'archive');
+    rootCrumb.onclick = (e) => { e.stopPropagation(); loadPaneDirectory(paneIndex, `archive://${arch}#`); };
+    container.appendChild(rootCrumb);
+
+    if (sub) {
+      const subParts = sub.split('/').filter(Boolean);
+      let buildSub = '';
+      subParts.forEach(part => {
+        const sep = document.createElement('span');
+        sep.className = 'crumb-sep';
+        sep.textContent = '/';
+        container.appendChild(sep);
+
+        buildSub += (buildSub ? '/' : '') + part;
+        const target = `archive://${arch}#${buildSub}`;
+        const c = document.createElement('span');
+        c.className = 'crumb';
+        c.textContent = part;
+        c.onclick = (e) => { e.stopPropagation(); loadPaneDirectory(paneIndex, target); };
+        container.appendChild(c);
+      });
+    }
+    return;
+  }
+
+  const protoMatch = pathStr.match(/^([a-zA-Z0-9_-]+):\/\/(.*)$/);
+  if (protoMatch) {
+    const proto = protoMatch[1].toLowerCase();
+    const rest = protoMatch[2];
+
+    const slashIdx = rest.indexOf('/');
+    let serverBase = rest;
+    let subpath = '';
+    if (slashIdx !== -1) {
+      if (proto === 'smb') {
+        const afterHostSlash = rest.indexOf('/', slashIdx + 1);
+        if (afterHostSlash !== -1) {
+          serverBase = rest.substring(0, afterHostSlash);
+          subpath = rest.substring(afterHostSlash + 1);
+        } else {
+          serverBase = rest;
+          subpath = '';
+        }
+      } else {
+        serverBase = rest.substring(0, slashIdx);
+        subpath = rest.substring(slashIdx + 1);
+      }
+    }
+
+    let displayBase = serverBase;
+    if (displayBase.includes('@')) {
+      const atIdx = displayBase.indexOf('@');
+      const auth = displayBase.substring(0, atIdx);
+      const hostPart = displayBase.substring(atIdx + 1);
+      if (auth.includes(':')) {
+        const userPart = auth.split(':')[0];
+        displayBase = `${userPart}@${hostPart}`;
+      }
+    }
+
+    const protoIcon = proto === 'smb' ? '🪟 ' : (proto === 'sftp' ? '🔒 ' : (proto === 'nfs' ? '📁 ' : (proto === 'webdav' ? '🌐 ' : '☁️ ')));
+    const rootCrumb = document.createElement('span');
+    rootCrumb.className = 'crumb';
+    rootCrumb.textContent = `${protoIcon}${proto}://${displayBase}`;
+    const rootTarget = `${proto}://${serverBase}`;
+    rootCrumb.onclick = (e) => { e.stopPropagation(); loadPaneDirectory(paneIndex, rootTarget); };
+    container.appendChild(rootCrumb);
+
+    if (subpath) {
+      const parts = subpath.split('/').filter(Boolean);
+      let curSub = '';
+      parts.forEach(part => {
+        const sep = document.createElement('span');
+        sep.className = 'crumb-sep';
+        sep.textContent = '/';
+        container.appendChild(sep);
+
+        curSub += (curSub ? '/' : '') + part;
+        const target = `${proto}://${serverBase}/${curSub}`;
+        const c = document.createElement('span');
+        c.className = 'crumb';
+        c.textContent = part;
+        c.onclick = (e) => { e.stopPropagation(); loadPaneDirectory(paneIndex, target); };
+        container.appendChild(c);
+      });
+    }
+    return;
+  }
+
+  const parts = pathStr.split('/').filter(Boolean);
   const rootCrumb = document.createElement('span');
   rootCrumb.className = 'crumb';
   rootCrumb.textContent = '/';
@@ -399,7 +520,7 @@ function renderPaneBreadcrumbs(paneIndex, pathStr) {
   container.appendChild(rootCrumb);
 
   let currentBuild = '';
-  parts.forEach((part, idx) => {
+  parts.forEach((part) => {
     const sep = document.createElement('span');
     sep.className = 'crumb-sep';
     sep.textContent = '/';
@@ -439,40 +560,61 @@ function renderPaneTable(paneIndex) {
     return pane.sortAsc ? cmp : -cmp;
   });
 
+  const isTouchDevice = window.innerWidth <= 768 || window.matchMedia('(pointer: coarse)').matches;
+
   // Parent directory ".." row when not at root (and enabled in settings)
   if (App.showParentDir && pane.path !== '/' && pane.path !== '' && !pane.filterText) {
     const parentTr = document.createElement('tr');
     parentTr.className = 'file-row parent-dir-row';
-    parentTr.draggable = true;
+    parentTr.draggable = !isTouchDevice;
+
+    let parentTouchStart = 0;
+    parentTr.ontouchstart = () => { parentTouchStart = Date.now(); };
+    parentTr.ontouchend = (e) => {
+      if (Date.now() - parentTouchStart < 400) {
+        e.preventDefault();
+        setActivePane(paneIndex);
+        navPaneUp(paneIndex);
+      }
+    };
 
     parentTr.onclick = (e) => {
+      e.stopPropagation();
+      setActivePane(paneIndex);
+      if (isTouchDevice) {
+        navPaneUp(paneIndex);
+      } else {
+        pane.selected.clear();
+        pane.cursorIndex = -1;
+        renderPaneTable(paneIndex);
+      }
+    };
+
+    parentTr.ondblclick = (e) => {
       e.stopPropagation();
       setActivePane(paneIndex);
       navPaneUp(paneIndex);
     };
 
-    parentTr.ondblclick = (e) => {
-      e.stopPropagation();
-      navPaneUp(paneIndex);
-    };
+    if (!isTouchDevice) {
+      parentTr.ondragover = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        parentTr.classList.add('drag-over-row');
+      };
 
-    parentTr.ondragover = (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      parentTr.classList.add('drag-over-row');
-    };
+      parentTr.ondragleave = () => parentTr.classList.remove('drag-over-row');
 
-    parentTr.ondragleave = () => parentTr.classList.remove('drag-over-row');
-
-    parentTr.ondrop = (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      parentTr.classList.remove('drag-over-row');
-      const parts = pane.path.split('/').filter(Boolean);
-      parts.pop();
-      const parent = parts.length === 0 ? '/' : '/' + parts.join('/');
-      handlePaneDrop(e, paneIndex, parent);
-    };
+      parentTr.ondrop = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        parentTr.classList.remove('drag-over-row');
+        const parts = pane.path.split('/').filter(Boolean);
+        parts.pop();
+        const parent = parts.length === 0 ? '/' : '/' + parts.join('/');
+        handlePaneDrop(e, paneIndex, parent);
+      };
+    }
 
     parentTr.innerHTML = `
       <td class="file-cell file-cell-icon">
@@ -495,39 +637,41 @@ function renderPaneTable(paneIndex) {
     const isSelected = pane.selected.has(entry.path);
     const tr = document.createElement('tr');
     tr.className = `file-row ${isSelected ? 'selected' : ''} ${idx === pane.cursorIndex ? 'cursor-focus' : ''}`;
-    tr.draggable = true;
+    tr.draggable = !isTouchDevice;
 
-    tr.ondragstart = (e) => {
-      const selectedPaths = pane.selected.size > 0 ? Array.from(pane.selected) : [entry.path];
-      e.dataTransfer.setData('text/plain', JSON.stringify({
-        sourcePane: paneIndex,
-        paths: selectedPaths
-      }));
-      e.dataTransfer.effectAllowed = 'copyMove';
-    };
+    if (!isTouchDevice) {
+      tr.ondragstart = (e) => {
+        const selectedPaths = pane.selected.size > 0 ? Array.from(pane.selected) : [entry.path];
+        e.dataTransfer.setData('text/plain', JSON.stringify({
+          sourcePane: paneIndex,
+          paths: selectedPaths
+        }));
+        e.dataTransfer.effectAllowed = 'copyMove';
+      };
 
-    tr.ondragover = (e) => {
-      if (entry.is_dir) {
-        e.preventDefault();
-        e.stopPropagation();
-        tr.classList.add('drag-over-row');
-      }
-    };
+      tr.ondragover = (e) => {
+        if (entry.is_dir) {
+          e.preventDefault();
+          e.stopPropagation();
+          tr.classList.add('drag-over-row');
+        }
+      };
 
-    tr.ondragleave = (e) => {
-      if (entry.is_dir) {
-        tr.classList.remove('drag-over-row');
-      }
-    };
+      tr.ondragleave = () => {
+        if (entry.is_dir) {
+          tr.classList.remove('drag-over-row');
+        }
+      };
 
-    tr.ondrop = (e) => {
-      if (entry.is_dir) {
-        e.preventDefault();
-        e.stopPropagation();
-        tr.classList.remove('drag-over-row');
-        handlePaneDrop(e, paneIndex, entry.path);
-      }
-    };
+      tr.ondrop = (e) => {
+        if (entry.is_dir) {
+          e.preventDefault();
+          e.stopPropagation();
+          tr.classList.remove('drag-over-row');
+          handlePaneDrop(e, paneIndex, entry.path);
+        }
+      };
+    }
 
     let touchStartX = 0;
     let touchStartY = 0;
@@ -637,6 +781,11 @@ function renderPaneTable(paneIndex) {
 
     tr.oncontextmenu = (e) => {
       e.preventDefault();
+      e.stopPropagation();
+      const isTouch = window.innerWidth <= 768 || window.matchMedia('(pointer: coarse)').matches;
+      if (isTouch) {
+        return false; // On touch, long-press only selects the item. The user opens actions via the Actions button.
+      }
       App.contextItem = entry;
       App.contextPaneIndex = paneIndex;
       showContextMenu(e.clientX, e.clientY);
@@ -838,6 +987,8 @@ function switchSettingsTab(tabId) {
     modal.querySelector(`[onclick*="${tabId}"]`)?.classList.add('active');
   }
   document.getElementById(tabId)?.classList.add('active');
+
+  if (tabId === 'tab-bookmarks') loadBookmarksList();
 }
 
 function switchAdminTab(tabId) {
@@ -856,6 +1007,7 @@ function switchAdminTab(tabId) {
   if (tabId === 'admin-tab-users') loadUsersTable();
   if (tabId === 'admin-tab-storage') loadAdminGlobalMounts();
   if (tabId === 'admin-tab-confd') loadConfdInspector();
+  if (tabId === 'admin-tab-security') loadAdminSecuritySettings();
 }
 
 async function loadUsersTable() {
@@ -1238,11 +1390,25 @@ async function executeTransfer(action, sources, destination, refreshTargetPaneId
 function setupKeyboardNavigation() {
   document.addEventListener('keydown', (e) => {
     if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) {
-      if (e.key === 'Escape') closeModal();
+      if (e.key === 'Escape') {
+        hideContextMenu();
+        closeModal();
+      }
+      return;
+    }
+
+    if (e.key === 'Escape') {
+      hideContextMenu();
+      closeModal();
       return;
     }
 
     if (e.ctrlKey || e.metaKey) {
+      if (e.altKey && (e.key === 'l' || e.key === 'L')) {
+        e.preventDefault();
+        lockSession();
+        return;
+      }
       if (e.key === 'c' || e.key === 'C') {
         e.preventDefault();
         triggerCopyClipboard();
@@ -1277,6 +1443,7 @@ function setupKeyboardNavigation() {
       case 'Delete': e.preventDefault(); triggerDelete(); break;
       case 'F9': e.preventDefault(); triggerDiff(); break;
       case 'F10': e.preventDefault(); openSettingsModal(); break;
+      case 'F12': e.preventDefault(); lockSession(); break;
       case 'ArrowDown':
         e.preventDefault();
         if (pane.cursorIndex < pane.entries.length - 1) {
@@ -1361,12 +1528,6 @@ function getVisiblePaneCount() {
 }
 
 // ---------------- DUAL-PANE EDITOR & CODE VIEWER (SYNTAX HIGHLIGHTING & FIND/REPLACE) ----------------
-
-let activeEditorPathLeft = '';
-let activeEditorLanguage = 'auto';
-let editorFindMatches = [];
-let currentMatchIndex = -1;
-
 function detectLanguageFromPath(path) {
   const ext = (path.split('.').pop() || '').toLowerCase();
   const map = {
@@ -1400,97 +1561,860 @@ function detectLanguageFromPath(path) {
   return map[ext] || 'markup';
 }
 
-async function openEditorWithFile(filePath) {
-  activeEditorPathLeft = filePath;
-  document.getElementById('editor-file-title-left').textContent = filePath;
+// ========================================================
+// 📝 REVISED MULTI-TAB DEVELOPER POWER EDITOR & CONF.D ASSEMBLER
+// ========================================================
 
-  const detectedLang = detectLanguageFromPath(filePath);
-  const langSelect = document.getElementById('editor-language-select');
-  if (langSelect) langSelect.value = detectedLang;
-  activeEditorLanguage = detectedLang;
+// ========================================================
+// 📝 FLOATING MULTI-TAB POWER DEVELOPER EDITOR & CONF.D ASSEMBLER
+// ========================================================
 
-  const resp = await fetch(`/api/fs/read?path=${encodeURIComponent(filePath)}`, {
-    headers: { 'Authorization': `Bearer ${App.token}` }
-  });
+let editorTabs = [];
+let activeTabIdLeft = null;
+let activeTabIdRight = null;
+let editorActivePane = 'left';
+let editorViewMode = 'single-editor'; // 'single-editor', 'dual-vertical', 'dual-horizontal', 'split-markdown'
+let editorTabCounter = 1;
+let editorTabSize = 2;
+let editorFindMatches = [];
+let currentMatchIndex = -1;
+let findOptions = { matchCase: false, matchWord: false, useRegex: false };
+let pendingConfdDirPath = null;
+let pendingConfdFiles = [];
+let topFloatingZIndex = 1600;
 
-  if (resp.ok) {
-    const data = await resp.json();
-    const textarea = document.getElementById('editor-text-left');
-    textarea.value = data.content;
-    handleEditorInput();
-    
-    // Default to markdown preview for .md, single-editor for code
-    const isMd = filePath.endsWith('.md') || filePath.endsWith('.markdown');
-    const viewModeSelect = document.getElementById('editor-view-mode');
-    if (viewModeSelect) {
-      viewModeSelect.value = isMd ? 'split-markdown' : 'single-editor';
-      handleEditorViewModeChange(viewModeSelect.value);
-    }
+function bringFloatingWindowToFront(el) {
+  if (!el) return;
+  topFloatingZIndex++;
+  el.style.zIndex = topFloatingZIndex;
+}
 
-    showModal('editor-modal');
-  } else {
-    showToast('Failed to read file: ' + await resp.text(), 'error');
+function getActiveEditorTab(pane = 'left') {
+  const tabId = pane === 'left' ? activeTabIdLeft : activeTabIdRight;
+  return editorTabs.find(t => t.id === tabId) || editorTabs[0] || null;
+}
+
+function getEditorTabById(id) {
+  return editorTabs.find(t => t.id === id) || null;
+}
+
+function createNewEditorTab(initialContent = '', defaultName = null, filePath = null, isConfd = false, confdFiles = []) {
+  const tabId = 'tab_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+  const name = defaultName || (filePath ? getBasename(filePath) : `Untitled-${editorTabCounter++}`);
+  const detectedLang = filePath ? detectLanguageFromPath(filePath) : 'markup';
+
+  const newTab = {
+    id: tabId,
+    path: filePath,
+    filename: name,
+    content: initialContent,
+    origContent: initialContent,
+    isDirty: false,
+    lang: detectedLang,
+    isConfdAssembled: isConfd,
+    confdFiles: confdFiles,
+    cursor: { line: 1, col: 1 },
+    scrollTop: 0
+  };
+
+  editorTabs.push(newTab);
+  switchActiveEditorTab(tabId, 'left');
+  renderEditorTabs();
+  return newTab;
+}
+
+function openFloatingEditor() {
+  const win = document.getElementById('floating-editor-window');
+  const pill = document.getElementById('editor-pill');
+  if (pill) pill.style.display = 'none';
+  if (win) {
+    win.style.display = 'flex';
+    bringFloatingWindowToFront(win);
+  }
+  initEditorDragResize();
+}
+
+function restoreFloatingEditor() {
+  openFloatingEditor();
+}
+
+function minimizeFloatingEditor() {
+  const win = document.getElementById('floating-editor-window');
+  const pill = document.getElementById('editor-pill');
+  const pillText = document.getElementById('editor-pill-text');
+  const pillDirty = document.getElementById('editor-pill-dirty');
+
+  if (win) win.style.display = 'none';
+  if (pill) {
+    pill.style.display = 'flex';
+    const dirtyCount = editorTabs.filter(t => t.isDirty).length;
+    const tabCount = editorTabs.length;
+    if (pillText) pillText.textContent = `📝 Editor (${tabCount} file${tabCount === 1 ? '' : 's'})`;
+    if (pillDirty) pillDirty.style.display = dirtyCount > 0 ? 'inline-block' : 'none';
+    if (window.lucide) lucide.createIcons();
   }
 }
 
+function maximizeFloatingEditor() {
+  const win = document.getElementById('floating-editor-window');
+  if (!win) return;
+  win.classList.toggle('maximized');
+}
+
+async function openEditorWithFile(filePath) {
+  const existingTab = editorTabs.find(t => t.path === filePath);
+  if (existingTab) {
+    switchActiveEditorTab(existingTab.id, 'left');
+    openFloatingEditor();
+    return;
+  }
+
+  try {
+    const resp = await fetch(`/api/fs/read?path=${encodeURIComponent(filePath)}`, {
+      headers: { 'Authorization': `Bearer ${App.token}` }
+    });
+
+    if (resp.ok) {
+      const data = await resp.json();
+      createNewEditorTab(data.content, null, filePath, false, []);
+      
+      const isMd = filePath.endsWith('.md') || filePath.endsWith('.markdown');
+      const viewModeSelect = document.getElementById('editor-view-mode');
+      if (viewModeSelect) {
+        viewModeSelect.value = isMd ? 'split-markdown' : 'single-editor';
+        handleEditorViewModeChange(viewModeSelect.value);
+      }
+      openFloatingEditor();
+    } else {
+      showToast('Failed to read file: ' + await resp.text(), 'error');
+    }
+  } catch (e) {
+    showToast('Read error: ' + e, 'error');
+  }
+}
+
+// ---------------- CONF.D MODULAR CONFIG ASSEMBLER ----------------
+
+async function checkAndPromptConfdDirectory(dirPath) {
+  try {
+    const res = await fetch(`/api/fs/list?path=${encodeURIComponent(dirPath)}`, {
+      headers: { 'Authorization': `Bearer ${App.token}` }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const files = data.entries.filter(e => !e.is_dir);
+      if (files.length > 0) {
+        pendingConfdDirPath = dirPath;
+        pendingConfdFiles = files.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+        
+        const dirNameEl = document.getElementById('confd-modal-dirname');
+        if (dirNameEl) dirNameEl.textContent = getBasename(dirPath);
+        const listEl = document.getElementById('confd-modal-filelist');
+        if (listEl) {
+          listEl.innerHTML = pendingConfdFiles.map(f => `
+            <div style="display: flex; align-items: center; justify-content: space-between; padding: 2px 0;">
+              <span>📄 <b>${escapeHtml(f.name)}</b></span>
+              <span style="color: var(--text-dim); font-size: 10px;">${formatBytes(f.size)}</span>
+            </div>
+          `).join('');
+        }
+        showModal('confd-assembler-modal');
+        return;
+      }
+    }
+  } catch (e) {
+    console.error('conf.d check error:', e);
+  }
+  openFloatingEditor();
+}
+
+async function executeOpenConfdAssembled() {
+  closeModal('confd-assembler-modal');
+  if (!pendingConfdFiles || pendingConfdFiles.length === 0) return;
+
+  const confdFolderName = getBasename(pendingConfdDirPath) || 'conf.d';
+  showToast(`Assembling ${pendingConfdFiles.length} config files...`, 'info');
+
+  const assembledParts = [];
+
+  for (const f of pendingConfdFiles) {
+    try {
+      const resp = await fetch(`/api/fs/read?path=${encodeURIComponent(f.path)}`, {
+        headers: { 'Authorization': `Bearer ${App.token}` }
+      });
+      let content = '';
+      if (resp.ok) {
+        const data = await resp.json();
+        content = data.content;
+      }
+      assembledParts.push({
+        path: f.path,
+        filename: f.name,
+        content: content
+      });
+    } catch (err) {
+      console.warn('Failed reading conf.d part:', f.path, err);
+    }
+  }
+
+  let fullBuffer = `# =========================================================================\n# 🧩 COMMANDERDOG MODULAR CONFIG COMPILATION: ${confdFolderName}\n# Directory: ${pendingConfdDirPath}\n# Assembled: ${assembledParts.length} files in execution order\n# Edits are saved individually to each respective file on Ctrl+S.\n# =========================================================================\n\n`;
+
+  for (const part of assembledParts) {
+    fullBuffer += `# =========================================================================\n`;
+    fullBuffer += `# 📁 [FILE START: ${part.filename}] (${part.path})\n`;
+    fullBuffer += `# =========================================================================\n`;
+    fullBuffer += part.content.endsWith('\n') ? part.content : part.content + '\n';
+    fullBuffer += `# =========================================================================\n`;
+    fullBuffer += `# 🏁 [FILE END: ${part.filename}]\n`;
+    fullBuffer += `# =========================================================================\n\n`;
+  }
+
+  const tab = createNewEditorTab(fullBuffer, `${confdFolderName} [Assembled]`, pendingConfdDirPath, true, assembledParts);
+  populateConfdJumpDropdown(tab);
+
+  const viewModeSelect = document.getElementById('editor-view-mode');
+  if (viewModeSelect) {
+    viewModeSelect.value = 'single-editor';
+    handleEditorViewModeChange('single-editor');
+  }
+
+  openFloatingEditor();
+  showToast(`Assembled ${assembledParts.length} files into unified config view!`, 'success');
+}
+
+async function executeOpenConfdSeparateTabs() {
+  closeModal('confd-assembler-modal');
+  if (!pendingConfdFiles || pendingConfdFiles.length === 0) return;
+
+  for (const f of pendingConfdFiles) {
+    await openEditorWithFile(f.path);
+  }
+  openFloatingEditor();
+}
+
+function populateConfdJumpDropdown(tab) {
+  const jumpSel = document.getElementById('editor-confd-jump');
+  const statusConfd = document.getElementById('editor-confd-status');
+  const sepConfd = document.getElementById('editor-confd-sep');
+
+  if (!jumpSel) return;
+
+  if (tab && tab.isConfdAssembled && tab.confdFiles && tab.confdFiles.length > 0) {
+    jumpSel.style.display = 'inline-block';
+    if (statusConfd) statusConfd.style.display = 'inline-block';
+    if (sepConfd) sepConfd.style.display = 'inline-block';
+
+    jumpSel.innerHTML = `<option value="">Jump to Section (${tab.confdFiles.length})...</option>` +
+      tab.confdFiles.map(f => `<option value="${escapeHtml(f.filename)}">📁 ${escapeHtml(f.filename)}</option>`).join('');
+  } else {
+    jumpSel.style.display = 'none';
+    if (statusConfd) statusConfd.style.display = 'none';
+    if (sepConfd) sepConfd.style.display = 'none';
+  }
+}
+
+function jumpToConfdSection(filename) {
+  if (!filename) return;
+  const textarea = document.getElementById('editor-text-left');
+  if (!textarea) return;
+
+  const targetHeader = `[FILE START: ${filename}]`;
+  const text = textarea.value;
+  const index = text.indexOf(targetHeader);
+
+  if (index !== -1) {
+    textarea.focus();
+    textarea.setSelectionRange(index, index + targetHeader.length);
+
+    const linesBefore = text.substring(0, index).split('\n').length;
+    const lineHeight = 19;
+    textarea.scrollTop = Math.max(0, (linesBefore - 4) * lineHeight);
+    syncGutterScroll('left');
+    handleEditorInput('left');
+  }
+}
+
+// ---------------- TAB SWITCHING & RENDERING ----------------
+
+function switchActiveEditorTab(tabId, targetPane = 'left') {
+  const targetTab = getEditorTabById(tabId);
+  if (!targetTab) return;
+
+  const prevTabId = targetPane === 'left' ? activeTabIdLeft : activeTabIdRight;
+  if (prevTabId) {
+    const prevTab = getEditorTabById(prevTabId);
+    const textarea = document.getElementById(`editor-text-${targetPane}`);
+    if (prevTab && textarea) {
+      prevTab.content = textarea.value;
+      prevTab.scrollTop = textarea.scrollTop;
+      prevTab.selectionStart = textarea.selectionStart;
+      prevTab.selectionEnd = textarea.selectionEnd;
+    }
+  }
+
+  if (targetPane === 'left') activeTabIdLeft = tabId;
+  else activeTabIdRight = tabId;
+
+  const textarea = document.getElementById(`editor-text-${targetPane}`);
+  const titleEl = document.getElementById(`editor-file-title-${targetPane}`);
+  const tagEl = document.getElementById(`editor-file-tag-${targetPane}`);
+
+  if (textarea) {
+    textarea.value = targetTab.content;
+    textarea.scrollTop = targetTab.scrollTop || 0;
+    if (targetTab.selectionStart !== undefined) {
+      textarea.selectionStart = targetTab.selectionStart;
+      textarea.selectionEnd = targetTab.selectionEnd;
+    }
+  }
+
+  if (titleEl) {
+    titleEl.textContent = targetTab.path ? sanitizeCredentials(targetTab.path) : targetTab.filename;
+    titleEl.title = targetTab.path || targetTab.filename;
+  }
+
+  if (tagEl) {
+    tagEl.textContent = targetTab.isConfdAssembled ? 'CONFD' : targetTab.lang.toUpperCase();
+  }
+
+  const langSelect = document.getElementById('editor-language-select');
+  if (langSelect) langSelect.value = targetTab.lang || 'auto';
+
+  populateConfdJumpDropdown(targetTab);
+  updateEditorGutter(targetPane);
+  handleEditorInput(targetPane);
+  renderEditorTabs();
+}
+
+function closeEditorTab(tabId, force = false) {
+  const tabIndex = editorTabs.findIndex(t => t.id === tabId);
+  if (tabIndex === -1) return;
+  const tab = editorTabs[tabIndex];
+
+  if (tab.isDirty && !force) {
+    if (!confirm(`"${tab.filename}" has unsaved changes. Close without saving?`)) {
+      return;
+    }
+  }
+
+  editorTabs.splice(tabIndex, 1);
+
+  if (editorTabs.length === 0) {
+    createNewEditorTab();
+  } else {
+    if (activeTabIdLeft === tabId) {
+      const nextIndex = Math.min(tabIndex, editorTabs.length - 1);
+      switchActiveEditorTab(editorTabs[nextIndex].id, 'left');
+    }
+    if (activeTabIdRight === tabId) {
+      activeTabIdRight = editorTabs[0]?.id || null;
+    }
+  }
+
+  renderEditorTabs();
+}
+
+function closeEditorModal() {
+  const dirtyCount = editorTabs.filter(t => t.isDirty).length;
+  if (dirtyCount > 0) {
+    if (!confirm(`You have ${dirtyCount} file(s) with unsaved changes. Close editor?`)) {
+      return;
+    }
+  }
+  const win = document.getElementById('floating-editor-window');
+  const pill = document.getElementById('editor-pill');
+  if (win) win.style.display = 'none';
+  if (pill) pill.style.display = 'none';
+}
+
+let editorDragInitialized = false;
+
+function initEditorDragResize() {
+  if (editorDragInitialized) return;
+  editorDragInitialized = true;
+
+  const win = document.getElementById('floating-editor-window');
+  const header = document.getElementById('editor-header');
+  if (!win || !header) return;
+
+  const savedLeft = localStorage.getItem('cd_editor_x');
+  const savedTop = localStorage.getItem('cd_editor_y');
+  const savedWidth = localStorage.getItem('cd_editor_w');
+  const savedHeight = localStorage.getItem('cd_editor_h');
+
+  if (savedLeft && savedTop) {
+    win.style.left = `${Math.min(window.innerWidth - 100, Math.max(0, parseInt(savedLeft, 10)))}px`;
+    win.style.top = `${Math.min(window.innerHeight - 60, Math.max(35, parseInt(savedTop, 10)))}px`;
+  }
+  if (savedWidth) win.style.width = `${Math.min(window.innerWidth - 20, Math.max(360, parseInt(savedWidth, 10)))}px`;
+  if (savedHeight) win.style.height = `${Math.min(window.innerHeight - 40, Math.max(240, parseInt(savedHeight, 10)))}px`;
+
+  let isDragging = false;
+  let dragStartX = 0, dragStartY = 0;
+  let winStartX = 0, winStartY = 0;
+
+  header.addEventListener('mousedown', (e) => {
+    if (e.target.closest('button') || e.target.closest('select') || e.target.closest('input')) return;
+    if (win.classList.contains('maximized')) return;
+    isDragging = true;
+    bringFloatingWindowToFront(win);
+    dragStartX = e.clientX;
+    dragStartY = e.clientY;
+    const rect = win.getBoundingClientRect();
+    winStartX = rect.left;
+    winStartY = rect.top;
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'move';
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (!isDragging) return;
+    const dx = e.clientX - dragStartX;
+    const dy = e.clientY - dragStartY;
+    const newX = Math.max(0, Math.min(window.innerWidth - 100, winStartX + dx));
+    const newY = Math.max(35, Math.min(window.innerHeight - 60, winStartY + dy));
+    win.style.left = `${newX}px`;
+    win.style.top = `${newY}px`;
+    win.style.right = 'auto';
+    win.style.bottom = 'auto';
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (isDragging) {
+      isDragging = false;
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+      if (win.style.left) localStorage.setItem('cd_editor_x', parseInt(win.style.left, 10));
+      if (win.style.top) localStorage.setItem('cd_editor_y', parseInt(win.style.top, 10));
+    }
+  });
+
+  setupFloatingWindowResizers(win);
+}
+
+function setupFloatingWindowResizers(win) {
+  const handles = {
+    top: document.getElementById('editor-resize-top'),
+    bottom: document.getElementById('editor-resize-bottom'),
+    left: document.getElementById('editor-resize-left'),
+    right: document.getElementById('editor-resize-right'),
+    corner: document.getElementById('editor-resize-corner')
+  };
+
+  let resizeMode = null;
+  let startX = 0, startY = 0;
+  let startW = 0, startH = 0;
+  let startLeft = 0, startTop = 0;
+
+  Object.entries(handles).forEach(([mode, handle]) => {
+    if (!handle) return;
+    handle.addEventListener('mousedown', (e) => {
+      e.stopPropagation();
+      if (win.classList.contains('maximized')) return;
+      resizeMode = mode;
+      bringFloatingWindowToFront(win);
+      startX = e.clientX;
+      startY = e.clientY;
+      const rect = win.getBoundingClientRect();
+      startW = rect.width;
+      startH = rect.height;
+      startLeft = rect.left;
+      startTop = rect.top;
+      document.body.style.userSelect = 'none';
+      if (mode === 'top' || mode === 'bottom') document.body.style.cursor = 'ns-resize';
+      else if (mode === 'left' || mode === 'right') document.body.style.cursor = 'ew-resize';
+      else document.body.style.cursor = 'nwse-resize';
+    });
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (!resizeMode) return;
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+
+    if (resizeMode === 'bottom' || resizeMode === 'corner') {
+      const newH = Math.max(240, Math.min(window.innerHeight - startTop - 20, startH + dy));
+      win.style.height = `${newH}px`;
+    }
+    if (resizeMode === 'right' || resizeMode === 'corner') {
+      const newW = Math.max(360, Math.min(window.innerWidth - startLeft - 20, startW + dx));
+      win.style.width = `${newW}px`;
+    }
+    if (resizeMode === 'left') {
+      const newW = Math.max(360, startW - dx);
+      const newLeft = startLeft + (startW - newW);
+      if (newLeft >= 0) {
+        win.style.width = `${newW}px`;
+        win.style.left = `${newLeft}px`;
+      }
+    }
+    if (resizeMode === 'top') {
+      const newH = Math.max(240, startH - dy);
+      const newTop = startTop + (startH - newH);
+      if (newTop >= 35) {
+        win.style.height = `${newH}px`;
+        win.style.top = `${newTop}px`;
+      }
+    }
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (resizeMode) {
+      resizeMode = null;
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+      localStorage.setItem('cd_editor_w', win.offsetWidth);
+      localStorage.setItem('cd_editor_h', win.offsetHeight);
+      if (win.style.left) localStorage.setItem('cd_editor_x', parseInt(win.style.left, 10));
+      if (win.style.top) localStorage.setItem('cd_editor_y', parseInt(win.style.top, 10));
+    }
+  });
+}
+
+function renderEditorTabs() {
+  const container = document.getElementById('editor-tabs-container');
+  if (!container) return;
+
+  container.innerHTML = editorTabs.map(tab => {
+    const isActive = tab.id === activeTabIdLeft;
+    const isDirty = tab.isDirty;
+    const icon = getFileIconForExtension(tab.path || tab.filename);
+
+    return `
+      <div class="editor-tab ${isActive ? 'active' : ''}" onclick="switchActiveEditorTab('${tab.id}', 'left')" onauxclick="if (event.button === 1) closeEditorTab('${tab.id}')" title="${escapeHtml(tab.path || tab.filename)}">
+        <i data-lucide="${icon}" style="width: 13px; height: 13px;"></i>
+        <span>${escapeHtml(tab.filename)}</span>
+        ${isDirty ? '<span class="editor-tab-dirty" title="Unsaved changes"></span>' : ''}
+        <span class="editor-tab-close" onclick="event.stopPropagation(); closeEditorTab('${tab.id}')" title="Close Tab (Ctrl+W)"><i data-lucide="x" style="width: 11px; height: 11px;"></i></span>
+      </div>
+    `;
+  }).join('');
+
+  if (window.lucide) lucide.createIcons();
+}
+
+function getFileIconForExtension(path) {
+  const ext = (path || '').split('.').pop().toLowerCase();
+  if (['rs', 'js', 'ts', 'py', 'c', 'cpp', 'h', 'java', 'go', 'sh', 'sql', 'html', 'css'].includes(ext)) return 'file-code';
+  if (['json', 'yaml', 'yml', 'toml', 'ini', 'conf'].includes(ext)) return 'file-json';
+  if (['md', 'markdown', 'txt'].includes(ext)) return 'file-text';
+  return 'file';
+}
+
+// ---------------- SAVE OPERATIONS ----------------
+
+async function saveActiveEditorTab() {
+  const tab = getActiveEditorTab('left');
+  if (!tab) return;
+
+  const textarea = document.getElementById('editor-text-left');
+  if (textarea) tab.content = textarea.value;
+
+  if (tab.isConfdAssembled && tab.confdFiles && tab.confdFiles.length > 0) {
+    await saveConfdAssembledTab(tab);
+    return;
+  }
+
+  if (!tab.path) {
+    const defaultName = tab.filename.startsWith('Untitled') ? 'newfile.txt' : tab.filename;
+    const userPath = prompt('Enter full file path to save:', `/home/bolt/${defaultName}`);
+    if (!userPath) return;
+    tab.path = userPath;
+    tab.filename = getBasename(userPath);
+  }
+
+  try {
+    const resp = await fetch('/api/fs/write', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
+      body: JSON.stringify({ path: tab.path, content: tab.content, atomic: true })
+    });
+
+    if (resp.ok) {
+      tab.origContent = tab.content;
+      tab.isDirty = false;
+      flashSaveButton();
+      showToast(`Saved "${tab.filename}"!`, 'success');
+      renderEditorTabs();
+      refreshPane(App.activePaneIndex);
+    } else {
+      showToast('Save failed: ' + await resp.text(), 'error');
+    }
+  } catch (e) {
+    showToast('Save error: ' + e, 'error');
+  }
+}
+
+async function saveConfdAssembledTab(tab) {
+  const text = tab.content;
+  let savedCount = 0;
+  let errorCount = 0;
+
+  for (const part of tab.confdFiles) {
+    const startTag = `[FILE START: ${part.filename}]`;
+    const endTag = `[FILE END: ${part.filename}]`;
+
+    const startIdx = text.indexOf(startTag);
+    const endIdx = text.indexOf(endTag);
+
+    if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
+      const afterHeader = text.indexOf('\n', startIdx);
+      const beforeFooter = text.lastIndexOf('\n', endIdx);
+
+      const segment = text.substring(afterHeader + 1, beforeFooter);
+      const cleanContent = segment.replace(/^# =+\n?/, '').replace(/# =+\n?$/, '');
+
+      try {
+        const resp = await fetch('/api/fs/write', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
+          body: JSON.stringify({ path: part.path, content: cleanContent, atomic: true })
+        });
+        if (resp.ok) {
+          savedCount++;
+          part.content = cleanContent;
+        } else {
+          errorCount++;
+        }
+      } catch (err) {
+        errorCount++;
+      }
+    }
+  }
+
+  tab.origContent = tab.content;
+  tab.isDirty = false;
+  flashSaveButton();
+  renderEditorTabs();
+  refreshPane(App.activePaneIndex);
+
+  if (errorCount === 0) {
+    showToast(`Saved all ${savedCount} modular config files!`, 'success');
+  } else {
+    showToast(`Saved ${savedCount} files (${errorCount} failed)`, 'error');
+  }
+}
+
+async function saveAllEditorTabs() {
+  let count = 0;
+  for (const tab of editorTabs) {
+    if (tab.isDirty) {
+      if (tab.isConfdAssembled) {
+        await saveConfdAssembledTab(tab);
+      } else if (tab.path) {
+        try {
+          const resp = await fetch('/api/fs/write', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
+            body: JSON.stringify({ path: tab.path, content: tab.content, atomic: true })
+          });
+          if (resp.ok) {
+            tab.origContent = tab.content;
+            tab.isDirty = false;
+            count++;
+          }
+        } catch (e) {
+          console.warn('Save all error:', e);
+        }
+      }
+    }
+  }
+  renderEditorTabs();
+  refreshPane(App.activePaneIndex);
+  showToast(`Saved ${count} open file(s)!`, 'success');
+}
+
+function flashSaveButton() {
+  const btn = document.getElementById('btn-save-editor');
+  if (btn) {
+    const origHtml = btn.innerHTML;
+    btn.innerHTML = '<i data-lucide="check"></i> Saved!';
+    if (window.lucide) lucide.createIcons();
+    setTimeout(() => {
+      btn.innerHTML = origHtml;
+      if (window.lucide) lucide.createIcons();
+    }, 1400);
+  }
+}
+
+// ---------------- VIEW MODES & LANGUAGE ----------------
+
 function handleEditorViewModeChange(mode) {
+  editorViewMode = mode;
+  const grid = document.getElementById('editor-grid-container');
   const rightPane = document.getElementById('editor-right-pane');
   const preview = document.getElementById('editor-preview-container');
-  const rightText = document.getElementById('editor-text-right');
+  const bodyWrapperRight = document.getElementById('editor-body-wrapper-right');
+  const rightTitle = document.getElementById('editor-file-title-right');
+  const rightTag = document.getElementById('editor-file-tag-right');
+
+  if (!grid || !rightPane) return;
+
+  grid.className = `editor-grid ${mode}`;
 
   if (mode === 'single-editor') {
     rightPane.style.display = 'none';
   } else if (mode === 'split-markdown') {
     rightPane.style.display = 'flex';
-    preview.style.display = 'block';
-    rightText.style.display = 'none';
+    if (preview) preview.style.display = 'block';
+    if (bodyWrapperRight) bodyWrapperRight.style.display = 'none';
+    if (rightTitle) rightTitle.textContent = 'Live Markdown & Mermaid Preview';
+    if (rightTag) rightTag.textContent = 'PREVIEW';
     updateMarkdownPreview();
-  } else if (mode === 'dual-files') {
+  } else if (mode === 'dual-vertical' || mode === 'dual-horizontal') {
     rightPane.style.display = 'flex';
-    preview.style.display = 'none';
-    rightText.style.display = 'block';
+    if (preview) preview.style.display = 'none';
+    if (bodyWrapperRight) bodyWrapperRight.style.display = 'flex';
+    
+    if (!activeTabIdRight || activeTabIdRight === activeTabIdLeft) {
+      const otherTab = editorTabs.find(t => t.id !== activeTabIdLeft) || editorTabs[0];
+      if (otherTab) activeTabIdRight = otherTab.id;
+    }
+    const rightTab = getActiveEditorTab('right');
+    if (rightTab) {
+      if (rightTitle) rightTitle.textContent = rightTab.path ? sanitizeCredentials(rightTab.path) : rightTab.filename;
+      if (rightTag) rightTag.textContent = rightTab.lang.toUpperCase();
+      const textareaRight = document.getElementById('editor-text-right');
+      if (textareaRight) textareaRight.value = rightTab.content;
+      updateEditorGutter('right');
+    }
   }
 }
 
 function handleEditorLanguageChange(lang) {
-  activeEditorLanguage = lang === 'auto' ? detectLanguageFromPath(activeEditorPathLeft) : lang;
-  updateMarkdownPreview();
+  const tab = getActiveEditorTab('left');
+  if (tab) {
+    tab.lang = lang === 'auto' ? (tab.path ? detectLanguageFromPath(tab.path) : 'markup') : lang;
+    const tagEl = document.getElementById('editor-file-tag-left');
+    if (tagEl) tagEl.textContent = tab.lang.toUpperCase();
+    if (editorViewMode === 'split-markdown') updateMarkdownPreview();
+  }
 }
 
-function handleEditorInput() {
-  const textarea = document.getElementById('editor-text-left');
-  const content = textarea.value;
+// ---------------- GUTTER & INPUT HANDLERS ----------------
 
-  // Update status bar stats
+function handleEditorInput(pane = 'left') {
+  const textarea = document.getElementById(`editor-text-${pane}`);
+  if (!textarea) return;
+
+  const content = textarea.value;
+  const tab = getActiveEditorTab(pane);
+  if (tab) {
+    tab.content = content;
+    tab.isDirty = (tab.content !== tab.origContent);
+  }
+
+  updateEditorGutter(pane);
+  updateEditorStatusBar(pane);
+  renderEditorTabs();
+
+  if (editorViewMode === 'split-markdown' && pane === 'left') {
+    updateMarkdownPreview();
+  }
+}
+
+function handleEditorClick(pane = 'left') {
+  updateEditorStatusBar(pane);
+}
+
+function updateEditorGutter(pane = 'left') {
+  const textarea = document.getElementById(`editor-text-${pane}`);
+  const gutter = document.getElementById(`editor-gutter-${pane}`);
+  if (!textarea || !gutter) return;
+
+  const lineCount = textarea.value.split('\n').length;
+  let gutterText = '';
+  for (let i = 1; i <= lineCount; i++) {
+    gutterText += i + '\n';
+  }
+  gutter.textContent = gutterText;
+}
+
+function syncGutterScroll(pane = 'left') {
+  const textarea = document.getElementById(`editor-text-${pane}`);
+  const gutter = document.getElementById(`editor-gutter-${pane}`);
+  if (textarea && gutter) {
+    gutter.scrollTop = textarea.scrollTop;
+  }
+
+  if (pane === 'left' && editorViewMode === 'split-markdown') {
+    const preview = document.getElementById('editor-preview-container');
+    if (preview && textarea) {
+      const scrollRatio = textarea.scrollTop / Math.max(1, (textarea.scrollHeight - textarea.clientHeight));
+      preview.scrollTop = scrollRatio * (preview.scrollHeight - preview.clientHeight);
+    }
+  }
+}
+
+function updateEditorStatusBar(pane = 'left') {
+  const textarea = document.getElementById(`editor-text-${pane}`);
+  if (!textarea) return;
+
+  const content = textarea.value;
   const pos = textarea.selectionStart || 0;
+  const selEnd = textarea.selectionEnd || 0;
+  const selLen = Math.abs(selEnd - pos);
+
   const lines = content.substring(0, pos).split('\n');
   const lineNum = lines.length;
   const colNum = lines[lines.length - 1].length + 1;
 
   const posEl = document.getElementById('editor-cursor-pos');
-  if (posEl) posEl.textContent = `Ln ${lineNum}, Col ${colNum}`;
+  if (posEl) {
+    posEl.textContent = `Ln ${lineNum}, Col ${colNum}${selLen > 0 ? ` (${selLen} selected)` : ''}`;
+  }
 
+  const totalLines = content.split('\n').length;
+  const totalWords = content.split(/\s+/).filter(Boolean).length;
   const statsEl = document.getElementById('editor-doc-stats');
-  if (statsEl) statsEl.textContent = `${content.length} characters | ${content.split(/\s+/).filter(Boolean).length} words | UTF-8`;
-
-  const mode = document.getElementById('editor-view-mode')?.value;
-  if (mode === 'split-markdown') {
-    updateMarkdownPreview();
+  if (statsEl) {
+    statsEl.textContent = `${totalLines} lines | ${content.length} chars | ${totalWords} words`;
   }
 }
 
-function handleEditorKeyDown(e) {
+function cycleEditorTabSize() {
+  editorTabSize = editorTabSize === 2 ? 4 : 2;
+  const info = document.getElementById('editor-indent-info');
+  if (info) info.textContent = `Spaces: ${editorTabSize}`;
+  ['left', 'right'].forEach(pane => {
+    const ta = document.getElementById(`editor-text-${pane}`);
+    if (ta) ta.style.tabSize = editorTabSize;
+  });
+}
+
+function handleEditorKeyDown(e, pane = 'left') {
+  const textarea = e.target;
+  const tabSpaces = ' '.repeat(editorTabSize);
+
   if (e.key === 'Tab') {
     e.preventDefault();
-    const textarea = e.target;
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
-    textarea.value = textarea.value.substring(0, start) + '  ' + textarea.value.substring(end);
-    textarea.selectionStart = textarea.selectionEnd = start + 2;
-    handleEditorInput();
+
+    if (e.shiftKey) {
+      const lineStart = textarea.value.lastIndexOf('\n', start - 1) + 1;
+      const lineText = textarea.value.substring(lineStart);
+      if (lineText.startsWith('  ')) {
+        textarea.value = textarea.value.substring(0, lineStart) + textarea.value.substring(lineStart + 2);
+        textarea.selectionStart = Math.max(0, start - 2);
+        textarea.selectionEnd = Math.max(0, end - 2);
+      }
+    } else {
+      textarea.value = textarea.value.substring(0, start) + tabSpaces + textarea.value.substring(end);
+      textarea.selectionStart = textarea.selectionEnd = start + tabSpaces.length;
+    }
+    handleEditorInput(pane);
   } else if ((e.ctrlKey || e.metaKey) && e.key === 's') {
     e.preventDefault();
-    saveEditorContent();
+    if (e.shiftKey) saveAllEditorTabs();
+    else saveActiveEditorTab();
+  } else if ((e.ctrlKey || e.metaKey) && e.key === 'w') {
+    e.preventDefault();
+    const tab = getActiveEditorTab(pane);
+    if (tab) closeEditorTab(tab.id);
+  } else if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
+    e.preventDefault();
+    createNewEditorTab();
   } else if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
     e.preventDefault();
     toggleFindBar(true);
@@ -1498,11 +2422,39 @@ function handleEditorKeyDown(e) {
     e.preventDefault();
     toggleFindBar(true);
     document.getElementById('editor-replace-input')?.focus();
+  } else if ((e.ctrlKey || e.metaKey) && e.key === '/') {
+    e.preventDefault();
+    toggleLineComment(textarea, pane);
+  } else if (e.altKey && (e.key === 'z' || e.key === 'Z')) {
+    e.preventDefault();
+    textarea.style.whiteSpace = textarea.style.whiteSpace === 'pre-wrap' ? 'pre' : 'pre-wrap';
+    showToast(`Word wrap: ${textarea.style.whiteSpace === 'pre-wrap' ? 'ON' : 'OFF'}`, 'info');
   }
 }
 
+function toggleLineComment(textarea, pane) {
+  const tab = getActiveEditorTab(pane);
+  const lang = tab?.lang || 'markup';
+  let commentPrefix = '# ';
+  if (['javascript', 'rust', 'c', 'cpp', 'clike', 'java', 'go'].includes(lang)) commentPrefix = '// ';
+  else if (['sql'].includes(lang)) commentPrefix = '-- ';
+  else if (['html', 'xml'].includes(lang)) commentPrefix = '<!-- ';
+
+  const start = textarea.selectionStart;
+  const lineStart = textarea.value.lastIndexOf('\n', start - 1) + 1;
+  const lineEnd = textarea.value.indexOf('\n', start);
+  const currentLine = textarea.value.substring(lineStart, lineEnd === -1 ? textarea.value.length : lineEnd);
+
+  if (currentLine.startsWith(commentPrefix)) {
+    textarea.value = textarea.value.substring(0, lineStart) + currentLine.substring(commentPrefix.length) + textarea.value.substring(lineEnd === -1 ? textarea.value.length : lineEnd);
+  } else {
+    textarea.value = textarea.value.substring(0, lineStart) + commentPrefix + currentLine + textarea.value.substring(lineEnd === -1 ? textarea.value.length : lineEnd);
+  }
+  handleEditorInput(pane);
+}
+
 function updateMarkdownPreview() {
-  const content = document.getElementById('editor-text-left').value;
+  const content = document.getElementById('editor-text-left')?.value || '';
   const preview = document.getElementById('editor-preview-container');
   if (!preview) return;
 
@@ -1514,8 +2466,8 @@ function updateMarkdownPreview() {
     .replace(/\*(.*)\*/gim, '<i>$1</i>')
     .replace(/```mermaid\n([\s\S]*?)\n```/gim, '<div class="mermaid">$1</div>')
     .replace(/```([a-z]*)\n([\s\S]*?)\n```/gim, (match, lang, code) => {
-      const prismLang = Prism.languages[lang] || Prism.languages.markup;
-      const highlighted = window.Prism ? Prism.highlight(code, prismLang, lang) : escapeHtml(code);
+      const prismLang = window.Prism ? (Prism.languages[lang] || Prism.languages.markup) : null;
+      const highlighted = (window.Prism && prismLang) ? Prism.highlight(code, prismLang, lang) : escapeHtml(code);
       return `<pre class="language-${lang}"><code class="language-${lang}">${highlighted}</code></pre>`;
     })
     .replace(/\n/gim, '<br>');
@@ -1526,41 +2478,12 @@ function updateMarkdownPreview() {
     try {
       mermaid.init(undefined, document.querySelectorAll('.mermaid'));
     } catch (err) {
-      console.warn('Mermaid rendering:', err);
+      console.warn('Mermaid rendering error:', err);
     }
   }
 }
 
-async function saveEditorContent() {
-  const content = document.getElementById('editor-text-left').value;
-  if (!activeEditorPathLeft) return;
-
-  try {
-    const resp = await fetch('/api/fs/write', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
-      body: JSON.stringify({ path: activeEditorPathLeft, content, atomic: true })
-    });
-
-    if (resp.ok) {
-      const btn = document.getElementById('btn-save-editor');
-      if (btn) {
-        const origText = btn.innerHTML;
-        btn.innerHTML = '<i data-lucide="check"></i> Saved!';
-        if (window.lucide) lucide.createIcons();
-        setTimeout(() => { btn.innerHTML = origText; if (window.lucide) lucide.createIcons(); }, 1500);
-      }
-      showToast('File saved successfully!', 'success');
-      refreshPane(App.activePaneIndex);
-    } else {
-      showToast('Failed to save file: ' + await resp.text(), 'error');
-    }
-  } catch (e) {
-    showToast('Save error: ' + e, 'error');
-  }
-}
-
-// ---------------- EDITOR FIND & REPLACE ----------------
+// ---------------- ADVANCED FIND & REPLACE TOOLBAR ----------------
 
 function toggleFindBar(forceOpen) {
   const bar = document.getElementById('editor-find-bar');
@@ -1575,6 +2498,18 @@ function toggleFindBar(forceOpen) {
   }
 }
 
+function toggleFindOption(opt) {
+  findOptions[opt] = !findOptions[opt];
+  const btnMap = {
+    matchCase: 'find-opt-case',
+    matchWord: 'find-opt-word',
+    useRegex: 'find-opt-regex'
+  };
+  const btn = document.getElementById(btnMap[opt]);
+  if (btn) btn.classList.toggle('active', findOptions[opt]);
+  executeFind();
+}
+
 function handleFindKeyDown(e) {
   if (e.key === 'Enter') {
     e.preventDefault();
@@ -1582,8 +2517,6 @@ function handleFindKeyDown(e) {
     else findNextMatch();
   } else if (e.key === 'Escape') {
     toggleFindBar(false);
-  } else {
-    setTimeout(executeFind, 50);
   }
 }
 
@@ -1599,24 +2532,39 @@ function executeFind() {
   }
 
   const text = textarea.value;
-  const queryLower = query.toLowerCase();
-  const textLower = text.toLowerCase();
-  let pos = 0;
 
-  while ((pos = textLower.indexOf(queryLower, pos)) !== -1) {
-    editorFindMatches.push({ start: pos, end: pos + query.length });
-    pos += query.length;
-  }
+  try {
+    let pattern = query;
+    if (!findOptions.useRegex) {
+      pattern = pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+    if (findOptions.matchWord) {
+      pattern = `\\b${pattern}\\b`;
+    }
 
-  if (editorFindMatches.length > 0) {
-    currentMatchIndex = 0;
-    highlightCurrentMatch();
-  } else {
-    currentMatchIndex = -1;
-  }
+    const flags = findOptions.matchCase ? 'g' : 'gi';
+    const regex = new RegExp(pattern, flags);
+    let match;
 
-  if (countEl) {
-    countEl.textContent = editorFindMatches.length > 0 ? `${currentMatchIndex + 1} of ${editorFindMatches.length}` : '0 of 0';
+    while ((match = regex.exec(text)) !== null) {
+      editorFindMatches.push({ start: match.index, end: match.index + match[0].length });
+      if (match.index === regex.lastIndex) regex.lastIndex++;
+    }
+
+    if (editorFindMatches.length > 0) {
+      if (currentMatchIndex < 0 || currentMatchIndex >= editorFindMatches.length) {
+        currentMatchIndex = 0;
+      }
+      highlightCurrentMatch();
+    } else {
+      currentMatchIndex = -1;
+    }
+
+    if (countEl) {
+      countEl.textContent = editorFindMatches.length > 0 ? `${currentMatchIndex + 1} of ${editorFindMatches.length}` : '0 of 0';
+    }
+  } catch (err) {
+    if (countEl) countEl.textContent = 'Regex error';
   }
 }
 
@@ -1654,6 +2602,7 @@ function replaceCurrentMatch() {
 
   const val = textarea.value;
   textarea.value = val.substring(0, match.start) + replaceWith + val.substring(match.end);
+  handleEditorInput('left');
   executeFind();
 }
 
@@ -1663,9 +2612,23 @@ function replaceAllMatches() {
   const textarea = document.getElementById('editor-text-left');
   if (!query || !textarea) return;
 
-  const regex = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
-  textarea.value = textarea.value.replace(regex, replaceWith);
-  executeFind();
+  try {
+    let pattern = query;
+    if (!findOptions.useRegex) {
+      pattern = pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+    if (findOptions.matchWord) {
+      pattern = `\\b${pattern}\\b`;
+    }
+    const flags = findOptions.matchCase ? 'g' : 'gi';
+    const regex = new RegExp(pattern, flags);
+    textarea.value = textarea.value.replace(regex, replaceWith);
+    handleEditorInput('left');
+    executeFind();
+    showToast('Replaced all matches!', 'success');
+  } catch (err) {
+    showToast('Replace error: ' + err, 'error');
+  }
 }
 
 // ---------------- REVISED COMPARISON & DIFF ENGINE ----------------
@@ -1697,7 +2660,7 @@ async function triggerDiff(deepHash = false) {
   modalBody.innerHTML = `
     <div style="padding: 24px; text-align: center; color: var(--accent);">
       <div style="font-size: 20px; font-weight: 700; margin-bottom: 8px;">⚖️ Calculating Folder Comparison...</div>
-      <div style="font-size: 12px; color: var(--text-muted);">${paneA.path} ⟷ ${paneB.path}</div>
+      <div style="font-size: 12px; color: var(--text-muted);">${escapeHtml(sanitizeCredentials(paneA.path))} ⟷ ${escapeHtml(sanitizeCredentials(paneB.path))}</div>
       <div style="margin-top: 12px; font-size: 11px; color: var(--text-dim);">${deepHash ? 'Performing deep recursive SHA-256 integrity analysis...' : 'Comparing immediate directory entries (fast mode)...'}</div>
     </div>
   `;
@@ -1829,9 +2792,9 @@ async function openFileDiffView(fileL, fileR) {
       body.innerHTML = `
         <div style="margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; background: var(--bg-header); padding: 8px 12px; border-radius: var(--radius);">
           <div style="font-size: 12px;">
-            <span style="color: var(--accent); font-weight: 700;">Left:</span> ${escapeHtml(diffData.file_left)} 
+            <span style="color: var(--accent); font-weight: 700;">Left:</span> ${escapeHtml(sanitizeCredentials(diffData.file_left))} 
             <span style="margin: 0 8px; color: var(--text-dim);">⟷</span>
-            <span style="color: var(--accent); font-weight: 700;">Right:</span> ${escapeHtml(diffData.file_right)}
+            <span style="color: var(--accent); font-weight: 700;">Right:</span> ${escapeHtml(sanitizeCredentials(diffData.file_right))}
             <span class="badge" style="margin-left: 12px; font-size: 11px; background: rgba(245, 158, 11, 0.2); color: var(--accent); padding: 2px 6px;">
               +${diffData.additions} / -${diffData.deletions}
             </span>
@@ -2194,18 +3157,20 @@ async function openPaneFavoritesMenu(e, paneIndex) {
   ];
 
   let globalMounts = [];
+  let userBookmarks = [];
   try {
-    const resp = await fetch('/api/mounts/accessible', {
-      headers: { 'Authorization': `Bearer ${App.token}` }
-    });
-    if (resp.ok) {
-      globalMounts = await resp.json();
-    }
+    const [mountsRes, bmRes] = await Promise.all([
+      fetch('/api/mounts/accessible', { headers: { 'Authorization': `Bearer ${App.token}` } }),
+      fetch('/api/bookmarks', { headers: { 'Authorization': `Bearer ${App.token}` } })
+    ]);
+    if (mountsRes.ok) globalMounts = await mountsRes.json();
+    if (bmRes.ok) userBookmarks = await bmRes.json();
   } catch (err) {
-    console.warn('Failed to load accessible mounts for favorites:', err);
+    console.warn('Failed to load favorites/bookmarks:', err);
   }
 
   const protoIcons = {
+    'local': 'folder',
     'smb': 'share-2',
     'nfs': 'server',
     's3': 'cloud',
@@ -2214,6 +3179,8 @@ async function openPaneFavoritesMenu(e, paneIndex) {
     'hetzner-box': 'box',
     'proton': 'shield'
   };
+
+  const curPanePath = App.panes[paneIndex]?.path || '/';
 
   const popup = document.createElement('div');
   popup.id = 'pane-favorites-popup';
@@ -2224,7 +3191,24 @@ async function openPaneFavoritesMenu(e, paneIndex) {
       <span>⭐ Quick Favorites & Bookmarks</span>
       <span style="font-size: 10px; color: var(--text-dim); cursor: pointer;" onclick="openBookmarksManager()">Manage ⚙️</span>
     </div>
-    <div style="padding: 4px 0;">
+    <div style="padding: 4px 0; max-height: 380px; overflow-y: auto;">
+      ${userBookmarks.length > 0 ? `
+        <div style="padding: 4px 12px; font-size: 10px; color: var(--accent); font-weight: 700; text-transform: uppercase;">Saved Bookmarks</div>
+        ${userBookmarks.map(b => `
+          <div class="dropdown-item" onclick="navigateToBookmark('${encodeURIComponent(b.path)}', ${b.has_password}, '${b.protocol}'); document.getElementById('pane-favorites-popup')?.remove();">
+            <i data-lucide="${protoIcons[b.protocol] || 'bookmark'}" style="color: var(--accent);"></i>
+            <div>
+              <div style="font-weight: 600; display: flex; align-items: center; gap: 6px;">
+                <span>${escapeHtml(b.name)}</span>
+                <span class="badge" style="font-size: 8.5px; padding: 1px 4px; text-transform: uppercase;">${escapeHtml(b.protocol)}</span>
+              </div>
+              <div style="font-size: 10px; color: var(--text-dim); font-family: var(--font-mono);">${escapeHtml(sanitizeCredentials(b.path))}</div>
+            </div>
+          </div>
+        `).join('')}
+        <div class="context-sep" style="margin: 4px 0;"></div>
+      ` : ''}
+      
       <div style="padding: 4px 12px; font-size: 10px; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">Local Shortcuts</div>
       ${localShortcuts.map(b => `
         <div class="dropdown-item" onclick="loadPaneDirectory(${paneIndex}, '${b.path}'); document.getElementById('pane-favorites-popup')?.remove();">
@@ -2235,27 +3219,33 @@ async function openPaneFavoritesMenu(e, paneIndex) {
           </div>
         </div>
       `).join('')}
-    </div>
-    ${globalMounts.length > 0 ? `
-      <div style="border-top: 1px solid var(--border); padding: 4px 0; background: rgba(245, 158, 11, 0.03);">
+
+      ${globalMounts.length > 0 ? `
+        <div class="context-sep" style="margin: 4px 0;"></div>
         <div style="padding: 4px 12px; font-size: 10px; color: var(--accent); font-weight: 700; text-transform: uppercase; display: flex; justify-content: space-between;">
-          <span>🌐 Network & Global Mounts</span>
-          <span style="font-size: 9px; background: rgba(245, 158, 11, 0.15); padding: 1px 4px; border-radius: 3px;">ASSIGNED BY ADMIN</span>
+          <span>🌐 Network Mounts</span>
+          <span style="font-size: 9px; opacity: 0.8;">ADMIN</span>
         </div>
         ${globalMounts.map(m => `
-          <div class="dropdown-item" onclick="loadPaneDirectory(${paneIndex}, '${escapeHtml(m.target_uri)}'); document.getElementById('pane-favorites-popup')?.remove();">
+          <div class="dropdown-item" onclick="navigateToBookmark('${encodeURIComponent(m.target_uri)}', false, '${m.protocol}'); document.getElementById('pane-favorites-popup')?.remove();">
             <i data-lucide="${protoIcons[m.protocol] || 'network'}" style="color: var(--accent);"></i>
             <div>
               <div style="font-weight: 600; display: flex; align-items: center; gap: 6px;">
                 <span>${escapeHtml(m.name)}</span>
-                <span class="badge" style="font-size: 9px; padding: 1px 4px; text-transform: uppercase;">${escapeHtml(m.protocol)}</span>
+                <span class="badge" style="font-size: 8.5px; padding: 1px 4px; text-transform: uppercase;">${escapeHtml(m.protocol)}</span>
               </div>
-              <div style="font-size: 10px; color: var(--text-dim); font-family: var(--font-mono);">${escapeHtml(m.target_uri)}</div>
+              <div style="font-size: 10px; color: var(--text-dim); font-family: var(--font-mono);">${escapeHtml(sanitizeCredentials(m.target_uri))}</div>
             </div>
           </div>
         `).join('')}
+      ` : ''}
+
+      <div class="context-sep" style="margin: 4px 0;"></div>
+      <div class="dropdown-item" onclick="document.getElementById('pane-favorites-popup')?.remove(); addNewBookmark('${encodeURIComponent(curPanePath)}');" style="color: var(--accent);">
+        <i data-lucide="bookmark-plus"></i>
+        <div style="font-weight: 600;">+ Bookmark Current Folder</div>
       </div>
-    ` : ''}
+    </div>
   `;
 
   const btn = document.getElementById(`btn-favorites-${paneIndex}`);
@@ -2419,8 +3409,13 @@ function showContextMenu(x, y) {
 
   menu.style.display = 'block';
 
+  const backdrop = document.getElementById('context-menu-backdrop');
+  const actBtn = document.getElementById('mob-btn-actions');
+
   if (window.innerWidth <= 768) {
     // Mobile Bottom Sheet positioning
+    if (backdrop) backdrop.classList.add('active');
+    if (actBtn) actBtn.classList.add('active');
     menu.style.position = 'fixed';
     menu.style.left = '10px';
     menu.style.right = '10px';
@@ -2431,6 +3426,7 @@ function showContextMenu(x, y) {
     menu.style.top = 'auto';
     menu.style.borderRadius = '12px';
   } else {
+    if (backdrop) backdrop.classList.remove('active');
     menu.style.position = 'fixed';
     menu.style.left = `${Math.min(x, window.innerWidth - 240)}px`;
     menu.style.top = `${Math.min(y, window.innerHeight - 380)}px`;
@@ -2441,10 +3437,35 @@ function showContextMenu(x, y) {
   }
 }
 
+function hideContextMenu() {
+  const menu = document.getElementById('context-menu');
+  if (menu) menu.style.display = 'none';
+  const backdrop = document.getElementById('context-menu-backdrop');
+  if (backdrop) backdrop.classList.remove('active');
+  const actBtn = document.getElementById('mob-btn-actions');
+  if (actBtn) actBtn.classList.remove('active');
+}
+
 function showTouchActionsMenu(e) {
-  if (e) e.stopPropagation();
+  if (e) {
+    e.stopPropagation();
+    e.preventDefault();
+  }
+
+  const menu = document.getElementById('context-menu');
+  // ON/OFF toggle: if context menu is currently open, toggle it off
+  if (menu && menu.style.display === 'block') {
+    hideContextMenu();
+    return;
+  }
+
   const pane = App.panes[App.activePaneIndex];
-  if (!pane || pane.selected.size === 0) return;
+  if (!pane) return;
+
+  if (pane.selected.size === 0) {
+    showEmptySpaceContextMenu(window.innerWidth / 2, window.innerHeight - 100, App.activePaneIndex);
+    return;
+  }
 
   const firstPath = Array.from(pane.selected)[0];
   const entry = pane.entries.find(it => it.path === firstPath) || { path: firstPath, name: firstPath.split('/').pop() };
@@ -2486,8 +3507,32 @@ function showEmptySpaceContextMenu(x, y, paneIndex) {
   if (window.lucide) lucide.createIcons();
 
   menu.style.display = 'block';
-  menu.style.left = `${Math.min(x, window.innerWidth - 250)}px`;
-  menu.style.top = `${Math.min(y, window.innerHeight - 380)}px`;
+
+  const backdrop = document.getElementById('context-menu-backdrop');
+  const actBtn = document.getElementById('mob-btn-actions');
+
+  if (window.innerWidth <= 768) {
+    if (backdrop) backdrop.classList.add('active');
+    if (actBtn) actBtn.classList.add('active');
+    menu.style.position = 'fixed';
+    menu.style.left = '10px';
+    menu.style.right = '10px';
+    menu.style.width = 'calc(100vw - 20px)';
+    menu.style.maxHeight = '70vh';
+    menu.style.overflowY = 'auto';
+    menu.style.bottom = '56px';
+    menu.style.top = 'auto';
+    menu.style.borderRadius = '12px';
+  } else {
+    if (backdrop) backdrop.classList.remove('active');
+    menu.style.position = 'fixed';
+    menu.style.left = `${Math.min(x, window.innerWidth - 250)}px`;
+    menu.style.top = `${Math.min(y, window.innerHeight - 380)}px`;
+    menu.style.right = 'auto';
+    menu.style.bottom = 'auto';
+    menu.style.width = 'auto';
+    menu.style.maxHeight = 'none';
+  }
 }
 
 
@@ -2575,9 +3620,14 @@ function openTerminalInPath(path) {
   }
 }
 
-document.addEventListener('click', () => {
-  const menu = document.getElementById('context-menu');
-  if (menu) menu.style.display = 'none';
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('#context-menu') && !e.target.closest('#mob-btn-actions')) {
+    hideContextMenu();
+  }
+});
+
+window.addEventListener('popstate', () => {
+  hideContextMenu();
 });
 
 function getSelectedOrCursorPaths() {
@@ -2627,28 +3677,430 @@ function executeCustomDestTransfer() {
   quickTransferToPath(customDestAction, dest);
 }
 
-async function addCurrentPaneToQuickDest() {
-  const currentPath = App.panes[App.activePaneIndex].path;
-  const defaultLabel = currentPath.split('/').pop() || currentPath;
-  const name = await showPromptDialog({
-    title: 'Add Quick Destination',
-    subtitle: 'Favorites & Bookmarks',
-    message: `Enter label for directory: <code>${escapeHtml(currentPath)}</code>`,
-    defaultValue: defaultLabel,
-    placeholder: 'My Downloads, Projects, Backups...',
-    confirmText: 'Add Destination',
-    cancelText: 'Cancel'
-  });
-  if (name && name.trim()) {
-    addCustomDestination(name.trim(), currentPath);
-    showToast(`Added '${name.trim()}' to Quick Destinations`, 'success');
+// ---------------- BOOKMARKS & REMOTE AUTHENTICATION ----------------
+
+let pendingRemoteAuth = null;
+
+function promptRemoteCredentials(paneIndex, targetPath) {
+  pendingRemoteAuth = { paneIndex, targetPath };
+  const desc = document.getElementById('remote-auth-desc');
+  const userIn = document.getElementById('remote-auth-user');
+  const passIn = document.getElementById('remote-auth-pass');
+
+  const safeUri = sanitizeCredentials(targetPath);
+  if (desc) desc.textContent = `Please enter credentials for remote destination: ${safeUri}`;
+  if (userIn) userIn.value = App.user?.username || 'root';
+  if (passIn) passIn.value = '';
+
+  showModal('remote-auth-modal');
+  setTimeout(() => passIn?.focus(), 100);
+}
+
+function submitRemoteAuth() {
+  if (!pendingRemoteAuth) return;
+  const user = document.getElementById('remote-auth-user')?.value || '';
+  const pass = document.getElementById('remote-auth-pass')?.value || '';
+  const remember = document.getElementById('remote-auth-remember')?.checked;
+
+  const { paneIndex, targetPath } = pendingRemoteAuth;
+  closeModal('remote-auth-modal');
+  pendingRemoteAuth = null;
+
+  let authUri = targetPath;
+  if (targetPath.startsWith('smb://')) {
+    const clean = targetPath.slice(6);
+    const parts = clean.split('/');
+    const host = parts[0].includes('@') ? parts[0].split('@')[1] : parts[0];
+    const rest = parts.slice(1).join('/');
+    authUri = `smb://${encodeURIComponent(user)}:${encodeURIComponent(pass)}@${host}/${rest}`;
+  } else if (targetPath.startsWith('sftp://')) {
+    const clean = targetPath.slice(7);
+    const parts = clean.split('/');
+    const hostPort = parts[0].includes('@') ? parts[0].split('@')[1] : parts[0];
+    const rest = parts.slice(1).join('/');
+    authUri = `sftp://${encodeURIComponent(user)}:${encodeURIComponent(pass)}@${hostPort}/${rest}`;
+  }
+
+  if (remember) {
+    App.sessionCredentials = App.sessionCredentials || {};
+    App.sessionCredentials[targetPath] = { user, pass, authUri };
+  }
+
+  loadPaneDirectory(paneIndex, authUri);
+}
+
+function navigateToBookmark(encodedPath, hasPassword, protocol) {
+  const path = decodeURIComponent(encodedPath);
+  const paneIndex = App.activePaneIndex;
+
+  if (protocol === 'local' || protocol === 'nfs' || hasPassword || path.startsWith('/')) {
+    loadPaneDirectory(paneIndex, path);
+    return;
+  }
+
+  if (App.sessionCredentials && App.sessionCredentials[path]) {
+    loadPaneDirectory(paneIndex, App.sessionCredentials[path].authUri || path);
+    return;
+  }
+
+  promptRemoteCredentials(paneIndex, path);
+}
+
+async function loadBookmarksList() {
+  const tbody = document.getElementById('bookmarks-table-body');
+  if (!tbody) return;
+  
+  try {
+    const resp = await fetch('/api/bookmarks', {
+      headers: { 'Authorization': `Bearer ${App.token}` }
+    });
+    if (resp.ok) {
+      const list = await resp.json();
+      App.bookmarks = list;
+      
+      if (list.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="4" style="text-align: center; color: var(--text-dim); padding: 16px;">
+              No custom bookmarks saved yet. Click "+ Add Bookmark" to bookmark local folders or network shares.
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      tbody.innerHTML = list.map(b => {
+        const protoBadge = `<span class="badge" style="font-size: 10px; text-transform: uppercase;">${escapeHtml(b.protocol)}</span>`;
+        const safePath = sanitizeCredentials(b.path);
+        const passBadge = b.has_password ? `<span title="Stored with password" style="color: #22c55e; margin-left: 4px;">🔑</span>` : `<span title="Prompts on session access" style="color: var(--text-dim); margin-left: 4px;">🔒</span>`;
+        
+        return `
+          <tr>
+            <td><strong>${escapeHtml(b.name)}</strong> ${passBadge}</td>
+            <td>${protoBadge}</td>
+            <td><code>${escapeHtml(safePath)}</code></td>
+            <td>
+              <div style="display: flex; gap: 4px;">
+                <button class="btn btn-sm" onclick="navigateToBookmark('${encodeURIComponent(b.path)}', ${b.has_password}, '${b.protocol}'); closeModal('settings-modal');" title="Jump to destination">
+                  <i data-lucide="external-link" style="width: 12px; height: 12px;"></i> Jump
+                </button>
+                <button class="btn btn-sm btn-icon btn-danger" onclick="deleteBookmark(${b.id})" title="Delete Bookmark">
+                  <i data-lucide="trash-2" style="width: 12px; height: 12px;"></i>
+                </button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      if (window.lucide) lucide.createIcons();
+    }
+  } catch (e) {
+    console.error('Failed to load bookmarks:', e);
   }
 }
 
-function addCustomDestination(name, path) {
-  if (!App.quickDestinations.some(d => d.path === path)) {
-    App.quickDestinations.push({ name, path });
-    localStorage.setItem('cd_quick_destinations', JSON.stringify(App.quickDestinations));
+function addNewBookmark(prefillPath = null, prefillName = null) {
+  const modal = document.getElementById('bookmark-modal');
+  if (!modal) return;
+
+  const pathInput = document.getElementById('bm-input-path');
+  const nameInput = document.getElementById('bm-input-name');
+  const protoSelect = document.getElementById('bm-select-protocol');
+  const passInput = document.getElementById('bm-input-password');
+
+  const rawPath = prefillPath ? decodeURIComponent(prefillPath) : (App.panes[App.activePaneIndex]?.path || '/home/bolt');
+  if (pathInput) pathInput.value = sanitizeCredentials(rawPath);
+
+  let proto = 'local';
+  if (rawPath.startsWith('smb://')) proto = 'smb';
+  else if (rawPath.startsWith('sftp://')) proto = 'sftp';
+  else if (rawPath.startsWith('nfs://')) proto = 'nfs';
+  else if (rawPath.startsWith('webdav://')) proto = 'webdav';
+  else if (rawPath.startsWith('s3://')) proto = 's3';
+  else if (rawPath.startsWith('proton://')) proto = 'proton';
+
+  if (protoSelect) protoSelect.value = proto;
+
+  if (nameInput) {
+    if (prefillName) {
+      nameInput.value = prefillName;
+    } else {
+      const parts = rawPath.split('/').filter(Boolean);
+      nameInput.value = parts.pop() || (proto === 'local' ? 'Root' : `${proto.toUpperCase()} Share`);
+    }
+  }
+
+  if (passInput) passInput.value = '';
+
+  onBookmarkProtocolChange();
+  showModal('bookmark-modal');
+  setTimeout(() => nameInput?.focus(), 100);
+}
+
+function onBookmarkProtocolChange() {
+  const proto = document.getElementById('bm-select-protocol')?.value;
+  const passGroup = document.getElementById('bm-password-group');
+  const pathLabel = document.getElementById('bm-label-path');
+  const pathInput = document.getElementById('bm-input-path');
+
+  if (passGroup) {
+    passGroup.style.display = (proto === 'smb' || proto === 'sftp' || proto === 'webdav' || proto === 's3') ? 'block' : 'none';
+  }
+
+  if (pathLabel && pathInput) {
+    if (proto === 'smb') {
+      pathLabel.textContent = 'SMB Share URI:';
+      if (!pathInput.value.startsWith('smb://')) pathInput.placeholder = 'smb://192.168.1.100/share';
+    } else if (proto === 'sftp') {
+      pathLabel.textContent = 'SFTP Server URI:';
+      if (!pathInput.value.startsWith('sftp://')) pathInput.placeholder = 'sftp://user@host:22/path';
+    } else if (proto === 'nfs') {
+      pathLabel.textContent = 'NFS Export URI:';
+      if (!pathInput.value.startsWith('nfs://')) pathInput.placeholder = 'nfs://host/export_path';
+    } else if (proto === 'webdav') {
+      pathLabel.textContent = 'WebDAV URL:';
+      if (!pathInput.value.startsWith('webdav://')) pathInput.placeholder = 'webdav://host/remote.php/webdav';
+    } else if (proto === 's3') {
+      pathLabel.textContent = 'S3 Bucket URI:';
+      if (!pathInput.value.startsWith('s3://')) pathInput.placeholder = 's3://bucket-name/folder';
+    } else if (proto === 'proton') {
+      pathLabel.textContent = 'Proton Drive URI:';
+      if (!pathInput.value.startsWith('proton://')) pathInput.placeholder = 'proton:///folder';
+    } else {
+      pathLabel.textContent = 'Local Path:';
+      pathInput.placeholder = '/home/bolt/Documents';
+    }
+  }
+}
+
+async function saveBookmarkFromModal() {
+  const name = document.getElementById('bm-input-name')?.value?.trim();
+  const protocol = document.getElementById('bm-select-protocol')?.value || 'local';
+  let path = document.getElementById('bm-input-path')?.value?.trim();
+  const password = document.getElementById('bm-input-password')?.value?.trim() || null;
+
+  if (!name || !path) {
+    showToast('Please enter both bookmark name and target path', 'warning');
+    return;
+  }
+
+  try {
+    const resp = await fetch('/api/bookmarks', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${App.token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ name, protocol, path, password })
+    });
+
+    if (resp.ok) {
+      closeModal('bookmark-modal');
+      showToast(`Bookmark "${name}" saved!`, 'success');
+      loadBookmarksList();
+    } else {
+      const err = await resp.text();
+      showToast(`Failed to save bookmark: ${err}`, 'error');
+    }
+  } catch (e) {
+    showToast('Network error saving bookmark', 'error');
+  }
+}
+
+async function deleteBookmark(id) {
+  try {
+    const resp = await fetch(`/api/bookmarks/${id}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${App.token}` }
+    });
+
+    if (resp.ok) {
+      showToast('Bookmark deleted', 'info');
+      loadBookmarksList();
+    } else {
+      showToast('Failed to delete bookmark', 'error');
+    }
+  } catch (e) {
+    showToast('Error deleting bookmark', 'error');
+  }
+}
+
+async function addCurrentPaneToQuickDest() {
+  const currentPath = App.panes[App.activePaneIndex]?.path || '/';
+  addNewBookmark(encodeURIComponent(currentPath));
+}
+
+// ---------------- SESSION LOCK & INACTIVITY WATCHER ----------------
+
+let lastUserActivityTime = Date.now();
+
+function lockSession() {
+  App.isLocked = true;
+  localStorage.setItem('cd_is_locked', 'true');
+  const lockScreen = document.getElementById('session-lock-screen');
+  const userLabel = document.getElementById('lock-username-label');
+  const avatarEl = document.getElementById('lock-avatar-thumb');
+  const passIn = document.getElementById('unlock-password-input');
+  const errMsg = document.getElementById('unlock-error-msg');
+
+  if (userLabel) userLabel.textContent = App.user?.nickname || App.user?.username || 'CommanderDog User';
+  if (avatarEl) renderAvatarElement(avatarEl, App.user?.avatar_url || '👤');
+  if (passIn) passIn.value = '';
+  if (errMsg) errMsg.style.display = 'none';
+
+  if (lockScreen) {
+    lockScreen.classList.add('active');
+    lockScreen.style.display = 'flex';
+  }
+  setTimeout(() => passIn?.focus(), 150);
+}
+
+async function submitUnlockSession() {
+  const passIn = document.getElementById('unlock-password-input');
+  const errMsg = document.getElementById('unlock-error-msg');
+  const pass = passIn?.value || '';
+
+  if (!pass) return;
+
+  try {
+    const resp = await fetch('/api/auth/unlock', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${App.token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ password: pass })
+    });
+
+    if (resp.ok) {
+      App.isLocked = false;
+      localStorage.removeItem('cd_is_locked');
+      lastUserActivityTime = Date.now();
+      const lockScreen = document.getElementById('session-lock-screen');
+      if (lockScreen) {
+        lockScreen.classList.remove('active');
+        lockScreen.style.display = 'none';
+      }
+      if (passIn) passIn.value = '';
+
+      // If panes are not yet rendered (e.g. page refreshed while locked), render them now
+      const container = document.getElementById('panes-grid');
+      if (container && container.children.length === 0) {
+        renderAllPanes();
+      }
+
+      showToast('Session unlocked. Welcome back!', 'success');
+    } else {
+      if (errMsg) {
+        errMsg.textContent = 'Invalid password. Please try again.';
+        errMsg.style.display = 'block';
+      }
+      passIn?.select();
+    }
+  } catch (e) {
+    if (errMsg) {
+      errMsg.textContent = 'Connection error during unlock.';
+      errMsg.style.display = 'block';
+    }
+  }
+}
+
+function initInactivityTracker() {
+  const updateActivity = () => {
+    lastUserActivityTime = Date.now();
+  };
+
+  window.addEventListener('mousemove', updateActivity, { passive: true });
+  window.addEventListener('keydown', updateActivity, { passive: true });
+  window.addEventListener('touchstart', updateActivity, { passive: true });
+  window.addEventListener('pointerdown', updateActivity, { passive: true });
+  window.addEventListener('click', updateActivity, { passive: true });
+  window.addEventListener('scroll', updateActivity, { passive: true });
+
+  setInterval(() => {
+    if (!App.token || App.isLocked) return;
+    const settings = App.securitySettings || {
+      auto_lock_enabled: true,
+      auto_lock_minutes: 15,
+      session_timeout_hours: 8,
+      lock_prevented_by_tasks: true
+    };
+
+    const idleMinutes = (Date.now() - lastUserActivityTime) / (60 * 1000);
+    const idleHours = idleMinutes / 60;
+
+    if (settings.auto_lock_enabled && idleMinutes >= settings.auto_lock_minutes) {
+      const isTaskRunning = lastKnownTasksList && lastKnownTasksList.some(t => t.status === 'running');
+      if (isTaskRunning && settings.lock_prevented_by_tasks) {
+        return;
+      }
+      lockSession();
+    }
+
+    if (idleHours >= settings.session_timeout_hours) {
+      const isTaskRunning = lastKnownTasksList && lastKnownTasksList.some(t => t.status === 'running');
+      if (!isTaskRunning) {
+        logout();
+      }
+    }
+  }, 15000);
+}
+
+async function loadAdminSecuritySettings() {
+  try {
+    const resp = await fetch('/api/auth/security-settings', {
+      headers: { 'Authorization': `Bearer ${App.token}` }
+    });
+    if (resp.ok) {
+      const s = await resp.json();
+      App.securitySettings = s;
+      const elLock = document.getElementById('setting-autolock-enabled');
+      const elMins = document.getElementById('setting-autolock-minutes');
+      const elHours = document.getElementById('setting-session-hours');
+      const elPrevent = document.getElementById('setting-autolock-prevent-tasks');
+
+      if (elLock) elLock.checked = s.auto_lock_enabled;
+      if (elMins) elMins.value = String(s.auto_lock_minutes);
+      if (elHours) elHours.value = String(s.session_timeout_hours);
+      if (elPrevent) elPrevent.checked = s.lock_prevented_by_tasks;
+    }
+  } catch (e) {
+    console.warn('Failed to load security settings:', e);
+  }
+}
+
+async function saveAdminSecuritySettings() {
+  const auto_lock_enabled = document.getElementById('setting-autolock-enabled')?.checked ?? true;
+  const auto_lock_minutes = parseInt(document.getElementById('setting-autolock-minutes')?.value || '15', 10);
+  const session_timeout_hours = parseInt(document.getElementById('setting-session-hours')?.value || '8', 10);
+  const lock_prevented_by_tasks = document.getElementById('setting-autolock-prevent-tasks')?.checked ?? true;
+
+  const payload = {
+    auto_lock_enabled,
+    auto_lock_minutes,
+    session_timeout_hours,
+    lock_prevented_by_tasks
+  };
+
+  try {
+    const resp = await fetch('/api/auth/security-settings', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${App.token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (resp.ok) {
+      App.securitySettings = payload;
+      showToast('Security and auto-lock policies saved!', 'success');
+    } else {
+      showToast('Failed to save security settings', 'error');
+    }
+  } catch (e) {
+    showToast('Network error saving security settings', 'error');
   }
 }
 
@@ -2658,6 +4110,7 @@ function setupEventListeners() {
   document.getElementById('layout-2h')?.addEventListener('click', () => switchLayout('layout-dual-horizontal'));
   document.getElementById('layout-3')?.addEventListener('click', () => switchLayout('layout-triple'));
   document.getElementById('layout-4')?.addEventListener('click', () => switchLayout('layout-quad'));
+  updateActiveLayoutUI(App.layout);
 
   document.getElementById('paranoid-toggle')?.addEventListener('click', () => {
     App.paranoidMode = !App.paranoidMode;
@@ -2698,18 +4151,58 @@ function setupEventListeners() {
 function switchLayout(layoutName) {
   App.layout = layoutName;
   localStorage.setItem('cd_layout', layoutName);
+  updateActiveLayoutUI(layoutName);
   renderAllPanes();
+}
+
+function updateActiveLayoutUI(layoutName) {
+  const map = {
+    'layout-single': 'layout-1',
+    'layout-dual-vertical': 'layout-2v',
+    'layout-dual-horizontal': 'layout-2h',
+    'layout-triple': 'layout-3',
+    'layout-quad': 'layout-4'
+  };
+  ['layout-1', 'layout-2v', 'layout-2h', 'layout-3', 'layout-4'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.remove('active');
+  });
+  const activeId = map[layoutName] || 'layout-2v';
+  const activeEl = document.getElementById(activeId);
+  if (activeEl) activeEl.classList.add('active');
 }
 
 function updateParanoidBadge() {
   const badge = document.getElementById('paranoid-toggle');
-  if (App.paranoidMode) {
-    badge.classList.remove('disabled');
-    badge.querySelector('span').textContent = 'PARANOID MODE: ON';
-  } else {
-    badge.classList.add('disabled');
-    badge.querySelector('span').textContent = 'PARANOID MODE: OFF';
+  if (badge) {
+    if (App.paranoidMode) {
+      badge.classList.remove('disabled');
+      const span = badge.querySelector('span');
+      if (span) span.textContent = 'PARANOID MODE: ON';
+    } else {
+      badge.classList.add('disabled');
+      const span = badge.querySelector('span');
+      if (span) span.textContent = 'PARANOID MODE: OFF';
+    }
   }
+
+  const shieldBtn = document.getElementById('profile-paranoid-shield');
+  if (shieldBtn) {
+    if (App.paranoidMode) {
+      shieldBtn.classList.add('active');
+      shieldBtn.title = 'Paranoid Mode: Active (Click for Settings)';
+    } else {
+      shieldBtn.classList.remove('active');
+      shieldBtn.title = 'Paranoid Mode: Disabled (Click for Settings)';
+    }
+  }
+}
+
+function openParanoidSettings() {
+  const profileMenu = document.getElementById('profile-dropdown-menu');
+  if (profileMenu) profileMenu.classList.remove('active');
+  openSettingsModal();
+  switchSettingsTab('tab-security');
 }
 
 function applyTheme(themeId) {
@@ -2863,6 +4356,8 @@ async function handleLoginSubmit() {
     App.user = data.user;
     updateHeaderProfile(App.user);
     localStorage.setItem('cd_token', data.token);
+    localStorage.removeItem('cd_is_locked');
+    App.isLocked = false;
     hideModal('login-modal');
     if (err) err.style.display = 'none';
     if (pInput) pInput.value = '';
@@ -2970,8 +4465,16 @@ function triggerView() {
 function triggerEditor() {
   const pane = App.panes[App.activePaneIndex];
   const item = App.contextItem || pane.entries[pane.cursorIndex];
-  if (item && !item.is_dir) openEditorWithFile(item.path);
-  else showModal('editor-modal');
+  if (item) {
+    if (item.is_dir) {
+      checkAndPromptConfdDirectory(item.path);
+    } else {
+      openEditorWithFile(item.path);
+    }
+  } else {
+    if (editorTabs.length === 0) createNewEditorTab();
+    openFloatingEditor();
+  }
 }
 
 function triggerMkdir() {
@@ -3467,6 +4970,11 @@ function navPaneUp(index) {
   const pane = App.panes[index];
   if (!pane || pane.path === '/' || pane.path === '') return;
 
+  if (pane.parentPath) {
+    loadPaneDirectory(index, pane.parentPath);
+    return;
+  }
+
   if (pane.path.startsWith('archive://')) {
     const [arch, sub] = pane.path.replace('archive://', '').split('#');
     if (sub && sub.includes('/')) {
@@ -3484,14 +4992,27 @@ function navPaneUp(index) {
     return;
   }
 
+  const protoMatch = pane.path.match(/^([a-zA-Z0-9_-]+):\/\/(.*)$/);
+  if (protoMatch) {
+    const proto = protoMatch[1].toLowerCase();
+    const rest = protoMatch[2];
+    const parts = rest.split('/').filter(Boolean);
+    const minParts = proto === 'smb' ? 2 : 1;
+    if (parts.length > minParts) {
+      parts.pop();
+      loadPaneDirectory(index, `${proto}://${parts.join('/')}`);
+    }
+    return;
+  }
+
   const parts = pane.path.split('/').filter(Boolean);
   parts.pop();
   const parent = parts.length === 0 ? '/' : '/' + parts.join('/');
   loadPaneDirectory(index, parent);
 }
 
-function refreshPane(index) {
-  loadPaneDirectory(index, App.panes[index].path);
+function refreshPane(index, selectItemName = null) {
+  loadPaneDirectory(index, App.panes[index].path, false, selectItemName);
 }
 
 function enablePathInput(index) {
@@ -3499,7 +5020,7 @@ function enablePathInput(index) {
   const input = document.getElementById(`pane-input-${index}`);
   crumbs.style.display = 'none';
   input.style.display = 'block';
-  input.value = App.panes[index].path;
+  input.value = sanitizeCredentials(App.panes[index].path);
   input.focus();
 }
 
@@ -3512,7 +5033,15 @@ function disablePathInput(index) {
 
 function handlePathKey(e, index) {
   if (e.key === 'Enter') {
-    loadPaneDirectory(index, e.target.value);
+    let target = e.target.value.trim();
+    if (target.includes(':***@')) {
+      const current = App.panes[index].path;
+      const curAuthMatch = current.match(/:\/\/([^@\s/]+)@/);
+      if (curAuthMatch) {
+        target = target.replace(/:\/\/[^@\s/]+@/, `://${curAuthMatch[1]}@`);
+      }
+    }
+    loadPaneDirectory(index, target);
     disablePathInput(index);
   } else if (e.key === 'Escape') {
     disablePathInput(index);
@@ -3734,6 +5263,7 @@ function showToast(message, type = 'info', duration = 3500) {
   const container = document.getElementById('toast-container');
   if (!container) return;
 
+  const safeMsg = sanitizeCredentials(message);
   const toast = document.createElement('div');
   toast.className = `toast toast-${type}`;
   toast.style.setProperty('--toast-duration', `${duration / 1000}s`);
@@ -3745,7 +5275,7 @@ function showToast(message, type = 'info', duration = 3500) {
 
   toast.innerHTML = `
     <i data-lucide="${iconName}" style="width: 16px; height: 16px; flex-shrink: 0;"></i>
-    <span>${escapeHtml(message)}</span>
+    <span>${escapeHtml(safeMsg)}</span>
   `;
 
   container.appendChild(toast);
@@ -4537,6 +6067,7 @@ function startTasksPolling() {
   if (tasksPollTimer) clearInterval(tasksPollTimer);
   tasksPollTimer = setInterval(pollTasks, 1500);
   initTaskWindowDragResize();
+  initMobileDrawerGestures();
 }
 
 function toggleFloatingTaskManager() {
@@ -4551,24 +6082,66 @@ function toggleFloatingTaskManager() {
 function openFloatingTaskManager() {
   const win = document.getElementById('floating-task-manager');
   const pill = document.getElementById('tasks-pill');
+  const backdrop = document.getElementById('task-drawer-backdrop');
+
   if (win) {
-    win.classList.remove('minimized');
+    win.classList.remove('minimized', 'drawer-dragging');
     win.classList.add('active');
+    if (window.innerWidth <= 768) {
+      win.style.transition = 'transform 0.25s cubic-bezier(0.16, 1, 0.3, 1)';
+      win.style.transform = 'translateY(0)';
+    } else {
+      win.style.transform = '';
+      win.style.transition = '';
+    }
+  }
+  if (backdrop && window.innerWidth <= 768) {
+    backdrop.classList.add('active');
+    backdrop.style.transition = 'opacity 0.25s ease';
+    backdrop.style.opacity = '1';
   }
   if (pill) pill.classList.remove('active');
   App.taskManagerVisible = true;
   App.taskManagerMinimized = false;
 
-  const sel = document.getElementById('task-verbosity-selector');
+  const sel = document.getElementById('setting-task-verbosity');
   if (sel) sel.value = App.taskVerbosity;
   applyTaskVerbosityUI(App.taskVerbosity);
 
+  initMobileDrawerGestures();
   pollTasks();
 }
 
 function closeFloatingTaskManager() {
   const win = document.getElementById('floating-task-manager');
-  if (win) win.classList.remove('active', 'minimized');
+  const backdrop = document.getElementById('task-drawer-backdrop');
+  if (win) {
+    if (window.innerWidth <= 768) {
+      win.style.transition = 'transform 0.22s cubic-bezier(0.16, 1, 0.3, 1)';
+      win.style.transform = 'translateY(100%)';
+      if (backdrop) {
+        backdrop.style.transition = 'opacity 0.22s ease';
+        backdrop.style.opacity = '0';
+      }
+      setTimeout(() => {
+        win.classList.remove('active', 'minimized', 'maximized', 'drawer-dragging');
+        win.style.transform = '';
+        win.style.transition = '';
+        if (backdrop) {
+          backdrop.classList.remove('active');
+          backdrop.style.opacity = '';
+        }
+      }, 220);
+    } else {
+      win.classList.remove('active', 'minimized', 'maximized');
+      win.style.transform = '';
+      win.style.transition = '';
+      if (backdrop) {
+        backdrop.classList.remove('active');
+        backdrop.style.opacity = '';
+      }
+    }
+  }
   App.taskManagerVisible = false;
   App.taskManagerMinimized = false;
   updateTasksPillState(lastKnownTasksList);
@@ -4576,9 +6149,174 @@ function closeFloatingTaskManager() {
 
 function minimizeFloatingTaskManager() {
   const win = document.getElementById('floating-task-manager');
+  const backdrop = document.getElementById('task-drawer-backdrop');
   if (win) win.classList.add('minimized');
+  if (backdrop) {
+    backdrop.classList.remove('active');
+    backdrop.style.opacity = '';
+  }
   App.taskManagerMinimized = true;
   updateTasksPillState(lastKnownTasksList);
+}
+
+function initMobileDrawerGestures() {
+  const win = document.getElementById('floating-task-manager');
+  const pullBar = win?.querySelector('.drawer-pull-bar');
+  const header = document.getElementById('task-win-header');
+  const backdrop = document.getElementById('task-drawer-backdrop');
+  const peekBar = document.getElementById('mobile-task-peek-bar');
+
+  if (!win || win.dataset.drawerGesturesInit) return;
+  win.dataset.drawerGesturesInit = 'true';
+
+  // --- 1. Pull DOWN to close (when drawer is open) ---
+  let downStartX = 0, downStartY = 0, downStartTime = 0;
+  let isDraggingDown = false;
+  let currentDownDy = 0;
+
+  function onDownTouchStart(e) {
+    if (window.innerWidth > 768) return;
+    if (e.target.closest('button') || e.target.closest('select') || e.target.closest('input')) return;
+
+    downStartX = e.touches[0].clientX;
+    downStartY = e.touches[0].clientY;
+    downStartTime = Date.now();
+    isDraggingDown = false;
+    currentDownDy = 0;
+
+    window.addEventListener('touchmove', onDownTouchMove, { passive: false });
+    window.addEventListener('touchend', onDownTouchEnd, { passive: true });
+    window.addEventListener('touchcancel', onDownTouchEnd, { passive: true });
+  }
+
+  function onDownTouchMove(e) {
+    const currentX = e.touches[0].clientX;
+    const currentY = e.touches[0].clientY;
+    const dx = Math.abs(currentX - downStartX);
+    const dy = currentY - downStartY;
+
+    if (!isDraggingDown) {
+      if (dy > 15 && dy > dx * 1.1) {
+        isDraggingDown = true;
+        win.classList.add('drawer-dragging');
+        win.style.transition = 'none';
+      } else {
+        return;
+      }
+    }
+
+    currentDownDy = Math.max(0, dy);
+    win.style.transform = `translateY(${currentDownDy}px)`;
+    if (backdrop) {
+      const opacity = Math.max(0, 1 - currentDownDy / 260);
+      backdrop.style.opacity = `${opacity}`;
+    }
+    if (e.cancelable) e.preventDefault();
+  }
+
+  function onDownTouchEnd() {
+    window.removeEventListener('touchmove', onDownTouchMove);
+    window.removeEventListener('touchend', onDownTouchEnd);
+    window.removeEventListener('touchcancel', onDownTouchEnd);
+
+    if (!isDraggingDown) return;
+    isDraggingDown = false;
+    win.classList.remove('drawer-dragging');
+
+    const duration = Date.now() - downStartTime;
+    const velocity = currentDownDy / Math.max(1, duration);
+
+    if (currentDownDy > 70 || velocity > 0.4) {
+      closeFloatingTaskManager();
+    } else {
+      win.style.transition = 'transform 0.22s cubic-bezier(0.16, 1, 0.3, 1)';
+      win.style.transform = 'translateY(0)';
+      if (backdrop) {
+        backdrop.style.transition = 'opacity 0.22s ease';
+        backdrop.style.opacity = '1';
+      }
+    }
+  }
+
+  if (pullBar) pullBar.addEventListener('touchstart', onDownTouchStart, { passive: true });
+  if (header) header.addEventListener('touchstart', onDownTouchStart, { passive: true });
+
+  // --- 2. Pull UP to open (from persistent bottom peek tab) ---
+  if (peekBar) {
+    let upStartX = 0, upStartY = 0, upStartTime = 0;
+    let isDraggingUp = false;
+    let currentUpDy = 0;
+    let drawerH = 0;
+
+    peekBar.addEventListener('touchstart', (e) => {
+      if (window.innerWidth > 768) return;
+      upStartX = e.touches[0].clientX;
+      upStartY = e.touches[0].clientY;
+      upStartTime = Date.now();
+      isDraggingUp = false;
+      currentUpDy = 0;
+      drawerH = win.offsetHeight || 520;
+
+      window.addEventListener('touchmove', onUpTouchMove, { passive: false });
+      window.addEventListener('touchend', onUpTouchEnd, { passive: true });
+      window.addEventListener('touchcancel', onUpTouchEnd, { passive: true });
+    }, { passive: false });
+
+    function onUpTouchMove(e) {
+      const currentX = e.touches[0].clientX;
+      const currentY = e.touches[0].clientY;
+      const dx = Math.abs(currentX - upStartX);
+      const dy = upStartY - currentY; // positive when pulling UP
+
+      if (!isDraggingUp) {
+        if (dy > 12 && dy > dx * 1.1) {
+          isDraggingUp = true;
+          drawerH = win.offsetHeight || 520;
+          win.classList.remove('minimized');
+          win.classList.add('drawer-dragging');
+          win.style.transition = 'none';
+          win.style.transform = `translateY(${Math.max(0, drawerH - dy)}px)`;
+          if (backdrop) {
+            backdrop.classList.add('active');
+            backdrop.style.opacity = '0';
+          }
+        } else {
+          return;
+        }
+      }
+
+      currentUpDy = dy;
+      const targetTranslate = Math.max(0, drawerH - dy);
+      win.style.transform = `translateY(${targetTranslate}px)`;
+      if (backdrop) {
+        const opacity = Math.min(1, dy / (drawerH * 0.6));
+        backdrop.style.opacity = `${opacity}`;
+      }
+      if (e.cancelable) e.preventDefault();
+    }
+
+    function onUpTouchEnd(e) {
+      window.removeEventListener('touchmove', onUpTouchMove);
+      window.removeEventListener('touchend', onUpTouchEnd);
+      window.removeEventListener('touchcancel', onUpTouchEnd);
+
+      if (!isDraggingUp) {
+        return;
+      }
+
+      isDraggingUp = false;
+      win.classList.remove('drawer-dragging');
+
+      const duration = Date.now() - upStartTime;
+      const velocity = currentUpDy / Math.max(1, duration);
+
+      if (currentUpDy > 60 || velocity > 0.35) {
+        openFloatingTaskManager();
+      } else {
+        closeFloatingTaskManager();
+      }
+    }
+  }
 }
 
 function restoreFloatingTaskManager() {
@@ -4616,21 +6354,39 @@ function applyTaskVerbosityUI(mode) {
   }
 }
 
+let knownCompletedTasks = new Set();
+
 async function pollTasks() {
+  if (!App.token) return;
+
   try {
-    const resp = await fetch('/api/tasks', {
+    const res = await fetch('/api/tasks', {
       headers: { 'Authorization': `Bearer ${App.token}` }
     });
-    if (resp.ok) {
-      const list = await resp.json();
+    if (res.ok) {
+      const list = await res.json();
       lastKnownTasksList = list;
-      const running = list.filter(t => t.status === 'running');
 
-      // Auto-open on new active transfers if enabled in settings
-      if (running.length > 0 && !wasAnyRunningLastCheck && App.autoOpenTasks && !App.taskManagerMinimized) {
+      const isAnyRunning = list.some(t => t.status === 'running');
+      if (isAnyRunning && !wasAnyRunningLastCheck && App.autoOpenTasks && !App.taskManagerVisible) {
         openFloatingTaskManager();
       }
-      wasAnyRunningLastCheck = running.length > 0;
+      wasAnyRunningLastCheck = isAnyRunning;
+
+      let shouldRefreshAll = false;
+      list.forEach(t => {
+        if (t.status === 'completed' && !knownCompletedTasks.has(t.id)) {
+          knownCompletedTasks.add(t.id);
+          shouldRefreshAll = true;
+          if (t.destination) {
+            handleNewlyTransferredItem(t.destination, t.name);
+          }
+        }
+      });
+
+      if (shouldRefreshAll) {
+        refreshAllPanes();
+      }
 
       updateTasksPillState(list);
       renderFloatingTaskManager(list);
@@ -4645,6 +6401,8 @@ function updateTasksPillState(list) {
   const headerBtn = document.getElementById('btn-header-tasks');
   const headerCount = document.getElementById('header-task-count');
   const headerSpeed = document.getElementById('header-task-speed');
+  const peekBadge = document.getElementById('mobile-peek-badge');
+  const peekText = document.getElementById('mobile-peek-text');
 
   const running = list.filter(t => t.status === 'running');
   const win = document.getElementById('floating-task-manager');
@@ -4668,78 +6426,187 @@ function updateTasksPillState(list) {
     }
   }
 
-  // Update Floating Pill
+  // Update Floating Pill (Desktop)
   if (pill) {
     if (running.length > 0 && !isWinOpen) {
       pill.classList.add('active');
-      document.getElementById('tasks-pill-text').textContent = `${running.length} Job${running.length > 1 ? 's' : ''}`;
-      document.getElementById('tasks-pill-speed').textContent = speedStr || 'Processing';
+      const hasParanoid = running.some(t => t.paranoid);
+      document.getElementById('tasks-pill-text').textContent = `${hasParanoid ? '🛡️ ' : ''}${running.length} Job${running.length > 1 ? 's' : ''}`;
+      document.getElementById('tasks-pill-speed').textContent = speedStr || (hasParanoid ? 'Verifying...' : 'Processing');
     } else {
       pill.classList.remove('active');
+    }
+  }
+
+  // Update Mobile Bottom Peek Tab Badge
+  if (peekBadge && peekText) {
+    if (running.length > 0) {
+      peekBadge.style.display = 'inline-flex';
+      const hasParanoid = running.some(t => t.paranoid);
+      peekText.textContent = `${hasParanoid ? '🛡️ ' : ''}${running.length} active${speedStr ? ' • ' + speedStr : ''}`;
+    } else {
+      peekBadge.style.display = 'none';
     }
   }
 }
 
 function initTaskWindowDragResize() {
   const win = document.getElementById('floating-task-manager');
-  const handle = document.getElementById('task-win-resize-handle');
-  if (!win || !handle || handle.dataset.resizeInitialized) return;
-  handle.dataset.resizeInitialized = 'true';
+  const topHandle = document.getElementById('task-win-resize-handle');
+  const leftHandle = document.getElementById('task-win-resize-left');
+  const cornerHandle = document.getElementById('task-win-resize-corner');
+  const header = document.getElementById('task-win-header');
+  if (!win || !topHandle || topHandle.dataset.resizeInitialized) return;
+  topHandle.dataset.resizeInitialized = 'true';
 
-  // Restore saved height if any
+  // Restore saved width, height, and coordinates if any
+  const savedWidth = localStorage.getItem('cd_task_win_width');
   const savedHeight = localStorage.getItem('cd_task_win_height');
-  if (savedHeight) {
-    applyTaskWindowHeight(parseInt(savedHeight, 10));
+  const savedLeft = localStorage.getItem('cd_task_win_left');
+  const savedTop = localStorage.getItem('cd_task_win_top');
+
+  if (savedWidth) applyTaskWindowWidth(parseInt(savedWidth, 10));
+  if (savedHeight) applyTaskWindowHeight(parseInt(savedHeight, 10));
+  if (savedLeft && savedTop && window.innerWidth > 768) {
+    win.style.left = `${Math.min(window.innerWidth - 100, Math.max(0, parseInt(savedLeft, 10)))}px`;
+    win.style.top = `${Math.min(window.innerHeight - 60, Math.max(35, parseInt(savedTop, 10)))}px`;
+    win.style.right = 'auto';
+    win.style.bottom = 'auto';
   }
 
-  let startY = 0;
-  let startHeight = 0;
-  let isDragging = false;
+  // Header dragging across desktop
+  if (header) {
+    let isDraggingHeader = false;
+    let dragStartX = 0, dragStartY = 0;
+    let winStartX = 0, winStartY = 0;
 
-  function onMouseDown(e) {
-    isDragging = true;
+    header.addEventListener('mousedown', (e) => {
+      if (window.innerWidth <= 768) return;
+      if (e.target.closest('button') || e.target.closest('select') || e.target.closest('input')) return;
+      if (win.classList.contains('maximized')) return;
+      isDraggingHeader = true;
+      bringFloatingWindowToFront(win);
+      dragStartX = e.clientX;
+      dragStartY = e.clientY;
+      const rect = win.getBoundingClientRect();
+      winStartX = rect.left;
+      winStartY = rect.top;
+      document.body.style.userSelect = 'none';
+      document.body.style.cursor = 'move';
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!isDraggingHeader) return;
+      const dx = e.clientX - dragStartX;
+      const dy = e.clientY - dragStartY;
+      const newX = Math.max(0, Math.min(window.innerWidth - 100, winStartX + dx));
+      const newY = Math.max(35, Math.min(window.innerHeight - 60, winStartY + dy));
+      win.style.left = `${newX}px`;
+      win.style.top = `${newY}px`;
+      win.style.right = 'auto';
+      win.style.bottom = 'auto';
+    });
+
+    window.addEventListener('mouseup', () => {
+      if (isDraggingHeader) {
+        isDraggingHeader = false;
+        document.body.style.userSelect = '';
+        document.body.style.cursor = '';
+        if (win.style.left) localStorage.setItem('cd_task_win_left', parseInt(win.style.left, 10));
+        if (win.style.top) localStorage.setItem('cd_task_win_top', parseInt(win.style.top, 10));
+      }
+    });
+  }
+
+  let startX = 0, startY = 0;
+  let startW = 0, startH = 0;
+  let dragMode = null; // 'top', 'left', 'corner'
+
+  function onDragStart(e, mode) {
+    if (window.innerWidth <= 768) return; // Mobile drawer uses full width
+    dragMode = mode;
+    startX = e.clientX || (e.touches ? e.touches[0].clientX : 0);
     startY = e.clientY || (e.touches ? e.touches[0].clientY : 0);
-    startHeight = win.offsetHeight;
-    handle.classList.add('dragging');
-    document.body.style.userSelect = 'none';
-    document.body.style.cursor = 'ns-resize';
+    startW = win.offsetWidth;
+    startH = win.offsetHeight;
 
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', onMouseUp);
-    window.addEventListener('touchmove', onMouseMove, { passive: false });
-    window.addEventListener('touchend', onMouseUp);
+    document.body.style.userSelect = 'none';
+    if (mode === 'top') {
+      topHandle.classList.add('dragging');
+      document.body.style.cursor = 'ns-resize';
+    } else if (mode === 'left') {
+      leftHandle?.classList.add('dragging');
+      document.body.style.cursor = 'ew-resize';
+    } else if (mode === 'corner') {
+      cornerHandle?.classList.add('dragging');
+      document.body.style.cursor = 'nwse-resize';
+    }
+
+    window.addEventListener('mousemove', onDragMove);
+    window.addEventListener('mouseup', onDragEnd);
+    window.addEventListener('touchmove', onDragMove, { passive: false });
+    window.addEventListener('touchend', onDragEnd);
   }
 
-  function onMouseMove(e) {
-    if (!isDragging) return;
+  function onDragMove(e) {
+    if (!dragMode) return;
+    const clientX = e.clientX || (e.touches ? e.touches[0].clientX : 0);
     const clientY = e.clientY || (e.touches ? e.touches[0].clientY : 0);
-    const deltaY = startY - clientY; // dragging up increases height
-    const newHeight = Math.max(180, Math.min(window.innerHeight - 80, startHeight + deltaY));
-    applyTaskWindowHeight(newHeight);
+
+    if (dragMode === 'top' || dragMode === 'corner') {
+      const deltaY = startY - clientY;
+      const newH = Math.max(220, Math.min(window.innerHeight - 60, startH + deltaY));
+      applyTaskWindowHeight(newH);
+    }
+    if (dragMode === 'left' || dragMode === 'corner') {
+      const deltaX = startX - clientX;
+      const newW = Math.max(360, Math.min(window.innerWidth - 40, startW + deltaX));
+      applyTaskWindowWidth(newW);
+    }
     if (e.preventDefault && e.cancelable) e.preventDefault();
   }
 
-  function onMouseUp() {
-    if (!isDragging) return;
-    isDragging = false;
-    handle.classList.remove('dragging');
+  function onDragEnd() {
+    if (!dragMode) return;
+    dragMode = null;
+    topHandle.classList.remove('dragging');
+    leftHandle?.classList.remove('dragging');
+    cornerHandle?.classList.remove('dragging');
     document.body.style.userSelect = '';
     document.body.style.cursor = '';
+
+    localStorage.setItem('cd_task_win_width', win.offsetWidth);
     localStorage.setItem('cd_task_win_height', win.offsetHeight);
 
-    window.removeEventListener('mousemove', onMouseMove);
-    window.removeEventListener('mouseup', onMouseUp);
-    window.removeEventListener('touchmove', onMouseMove);
-    window.removeEventListener('touchend', onMouseUp);
+    window.removeEventListener('mousemove', onDragMove);
+    window.removeEventListener('mouseup', onDragEnd);
+    window.removeEventListener('touchmove', onDragMove);
+    window.removeEventListener('touchend', onDragEnd);
   }
 
-  handle.addEventListener('mousedown', onMouseDown);
-  handle.addEventListener('touchstart', onMouseDown, { passive: false });
+  topHandle.addEventListener('mousedown', (e) => onDragStart(e, 'top'));
+  topHandle.addEventListener('touchstart', (e) => onDragStart(e, 'top'), { passive: false });
+
+  if (leftHandle) {
+    leftHandle.addEventListener('mousedown', (e) => onDragStart(e, 'left'));
+    leftHandle.addEventListener('touchstart', (e) => onDragStart(e, 'left'), { passive: false });
+  }
+
+  if (cornerHandle) {
+    cornerHandle.addEventListener('mousedown', (e) => onDragStart(e, 'corner'));
+    cornerHandle.addEventListener('touchstart', (e) => onDragStart(e, 'corner'), { passive: false });
+  }
+}
+
+function applyTaskWindowWidth(w) {
+  const win = document.getElementById('floating-task-manager');
+  if (!win || window.innerWidth <= 768) return;
+  win.style.width = `${w}px`;
 }
 
 function applyTaskWindowHeight(h) {
   const win = document.getElementById('floating-task-manager');
-  if (!win) return;
+  if (!win || window.innerWidth <= 768) return;
   win.style.height = `${h}px`;
 
   const queueCont = document.getElementById('task-queue-container');
@@ -4749,6 +6616,40 @@ function applyTaskWindowHeight(h) {
   if (logCont) logCont.style.maxHeight = `${internalHeight}px`;
 }
 
+function sanitizeCredentials(str) {
+  if (!str) return '';
+  return String(str).replace(/(:\/\/[^:@\s/]+):([^@\s/]+)@/g, '$1:***@');
+}
+
+function copyTextToClipboard(text, successMsg = 'Copied to clipboard!') {
+  if (!text) return;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => {
+      showToast(successMsg, 'success');
+    }).catch(() => {
+      fallbackCopyText(text, successMsg);
+    });
+  } else {
+    fallbackCopyText(text, successMsg);
+  }
+}
+
+function fallbackCopyText(text, successMsg) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  try {
+    document.execCommand('copy');
+    showToast(successMsg, 'success');
+  } catch (e) {
+    showToast('Failed to copy', 'warning');
+  }
+  document.body.removeChild(ta);
+}
+
 function renderFloatingTaskManager(list) {
   const win = document.getElementById('floating-task-manager');
   if (!win) return;
@@ -4756,40 +6657,54 @@ function renderFloatingTaskManager(list) {
   const running = list.filter(t => t.status === 'running');
   const totalSpeed = running.reduce((acc, t) => acc + (t.speed_bytes_per_sec || 0), 0);
   const speedStr = totalSpeed > 0 ? `${formatBytes(totalSpeed)}/s` : '0 B/s';
+  const anyParanoid = list.some(t => t.paranoid) || App.paranoidMode;
 
   // 1. Header State
   const titleEl = document.getElementById('task-header-title');
   const indEl = document.getElementById('task-status-indicator');
   const speedEl = document.getElementById('task-speed-badge');
+  const paranoidBadgeEl = document.getElementById('task-paranoid-badge');
 
-  if (titleEl) titleEl.textContent = `⚡ Transfers (${running.length} active${list.length > running.length ? `, ${list.length - running.length} done` : ''})`;
+  if (titleEl) {
+    titleEl.textContent = `⚡ Transfers (${running.length} active${list.length > running.length ? `, ${list.length - running.length} done` : ''})`;
+  }
+  if (paranoidBadgeEl) {
+    paranoidBadgeEl.style.display = anyParanoid ? 'inline-block' : 'none';
+  }
   if (indEl) {
     if (running.length > 0) indEl.classList.add('active');
     else indEl.classList.remove('active');
   }
-  if (speedEl) speedEl.textContent = speedStr;
+  if (speedEl) {
+    speedEl.textContent = speedStr;
+    speedEl.style.display = totalSpeed > 0 ? 'inline-block' : 'none';
+  }
 
   // 2. Batch Summary Progress (Total files & bytes across running/all jobs)
   let totalBatchBytes = 0;
   let totalProcessedBytes = 0;
   let totalBatchFiles = 0;
   let totalProcessedFiles = 0;
+  let totalVerified = 0;
   let activeCurrentFile = null;
   let activeCurBytes = 0;
   let activeCurTotal = 0;
   let activeSpeed = 0;
+  let activeCurHash = null;
 
   list.forEach(t => {
     totalBatchBytes += t.total_bytes || 0;
     totalProcessedBytes += t.bytes_processed || 0;
     totalBatchFiles += t.total_files || 1;
     totalProcessedFiles += t.files_processed || (t.status === 'completed' ? (t.total_files || 1) : 0);
+    totalVerified += t.verified_files || 0;
 
     if (t.status === 'running' && !activeCurrentFile) {
-      activeCurrentFile = t.current_file || t.name;
+      activeCurrentFile = sanitizeCredentials(t.current_file || t.name);
       activeCurBytes = t.current_file_bytes || t.bytes_processed;
       activeCurTotal = t.current_file_total_bytes || t.total_bytes;
       activeSpeed = t.speed_bytes_per_sec || 0;
+      activeCurHash = t.last_hash;
     }
   });
 
@@ -4803,7 +6718,9 @@ function renderFloatingTaskManager(list) {
 
   if (batchFill) batchFill.style.width = `${overallPercent}%`;
   if (batchPercent) batchPercent.textContent = `${overallPercent}%`;
-  if (batchFiles) batchFiles.textContent = `${totalProcessedFiles} / ${totalBatchFiles} files`;
+  if (batchFiles) {
+    batchFiles.textContent = `${totalProcessedFiles} / ${totalBatchFiles} files${totalVerified > 0 ? ` (🛡️ ${totalVerified} SHA-256 verified)` : ''}`;
+  }
   if (batchBytes) batchBytes.textContent = `${formatBytes(totalProcessedBytes)} / ${formatBytes(totalBatchBytes)}`;
 
   if (batchEta) {
@@ -4813,7 +6730,7 @@ function renderFloatingTaskManager(list) {
       const secs = etaSec % 60;
       batchEta.textContent = `ETA: ${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
     } else if (running.length === 0) {
-      batchEta.textContent = list.length > 0 ? '✓ Completed' : 'Idle';
+      batchEta.textContent = list.length > 0 ? (totalVerified > 0 ? '✓ Verified Complete' : '✓ Completed') : 'Idle';
     } else {
       batchEta.textContent = 'ETA: calculating...';
     }
@@ -4827,7 +6744,12 @@ function renderFloatingTaskManager(list) {
   const curPercentEl = document.getElementById('task-cur-percent');
 
   if (activeCurrentFile) {
-    if (curNameEl) curNameEl.textContent = activeCurrentFile;
+    if (curNameEl) {
+      curNameEl.innerHTML = `
+        <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(activeCurrentFile)}</div>
+        ${activeCurHash ? `<div style="font-size: 9.5px; color: #a3e635; font-family: var(--font-mono); margin-top: 2px;">🔑 ${escapeHtml(activeCurHash)}</div>` : ''}
+      `;
+    }
     if (curSpeedEl) curSpeedEl.textContent = activeSpeed > 0 ? `${formatBytes(activeSpeed)}/s` : '';
     const filePct = activeCurTotal > 0 ? Math.min(100, Math.round((activeCurBytes / activeCurTotal) * 100)) : 0;
     if (curFillEl) curFillEl.style.width = `${filePct}%`;
@@ -4852,29 +6774,47 @@ function renderFloatingTaskManager(list) {
         const badgeClass = `task-badge-${t.status || 'running'}`;
         const isRunning = t.status === 'running';
         const isPaused = t.status === 'paused';
+        const safeName = sanitizeCredentials(t.name);
+        const safeSrc = sanitizeCredentials(t.source);
+        const safeDest = sanitizeCredentials(t.destination);
+        const safeErr = sanitizeCredentials(t.error_message || '');
 
         return `
           <div class="task-queue-item">
             <div class="task-queue-details">
               <div style="display: flex; justify-content: space-between; align-items: center;">
-                <span class="task-queue-name">${escapeHtml(t.name)}</span>
+                <div style="display: flex; align-items: center; gap: 6px; overflow: hidden;">
+                  <span class="task-queue-name" title="${escapeHtml(safeName)}">${escapeHtml(safeName)}</span>
+                  ${isRunning && t.speed_bytes_per_sec > 0 ? `<span style="font-size: 9.5px; font-family: var(--font-mono); color: var(--accent); font-weight: 700; background: rgba(245, 158, 11, 0.15); padding: 1px 5px; border-radius: 3px; white-space: nowrap;">⚡ ${formatBytes(t.speed_bytes_per_sec)}/s</span>` : ''}
+                  ${t.paranoid ? `<span class="task-queue-badge" style="background: rgba(34, 197, 94, 0.15); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.3); font-size: 8.5px; padding: 1px 4px; white-space: nowrap;">🛡️ SHA-256 ${t.verified_files ? `(${t.verified_files} OK)` : ''}</span>` : ''}
+                </div>
                 <span class="task-queue-badge ${badgeClass}">${escapeHtml(t.status)}</span>
               </div>
-              <div class="task-queue-sub">${escapeHtml(t.source)} ➔ ${escapeHtml(t.destination)}</div>
+              <div class="task-queue-sub" title="${escapeHtml(safeSrc)} ➔ ${escapeHtml(safeDest)}">${escapeHtml(safeSrc)} ➔ ${escapeHtml(safeDest)}</div>
+              ${t.last_hash ? `<div style="font-size: 9px; color: #a3e635; font-family: var(--font-mono); margin-top: 1px; word-break: break-all;">✓ ${escapeHtml(t.last_hash)}</div>` : ''}
               ${isRunning || isPaused ? `
                 <div style="height: 3px; background: rgba(255,255,255,0.06); border-radius: 2px; margin-top: 3px; overflow: hidden;">
                   <div style="height: 100%; width: ${pct}%; background: var(--accent);"></div>
                 </div>
               ` : ''}
+              ${safeErr ? `
+                <div class="task-queue-error-box" onclick="copyTextToClipboard(decodeURIComponent('${encodeURIComponent(safeErr)}'), 'Fault message copied to clipboard!')" title="Click to copy full fault message">
+                  <i data-lucide="alert-circle" style="width: 12px; height: 12px; flex-shrink: 0; margin-top: 2px; color: var(--danger);"></i>
+                  <span style="flex: 1; word-break: break-all; font-family: monospace;">${escapeHtml(safeErr)}</span>
+                  <span style="font-size: 9px; opacity: 0.9; text-decoration: underline; white-space: nowrap;">📋 Copy</span>
+                </div>
+              ` : ''}
             </div>
-            <div style="display: flex; gap: 4px; align-items: center;">
+            <div style="display: flex; gap: 4px; align-items: center; flex-shrink: 0;">
               ${isRunning ? `
                 <button class="btn btn-sm btn-icon" onclick="pauseTask('${t.id}')" title="Pause"><i data-lucide="pause" style="width: 11px; height: 11px;"></i></button>
                 <button class="btn btn-sm btn-icon btn-danger" onclick="cancelTask('${t.id}')" title="Cancel"><i data-lucide="x" style="width: 11px; height: 11px;"></i></button>
               ` : (isPaused ? `
                 <button class="btn btn-sm btn-icon" onclick="resumeTask('${t.id}')" title="Resume"><i data-lucide="play" style="width: 11px; height: 11px;"></i></button>
                 <button class="btn btn-sm btn-icon btn-danger" onclick="cancelTask('${t.id}')" title="Cancel"><i data-lucide="x" style="width: 11px; height: 11px;"></i></button>
-              ` : '✓')}
+              ` : (t.status === 'failed' ? `
+                <button class="btn btn-sm btn-icon btn-danger" onclick="copyTextToClipboard(decodeURIComponent('${encodeURIComponent(safeErr)}'), 'Fault message copied!')" title="Copy Fault Message"><i data-lucide="copy" style="width: 11px; height: 11px;"></i></button>
+              ` : '✓'))}
             </div>
           </div>
         `;
@@ -4888,8 +6828,8 @@ function renderFloatingTaskManager(list) {
     const allLogs = [];
     list.forEach(t => {
       if (t.log_entries && t.log_entries.length > 0) {
-        allLogs.push(`--- [Job: ${t.name}] ---`);
-        t.log_entries.forEach(l => allLogs.push(l));
+        allLogs.push(`--- [Job: ${sanitizeCredentials(t.name)}] ---`);
+        t.log_entries.forEach(l => allLogs.push(sanitizeCredentials(l)));
       }
     });
 
@@ -4956,9 +6896,8 @@ async function clearCompletedTasks() {
 
 function copyTaskLogs() {
   const consoleEl = document.getElementById('task-log-console');
-  if (consoleEl && navigator.clipboard) {
-    navigator.clipboard.writeText(consoleEl.textContent);
-    showToast('Transfer diagnostic log copied to clipboard!', 'success');
+  if (consoleEl) {
+    copyTextToClipboard(consoleEl.textContent, 'Transfer diagnostic log copied to clipboard!');
   }
 }
 
@@ -5158,7 +7097,7 @@ function loadMediaTrack(filePath, forcedType) {
   if (titleEl) titleEl.textContent = fileName;
   if (badgeEl) badgeEl.textContent = ext.toUpperCase();
   if (artistEl) artistEl.textContent = fileName.replace(/\.[^/.]+$/, '');
-  if (pathEl) pathEl.textContent = filePath;
+  if (pathEl) pathEl.textContent = sanitizeCredentials(filePath);
 
   const streamUrl = `/api/fs/download?path=${encodeURIComponent(filePath)}&inline=true`;
 
@@ -6036,6 +7975,10 @@ function refreshAllPanes() {
 
 function logout() {
   localStorage.removeItem('cd_token');
+  localStorage.removeItem('cd_is_locked');
+  App.token = '';
+  App.user = null;
+  App.isLocked = false;
   location.reload();
 }
 
@@ -6108,15 +8051,25 @@ function clearActiveSelections() {
   updateMobileBottomBar();
 }
 
-// ---------------- DYNAMIC VIEWPORT HEIGHT SYNC (FOR BOTTOM ADDRESS BARS) ----------------
+// ---------------- DYNAMIC VIEWPORT HEIGHT & BOTTOM ADDRESS BAR SYNC ----------------
 function updateDynamicViewportHeight() {
   if (window.visualViewport) {
-    document.body.style.height = `${window.visualViewport.height}px`;
+    const vh = window.visualViewport.height;
+    document.documentElement.style.setProperty('--viewport-height', `${vh}px`);
+    document.body.style.height = `${vh}px`;
+
+    // Dynamic bottom offset if browser address bar / chrome sits at bottom
+    const bottomBarOffset = Math.max(0, window.innerHeight - (window.visualViewport.height + window.visualViewport.offsetTop));
+    document.documentElement.style.setProperty('--mobile-bottom-offset', `${bottomBarOffset}px`);
+  } else {
+    document.documentElement.style.setProperty('--viewport-height', `${window.innerHeight}px`);
+    document.documentElement.style.setProperty('--mobile-bottom-offset', '0px');
   }
 }
 window.addEventListener('resize', updateDynamicViewportHeight);
 if (window.visualViewport) {
   window.visualViewport.addEventListener('resize', updateDynamicViewportHeight);
+  window.visualViewport.addEventListener('scroll', updateDynamicViewportHeight);
 }
 document.addEventListener('DOMContentLoaded', updateDynamicViewportHeight);
 

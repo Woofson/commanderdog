@@ -95,6 +95,27 @@ impl AuthManager {
             [],
         )?;
 
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS bookmarks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT NOT NULL,
+                name TEXT NOT NULL,
+                protocol TEXT NOT NULL,
+                path TEXT NOT NULL,
+                password TEXT,
+                created_at TEXT NOT NULL
+            )",
+            [],
+        )?;
+
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS security_settings (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            )",
+            [],
+        )?;
+
         // Safe migrations for newly added columns
         let _ = conn.execute("ALTER TABLE users ADD COLUMN nickname TEXT", []);
         let _ = conn.execute("ALTER TABLE users ADD COLUMN email TEXT", []);
@@ -539,6 +560,122 @@ impl AuthManager {
         conn.execute("DELETE FROM global_mounts WHERE id = ?1", params![id])?;
         Ok(())
     }
+
+    // Bookmarks Management
+    pub fn list_bookmarks(&self, username: &str) -> Result<Vec<UserBookmark>, Box<dyn std::error::Error + Send + Sync>> {
+        let conn = self.db.lock().map_err(|_| "DB lock poisoned")?;
+        let mut stmt = conn.prepare(
+            "SELECT id, username, name, protocol, path, password, created_at
+             FROM bookmarks WHERE username = ?1 OR username = '*' ORDER BY id ASC"
+        )?;
+
+        let rows = stmt.query_map(params![username], |row| {
+            let pass: Option<String> = row.get(5)?;
+            Ok(UserBookmark {
+                id: row.get(0)?,
+                username: row.get(1)?,
+                name: row.get(2)?,
+                protocol: row.get(3)?,
+                path: row.get(4)?,
+                has_password: pass.is_some() && !pass.as_ref().unwrap().is_empty(),
+                password: pass,
+                created_at: row.get(6)?,
+            })
+        })?;
+
+        let mut list = Vec::new();
+        for r in rows {
+            list.push(r?);
+        }
+        Ok(list)
+    }
+
+    pub fn create_bookmark(
+        &self,
+        username: &str,
+        name: &str,
+        protocol: &str,
+        path: &str,
+        password: Option<&str>,
+    ) -> Result<UserBookmark, Box<dyn std::error::Error + Send + Sync>> {
+        let conn = self.db.lock().map_err(|_| "DB lock poisoned")?;
+        let now = Utc::now().to_rfc3339();
+
+        conn.execute(
+            "INSERT INTO bookmarks (username, name, protocol, path, password, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![username, name, protocol, path, password, now],
+        )?;
+
+        let id = conn.last_insert_rowid();
+
+        Ok(UserBookmark {
+            id,
+            username: username.to_string(),
+            name: name.to_string(),
+            protocol: protocol.to_string(),
+            path: path.to_string(),
+            has_password: password.is_some() && !password.unwrap().is_empty(),
+            password: password.map(|s| s.to_string()),
+            created_at: now,
+        })
+    }
+
+    pub fn delete_bookmark(&self, id: i64, username: &str, is_admin: bool) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let conn = self.db.lock().map_err(|_| "DB lock poisoned")?;
+        if is_admin {
+            conn.execute("DELETE FROM bookmarks WHERE id = ?1", params![id])?;
+        } else {
+            conn.execute("DELETE FROM bookmarks WHERE id = ?1 AND username = ?2", params![id, username])?;
+        }
+        Ok(())
+    }
+
+    // Security Settings
+    pub fn get_security_settings(&self) -> Result<SecuritySettings, Box<dyn std::error::Error + Send + Sync>> {
+        let conn = self.db.lock().map_err(|_| "DB lock poisoned")?;
+        let auto_lock_enabled = conn.query_row("SELECT value FROM security_settings WHERE key = 'auto_lock_enabled'", [], |r| r.get::<_, String>(0)).unwrap_or_else(|_| "true".to_string()) == "true";
+        let auto_lock_minutes = conn.query_row("SELECT value FROM security_settings WHERE key = 'auto_lock_minutes'", [], |r| r.get::<_, String>(0)).unwrap_or_else(|_| "15".to_string()).parse::<u32>().unwrap_or(15);
+        let session_timeout_hours = conn.query_row("SELECT value FROM security_settings WHERE key = 'session_timeout_hours'", [], |r| r.get::<_, String>(0)).unwrap_or_else(|_| "8".to_string()).parse::<u32>().unwrap_or(8);
+        let lock_prevented_by_tasks = conn.query_row("SELECT value FROM security_settings WHERE key = 'lock_prevented_by_tasks'", [], |r| r.get::<_, String>(0)).unwrap_or_else(|_| "true".to_string()) == "true";
+
+        Ok(SecuritySettings {
+            auto_lock_enabled,
+            auto_lock_minutes,
+            session_timeout_hours,
+            lock_prevented_by_tasks,
+        })
+    }
+
+    pub fn update_security_settings(&self, settings: &SecuritySettings) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let conn = self.db.lock().map_err(|_| "DB lock poisoned")?;
+        conn.execute("INSERT OR REPLACE INTO security_settings (key, value) VALUES ('auto_lock_enabled', ?1)", params![settings.auto_lock_enabled.to_string()])?;
+        conn.execute("INSERT OR REPLACE INTO security_settings (key, value) VALUES ('auto_lock_minutes', ?1)", params![settings.auto_lock_minutes.to_string()])?;
+        conn.execute("INSERT OR REPLACE INTO security_settings (key, value) VALUES ('session_timeout_hours', ?1)", params![settings.session_timeout_hours.to_string()])?;
+        conn.execute("INSERT OR REPLACE INTO security_settings (key, value) VALUES ('lock_prevented_by_tasks', ?1)", params![settings.lock_prevented_by_tasks.to_string()])?;
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserBookmark {
+    pub id: i64,
+    pub username: String,
+    pub name: String,
+    pub protocol: String,
+    pub path: String,
+    pub has_password: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub password: Option<String>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SecuritySettings {
+    pub auto_lock_enabled: bool,
+    pub auto_lock_minutes: u32,
+    pub session_timeout_hours: u32,
+    pub lock_prevented_by_tasks: bool,
 }
 
 pub fn get_linux_user_info(username: &str) -> (String, String) {

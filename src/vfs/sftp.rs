@@ -158,4 +158,114 @@ impl SftpClient {
 
         Ok(buffer)
     }
+
+    pub fn parse_uri(uri: &str, default_user: Option<&str>, default_pass: Option<&str>) -> Result<SftpParams, String> {
+        let clean = uri.strip_prefix("sftp://").ok_or_else(|| "Invalid SFTP URI".to_string())?;
+        let (auth_part, host_and_path) = if let Some(at) = clean.find('@') {
+            (&clean[..at], &clean[at + 1..])
+        } else {
+            ("", clean)
+        };
+
+        let mut user = default_user.unwrap_or("root").to_string();
+        let mut password = default_pass.map(|s| s.to_string());
+
+        if !auth_part.is_empty() {
+            if let Some(colon) = auth_part.find(':') {
+                user = auth_part[..colon].to_string();
+                password = Some(auth_part[colon + 1..].to_string());
+            } else {
+                user = auth_part.to_string();
+            }
+        }
+
+        let (host_port, remote_path) = if let Some(slash) = host_and_path.find('/') {
+            (&host_and_path[..slash], &host_and_path[slash..])
+        } else {
+            (host_and_path, "/")
+        };
+
+        let (host, port) = if let Some(colon) = host_port.find(':') {
+            let h = &host_port[..colon];
+            let p = host_port[colon + 1..].parse::<u16>().unwrap_or(22);
+            (h.to_string(), p)
+        } else {
+            (host_port.to_string(), 22)
+        };
+
+        Ok(SftpParams {
+            host,
+            port,
+            user,
+            password,
+            remote_path: remote_path.to_string(),
+        })
+    }
+
+    pub fn download_to_file(params: &SftpParams, local_dest: &Path) -> Result<(), String> {
+        let sess = Self::connect(&params.host, params.port, &params.user, params.password.as_deref(), None)
+            .map_err(|e| format!("SFTP connect error: {}", e))?;
+        let sftp = sess.sftp().map_err(|e| format!("SFTP session error: {}", e))?;
+        let mut remote_file = sftp.open(Path::new(&params.remote_path))
+            .map_err(|e| format!("SFTP open error for {}: {}", params.remote_path, e))?;
+        let mut local_file = std::fs::File::create(local_dest)
+            .map_err(|e| format!("Failed to create local file {}: {}", local_dest.display(), e))?;
+        std::io::copy(&mut remote_file, &mut local_file)
+            .map_err(|e| format!("SFTP download stream error: {}", e))?;
+        Ok(())
+    }
+
+    pub fn upload_from_file(params: &SftpParams, local_src: &Path) -> Result<(), String> {
+        let sess = Self::connect(&params.host, params.port, &params.user, params.password.as_deref(), None)
+            .map_err(|e| format!("SFTP connect error: {}", e))?;
+        let sftp = sess.sftp().map_err(|e| format!("SFTP session error: {}", e))?;
+        let mut remote_file = sftp.create(Path::new(&params.remote_path))
+            .map_err(|e| format!("SFTP create remote file error for {}: {}", params.remote_path, e))?;
+        let mut local_file = std::fs::File::open(local_src)
+            .map_err(|e| format!("Failed to open local source {}: {}", local_src.display(), e))?;
+        std::io::copy(&mut local_file, &mut remote_file)
+            .map_err(|e| format!("SFTP upload stream error: {}", e))?;
+        Ok(())
+    }
+
+    pub fn mkdir(params: &SftpParams) -> Result<(), String> {
+        let sess = Self::connect(&params.host, params.port, &params.user, params.password.as_deref(), None)
+            .map_err(|e| format!("SFTP connect error: {}", e))?;
+        let sftp = sess.sftp().map_err(|e| format!("SFTP session error: {}", e))?;
+        sftp.mkdir(Path::new(&params.remote_path), 0o755)
+            .map_err(|e| format!("SFTP mkdir error: {}", e))?;
+        Ok(())
+    }
+
+    pub fn rename(params: &SftpParams, new_remote_path: &str) -> Result<(), String> {
+        let sess = Self::connect(&params.host, params.port, &params.user, params.password.as_deref(), None)
+            .map_err(|e| format!("SFTP connect error: {}", e))?;
+        let sftp = sess.sftp().map_err(|e| format!("SFTP session error: {}", e))?;
+        sftp.rename(Path::new(&params.remote_path), Path::new(new_remote_path), None)
+            .map_err(|e| format!("SFTP rename error: {}", e))?;
+        Ok(())
+    }
+
+    pub fn delete(params: &SftpParams, is_dir: bool) -> Result<(), String> {
+        let sess = Self::connect(&params.host, params.port, &params.user, params.password.as_deref(), None)
+            .map_err(|e| format!("SFTP connect error: {}", e))?;
+        let sftp = sess.sftp().map_err(|e| format!("SFTP session error: {}", e))?;
+        if is_dir {
+            sftp.rmdir(Path::new(&params.remote_path))
+                .map_err(|e| format!("SFTP rmdir error: {}", e))?;
+        } else {
+            sftp.unlink(Path::new(&params.remote_path))
+                .map_err(|e| format!("SFTP unlink error: {}", e))?;
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct SftpParams {
+    pub host: String,
+    pub port: u16,
+    pub user: String,
+    pub password: Option<String>,
+    pub remote_path: String,
 }

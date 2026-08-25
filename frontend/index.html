@@ -26,19 +26,19 @@
   <header class="app-header">
     <div class="logo-area" style="display: flex; align-items: center; gap: 8px;">
       <img src="assets/logo.png" alt="CommanderDog" style="height: 22px; width: auto; object-fit: contain; vertical-align: middle;">
-      <span>CommanderDog</span>
+      <span class="app-logo-text" style="font-weight: 700;">CommanderDog</span>
     </div>
 
     <!-- Right-Aligned Tools & Controls (Desktop & Mobile) -->
     <div class="header-actions header-actions-right">
-      <!-- 1. Refresh All Button (Most Left in Toolbar) -->
+      <!-- 1. Refresh All Button (Desktop Only) -->
       <button class="btn btn-icon desktop-only" id="btn-refresh-all" onclick="refreshAllPanes()" title="Refresh All Panels"><i data-lucide="rotate-cw"></i></button>
 
       <!-- Separator -->
       <div class="header-sep desktop-only"></div>
 
-      <!-- 2. Layout Switcher -->
-      <div class="desktop-only" style="display: flex; gap: 2px; background: var(--bg-dark); padding: 2px; border-radius: 4px; border: 1px solid var(--border);">
+      <!-- 2. Layout Switcher (Desktop Only) -->
+      <div class="layout-btn-group desktop-only">
         <button class="btn btn-icon" id="layout-1" title="Single Pane (Alt+1)"><i data-lucide="square"></i></button>
         <button class="btn btn-icon" id="layout-2v" title="Dual Vertical Split (Alt+2)"><i data-lucide="columns-2"></i></button>
         <button class="btn btn-icon" id="layout-2h" title="Dual Horizontal Split"><i data-lucide="rows-2"></i></button>
@@ -49,54 +49,80 @@
       <!-- Separator -->
       <div class="header-sep desktop-only"></div>
 
-      <!-- 3. Terminal Button -->
-      <button class="btn btn-icon" id="btn-toggle-terminal" onclick="toggleTerminal()" title="Terminal Console (\`)"><i data-lucide="terminal"></i></button>
+      <!-- 3. Terminal Button (Desktop Only) -->
+      <button class="btn btn-icon desktop-only" id="btn-toggle-terminal" onclick="toggleTerminal()" title="Terminal Console (`)">
+        <i data-lucide="terminal"></i>
+      </button>
 
-      <!-- 4. Task-List Header Button (Consistent icon + counter design) -->
+      <!-- 4. Task-List Header Button (Desktop & Mobile) -->
       <button class="btn header-task-btn" id="btn-header-tasks" onclick="toggleFloatingTaskManager()" title="Background Tasks & Transfers (Click to toggle)">
-        <i data-lucide="activity" id="header-task-icon" style="width: 14px; height: 14px;"></i>
+        <i data-lucide="activity" id="header-task-icon"></i>
         <span class="header-task-badge" id="header-task-count">0</span>
         <span class="header-task-speed" id="header-task-speed" style="display: none;">0 B/s</span>
       </button>
 
-      <!-- 5. Tools Dropdown Menu (Icon with hover text) -->
+      <!-- 5. Burger / Tools Dropdown Menu (Universal Mobile Burger & Desktop Tools) -->
       <div class="tools-dropdown-wrapper">
-        <button class="btn btn-icon" id="btn-tools-menu" onclick="toggleToolsMenu(event)" title="Tools & Utilities (Diff, Editor, Sync, Syncthing, ConvertX, Search)"><i data-lucide="wrench"></i></button>
+        <button class="btn btn-icon" id="btn-tools-menu" onclick="toggleToolsMenu(event)" title="Tools & Menu">
+          <i data-lucide="wrench" class="desktop-only"></i>
+          <i data-lucide="menu" class="mobile-only"></i>
+        </button>
         <div class="tools-dropdown-menu" id="tools-dropdown-menu">
+          <div class="dropdown-item" onclick="toggleTerminal()"><i data-lucide="terminal"></i> Terminal Console (`)</div>
+          <div class="dropdown-item" onclick="openFloatingEditor()"><i data-lucide="code"></i> Multi-Tab Power Editor (F4)</div>
           <div class="dropdown-item" onclick="triggerDiff()"><i data-lucide="git-compare"></i> Compare / Diff (F9)</div>
-          <div class="dropdown-item" onclick="showModal('editor-modal')"><i data-lucide="code"></i> Dual-Pane Editor (F4)</div>
+          <div class="dropdown-item" onclick="openSearchModal()"><i data-lucide="search"></i> Deep File Search (Ctrl+F)</div>
           <div class="dropdown-item" onclick="openSyncModal()"><i data-lucide="refresh-cw"></i> Directory Sync & Mirror</div>
           <div class="dropdown-item" onclick="openSyncthingModal()"><i data-lucide="repeat"></i> Syncthing Dashboard</div>
           <div class="dropdown-item" onclick="openConverterModal()"><i data-lucide="file-output"></i> ConvertX Converters</div>
-          <div class="dropdown-item" onclick="openSearchModal()"><i data-lucide="search"></i> Deep File Search (Ctrl+F)</div>
           <div class="dropdown-item" onclick="openFloatingTaskManager()"><i data-lucide="list-checks"></i> Background Transfers & Queue</div>
-          <div class="dropdown-sep"></div>
-          <div class="dropdown-item" onclick="toggleParanoidMode()"><i data-lucide="shield-check"></i> Paranoid Mode: <span id="tools-paranoid-badge" style="color:var(--accent); font-weight:bold; margin-left:4px;">ON</span></div>
         </div>
       </div>
 
-      <!-- 6. User Profile & Admin Menu -->
+      <!-- 5.5 Settings Button (Desktop Only) -->
+      <button class="btn btn-icon desktop-only" id="btn-header-settings" onclick="openSettingsModal()" title="Settings & Hub (F10)">
+        <i data-lucide="settings"></i>
+      </button>
+
+      <!-- 5.6 Lock Session Button (Desktop Only) -->
+      <button class="btn btn-icon desktop-only" id="btn-header-lock" onclick="lockSession()" title="Lock Session / CommanderDog (Ctrl+Alt+L)">
+        <i data-lucide="lock"></i>
+      </button>
+
+      <!-- 6. User Profile & Admin Menu (Compact Avatar on Mobile, Full on Desktop) -->
       <div class="profile-dropdown-wrapper">
-        <button class="btn profile-btn" id="btn-user-profile" onclick="toggleProfileMenu(event)">
+        <button class="btn profile-btn" id="btn-user-profile" onclick="toggleProfileMenu(event)" title="User Profile">
           <div class="profile-avatar-thumb" id="header-avatar-thumb">👤</div>
-          <span id="header-username-label">User</span>
-          <i data-lucide="chevron-down" style="width: 12px; margin-left: 2px;"></i>
+          <span class="desktop-only" id="header-username-label">User</span>
+          <i data-lucide="chevron-down" class="desktop-only" style="width: 12px; margin-left: 2px;"></i>
         </button>
         <div class="profile-dropdown-menu" id="profile-dropdown-menu">
           <div class="profile-dropdown-header">
-            <div class="profile-avatar-large" id="menu-avatar-large">👤</div>
-            <div style="overflow: hidden;">
+            <div class="profile-avatar-large profile-avatar-clickable" id="menu-avatar-large" onclick="openUserProfileModal()" title="Edit profile">👤</div>
+            <div style="overflow: hidden; flex: 1;">
               <div style="font-weight: 700; font-size: 13px;" id="menu-user-name">User</div>
               <div style="font-size: 11px; color: var(--text-dim);" id="menu-user-email">user@localhost</div>
               <span class="user-role-badge" id="menu-role-badge" style="margin-top: 4px; display: inline-block;">ADMIN</span>
             </div>
+            <button type="button" class="profile-header-shield-btn" id="profile-paranoid-shield" onclick="openParanoidSettings()" title="Paranoid Mode Settings">
+              <i data-lucide="shield-check"></i>
+            </button>
           </div>
           <div class="dropdown-item" id="menu-admin-panel-item" onclick="openAdminPanel()"><i data-lucide="shield-alert" style="color: var(--accent);"></i> Admin Control Panel</div>
-          <div class="dropdown-item" onclick="openUserProfileModal()"><i data-lucide="user"></i> Edit Profile & Account</div>
-          <div class="dropdown-item" onclick="openSettingsModal()"><i data-lucide="settings"></i> User Settings & Themes</div>
+          <div class="dropdown-item" onclick="openSettingsModal()"><i data-lucide="settings"></i> Settings</div>
           <div class="dropdown-item" onclick="openAboutModal()"><i data-lucide="info"></i> About CommanderDog</div>
-          <div class="dropdown-sep"></div>
-          <div class="dropdown-item" style="color: var(--danger);" onclick="logout()"><i data-lucide="log-out"></i> Logout</div>
+          
+          <!-- Bottom Action Buttons: Lock Session & Logout Icons -->
+          <div class="profile-dropdown-footer">
+            <button type="button" class="profile-action-btn" onclick="lockSession()" title="Lock Session (Ctrl+Alt+L)">
+              <i data-lucide="lock"></i>
+              <span>Lock</span>
+            </button>
+            <button type="button" class="profile-action-btn btn-danger-action" onclick="logout()" title="Log Out">
+              <i data-lucide="log-out"></i>
+              <span>Log Out</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -123,6 +149,17 @@
     <button class="fkey-btn" onclick="openSettingsModal()"><span class="fkey-num">F10</span> Settings</button>
   </footer>
 
+  <!-- Mobile Task Drawer Peek Pull-Handle (Swipable Bottom Bar Tab) -->
+  <div id="mobile-task-peek-bar" class="mobile-task-peek-bar" title="Swipe up to open Tasks drawer">
+    <div class="mobile-peek-pill">
+      <div class="mobile-peek-handle"></div>
+      <div id="mobile-peek-badge" class="mobile-peek-badge" style="display: none;">
+        <span class="tasks-pill-pulse"></span>
+        <span id="mobile-peek-text">0 active</span>
+      </div>
+    </div>
+  </div>
+
   <!-- Static Mobile Bottom Command Bar (Total Commander Style) -->
   <footer class="mobile-bottom-bar" id="mobile-bottom-bar">
     <button class="mob-cmd-btn" id="mob-btn-copy" onclick="triggerCopy()">
@@ -147,7 +184,10 @@
     </button>
   </footer>
 
-  <!-- Right Click Context Menu -->
+  <!-- Context Menu Backdrop (for mobile dismiss) -->
+  <div id="context-menu-backdrop" class="context-menu-backdrop" onclick="hideContextMenu()"></div>
+
+  <!-- Right Click / Touch Context Menu -->
   <div id="context-menu" class="context-menu">
     <div class="context-item" onclick="triggerView()"><i data-lucide="eye" style="width: 14px;"></i> Quick View (F3)</div>
     <div class="context-item" onclick="triggerEditor()"><i data-lucide="file-edit" style="width: 14px;"></i> Edit File (F4)</div>
@@ -297,8 +337,18 @@
               <label style="font-weight: normal;"><input type="checkbox" id="setting-remember-paths" checked> Remember last opened directories across sessions</label>
               <label style="font-weight: normal;"><input type="checkbox" id="setting-dblclick-up" checked> <b>Double-Click Navigation:</b> Double-click in empty panel space jumps up to parent directory</label>
               <label style="font-weight: normal;"><input type="checkbox" id="setting-show-parent-dir" checked> <b>Parent Directory ("..") Row:</b> Show ".." parent entry at the top of file tables</label>
-              <label style="font-weight: normal;"><input type="checkbox" id="setting-auto-open-tasks" checked> <b>Floating Transfer Window:</b> Automatically open floating transfer manager (TeraCopy style) on background jobs</label>
+              <label style="font-weight: normal;"><input type="checkbox" id="setting-auto-open-tasks" checked> <b>Floating Transfer Window:</b> Automatically open floating transfer manager on background jobs</label>
             </div>
+          </div>
+
+          <div class="form-group">
+            <label>Transfer Manager & TeraCopy Display Detail:</label>
+            <select id="setting-task-verbosity" class="pane-quick-filter" style="width: 280px;" onchange="setTaskVerbosity(this.value)">
+              <option value="detailed" selected>Detailed (TeraCopy Stream, Files & Hashes)</option>
+              <option value="compact">Compact (Overall Progress & Speed Only)</option>
+              <option value="log">Diagnostic Stream / Verbose Logs</option>
+            </select>
+            <div class="form-hint">Choose between rich per-file TeraCopy streams or minimalist overall progress.</div>
           </div>
 
           <div class="form-group">
@@ -603,36 +653,79 @@
 
         <!-- Admin Tab 4: Security & Paranoid Defaults -->
         <div class="settings-tab-content" id="admin-tab-security" style="padding: 16px;">
-          <div style="font-weight: 700; margin-bottom: 4px;">🛡️ Global File Safety & Paranoid Integrity Defaults</div>
-          <p style="color: var(--text-muted); font-size: 11px; margin-bottom: 12px;">Configure default transaction rules, cryptographic validation, and atomic filesystem policies.</p>
-          <div class="form-group">
-            <label>Paranoid File Verification:</label>
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <input type="checkbox" id="setting-paranoid-enabled" checked>
-              <span>Enable Paranoid File Handling Mode globally by default</span>
+          <div style="font-weight: 700; margin-bottom: 4px;">🛡️ Global File Safety, Paranoid Integrity & Auto-Lock</div>
+          <p style="color: var(--text-muted); font-size: 11px; margin-bottom: 12px;">Configure default transaction rules, session timeout, auto-lock on workstation inactivity, and cryptographic validation.</p>
+          
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+            <div style="background: var(--bg-dark); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px;">
+              <h4 style="color: var(--accent); margin-bottom: 10px; display:flex; align-items:center; gap:6px;"><i data-lucide="lock" style="width:16px;"></i> Session Auto-Lock & Inactivity</h4>
+              <div class="form-group">
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                  <input type="checkbox" id="setting-autolock-enabled" checked>
+                  <span style="font-weight: 600;">Enable Automatic Workstation Lock</span>
+                </label>
+                <div class="form-hint">Locks screen on idle inactivity without interrupting background transfers or closing open files.</div>
+              </div>
+              <div class="form-group">
+                <label>Auto-Lock Inactivity Timer:</label>
+                <select id="setting-autolock-minutes" class="pane-quick-filter" style="width: 100%;">
+                  <option value="5">5 Minutes Inactivity</option>
+                  <option value="10">10 Minutes Inactivity</option>
+                  <option value="15" selected>15 Minutes Inactivity (Recommended)</option>
+                  <option value="30">30 Minutes Inactivity</option>
+                  <option value="60">1 Hour Inactivity</option>
+                  <option value="120">2 Hours Inactivity</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Session Expiration / Max Token Age:</label>
+                <select id="setting-session-hours" class="pane-quick-filter" style="width: 100%;">
+                  <option value="1">1 Hour</option>
+                  <option value="4">4 Hours</option>
+                  <option value="8" selected>8 Hours (Work Day)</option>
+                  <option value="24">24 Hours</option>
+                  <option value="72">3 Days</option>
+                  <option value="168">7 Days</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                  <input type="checkbox" id="setting-autolock-prevent-tasks" checked>
+                  <span>Do not lock while background file transfers/copy tasks are running</span>
+                </label>
+              </div>
+              <button class="btn btn-accent btn-sm" onclick="saveAdminSecuritySettings()" style="margin-top: 8px;"><i data-lucide="check"></i> Save Auto-Lock Policies</button>
             </div>
-          </div>
-          <div class="form-group">
-            <label>Integrity Checksum Algorithm:</label>
-            <select id="setting-checksum-algo" class="pane-quick-filter" style="width: 220px;">
-              <option value="sha256" selected>SHA-256 (Cryptographic / Strict)</option>
-              <option value="md5">MD5 (Legacy Fast)</option>
-              <option value="sha1">SHA-1</option>
-            </select>
-            <div class="form-hint">Files transferred in Paranoid mode will have their checksum cryptographically verified upon write completion.</div>
-          </div>
-          <div class="form-group">
-            <label>Atomic File Writes:</label>
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <input type="checkbox" id="setting-atomic-writes" checked>
-              <span>Write to temporary hidden file and atomically rename upon completion</span>
-            </div>
-          </div>
-          <div class="form-group">
-            <label>Safe Trash Bin:</label>
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <input type="checkbox" id="setting-trash-enabled" checked>
-              <span>Move deleted files to XDG Trash (<code>~/.local/share/Trash</code>) instead of permanent deletion</span>
+
+            <div style="background: var(--bg-dark); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px;">
+              <h4 style="color: var(--accent); margin-bottom: 10px; display:flex; align-items:center; gap:6px;"><i data-lucide="shield-check" style="width:16px;"></i> Paranoid Mode & Integrity</h4>
+              <div class="form-group">
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                  <input type="checkbox" id="setting-paranoid-enabled" checked>
+                  <span>Enable Paranoid File Handling Mode globally by default</span>
+                </label>
+              </div>
+              <div class="form-group">
+                <label>Integrity Checksum Algorithm:</label>
+                <select id="setting-checksum-algo" class="pane-quick-filter" style="width: 100%;">
+                  <option value="sha256" selected>SHA-256 (Cryptographic / Strict)</option>
+                  <option value="md5">MD5 (Legacy Fast)</option>
+                  <option value="sha1">SHA-1</option>
+                </select>
+                <div class="form-hint">Files transferred in Paranoid mode have their checksum cryptographically verified upon write completion.</div>
+              </div>
+              <div class="form-group">
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                  <input type="checkbox" id="setting-atomic-writes" checked>
+                  <span>Atomic File Writes (via hidden temporary file rename)</span>
+                </label>
+              </div>
+              <div class="form-group">
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                  <input type="checkbox" id="setting-trash-enabled" checked>
+                  <span>Safe Trash Bin (Move deleted items to XDG Trash)</span>
+                </label>
+              </div>
             </div>
           </div>
         </div>
@@ -713,81 +806,183 @@
     </div>
   </div>
 
-  <!-- Dual-Pane Editor & Markdown Viewer Modal with Syntax Highlighting & Find/Replace -->
-  <div class="modal-overlay" id="editor-modal">
-    <div class="modal-box editor-modal-box">
+  <!-- conf.d Modular Config Assembler Prompt Modal -->
+  <div class="modal-overlay" id="confd-assembler-modal">
+    <div class="modal-box" style="width: 520px;">
       <div class="modal-header">
-        <div style="display: flex; align-items: center; gap: 10px;">
-          <span>📝 Built-in Dual-Pane Editor</span>
-          <select id="editor-view-mode" class="btn" style="padding: 2px 6px;" onchange="handleEditorViewModeChange(this.value)">
-            <option value="split-markdown">Markdown & Live Mermaid Preview</option>
-            <option value="dual-files">Dual Files Side-by-Side</option>
-            <option value="single-editor">Single File Editor</option>
-          </select>
-          <select id="editor-language-select" class="btn" style="padding: 2px 6px;" onchange="handleEditorLanguageChange(this.value)">
-            <option value="auto">Language: Auto</option>
-            <option value="rust">Rust</option>
-            <option value="python">Python</option>
-            <option value="javascript">JavaScript / TypeScript</option>
-            <option value="html">HTML / XML</option>
-            <option value="css">CSS / SCSS</option>
-            <option value="json">JSON</option>
-            <option value="yaml">YAML</option>
-            <option value="toml">TOML</option>
-            <option value="bash">Bash / Shell</option>
-            <option value="sql">SQL</option>
-            <option value="markdown">Markdown</option>
-            <option value="clike">C / C++</option>
-            <option value="docker">Dockerfile</option>
-          </select>
-        </div>
-        <div style="display: flex; gap: 8px;">
-          <button class="btn" onclick="toggleFindBar()" title="Find & Replace (Ctrl+F / Ctrl+H)"><i data-lucide="search"></i> Find / Replace</button>
-          <button class="btn btn-accent" id="btn-save-editor" onclick="saveEditorContent()"><i data-lucide="save"></i> Save (Ctrl+S)</button>
-          <button class="btn" onclick="closeModal('editor-modal')"><i data-lucide="x"></i></button>
-        </div>
+        <span>🧩 Modular Config Directory Detected</span>
+        <button class="btn" onclick="closeModal('confd-assembler-modal')"><i data-lucide="x"></i></button>
       </div>
-
-      <!-- Integrated Find & Replace Toolbar -->
-      <div class="editor-find-bar" id="editor-find-bar" style="display: none;">
-        <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
-          <div style="display: flex; align-items: center; gap: 4px;">
-            <i data-lucide="search" style="width: 14px; color: var(--accent);"></i>
-            <input type="text" id="editor-find-input" class="pane-quick-filter" placeholder="Find..." style="width: 170px; padding: 3px 6px;" onkeydown="handleFindKeyDown(event)">
-            <span id="editor-match-count" style="font-size: 11px; color: var(--text-dim); min-width: 45px;">0 of 0</span>
-            <button class="btn btn-icon" onclick="findNextMatch()" title="Next Match (Enter / F3)"><i data-lucide="chevron-down" style="width:13px;"></i></button>
-            <button class="btn btn-icon" onclick="findPrevMatch()" title="Previous Match (Shift+Enter / Shift+F3)"><i data-lucide="chevron-up" style="width:13px;"></i></button>
-          </div>
-          <div style="display: flex; align-items: center; gap: 4px;">
-            <i data-lucide="repeat" style="width: 14px; color: var(--accent);"></i>
-            <input type="text" id="editor-replace-input" class="pane-quick-filter" placeholder="Replace with..." style="width: 170px; padding: 3px 6px;">
-            <button class="btn" onclick="replaceCurrentMatch()" style="padding: 2px 8px; font-size: 11px;">Replace</button>
-            <button class="btn btn-accent" onclick="replaceAllMatches()" style="padding: 2px 8px; font-size: 11px;">All</button>
-          </div>
-          <button class="btn btn-icon" onclick="toggleFindBar(false)" style="margin-left: auto;"><i data-lucide="x" style="width:13px;"></i></button>
+      <div class="modal-body">
+        <div style="margin-bottom: 12px; font-size: 13px; line-height: 1.5;">
+          You are opening a modular configuration folder (<b id="confd-modal-dirname">conf.d</b>) containing multiple snippet files.
         </div>
-      </div>
-
-      <div class="editor-grid" id="editor-grid-container">
-        <div class="editor-pane" id="editor-left-pane">
-          <div style="background: var(--bg-header); padding: 4px 8px; font-family: var(--font-mono); font-size: 11px; border-bottom: 1px solid var(--border);" id="editor-file-title-left">
-            /path/to/file.txt
-          </div>
-          <textarea class="editor-textarea" id="editor-text-left" spellcheck="false" placeholder="Write code, text or markdown..." oninput="handleEditorInput()" onkeydown="handleEditorKeyDown(event)"></textarea>
+        <div style="background: var(--bg-dark); border: 1px solid var(--border); border-radius: 6px; padding: 10px; margin-bottom: 16px; font-family: var(--font-mono); font-size: 11px; max-height: 140px; overflow-y: auto;" id="confd-modal-filelist">
+          <!-- Files list -->
         </div>
-        <div class="editor-pane" id="editor-right-pane">
-          <div style="background: var(--bg-header); padding: 4px 8px; font-family: var(--font-mono); font-size: 11px; border-bottom: 1px solid var(--border);" id="editor-file-title-right">
-            Live Markdown & Mermaid Preview
-          </div>
-          <div class="markdown-preview-pane" id="editor-preview-container"></div>
-          <textarea class="editor-textarea" id="editor-text-right" style="display: none;" spellcheck="false"></textarea>
+        <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 16px;">
+          How would you like CommanderDog to open these configuration files?
         </div>
-      </div>
-      <div class="editor-status-bar" id="editor-status-bar">
-        <span id="editor-cursor-pos">Ln 1, Col 1</span>
-        <span id="editor-doc-stats">0 characters | UTF-8</span>
+        <div style="display: flex; gap: 8px; justify-content: flex-end;">
+          <button class="btn" onclick="executeOpenConfdSeparateTabs()"><i data-lucide="folder-tree"></i> Open as Separate Tabs</button>
+          <button class="btn btn-accent" onclick="executeOpenConfdAssembled()"><i data-lucide="layers"></i> Assemble Ordered Config View</button>
+        </div>
       </div>
     </div>
+  </div>
+
+  <!-- Floating Multi-Tab Developer Power Editor & Markdown Live Preview Window -->
+  <div class="floating-editor-window" id="floating-editor-window" style="display: none;" onclick="bringFloatingWindowToFront(this)">
+    <!-- Desktop Resize Handles -->
+    <div class="win-resize-handle win-resize-top" id="editor-resize-top"></div>
+    <div class="win-resize-handle win-resize-bottom" id="editor-resize-bottom"></div>
+    <div class="win-resize-handle win-resize-left" id="editor-resize-left"></div>
+    <div class="win-resize-handle win-resize-right" id="editor-resize-right"></div>
+    <div class="win-resize-handle win-resize-corner" id="editor-resize-corner">
+      <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M9 1L1 9M9 5L5 9M9 9H9.01" stroke="rgba(255,255,255,0.4)" stroke-width="1.5" stroke-linecap="round"/></svg>
+    </div>
+
+    <!-- 1. Top Editor Header (Draggable) -->
+    <div class="modal-header editor-header" id="editor-header">
+      <div class="editor-header-left">
+        <span class="editor-header-drag-handle" style="font-weight: 700; display: flex; align-items: center; gap: 6px; cursor: grab;">
+          <i data-lucide="code-2" style="color: var(--accent); width: 16px;"></i>
+          <span>Power Editor</span>
+        </span>
+
+        <div class="header-sep desktop-only"></div>
+
+        <!-- Split View Layout Selector -->
+        <select id="editor-view-mode" class="btn btn-sm" onchange="handleEditorViewModeChange(this.value)" title="Change Editor Layout">
+          <option value="single-editor">Single View</option>
+          <option value="dual-vertical">Dual View (Side-by-Side)</option>
+          <option value="dual-horizontal">Dual View (Stacked)</option>
+          <option value="split-markdown">Markdown & Live Mermaid</option>
+        </select>
+
+        <!-- Syntax Language Selector -->
+        <select id="editor-language-select" class="btn btn-sm" onchange="handleEditorLanguageChange(this.value)" title="Syntax Highlighting Mode">
+          <option value="auto">Language: Auto</option>
+          <option value="rust">Rust</option>
+          <option value="python">Python</option>
+          <option value="javascript">JavaScript / TypeScript</option>
+          <option value="html">HTML / XML</option>
+          <option value="css">CSS / SCSS</option>
+          <option value="json">JSON</option>
+          <option value="yaml">YAML</option>
+          <option value="toml">TOML</option>
+          <option value="bash">Bash / Shell</option>
+          <option value="sql">SQL</option>
+          <option value="markdown">Markdown</option>
+          <option value="clike">C / C++</option>
+          <option value="docker">Dockerfile</option>
+          <option value="ini">INI / Conf</option>
+        </select>
+
+        <!-- conf.d Section Quick Jump Selector (Visible for assembled configs) -->
+        <select id="editor-confd-jump" class="btn btn-sm" style="display: none; max-width: 190px;" onchange="jumpToConfdSection(this.value)" title="Jump to Config Section">
+          <option value="">Jump to Section...</option>
+        </select>
+      </div>
+
+      <div class="editor-header-right">
+        <button class="btn btn-sm" onclick="createNewEditorTab()" title="New Tab (Ctrl+N)"><i data-lucide="plus"></i> New</button>
+        <button class="btn btn-sm" onclick="toggleFindBar()" title="Find & Replace (Ctrl+F / Ctrl+H)"><i data-lucide="search"></i> Find</button>
+        <button class="btn btn-sm btn-accent" id="btn-save-editor" onclick="saveActiveEditorTab()" title="Save Current Tab (Ctrl+S)"><i data-lucide="save"></i> Save</button>
+        <button class="btn btn-sm" onclick="saveAllEditorTabs()" title="Save All Open Tabs (Ctrl+Shift+S)"><i data-lucide="save-all"></i> Save All</button>
+        <button class="btn btn-sm btn-icon" onclick="minimizeFloatingEditor()" title="Minimize to Pill"><i data-lucide="minus"></i></button>
+        <button class="btn btn-sm btn-icon" onclick="maximizeFloatingEditor()" title="Maximize / Restore Window"><i data-lucide="maximize-2"></i></button>
+        <button class="btn btn-sm btn-icon" onclick="closeEditorModal()" title="Close Editor"><i data-lucide="x"></i></button>
+      </div>
+    </div>
+
+    <!-- 2. Multi-Tab Bar Strip -->
+    <div class="editor-tab-strip" id="editor-tab-strip">
+      <div class="editor-tabs-scroll" id="editor-tabs-container">
+        <!-- Dynamically populated tab pills -->
+      </div>
+      <button class="editor-add-tab-btn" onclick="createNewEditorTab()" title="New Untitled Document (Ctrl+N)">
+        <i data-lucide="plus" style="width: 14px;"></i>
+      </button>
+    </div>
+
+    <!-- 3. Integrated Find & Replace Toolbar -->
+    <div class="editor-find-bar" id="editor-find-bar" style="display: none;">
+      <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+        <div style="display: flex; align-items: center; gap: 4px;">
+          <i data-lucide="search" style="width: 14px; color: var(--accent);"></i>
+          <input type="text" id="editor-find-input" class="pane-quick-filter" placeholder="Find..." style="width: 180px; padding: 3px 6px;" oninput="executeFind()" onkeydown="handleFindKeyDown(event)">
+          <span id="editor-match-count" style="font-size: 11px; color: var(--text-dim); min-width: 50px;">0 of 0</span>
+          <button class="btn btn-icon" onclick="findNextMatch()" title="Next Match (Enter / F3)"><i data-lucide="chevron-down" style="width:13px;"></i></button>
+          <button class="btn btn-icon" onclick="findPrevMatch()" title="Previous Match (Shift+Enter / Shift+F3)"><i data-lucide="chevron-up" style="width:13px;"></i></button>
+        </div>
+        <div style="display: flex; align-items: center; gap: 4px;">
+          <button class="btn btn-sm filter-opt-btn" id="find-opt-case" onclick="toggleFindOption('matchCase')" title="Match Case (Alt+C)">Aa</button>
+          <button class="btn btn-sm filter-opt-btn" id="find-opt-word" onclick="toggleFindOption('matchWord')" title="Match Whole Word (Alt+W)">\b</button>
+          <button class="btn btn-sm filter-opt-btn" id="find-opt-regex" onclick="toggleFindOption('useRegex')" title="Use Regular Expression (Alt+R)">.*</button>
+        </div>
+        <div style="display: flex; align-items: center; gap: 4px; margin-left: 8px;">
+          <i data-lucide="repeat" style="width: 14px; color: var(--accent);"></i>
+          <input type="text" id="editor-replace-input" class="pane-quick-filter" placeholder="Replace with..." style="width: 180px; padding: 3px 6px;">
+          <button class="btn btn-sm" onclick="replaceCurrentMatch()">Replace</button>
+          <button class="btn btn-sm btn-accent" onclick="replaceAllMatches()">Replace All</button>
+        </div>
+        <button class="btn btn-icon" onclick="toggleFindBar(false)" style="margin-left: auto;" title="Close Find Bar"><i data-lucide="x" style="width:13px;"></i></button>
+      </div>
+    </div>
+
+    <!-- 4. Main Multi-Pane Editor Grid -->
+    <div class="editor-grid single-mode" id="editor-grid-container">
+      <!-- Left / Primary Editor Pane -->
+      <div class="editor-pane" id="editor-left-pane">
+        <div class="editor-pane-header" id="editor-pane-header-left">
+          <span class="editor-pane-title" id="editor-file-title-left">Untitled-1</span>
+          <span class="editor-pane-tag" id="editor-file-tag-left">UTF-8</span>
+        </div>
+        <div class="editor-body-wrapper">
+          <div class="editor-gutter" id="editor-gutter-left">1</div>
+          <textarea class="editor-textarea" id="editor-text-left" spellcheck="false" placeholder="Write code, text or markdown..." oninput="handleEditorInput('left')" onscroll="syncGutterScroll('left')" onkeydown="handleEditorKeyDown(event, 'left')" onclick="handleEditorClick('left')" onkeyup="handleEditorClick('left')"></textarea>
+        </div>
+      </div>
+
+      <!-- Right / Secondary Editor Pane (Dual-File or Markdown Preview) -->
+      <div class="editor-pane" id="editor-right-pane" style="display: none;">
+        <div class="editor-pane-header" id="editor-pane-header-right">
+          <span class="editor-pane-title" id="editor-file-title-right">Live Markdown & Mermaid Preview</span>
+          <span class="editor-pane-tag" id="editor-file-tag-right">PREVIEW</span>
+        </div>
+        <div class="markdown-preview-pane" id="editor-preview-container"></div>
+        <div class="editor-body-wrapper" id="editor-body-wrapper-right" style="display: none;">
+          <div class="editor-gutter" id="editor-gutter-right">1</div>
+          <textarea class="editor-textarea" id="editor-text-right" spellcheck="false" placeholder="Second file content..." oninput="handleEditorInput('right')" onscroll="syncGutterScroll('right')" onkeydown="handleEditorKeyDown(event, 'right')" onclick="handleEditorClick('right')" onkeyup="handleEditorClick('right')"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5. Bottom Status Bar -->
+    <div class="editor-status-bar" id="editor-status-bar">
+      <div class="editor-status-left">
+        <span id="editor-cursor-pos">Ln 1, Col 1</span>
+        <span class="status-sep">|</span>
+        <span id="editor-doc-stats">0 lines | 0 chars | 0 words</span>
+      </div>
+      <div class="editor-status-right">
+        <span id="editor-confd-status" style="display: none; color: var(--accent); font-weight: 600;">🧩 conf.d Assembled View</span>
+        <span class="status-sep" id="editor-confd-sep" style="display: none;">|</span>
+        <span id="editor-indent-info" onclick="cycleEditorTabSize()" style="cursor: pointer;" title="Click to toggle tab width">Spaces: 2</span>
+        <span class="status-sep">|</span>
+        <span id="editor-encoding-info">UTF-8</span>
+        <span class="status-sep">|</span>
+        <span id="editor-eol-info">LF</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Minimized Editor Floating Pill -->
+  <div class="editor-pill" id="editor-pill" style="display: none;" onclick="restoreFloatingEditor()" title="Click to restore Editor (F4)">
+    <i data-lucide="code-2" style="color: var(--accent); width: 14px; height: 14px;"></i>
+    <span id="editor-pill-text">📝 Editor (1 file)</span>
+    <span class="editor-pill-dirty" id="editor-pill-dirty" style="display: none;"></span>
   </div>
 
   <!-- Diff & Comparison Modal -->
@@ -1838,27 +2033,38 @@
     </div>
   </div>
 
-  <!-- TeraCopy-Style Floating Transfer Manager Window -->
-  <div id="floating-task-manager" class="floating-task-window">
-    <!-- Drag-Resize Handle -->
-    <div class="task-win-resize-handle" id="task-win-resize-handle" title="Drag up/down to resize height">
+  <!-- Backdrop for Mobile Pull-Up Drawer -->
+  <div class="task-drawer-backdrop" id="task-drawer-backdrop" onclick="closeFloatingTaskManager()"></div>
+
+  <!-- TeraCopy-Style Floating Transfer Manager / Mobile Pull-Up Drawer -->
+  <div id="floating-task-manager" class="floating-task-window" onclick="bringFloatingWindowToFront(this)">
+    <!-- Mobile Pull Handle -->
+    <div class="drawer-pull-bar mobile-only" onclick="closeFloatingTaskManager()">
+      <div class="drawer-pull-handle"></div>
+    </div>
+
+    <!-- Desktop 2D Resize Handles -->
+    <div class="task-win-resize-handle desktop-only" id="task-win-resize-handle" title="Drag up/down to resize height">
       <div class="resize-handle-bar"></div>
     </div>
+    <div class="task-win-resize-left desktop-only" id="task-win-resize-left" title="Drag left/right to resize width"></div>
+    <div class="task-win-resize-corner desktop-only" id="task-win-resize-corner" title="Drag to resize width and height">
+      <svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M9 1L1 9M9 5L5 9M9 9H9.01" stroke="rgba(255,255,255,0.4)" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+    </div>
+
     <div class="task-win-header" id="task-win-header">
       <div class="task-win-title">
         <span class="task-status-indicator" id="task-status-indicator"></span>
         <span id="task-header-title">⚡ Transfers (0 active)</span>
+        <span id="task-paranoid-badge" style="display: none; color: #22c55e; font-size: 12px; margin-left: 2px;" title="Paranoid SHA-256 Active">🛡️</span>
         <span class="task-speed-badge" id="task-speed-badge">0 B/s</span>
       </div>
       <div class="task-win-controls">
-        <select id="task-verbosity-selector" class="task-verbosity-select" onchange="setTaskVerbosity(this.value)" title="Display Detail Level">
-          <option value="detailed">TeraCopy Detailed</option>
-          <option value="compact">Compact</option>
-          <option value="log">Diagnostic Log</option>
-        </select>
-        <button class="btn-task-control" onclick="minimizeFloatingTaskManager()" title="Minimize to Pill"><i data-lucide="minus"></i></button>
-        <button class="btn-task-control" onclick="maximizeFloatingTaskManager()" title="Expand / Restore"><i data-lucide="maximize-2"></i></button>
-        <button class="btn-task-control btn-task-close" onclick="closeFloatingTaskManager()" title="Hide Transfer Window"><i data-lucide="x"></i></button>
+        <button class="btn-task-control desktop-only" onclick="minimizeFloatingTaskManager()" title="Minimize to Pill"><i data-lucide="minus"></i></button>
+        <button class="btn-task-control desktop-only" onclick="maximizeFloatingTaskManager()" title="Expand / Restore"><i data-lucide="maximize-2"></i></button>
+        <button class="btn-task-control btn-task-close" onclick="closeFloatingTaskManager()" title="Close Transfer Window"><i data-lucide="x"></i></button>
       </div>
     </div>
 
@@ -1951,6 +2157,113 @@
       <div class="dialog-footer" id="dialog-footer">
         <button class="btn" id="dialog-btn-cancel" onclick="closeAppDialog(false)">Cancel</button>
         <button class="btn btn-accent" id="dialog-btn-confirm" onclick="closeAppDialog(true)">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Full-Screen Session Lock Overlay -->
+  <div id="session-lock-screen" class="session-lock-screen" style="display: none;">
+    <div class="lock-screen-card">
+      <div class="lock-screen-brand">
+        <div class="lock-avatar-thumb" id="lock-avatar-thumb">👤</div>
+        <div class="lock-brand-title">CommanderDog</div>
+        <div class="lock-user-label" id="lock-username-label">User</div>
+        <div class="lock-sub-text">Session is locked for your security</div>
+      </div>
+      <form id="unlock-form" onsubmit="event.preventDefault(); submitUnlockSession();">
+        <div class="lock-input-group">
+          <i data-lucide="key-round" class="lock-input-icon"></i>
+          <input type="password" id="unlock-password-input" class="lock-password-input" placeholder="Enter password to resume" required autocomplete="current-password" />
+        </div>
+        <div id="unlock-error-msg" class="lock-error-msg" style="display: none;"></div>
+        <button type="submit" class="btn btn-accent btn-block" style="width: 100%; padding: 10px; font-weight: 700; display: flex; justify-content: center; align-items: center; gap: 6px;">
+          <i data-lucide="unlock" style="width: 15px; height: 15px;"></i> Unlock Session
+        </button>
+      </form>
+      <div style="margin-top: 16px; text-align: center;">
+        <button type="button" class="btn btn-link" onclick="logout()" style="font-size: 11px; color: var(--text-dim); background: none; border: none; cursor: pointer; text-decoration: underline;">
+          <i data-lucide="log-out" style="width: 12px; height: 12px; margin-right: 4px;"></i> Switch User / Log Out
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add/Edit Bookmark Modal -->
+  <div class="modal-overlay" id="bookmark-modal" style="z-index: 2050;">
+    <div class="modal-box" style="width: 480px; max-width: calc(100vw - 32px);">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <i data-lucide="bookmark-plus" style="color: var(--accent); width: 18px; height: 18px;"></i>
+          <span style="font-weight: 700; font-size: 14px;" id="bookmark-modal-title">Add Bookmark / Quick Favorite</span>
+        </div>
+        <button class="btn btn-icon" onclick="closeModal('bookmark-modal')"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body" style="padding: 16px;">
+        <div class="form-group">
+          <label>Bookmark Name:</label>
+          <input type="text" id="bm-input-name" class="pane-quick-filter" style="width: 100%; padding: 8px;" placeholder="e.g. Office Share, Backup Drive, NAS" />
+        </div>
+        <div class="form-group">
+          <label>Protocol Type:</label>
+          <select id="bm-select-protocol" class="pane-quick-filter" style="width: 100%; padding: 8px;" onchange="onBookmarkProtocolChange()">
+            <option value="local">📁 Local Filesystem</option>
+            <option value="smb">🪟 SMB / Samba Share (smb://)</option>
+            <option value="sftp">🔒 SFTP / SSH (sftp://)</option>
+            <option value="nfs">🐧 NFS Share (nfs://)</option>
+            <option value="webdav">🌐 WebDAV (webdav://)</option>
+            <option value="s3">☁️ Amazon S3 / MinIO (s3://)</option>
+            <option value="proton">🛡️ Proton Drive (proton://)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label id="bm-label-path">Target Path / URI:</label>
+          <input type="text" id="bm-input-path" class="pane-quick-filter" style="width: 100%; padding: 8px;" placeholder="/home/user or smb://192.168.1.100/share" />
+        </div>
+        <div class="form-group" id="bm-password-group" style="display: none;">
+          <label>Remote Password (Optional):</label>
+          <input type="password" id="bm-input-password" class="pane-quick-filter" style="width: 100%; padding: 8px;" placeholder="Leave empty to prompt on access" />
+          <div style="font-size: 11px; color: var(--text-dim); margin-top: 4px;">
+            💡 If left blank, you will be prompted once per session upon accessing this destination.
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="closeModal('bookmark-modal')">Cancel</button>
+        <button class="btn btn-accent" onclick="saveBookmarkFromModal()"><i data-lucide="check"></i> Save Bookmark</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Remote Credential Prompt Modal -->
+  <div class="modal-overlay" id="remote-auth-modal" style="z-index: 2200;">
+    <div class="modal-box" style="width: 420px; max-width: calc(100vw - 32px);">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <i data-lucide="lock" style="color: var(--accent); width: 18px; height: 18px;"></i>
+          <span style="font-weight: 700; font-size: 14px;">Remote Authentication</span>
+        </div>
+        <button class="btn btn-icon" onclick="closeModal('remote-auth-modal')"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body" style="padding: 16px;">
+        <div style="font-size: 12px; margin-bottom: 12px; word-break: break-all; color: var(--text-muted);" id="remote-auth-desc">
+          Please enter credentials for remote destination:
+        </div>
+        <div class="form-group">
+          <label>Username:</label>
+          <input type="text" id="remote-auth-user" class="pane-quick-filter" style="width: 100%; padding: 8px;" placeholder="e.g. admin or root" />
+        </div>
+        <div class="form-group">
+          <label>Password:</label>
+          <input type="password" id="remote-auth-pass" class="pane-quick-filter" style="width: 100%; padding: 8px;" placeholder="Password" />
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px; margin-top: 10px;">
+          <input type="checkbox" id="remote-auth-remember" checked />
+          <label for="remote-auth-remember" style="font-size: 11px; margin-bottom: 0; cursor: pointer;">Remember for this session</label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="closeModal('remote-auth-modal')">Cancel</button>
+        <button class="btn btn-accent" onclick="submitRemoteAuth()"><i data-lucide="key"></i> Connect</button>
       </div>
     </div>
   </div>

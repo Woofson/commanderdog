@@ -16,6 +16,47 @@ pub struct SmbParams {
     pub domain: Option<String>,
 }
 
+impl SmbParams {
+    /// Builds the user credentials prefix including domain and password if present
+    pub fn auth_prefix(&self) -> String {
+        let mut prefix = String::new();
+        if let Some(ref u) = self.username {
+            if let Some(ref d) = self.domain {
+                if !d.is_empty() && d != "WORKGROUP" {
+                    prefix.push_str(d);
+                    prefix.push(';');
+                }
+            }
+            prefix.push_str(u);
+            if let Some(ref p) = self.password {
+                prefix.push(':');
+                prefix.push_str(p);
+            }
+            prefix.push('@');
+        }
+        prefix
+    }
+
+    /// Builds port suffix if non-default 445
+    pub fn port_suffix(&self) -> String {
+        if self.port != 445 && self.port > 0 {
+            format!(":{}", self.port)
+        } else {
+            "".to_string()
+        }
+    }
+
+    /// Reconstructs full SMB URI preserving credentials
+    pub fn build_uri(&self, subpath: &str) -> String {
+        let clean = subpath.trim_matches('/');
+        if clean.is_empty() {
+            format!("smb://{}{}{}/{}", self.auth_prefix(), self.host, self.port_suffix(), self.share)
+        } else {
+            format!("smb://{}{}{}/{}/{}", self.auth_prefix(), self.host, self.port_suffix(), self.share, clean)
+        }
+    }
+}
+
 impl SmbClient {
     /// Parse an smb:// URI into structured parameters
     /// Formats supported:
@@ -93,7 +134,11 @@ impl SmbClient {
         let mut args = Vec::new();
         if let Some(ref user) = params.username {
             let full_user = if let Some(ref dom) = params.domain {
-                format!("{}\\{}", dom, user)
+                if !dom.is_empty() && dom != "WORKGROUP" {
+                    format!("{}\\{}", dom, user)
+                } else {
+                    user.clone()
+                }
             } else {
                 user.clone()
             };
@@ -106,7 +151,7 @@ impl SmbClient {
             args.push("-U".to_string());
             args.push(auth_str);
         } else {
-            args.push("-N".to_string()); // Anonymous
+            args.push("-N".to_string()); // Anonymous / Guest
         }
 
         if params.port != 445 && params.port > 0 {
@@ -151,7 +196,9 @@ impl SmbClient {
 
         if !output.status.success() {
             let err_msg = String::from_utf8_lossy(&output.stderr);
-            return Err(format!("SMB list failed: {}", if err_msg.trim().is_empty() { String::from_utf8_lossy(&output.stdout).to_string() } else { err_msg.to_string() }));
+            let out_msg = String::from_utf8_lossy(&output.stdout);
+            let combined = if err_msg.trim().is_empty() { out_msg.to_string() } else { err_msg.to_string() };
+            return Err(format!("SMB list failed: {}", combined.trim()));
         }
 
         let stdout = String::from_utf8_lossy(&output.stdout);
@@ -162,88 +209,78 @@ impl SmbClient {
 
         for line in stdout.lines() {
             let trimmed = line.trim();
-            if trimmed.is_empty() || trimmed.contains("blocks of size") || trimmed.contains("blocks available") {
+            if trimmed.is_empty()
+                || trimmed.contains("blocks of size")
+                || trimmed.contains("blocks available")
+                || trimmed.starts_with("Domain=")
+                || trimmed.starts_with("OS=")
+                || trimmed.starts_with("Server=")
+                || trimmed.starts_with("smb:")
+            {
                 continue;
             }
 
-            // Example line formats:
-            //   .                                   D        0  Sun Aug 23 16:00:00 2026
-            //   ..                                  D        0  Sun Aug 23 16:00:00 2026
-            //   Folder                              D        0  Sun Aug 23 16:05:00 2026
-            //   file.txt                            A     1024  Sun Aug 23 16:10:00 2026
-            //   My File.pdf                         A  1048576  Sun Aug 23 16:10:00 2026
+            let tokens: Vec<&str> = trimmed.split_whitespace().collect();
+            if tokens.len() >= 7 {
+                let attr = tokens[tokens.len() - 7];
+                let size: u64 = tokens[tokens.len() - 6].parse().unwrap_or(0);
+                let name = tokens[..tokens.len() - 7].join(" ");
 
-            if let Some(pos_d) = trimmed.rfind("   D ") {
-                let name = trimmed[..pos_d].trim();
                 if name == "." || name == ".." {
                     continue;
                 }
-                total_dirs += 1;
+
+                let is_dir = attr.contains('D');
+
                 let full_subpath = if params.subpath.is_empty() {
-                    name.to_string()
+                    name.clone()
                 } else {
                     format!("{}/{}", params.subpath, name)
                 };
 
-                let user_prefix = params.username.as_ref().map(|u| format!("{}@", u)).unwrap_or_default();
-                let port_suffix = if params.port != 445 { format!(":{}", params.port) } else { "".to_string() };
+                let entry_path = params.build_uri(&full_subpath);
 
-                entries.push(FileEntry {
-                    name: name.to_string(),
-                    path: format!("smb://{}{}{}/{}/{}", user_prefix, params.host, port_suffix, params.share, full_subpath),
-                    is_dir: true,
-                    is_symlink: false,
-                    is_empty: None,
-                    size: 0,
-                    modified: None,
-                    permissions: "drwxr-xr-x".to_string(),
-                    mode_octal: "0755".to_string(),
-                    owner: "smb".to_string(),
-                    group: "smb".to_string(),
-                    uid: 1000,
-                    gid: 1000,
-                    mime_type: None,
-                    is_archive: false,
-                });
-            } else if let Some(pos_a) = trimmed.rfind("   A ") {
-                let name = trimmed[..pos_a].trim();
-                if name == "." || name == ".." {
-                    continue;
-                }
-                let rest = trimmed[pos_a + 5..].trim();
-                let parts: Vec<&str> = rest.split_whitespace().collect();
-                let size: u64 = parts.first().and_then(|s| s.parse().ok()).unwrap_or(0);
-
-                total_files += 1;
-                total_size += size;
-
-                let full_subpath = if params.subpath.is_empty() {
-                    name.to_string()
+                if is_dir {
+                    total_dirs += 1;
+                    entries.push(FileEntry {
+                        name: name.clone(),
+                        path: entry_path,
+                        is_dir: true,
+                        is_symlink: false,
+                        is_empty: None,
+                        size: 0,
+                        modified: None,
+                        permissions: "drwxr-xr-x".to_string(),
+                        mode_octal: "0755".to_string(),
+                        owner: "smb".to_string(),
+                        group: "smb".to_string(),
+                        uid: 1000,
+                        gid: 1000,
+                        mime_type: None,
+                        is_archive: false,
+                    });
                 } else {
-                    format!("{}/{}", params.subpath, name)
-                };
-
-                let user_prefix = params.username.as_ref().map(|u| format!("{}@", u)).unwrap_or_default();
-                let port_suffix = if params.port != 445 { format!(":{}", params.port) } else { "".to_string() };
-                let is_archive = is_archive_file(name);
-
-                entries.push(FileEntry {
-                    name: name.to_string(),
-                    path: format!("smb://{}{}{}/{}/{}", user_prefix, params.host, port_suffix, params.share, full_subpath),
-                    is_dir: false,
-                    is_symlink: false,
-                    is_empty: None,
-                    size,
-                    modified: None,
-                    permissions: "-rw-r--r--".to_string(),
-                    mode_octal: "0644".to_string(),
-                    owner: "smb".to_string(),
-                    group: "smb".to_string(),
-                    uid: 1000,
-                    gid: 1000,
-                    mime_type: Some(mime_guess::from_path(name).first_or_octet_stream().to_string()),
-                    is_archive,
-                });
+                    total_files += 1;
+                    total_size += size;
+                    let is_archive = is_archive_file(&name);
+                    entries.push(FileEntry {
+                        name: name.clone(),
+                        path: entry_path,
+                        is_dir: false,
+                        is_symlink: false,
+                        is_empty: None,
+                        size,
+                        modified: None,
+                        permissions: "-rw-r--r--".to_string(),
+                        mode_octal: "0644".to_string(),
+                        owner: "smb".to_string(),
+                        group: "smb".to_string(),
+                        uid: 1000,
+                        gid: 1000,
+                        mime_type: Some(mime_guess::from_path(&name).first_or_octet_stream().to_string()),
+                        is_archive,
+                    });
+                }
             }
         }
 
@@ -258,24 +295,13 @@ impl SmbClient {
             }
         });
 
-        let user_prefix = params.username.as_ref().map(|u| format!("{}@", u)).unwrap_or_default();
-        let port_suffix = if params.port != 445 { format!(":{}", params.port) } else { "".to_string() };
-        let current_path = if params.subpath.is_empty() {
-            format!("smb://{}{}{}/{}", user_prefix, params.host, port_suffix, params.share)
-        } else {
-            format!("smb://{}{}{}/{}/{}", user_prefix, params.host, port_suffix, params.share, params.subpath)
-        };
-
+        let current_path = params.build_uri(&params.subpath);
         let parent_path = if params.subpath.is_empty() {
             None
         } else {
             let p = std::path::Path::new(&params.subpath);
             let parent_sub = p.parent().map(|p| p.to_string_lossy().to_string()).unwrap_or_default();
-            if parent_sub.is_empty() {
-                Some(format!("smb://{}{}{}/{}", user_prefix, params.host, port_suffix, params.share))
-            } else {
-                Some(format!("smb://{}{}{}/{}/{}", user_prefix, params.host, port_suffix, params.share, parent_sub))
-            }
+            Some(params.build_uri(&parent_sub))
         };
 
         Ok(DirectoryListing {
@@ -289,8 +315,8 @@ impl SmbClient {
         })
     }
 
-    /// Read file contents from SMB share
-    pub fn read_file(params: &SmbParams) -> VfsResult<FileContentResponse> {
+    /// Read raw file bytes from SMB
+    pub fn read_bytes(params: &SmbParams) -> VfsResult<Vec<u8>> {
         if !Self::is_available() {
             return Err("Samba client utility ('smbclient') is not installed.".to_string());
         }
@@ -314,7 +340,12 @@ impl SmbClient {
             return Err(format!("SMB get failed: {}", String::from_utf8_lossy(&output.stderr)));
         }
 
-        let bytes = fs::read(&tmp_path).map_err(|e| format!("Read temp file error: {}", e))?;
+        fs::read(&tmp_path).map_err(|e| format!("Read temp file error: {}", e))
+    }
+
+    /// Read file contents from SMB share (with base64 binary support)
+    pub fn read_file(params: &SmbParams) -> VfsResult<FileContentResponse> {
+        let bytes = Self::read_bytes(params)?;
         let file_name = params.subpath.rsplit('/').next().unwrap_or(&params.subpath).to_string();
         let mime = mime_guess::from_path(&file_name).first_or_octet_stream().to_string();
         let is_binary = bytes.iter().take(1024).any(|&b| b == 0);
@@ -326,13 +357,79 @@ impl SmbClient {
         };
 
         Ok(FileContentResponse {
-            path: format!("smb://{}/{}/{}", params.host, params.share, params.subpath),
+            path: params.build_uri(&params.subpath),
             name: file_name,
             content,
             is_binary,
             size: bytes.len() as u64,
             mime_type: mime,
         })
+    }
+
+    /// Download file directly from SMB to local path
+    pub fn download_to_file(params: &SmbParams, local_dest: &std::path::Path) -> VfsResult<()> {
+        if !Self::is_available() {
+            return Err("Samba client utility ('smbclient') is not installed.".to_string());
+        }
+
+        if let Some(parent) = local_dest.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
+
+        let share_target = format!("//{}/{}", params.host, params.share);
+        let win_path = params.subpath.replace('/', "\\");
+        let dest_str = local_dest.to_string_lossy();
+        let smb_cmd = format!("get \"{}\" \"{}\"", win_path, dest_str);
+
+        let mut cmd = Command::new("smbclient");
+        cmd.arg(&share_target);
+        for a in Self::build_auth_arg(params) {
+            cmd.arg(a);
+        }
+        cmd.arg("-c").arg(&smb_cmd);
+
+        let output = cmd.output().map_err(|e| format!("Failed to download SMB file: {}", e))?;
+        if !output.status.success() {
+            let err = String::from_utf8_lossy(&output.stderr);
+            let out = String::from_utf8_lossy(&output.stdout);
+            let msg = if err.trim().is_empty() { out.to_string() } else { err.to_string() };
+            return Err(format!("SMB get failed: {}", msg.trim()));
+        }
+
+        Ok(())
+    }
+
+    /// Upload file directly from local path to SMB share
+    pub fn upload_from_file(params: &SmbParams, local_src: &std::path::Path) -> VfsResult<()> {
+        if !Self::is_available() {
+            return Err("Samba client utility ('smbclient') is not installed.".to_string());
+        }
+
+        if !local_src.exists() {
+            return Err(format!("Local source file does not exist: {}", local_src.display()));
+        }
+
+        let share_target = format!("//{}/{}", params.host, params.share);
+        let win_path = params.subpath.replace('/', "\\");
+        let src_str = local_src.to_string_lossy();
+        let smb_cmd = format!("put \"{}\" \"{}\"", src_str, win_path);
+
+        let mut cmd = Command::new("smbclient");
+        cmd.arg(&share_target);
+        for a in Self::build_auth_arg(params) {
+            cmd.arg(a);
+        }
+        cmd.arg("-c").arg(&smb_cmd);
+
+        let output = cmd.output().map_err(|e| format!("Failed to upload SMB file: {}", e))?;
+        if !output.status.success() {
+            let err = String::from_utf8_lossy(&output.stderr);
+            let out = String::from_utf8_lossy(&output.stdout);
+            let msg = if err.trim().is_empty() { out.to_string() } else { err.to_string() };
+            return Err(format!("SMB put failed: {}", msg.trim()));
+        }
+
+        Ok(())
     }
 
     /// Write file contents to SMB share
@@ -364,6 +461,102 @@ impl SmbClient {
         Ok(())
     }
 
+    /// Create directory in SMB share
+    pub fn mkdir(params: &SmbParams) -> VfsResult<()> {
+        if !Self::is_available() {
+            return Err("Samba client utility ('smbclient') is not installed.".to_string());
+        }
+
+        let share_target = format!("//{}/{}", params.host, params.share);
+        let win_path = params.subpath.replace('/', "\\");
+        let smb_cmd = format!("mkdir \"{}\"", win_path);
+
+        let mut cmd = Command::new("smbclient");
+        cmd.arg(&share_target);
+        for a in Self::build_auth_arg(params) {
+            cmd.arg(a);
+        }
+        cmd.arg("-c").arg(&smb_cmd);
+
+        let output = cmd.output().map_err(|e| format!("Failed to create SMB directory: {}", e))?;
+        if !output.status.success() {
+            return Err(format!("SMB mkdir failed: {}", String::from_utf8_lossy(&output.stderr)));
+        }
+
+        Ok(())
+    }
+
+    /// Delete file or directory in SMB share
+    pub fn delete(params: &SmbParams, is_dir: bool) -> VfsResult<()> {
+        if !Self::is_available() {
+            return Err("Samba client utility ('smbclient') is not installed.".to_string());
+        }
+
+        let share_target = format!("//{}/{}", params.host, params.share);
+        let win_path = params.subpath.replace('/', "\\");
+        
+        let smb_cmd = if is_dir {
+            format!("deltree \"{}\"", win_path)
+        } else {
+            format!("del \"{}\"", win_path)
+        };
+
+        let mut cmd = Command::new("smbclient");
+        cmd.arg(&share_target);
+        for a in Self::build_auth_arg(params) {
+            cmd.arg(a);
+        }
+        cmd.arg("-c").arg(&smb_cmd);
+
+        let output = cmd.output().map_err(|e| format!("Failed to delete SMB entry: {}", e))?;
+        if !output.status.success() {
+            // If del failed and we assumed file, try deltree
+            if !is_dir {
+                let rmdir_cmd = format!("deltree \"{}\"", win_path);
+                let mut retry = Command::new("smbclient");
+                retry.arg(&share_target);
+                for a in Self::build_auth_arg(params) {
+                    retry.arg(a);
+                }
+                retry.arg("-c").arg(&rmdir_cmd);
+                if let Ok(out) = retry.output() {
+                    if out.status.success() {
+                        return Ok(());
+                    }
+                }
+            }
+            return Err(format!("SMB delete failed: {}", String::from_utf8_lossy(&output.stderr)));
+        }
+
+        Ok(())
+    }
+
+    /// Rename file or directory in SMB share
+    pub fn rename(params: &SmbParams, new_subpath: &str) -> VfsResult<()> {
+        if !Self::is_available() {
+            return Err("Samba client utility ('smbclient') is not installed.".to_string());
+        }
+
+        let share_target = format!("//{}/{}", params.host, params.share);
+        let old_win_path = params.subpath.replace('/', "\\");
+        let new_win_path = new_subpath.replace('/', "\\");
+        let smb_cmd = format!("rename \"{}\" \"{}\"", old_win_path, new_win_path);
+
+        let mut cmd = Command::new("smbclient");
+        cmd.arg(&share_target);
+        for a in Self::build_auth_arg(params) {
+            cmd.arg(a);
+        }
+        cmd.arg("-c").arg(&smb_cmd);
+
+        let output = cmd.output().map_err(|e| format!("Failed to rename SMB entry: {}", e))?;
+        if !output.status.success() {
+            return Err(format!("SMB rename failed: {}", String::from_utf8_lossy(&output.stderr)));
+        }
+
+        Ok(())
+    }
+
     /// Test SMB connection
     pub fn test_connection(params: &SmbParams) -> VfsResult<String> {
         if !Self::is_available() {
@@ -383,7 +576,9 @@ impl SmbClient {
             Ok(format!("✓ Successfully connected to SMB Share '//{}/{}'", params.host, params.share))
         } else {
             let err = String::from_utf8_lossy(&output.stderr);
-            Err(format!("SMB Connection Failed: {}", if err.trim().is_empty() { String::from_utf8_lossy(&output.stdout).to_string() } else { err.to_string() }))
+            let out = String::from_utf8_lossy(&output.stdout);
+            let msg = if err.trim().is_empty() { out.to_string() } else { err.to_string() };
+            Err(format!("SMB Connection Failed: {}", msg.trim()))
         }
     }
 }

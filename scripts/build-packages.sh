@@ -6,7 +6,7 @@
 
 set -euo pipefail
 
-VERSION="0.2.4"
+VERSION=$(grep -m1 '^version = ' Cargo.toml | cut -d '"' -f2)
 ARCH=$(uname -m)
 DIST_DIR="./dist"
 
