@@ -78,6 +78,7 @@
         <div class="tools-dropdown-menu" id="tools-dropdown-menu">
           <div class="dropdown-item" onclick="openSpotlightModal()"><i data-lucide="sparkles" style="color: var(--accent);"></i> Spotlight Quick-Switcher (Ctrl+K)</div>
           <div class="dropdown-item" onclick="toggleBranchView()"><i data-lucide="git-branch" style="color: var(--accent);"></i> Flat / Branch View (Ctrl+B)</div>
+          <div class="dropdown-item" onclick="openFloatingCalculator()"><i data-lucide="calculator" style="color: var(--accent);"></i> Floating Calculator & Byte Math</div>
           <div class="dropdown-item" onclick="toggleTerminal()"><i data-lucide="terminal"></i> Terminal Console (`)</div>
           <div class="dropdown-item" onclick="openFloatingEditor()"><i data-lucide="code"></i> Multi-Tab Power Editor (F4)</div>
           <div class="dropdown-item" onclick="triggerDiff()"><i data-lucide="git-compare"></i> Compare / Diff (F9)</div>
@@ -1258,6 +1259,105 @@
     <i data-lucide="code-2" style="color: var(--accent); width: 14px; height: 14px;"></i>
     <span id="editor-pill-text">📝 Editor (1 file)</span>
     <span class="editor-pill-dirty" id="editor-pill-dirty" style="display: none;"></span>
+  </div>
+
+  <!-- Floating Calculator & Unit Converter Window -->
+  <div class="floating-calculator-window" id="floating-calculator-window" style="display: none;" onclick="bringFloatingWindowToFront(this)">
+    <!-- 1. Top Header (Draggable) -->
+    <div class="modal-header calc-header" id="calc-header">
+      <div class="calc-header-left" style="display: flex; align-items: center; gap: 6px;">
+        <span class="calc-header-drag-handle" style="font-weight: 700; display: flex; align-items: center; gap: 6px; cursor: grab;">
+          <span style="font-size: 14px;">🧮</span>
+          <span>Calculator & Byte Math</span>
+        </span>
+      </div>
+
+      <div class="calc-header-actions" style="display: flex; align-items: center; gap: 4px;">
+        <button class="btn btn-icon btn-xs" onclick="toggleCalcHistory()" id="btn-calc-history-toggle" title="Calculation History"><i data-lucide="history" style="width: 13px;"></i></button>
+        <button class="btn btn-icon btn-xs" onclick="minimizeFloatingCalculator()" title="Minimize to Taskbar"><i data-lucide="minus" style="width: 13px;"></i></button>
+        <button class="btn btn-icon btn-xs" onclick="closeFloatingCalculator()" title="Close Calculator"><i data-lucide="x" style="width: 13px;"></i></button>
+      </div>
+    </div>
+
+    <!-- 2. Calculator Main Body -->
+    <div class="calc-body">
+      <!-- Screen / Display -->
+      <div class="calc-display-panel">
+        <div class="calc-expression-line" id="calc-expr-display">&nbsp;</div>
+        <div class="calc-result-row">
+          <input type="text" class="calc-result-input" id="calc-display-input" value="0" autocomplete="off" spellcheck="false" readonly />
+          <button class="btn btn-icon btn-xs calc-copy-btn" onclick="copyCalcResult()" title="Copy Result to Clipboard"><i data-lucide="copy" style="width: 13px;"></i></button>
+        </div>
+      </div>
+
+      <!-- Live Byte & Base Converter Bar -->
+      <div class="calc-converters-bar" id="calc-converters-bar">
+        <div class="calc-conv-item" title="Human-readable File Size"><span class="calc-conv-lbl">SIZE:</span> <span class="calc-conv-val" id="calc-conv-size">0 B</span></div>
+        <div class="calc-conv-item" title="Hexadecimal"><span class="calc-conv-lbl">HEX:</span> <span class="calc-conv-val" id="calc-conv-hex">0x0</span></div>
+        <div class="calc-conv-item" title="Octal (chmod mode)"><span class="calc-conv-lbl">OCT:</span> <span class="calc-conv-val" id="calc-conv-oct">0</span></div>
+        <div class="calc-conv-item" title="Binary"><span class="calc-conv-lbl">BIN:</span> <span class="calc-conv-val" id="calc-conv-bin">0b0</span></div>
+      </div>
+
+      <!-- Mode & Quick Byte Multipliers Row -->
+      <div class="calc-units-row">
+        <button class="btn btn-xs calc-unit-btn" onclick="calcAppendUnit('KB')" title="Multiply by 1024 (KB)">KB</button>
+        <button class="btn btn-xs calc-unit-btn" onclick="calcAppendUnit('MB')" title="Multiply by 1024² (MB)">MB</button>
+        <button class="btn btn-xs calc-unit-btn" onclick="calcAppendUnit('GB')" title="Multiply by 1024³ (GB)">GB</button>
+        <button class="btn btn-xs calc-unit-btn" onclick="calcAppendUnit('TB')" title="Multiply by 1024⁴ (TB)">TB</button>
+        <button class="btn btn-xs calc-unit-btn" onclick="calcAppendFunc('sqrt(')" title="Square Root">√</button>
+        <button class="btn btn-xs calc-unit-btn" onclick="calcAppendOp('^')" title="Exponent / Power">xʸ</button>
+      </div>
+
+      <!-- Main Keypad Grid -->
+      <div class="calc-keypad-grid">
+        <button class="btn calc-btn calc-btn-fn" onclick="calcClearAll()">C</button>
+        <button class="btn calc-btn calc-btn-fn" onclick="calcClearEntry()">CE</button>
+        <button class="btn calc-btn calc-btn-fn" onclick="calcBackspace()" title="Backspace"><i data-lucide="delete" style="width: 14px;"></i></button>
+        <button class="btn calc-btn calc-btn-op" onclick="calcAppendOp('/')">÷</button>
+
+        <button class="btn calc-btn calc-btn-fn" onclick="calcAppendChar('(')">(</button>
+        <button class="btn calc-btn calc-btn-fn" onclick="calcAppendChar(')')">)</button>
+        <button class="btn calc-btn calc-btn-fn" onclick="calcAppendOp('%')">%</button>
+        <button class="btn calc-btn calc-btn-op" onclick="calcAppendOp('*')">×</button>
+
+        <button class="btn calc-btn calc-btn-num" onclick="calcAppendNum('7')">7</button>
+        <button class="btn calc-btn calc-btn-num" onclick="calcAppendNum('8')">8</button>
+        <button class="btn calc-btn calc-btn-num" onclick="calcAppendNum('9')">9</button>
+        <button class="btn calc-btn calc-btn-op" onclick="calcAppendOp('-')">−</button>
+
+        <button class="btn calc-btn calc-btn-num" onclick="calcAppendNum('4')">4</button>
+        <button class="btn calc-btn calc-btn-num" onclick="calcAppendNum('5')">5</button>
+        <button class="btn calc-btn calc-btn-num" onclick="calcAppendNum('6')">6</button>
+        <button class="btn calc-btn calc-btn-op" onclick="calcAppendOp('+')">+</button>
+
+        <button class="btn calc-btn calc-btn-num" onclick="calcAppendNum('1')">1</button>
+        <button class="btn calc-btn calc-btn-num" onclick="calcAppendNum('2')">2</button>
+        <button class="btn calc-btn calc-btn-num" onclick="calcAppendNum('3')">3</button>
+        <button class="btn calc-btn calc-btn-equals" onclick="calcEvaluate()">=</button>
+
+        <button class="btn calc-btn calc-btn-fn" onclick="calcToggleSign()">±</button>
+        <button class="btn calc-btn calc-btn-num" onclick="calcAppendNum('0')">0</button>
+        <button class="btn calc-btn calc-btn-num" onclick="calcAppendDot()">.</button>
+        <button class="btn calc-btn calc-btn-fn" onclick="calcAppendPi()" title="Pi (3.14159...)">π</button>
+      </div>
+
+      <!-- History Tape Drawer -->
+      <div class="calc-history-panel" id="calc-history-panel" style="display: none;">
+        <div class="calc-history-header">
+          <span>Calculation History</span>
+          <button class="btn btn-xs" onclick="calcClearHistory()">Clear</button>
+        </div>
+        <div class="calc-history-list" id="calc-history-list">
+          <div class="calc-history-empty" style="font-size: 10px; color: var(--text-dim); text-align: center; padding: 6px;">No calculations yet</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Minimized Calculator Floating Pill -->
+  <div class="calc-pill" id="calc-pill" style="display: none;" onclick="restoreFloatingCalculator()" title="Click to restore Calculator">
+    <span>🧮</span>
+    <span id="calc-pill-text">Calculator</span>
   </div>
 
   <!-- Diff & Comparison Modal -->

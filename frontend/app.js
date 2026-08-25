@@ -2177,6 +2177,377 @@ function setupFloatingWindowResizers(win) {
   });
 }
 
+// ==========================================================================
+// 🧮 FLOATING CALCULATOR & BYTE MATH ENGINE
+// ==========================================================================
+
+let calcExpr = '';
+let calcCurrentVal = '0';
+let calcHasEvaluated = false;
+let calcHistory = JSON.parse(localStorage.getItem('cd_calc_history') || '[]');
+let calcDragInitialized = false;
+
+function openFloatingCalculator() {
+  const win = document.getElementById('floating-calculator-window');
+  const pill = document.getElementById('calc-pill');
+  if (pill) pill.style.display = 'none';
+  if (win) {
+    win.style.display = 'flex';
+    bringFloatingWindowToFront(win);
+  }
+  initCalcDrag();
+  calcUpdateDisplay();
+  renderCalcHistory();
+}
+
+function closeFloatingCalculator() {
+  const win = document.getElementById('floating-calculator-window');
+  if (win) win.style.display = 'none';
+  const pill = document.getElementById('calc-pill');
+  if (pill) pill.style.display = 'none';
+}
+
+function minimizeFloatingCalculator() {
+  const win = document.getElementById('floating-calculator-window');
+  if (win) win.style.display = 'none';
+  const pill = document.getElementById('calc-pill');
+  if (pill) pill.style.display = 'flex';
+}
+
+function restoreFloatingCalculator() {
+  openFloatingCalculator();
+}
+
+function initCalcDrag() {
+  if (calcDragInitialized) return;
+  calcDragInitialized = true;
+
+  const win = document.getElementById('floating-calculator-window');
+  const header = document.getElementById('calc-header');
+  if (!win || !header) return;
+
+  const savedLeft = localStorage.getItem('cd_calc_x');
+  const savedTop = localStorage.getItem('cd_calc_y');
+
+  if (savedLeft && savedTop && window.innerWidth > 768) {
+    win.style.left = `${Math.min(window.innerWidth - 300, Math.max(10, parseInt(savedLeft, 10)))}px`;
+    win.style.top = `${Math.min(window.innerHeight - 380, Math.max(35, parseInt(savedTop, 10)))}px`;
+  } else if (window.innerWidth > 768) {
+    win.style.right = '40px';
+    win.style.top = '100px';
+  }
+
+  let isDragging = false;
+  let dragStartX = 0, dragStartY = 0;
+  let winStartX = 0, winStartY = 0;
+
+  header.addEventListener('mousedown', (e) => {
+    if (e.target.closest('button') || e.target.closest('input')) return;
+    isDragging = true;
+    bringFloatingWindowToFront(win);
+    dragStartX = e.clientX;
+    dragStartY = e.clientY;
+    const rect = win.getBoundingClientRect();
+    winStartX = rect.left;
+    winStartY = rect.top;
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'move';
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (!isDragging) return;
+    const dx = e.clientX - dragStartX;
+    const dy = e.clientY - dragStartY;
+    const newLeft = Math.max(0, Math.min(window.innerWidth - win.offsetWidth, winStartX + dx));
+    const newTop = Math.max(35, Math.min(window.innerHeight - 60, winStartY + dy));
+    win.style.left = `${newLeft}px`;
+    win.style.top = `${newTop}px`;
+    win.style.right = 'auto';
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (isDragging) {
+      isDragging = false;
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+      if (win.style.left) localStorage.setItem('cd_calc_x', parseInt(win.style.left, 10));
+      if (win.style.top) localStorage.setItem('cd_calc_y', parseInt(win.style.top, 10));
+    }
+  });
+
+  // Global key listener when calculator is active
+  document.addEventListener('keydown', (e) => {
+    if (win.style.display !== 'flex') return;
+    if (['INPUT', 'TEXTAREA'].includes(e.target.tagName) && e.target.id !== 'calc-display-input') return;
+
+    if (e.key >= '0' && e.key <= '9') {
+      calcAppendNum(e.key);
+    } else if (['+', '-', '*', '/'].includes(e.key)) {
+      calcAppendOp(e.key);
+    } else if (e.key === '.') {
+      calcAppendDot();
+    } else if (e.key === 'Enter' || e.key === '=') {
+      e.preventDefault();
+      calcEvaluate();
+    } else if (e.key === 'Backspace') {
+      calcBackspace();
+    } else if (e.key === 'Escape') {
+      if (calcExpr || calcCurrentVal !== '0') calcClearAll();
+      else closeFloatingCalculator();
+    } else if (e.key === '(' || e.key === ')') {
+      calcAppendChar(e.key);
+    } else if (e.key === '%') {
+      calcAppendOp('%');
+    }
+  });
+}
+
+function calcUpdateDisplay() {
+  const exprEl = document.getElementById('calc-expr-display');
+  const inputEl = document.getElementById('calc-display-input');
+  if (exprEl) exprEl.textContent = calcExpr || '\u00A0';
+  if (inputEl) inputEl.value = calcCurrentVal;
+
+  const num = parseFloat(calcCurrentVal) || 0;
+
+  // Format Byte Size
+  const sizeEl = document.getElementById('calc-conv-size');
+  if (sizeEl) sizeEl.textContent = formatBytes(Math.abs(num));
+
+  // Format Hexadecimal
+  const hexEl = document.getElementById('calc-conv-hex');
+  if (hexEl) {
+    if (!isNaN(num) && Math.abs(num) < 0x1000000000000) {
+      const intVal = Math.floor(Math.abs(num));
+      hexEl.textContent = (num < 0 ? '-' : '') + '0x' + intVal.toString(16).toUpperCase();
+    } else {
+      hexEl.textContent = '-';
+    }
+  }
+
+  // Format Octal (useful for chmod!)
+  const octEl = document.getElementById('calc-conv-oct');
+  if (octEl) {
+    if (!isNaN(num) && Math.abs(num) < 0x1000000) {
+      const intVal = Math.floor(Math.abs(num));
+      octEl.textContent = (num < 0 ? '-' : '') + '0' + intVal.toString(8);
+    } else {
+      octEl.textContent = '-';
+    }
+  }
+
+  // Format Binary
+  const binEl = document.getElementById('calc-conv-bin');
+  if (binEl) {
+    if (!isNaN(num) && Math.abs(num) <= 0xFFFF) {
+      const intVal = Math.floor(Math.abs(num));
+      binEl.textContent = (num < 0 ? '-' : '') + '0b' + intVal.toString(2);
+    } else {
+      binEl.textContent = '-';
+    }
+  }
+}
+
+function calcAppendNum(digit) {
+  if (calcHasEvaluated) {
+    calcCurrentVal = digit;
+    calcExpr = '';
+    calcHasEvaluated = false;
+  } else if (calcCurrentVal === '0' || calcCurrentVal === '-0') {
+    calcCurrentVal = (calcCurrentVal === '-0' ? '-' : '') + digit;
+  } else {
+    calcCurrentVal += digit;
+  }
+  calcUpdateDisplay();
+}
+
+function calcAppendDot() {
+  if (calcHasEvaluated) {
+    calcCurrentVal = '0.';
+    calcExpr = '';
+    calcHasEvaluated = false;
+  } else if (!calcCurrentVal.includes('.')) {
+    calcCurrentVal += '.';
+  }
+  calcUpdateDisplay();
+}
+
+function calcAppendOp(op) {
+  calcHasEvaluated = false;
+  if (calcCurrentVal) {
+    calcExpr = calcExpr ? `${calcExpr} ${calcCurrentVal} ${op}` : `${calcCurrentVal} ${op}`;
+    calcCurrentVal = '0';
+  } else if (calcExpr && /[+\-*/%^]$/.test(calcExpr.trim())) {
+    calcExpr = calcExpr.trim().slice(0, -1) + op;
+  }
+  calcUpdateDisplay();
+}
+
+function calcAppendChar(ch) {
+  if (ch === '(') {
+    calcExpr = calcExpr ? `${calcExpr} (` : '(';
+  } else if (ch === ')') {
+    if (calcCurrentVal && calcCurrentVal !== '0') {
+      calcExpr = `${calcExpr} ${calcCurrentVal} )`;
+      calcCurrentVal = '0';
+    } else {
+      calcExpr = `${calcExpr} )`;
+    }
+  }
+  calcUpdateDisplay();
+}
+
+function calcAppendUnit(unit) {
+  const multipliers = {
+    'KB': 1024,
+    'MB': 1024 * 1024,
+    'GB': 1024 * 1024 * 1024,
+    'TB': 1024 * 1024 * 1024 * 1024,
+  };
+  const mult = multipliers[unit] || 1;
+  const currentNum = parseFloat(calcCurrentVal) || 1;
+  calcCurrentVal = String(currentNum * mult);
+  calcUpdateDisplay();
+}
+
+function calcAppendFunc(fnStr) {
+  calcExpr = calcExpr ? `${calcExpr} ${fnStr}` : fnStr;
+  calcUpdateDisplay();
+}
+
+function calcAppendPi() {
+  calcCurrentVal = String(Math.PI);
+  calcUpdateDisplay();
+}
+
+function calcToggleSign() {
+  if (calcCurrentVal.startsWith('-')) {
+    calcCurrentVal = calcCurrentVal.substring(1);
+  } else if (calcCurrentVal !== '0') {
+    calcCurrentVal = '-' + calcCurrentVal;
+  }
+  calcUpdateDisplay();
+}
+
+function calcBackspace() {
+  if (calcCurrentVal.length > 1) {
+    calcCurrentVal = calcCurrentVal.slice(0, -1);
+  } else {
+    calcCurrentVal = '0';
+  }
+  calcUpdateDisplay();
+}
+
+function calcClearEntry() {
+  calcCurrentVal = '0';
+  calcUpdateDisplay();
+}
+
+function calcClearAll() {
+  calcExpr = '';
+  calcCurrentVal = '0';
+  calcHasEvaluated = false;
+  calcUpdateDisplay();
+}
+
+function calcEvaluate() {
+  let fullExpr = (calcExpr ? `${calcExpr} ${calcCurrentVal}` : calcCurrentVal).trim();
+  if (!fullExpr) return;
+
+  try {
+    let sanitized = fullExpr
+      .replace(/÷/g, '/')
+      .replace(/×/g, '*')
+      .replace(/−/g, '-')
+      .replace(/\^/g, '**')
+      .replace(/sqrt\(/g, 'Math.sqrt(')
+      .replace(/sin\(/g, 'Math.sin(')
+      .replace(/cos\(/g, 'Math.cos(')
+      .replace(/tan\(/g, 'Math.tan(')
+      .replace(/abs\(/g, 'Math.abs(')
+      .replace(/π/g, 'Math.PI')
+      .replace(/e/g, 'Math.E');
+
+    // Only allow safe math tokens
+    if (!/^[0-9+\-*/%().,\sMath.sqrtincoabPIE*]+$/.test(sanitized)) {
+      throw new Error('Invalid expression');
+    }
+
+    const result = Function(`"use strict"; return (${sanitized});`)();
+    if (typeof result !== 'number' || isNaN(result) || !isFinite(result)) {
+      throw new Error('Math error');
+    }
+
+    const formattedResult = Number.isInteger(result) ? String(result) : parseFloat(result.toFixed(8)).toString();
+
+    // Save to calculation history
+    calcHistory.unshift({
+      expr: fullExpr,
+      result: formattedResult,
+      time: Date.now()
+    });
+    if (calcHistory.length > 30) calcHistory.pop();
+    localStorage.setItem('cd_calc_history', JSON.stringify(calcHistory));
+
+    calcExpr = fullExpr + ' =';
+    calcCurrentVal = formattedResult;
+    calcHasEvaluated = true;
+    calcUpdateDisplay();
+    renderCalcHistory();
+  } catch (err) {
+    calcCurrentVal = 'Error';
+    calcHasEvaluated = true;
+    calcUpdateDisplay();
+  }
+}
+
+function copyCalcResult() {
+  const val = calcCurrentVal;
+  if (val && val !== 'Error') {
+    navigator.clipboard.writeText(val).then(() => {
+      showToast(`📋 Copied "${val}" to clipboard`, 'success');
+    }).catch(() => {
+      showToast(`Value: ${val}`, 'info');
+    });
+  }
+}
+
+function toggleCalcHistory() {
+  const panel = document.getElementById('calc-history-panel');
+  if (!panel) return;
+  panel.style.display = panel.style.display === 'none' ? 'flex' : 'none';
+}
+
+function calcClearHistory() {
+  calcHistory = [];
+  localStorage.removeItem('cd_calc_history');
+  renderCalcHistory();
+}
+
+function renderCalcHistory() {
+  const listEl = document.getElementById('calc-history-list');
+  if (!listEl) return;
+
+  if (calcHistory.length === 0) {
+    listEl.innerHTML = '<div class="calc-history-empty" style="font-size: 10px; color: var(--text-dim); text-align: center; padding: 6px;">No calculations yet</div>';
+    return;
+  }
+
+  listEl.innerHTML = calcHistory.map(item => `
+    <div class="calc-history-item" onclick="calcLoadHistoryItem('${escapeHtml(item.result)}')">
+      <span style="color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60%;">${escapeHtml(item.expr)}</span>
+      <span style="font-weight: 700; color: var(--accent);">= ${escapeHtml(item.result)}</span>
+    </div>
+  `).join('');
+}
+
+function calcLoadHistoryItem(resVal) {
+  calcCurrentVal = resVal;
+  calcExpr = '';
+  calcHasEvaluated = false;
+  calcUpdateDisplay();
+}
+
 function renderEditorTabs() {
   const container = document.getElementById('editor-tabs-container');
   if (!container) return;
@@ -9800,6 +10171,7 @@ let spotlightSelectedIndex = 0;
 let spotlightItems = [];
 
 const SPOTLIGHT_STATIC_ACTIONS = [
+  { id: 'calc', title: 'Floating Calculator & Byte Math', sub: 'Interactive floating calculator with byte units, storage math & base conversions', icon: 'calculator', cat: 'actions', action: () => openFloatingCalculator() },
   { id: 'branch', title: 'Flat / Branch View', sub: 'Flatten all subdirectories into a single unified list (Ctrl+B)', icon: 'git-branch', cat: 'actions', action: () => toggleBranchView() },
   { id: 'tags', title: 'Color Labels & Custom Tags', sub: 'Assign color labels and custom tags to selected items', icon: 'tag', cat: 'actions', action: () => triggerEditTagsModal() },
   { id: 'term', title: 'Terminal Console', sub: 'Open integrated interactive terminal (` or F4)', icon: 'terminal', cat: 'actions', action: () => toggleTerminal() },
