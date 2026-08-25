@@ -186,11 +186,11 @@ function createPaneElement(pane, index) {
     ${mobileTabs}
     <div class="pane-header">
       <div class="pane-nav-btns">
-        <button onclick="navPaneHistory(${index}, -1)" title="Back"><i data-lucide="arrow-left" style="width:14px; height:14px;"></i></button>
-        <button onclick="navPaneHistory(${index}, 1)" title="Forward"><i data-lucide="arrow-right" style="width:14px; height:14px;"></i></button>
-        <button onclick="navPaneUp(${index})" title="Parent Directory (Backspace)"><i data-lucide="arrow-up" style="width:14px; height:14px;"></i></button>
-        <button onclick="refreshPane(${index})" title="Refresh"><i data-lucide="rotate-cw" style="width:14px; height:14px;"></i></button>
-        <button onclick="openRemoteModal(${index})" title="Connect Remote SFTP / WebDAV Server"><i data-lucide="network" style="width:14px; height:14px;"></i></button>
+        <button onclick="navPaneHistory(${index}, -1)" title="Back"><i data-lucide="arrow-left"></i></button>
+        <button onclick="navPaneHistory(${index}, 1)" title="Forward"><i data-lucide="arrow-right"></i></button>
+        <button onclick="navPaneUp(${index})" title="Parent Directory (Backspace)"><i data-lucide="arrow-up"></i></button>
+        <button onclick="refreshPane(${index})" title="Refresh"><i data-lucide="rotate-cw"></i></button>
+        <button onclick="openRemoteModal(${index})" class="desktop-header-tool" title="Connect Remote SFTP / WebDAV Server"><i data-lucide="network"></i></button>
       </div>
 
       <!-- Path bar & Breadcrumbs -->
@@ -199,29 +199,36 @@ function createPaneElement(pane, index) {
         <input type="text" class="pane-path-input" id="pane-input-${index}" onkeydown="handlePathKey(event, ${index})" onblur="disablePathInput(${index})">
       </div>
 
-      <!-- Favorites & Quick Bookmarks -->
-      <div class="pane-favorites-wrapper">
+      <!-- Favorites & Quick Bookmarks (Desktop) -->
+      <div class="pane-favorites-wrapper desktop-header-tool">
         <button class="btn btn-icon" id="btn-favorites-${index}" onclick="openPaneFavoritesMenu(event, ${index})" oncontextmenu="event.preventDefault(); openBookmarksManager();" title="Favorites & Bookmarks (Left-click: Quick Jump, Right-click: Manage)">
-          <i data-lucide="star" style="width: 13px; height: 13px; color: var(--accent);"></i>
+          <i data-lucide="star" style="color: var(--accent);"></i>
         </button>
       </div>
 
-      <!-- Pane Border Identification Color Selector -->
-      <div class="pane-color-wrapper">
+      <!-- Pane Border Identification Color Selector (Desktop) -->
+      <div class="pane-color-wrapper desktop-header-tool">
         <button class="btn btn-icon pane-idx-badge" id="pane-idx-badge-${index}" onclick="event.stopPropagation(); cyclePaneColor(${index})" oncontextmenu="event.preventDefault(); event.stopPropagation(); openPaneColorPicker(event, ${index})" title="Pane ${index + 1} Identification Color (Left-click: Cycle, Right-click: Palette & Color Picker)">
-          <i data-lucide="palette" style="width: 13px; height: 13px;"></i>
+          <i data-lucide="palette"></i>
         </button>
       </div>
 
-      <!-- Foldable & Touch Cross-Pane Transfer Button -->
-      <button class="btn btn-icon pane-quick-transfer-btn" onclick="event.stopPropagation(); setActivePane(${index}); triggerCopy();" title="Transfer / Copy to Other Pane (F5)">
-        <i data-lucide="arrow-right-left" style="width: 13px; height: 13px; color: var(--accent);"></i>
+      <!-- Foldable & Touch Cross-Pane Transfer Button (Desktop) -->
+      <button class="btn btn-icon pane-quick-transfer-btn desktop-header-tool" onclick="event.stopPropagation(); setActivePane(${index}); triggerCopy();" title="Transfer / Copy to Other Pane (F5)">
+        <i data-lucide="arrow-right-left" style="color: var(--accent);"></i>
       </button>
 
-      <!-- Direct Device Upload Button -->
-      <button class="btn btn-icon" onclick="event.stopPropagation(); setActivePane(${index}); triggerDeviceUpload(${index});" title="Upload Files from Device to this Directory">
-        <i data-lucide="upload-cloud" style="width: 13px; height: 13px;"></i>
+      <!-- Direct Device Upload Button (Desktop) -->
+      <button class="btn btn-icon pane-upload-btn desktop-header-tool" onclick="event.stopPropagation(); setActivePane(${index}); triggerDeviceUpload(${index});" title="Upload Files from Device to this Directory">
+        <i data-lucide="upload-cloud"></i>
       </button>
+
+      <!-- Combined Pane Menu Button (Mobile & Foldable Viewports) -->
+      <div class="pane-tools-wrapper mobile-foldable-tool">
+        <button class="btn btn-icon pane-tools-btn" id="pane-tools-btn-${index}" onclick="openPaneToolsMenu(event, ${index})" title="Pane Tools (Transfer, Upload, Color, etc.)">
+          <i data-lucide="more-vertical"></i>
+        </button>
+      </div>
 
       <input type="text" class="pane-quick-filter" placeholder="Filter (/)..." id="pane-filter-${index}" oninput="handleFilterInput(${index}, this.value)">
     </div>
@@ -1401,6 +1408,13 @@ async function executeTransfer(action, sources, destination, refreshTargetPaneId
 
 function setupKeyboardNavigation() {
   document.addEventListener('keydown', (e) => {
+    // Global Spotlight Trigger (Ctrl+K, Cmd+K, Ctrl+P)
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K' || e.key === 'p' || e.key === 'P')) {
+      e.preventDefault();
+      toggleSpotlightModal();
+      return;
+    }
+
     if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) {
       if (e.key === 'Escape') {
         hideContextMenu();
@@ -3499,8 +3513,9 @@ function showEmptySpaceContextMenu(x, y, paneIndex) {
       <img src="assets/folder-closed.png" style="width: 14px; height: 14px;">
       <span>${escapeHtml(pane.path.split('/').pop() || pane.path || '/')}</span>
     </div>
-    <div class="context-item" onclick="triggerDeviceUpload(${paneIndex})"><i data-lucide="upload-cloud" style="width: 14px; color: var(--accent);"></i> Upload Files from Device...</div>
-    <div class="context-item" onclick="triggerDeviceFolderUpload(${paneIndex})"><i data-lucide="folder-up" style="width: 14px;"></i> Upload Folder from Device...</div>
+    <div class="context-item" onclick="openSpotlightModal()"><i data-lucide="sparkles" style="width: 14px; color: var(--accent);"></i> Spotlight Quick-Switcher (Ctrl+K)...</div>
+    <div class="context-item" onclick="triggerDeviceUpload(${paneIndex})"><i data-lucide="upload-cloud" style="width: 14px; color: #38bdf8;"></i> Upload Files from Device...</div>
+    <div class="context-item" onclick="triggerDeviceFolderUpload(${paneIndex})"><i data-lucide="folder-up" style="width: 14px; color: #38bdf8;"></i> Upload Folder from Device...</div>
     <div class="context-item" onclick="triggerDownloadCurrentDirectory(${paneIndex})"><i data-lucide="download" style="width: 14px;"></i> Download Directory (.zip)</div>
     <div class="context-item" onclick="triggerShareDirectory(${paneIndex})"><i data-lucide="share-2" style="width: 14px; color: var(--accent);"></i> Share Directory / Guest Dropbox...</div>
     <div class="context-sep"></div>
@@ -3774,6 +3789,7 @@ async function loadBookmarksList() {
     if (resp.ok) {
       const list = await resp.json();
       App.bookmarks = list;
+      try { localStorage.setItem('cd_bookmarks_cache', JSON.stringify(list)); } catch (e) {}
       
       if (list.length === 0) {
         tbody.innerHTML = `
@@ -5264,6 +5280,106 @@ function cyclePaneColor(paneIdx) {
   const nextColor = PANE_COLOR_PALETTE[(curIdx + 1) % PANE_COLOR_PALETTE.length];
   setPaneColorPref(paneIdx, nextColor);
   showToast(`Pane ${paneIdx + 1} color: ${nextColor.toUpperCase()}`, 'info');
+}
+
+function openPaneToolsMenu(e, paneIndex) {
+  if (e) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+  document.getElementById('pane-tools-popup')?.remove();
+  document.getElementById('pane-color-popup')?.remove();
+  document.getElementById('pane-favorites-popup')?.remove();
+
+  const colors = getPaneColors();
+  const currentColor = colors[paneIndex] || 'default';
+  const colorHexes = {
+    'default': 'rgba(255,255,255,0.2)',
+    'amber': '#f59e0b',
+    'emerald': '#10b981',
+    'sky': '#38bdf8',
+    'purple': '#c084fc',
+    'rose': '#f43f5e',
+    'indigo': '#6366f1',
+    'teal': '#14b8a6',
+    'orange': '#f97316'
+  };
+  const activeHex = colorHexes[currentColor] || currentColor;
+
+  const popup = document.createElement('div');
+  popup.id = 'pane-tools-popup';
+  popup.className = 'pane-tools-dropdown active';
+
+  popup.innerHTML = `
+    <div style="padding: 8px 12px; font-weight: 700; font-size: 11px; color: var(--accent); background: var(--bg-dark); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+      <span style="display: flex; align-items: center; gap: 6px;">
+        <span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:${activeHex};"></span>
+        Pane ${paneIndex + 1} Actions
+      </span>
+      <span style="font-size: 11px; color: var(--text-dim); cursor: pointer;" onclick="document.getElementById('pane-tools-popup')?.remove();">✕</span>
+    </div>
+    <div style="padding: 4px 0; max-height: 440px; overflow-y: auto;">
+      <div class="dropdown-item" onclick="setActivePane(${paneIndex}); triggerCopy(); document.getElementById('pane-tools-popup')?.remove();">
+        <i data-lucide="arrow-right-left" style="color: var(--accent);"></i> Transfer / Copy to Other Pane (F5)
+      </div>
+      <div class="dropdown-item" onclick="triggerDeviceUpload(${paneIndex}); document.getElementById('pane-tools-popup')?.remove();">
+        <i data-lucide="upload-cloud" style="color: #38bdf8;"></i> Upload Files from Device...
+      </div>
+      <div class="dropdown-item" onclick="triggerDeviceFolderUpload(${paneIndex}); document.getElementById('pane-tools-popup')?.remove();">
+        <i data-lucide="folder-up" style="color: #38bdf8;"></i> Upload Folder from Device...
+      </div>
+      <div class="dropdown-sep" style="height: 1px; background: var(--border); margin: 4px 0;"></div>
+      
+      <!-- Border Color Quick Palette -->
+      <div style="padding: 6px 12px 4px 12px; font-size: 10px; color: var(--text-muted); font-weight: 700; text-transform: uppercase; display: flex; justify-content: space-between; align-items: center;">
+        <span>Pane Border Color</span>
+        <span style="color: var(--accent); cursor: pointer; text-transform: none; font-weight: 600;" onclick="cyclePaneColor(${paneIndex}); openPaneToolsMenu(null, ${paneIndex});">Cycle ↻</span>
+      </div>
+      <div style="display: flex; gap: 6px; padding: 0 12px 8px 12px; overflow-x: auto;">
+        ${['default', 'amber', 'emerald', 'sky', 'rose', 'purple', 'teal', 'orange'].map(c => `
+          <div style="width: 20px; height: 20px; border-radius: 50%; background: ${colorHexes[c]}; cursor: pointer; border: 2px solid ${currentColor === c ? 'var(--text-main)' : 'transparent'}; box-sizing: border-box; flex-shrink: 0;"
+               title="${c.toUpperCase()}"
+               onclick="setPaneColorPref(${paneIndex}, '${c}'); openPaneToolsMenu(null, ${paneIndex});"></div>
+        `).join('')}
+      </div>
+
+      <div class="dropdown-sep" style="height: 1px; background: var(--border); margin: 4px 0;"></div>
+      <div class="dropdown-item" onclick="openRemoteModal(${paneIndex}); document.getElementById('pane-tools-popup')?.remove();">
+        <i data-lucide="network" style="color: #a855f7;"></i> Connect Remote Storage (SFTP/SMB/WebDAV)...
+      </div>
+      <div class="dropdown-item" onclick="openPaneFavoritesMenu(event, ${paneIndex}); document.getElementById('pane-tools-popup')?.remove();">
+        <i data-lucide="star" style="color: var(--accent);"></i> Bookmarks & Favorites...
+      </div>
+      <div class="dropdown-item" onclick="triggerDownloadCurrentDirectory(${paneIndex}); document.getElementById('pane-tools-popup')?.remove();">
+        <i data-lucide="download"></i> Download Folder (.zip)
+      </div>
+      <div class="dropdown-item" onclick="triggerShareDirectory(${paneIndex}); document.getElementById('pane-tools-popup')?.remove();">
+        <i data-lucide="share-2" style="color: var(--accent);"></i> Share Folder / Dropbox...
+      </div>
+      <div class="dropdown-item" onclick="triggerDirPermissions(${paneIndex}); document.getElementById('pane-tools-popup')?.remove();">
+        <i data-lucide="lock"></i> Permissions & Ownership
+      </div>
+    </div>
+  `;
+
+  const btn = document.getElementById(`pane-tools-btn-${paneIndex}`);
+  if (btn) {
+    const rect = btn.getBoundingClientRect();
+    popup.style.position = 'fixed';
+    popup.style.top = `${rect.bottom + 4}px`;
+    popup.style.right = `${Math.max(10, window.innerWidth - rect.right)}px`;
+  }
+
+  document.body.appendChild(popup);
+  if (window.lucide) lucide.createIcons();
+
+  const closeHandler = (ev) => {
+    if (!popup.contains(ev.target) && !btn?.contains(ev.target)) {
+      popup.remove();
+      document.removeEventListener('click', closeHandler);
+    }
+  };
+  setTimeout(() => document.addEventListener('click', closeHandler), 10);
 }
 
 function openPaneColorPicker(e, paneIndex) {
@@ -8526,6 +8642,358 @@ if (window.visualViewport) {
   window.visualViewport.addEventListener('scroll', updateDynamicViewportHeight);
 }
 document.addEventListener('DOMContentLoaded', updateDynamicViewportHeight);
+
+// ---------------- GLOBAL SPOTLIGHT QUICK-SWITCHER ----------------
+let spotlightCurrentCat = 'all';
+let spotlightQuery = '';
+let spotlightSelectedIndex = 0;
+let spotlightItems = [];
+
+const SPOTLIGHT_STATIC_ACTIONS = [
+  { id: 'term', title: 'Terminal Console', sub: 'Open integrated interactive terminal (` or F4)', icon: 'terminal', cat: 'actions', action: () => toggleTerminal() },
+  { id: 'edit', title: 'Multi-Tab Power Editor', sub: 'Open floating code & text editor (F4)', icon: 'code', cat: 'actions', action: () => openFloatingEditor() },
+  { id: 'diff', title: 'File & Folder Diff', sub: 'Compare files or directories side-by-side (F9)', icon: 'git-compare', cat: 'actions', action: () => triggerDiff() },
+  { id: 'search', title: 'Deep File Search', sub: 'Search files and folders recursively (Ctrl+F)', icon: 'search', cat: 'actions', action: () => openSearchModal() },
+  { id: 'shares', title: 'Active Shares & Dropboxes', sub: 'Manage public share links and guest upload dropboxes', icon: 'share-2', cat: 'actions', action: () => openSharesManager() },
+  { id: 'sync', title: 'Directory Sync & Mirror', sub: 'Compare and sync two directories bidirectionally', icon: 'refresh-cw', cat: 'actions', action: () => openSyncModal() },
+  { id: 'syncthing', title: 'Syncthing Dashboard', sub: 'Continuous peer-to-peer file synchronization', icon: 'repeat', cat: 'actions', action: () => openSyncthingModal() },
+  { id: 'convert', title: 'ConvertX File Converter', sub: 'Batch convert images, documents, audio, videos', icon: 'file-output', cat: 'actions', action: () => openConverterModal() },
+  { id: 'tasks', title: 'Background Transfers & Queue', sub: 'View active transfers, speeds, and queued jobs', icon: 'list-checks', cat: 'actions', action: () => openFloatingTaskManager() },
+  { id: 'settings', title: 'User Settings & Hub', sub: 'Themes, keybindings, and preferences (F10)', icon: 'settings', cat: 'actions', action: () => openSettingsModal() },
+  { id: 'admin', title: 'Admin Control Panel', sub: 'User management, RBAC, mounts, audit logs', icon: 'shield-alert', cat: 'actions', action: () => openAdminPanel() },
+  { id: 'profile', title: 'User Profile & Password', sub: 'Account credentials, session avatar, and security', icon: 'user', cat: 'actions', action: () => openUserProfileModal() },
+  { id: 'lock', title: 'Lock Session', sub: 'Lock CommanderDog immediately (Ctrl+Alt+L)', icon: 'lock', cat: 'actions', action: () => lockSession() },
+  { id: 'mkdir', title: 'New Folder', sub: 'Create a new directory in active pane (F7)', icon: 'folder-plus', cat: 'actions', action: () => triggerMkdir() },
+  { id: 'newfile', title: 'New Text File', sub: 'Create a new empty text document', icon: 'file-plus', cat: 'actions', action: () => triggerNewFile() },
+  { id: 'compress', title: 'Compress to Archive', sub: 'Create .zip or .tar.gz from selected files', icon: 'archive', cat: 'actions', action: () => triggerCompressModal() },
+  { id: 'perms', title: 'Permissions & Ownership', sub: 'Visual Unix chmod & chown editor', icon: 'shield', cat: 'actions', action: () => triggerPermissions() },
+  { id: 'theme-amber', title: 'Theme: Amber (Classic Woofson)', sub: 'Switch theme to Amber Gold', icon: 'palette', cat: 'actions', action: () => applyTheme('amber') },
+  { id: 'theme-emerald', title: 'Theme: Emerald', sub: 'Switch theme to Emerald Green', icon: 'palette', cat: 'actions', action: () => applyTheme('emerald') },
+  { id: 'theme-sky', title: 'Theme: Sky Blue', sub: 'Switch theme to Sky Blue', icon: 'palette', cat: 'actions', action: () => applyTheme('sky') },
+  { id: 'theme-nord', title: 'Theme: Nord Frost', sub: 'Switch theme to Arctic Nord', icon: 'palette', cat: 'actions', action: () => applyTheme('nord') },
+  { id: 'theme-cyberpunk', title: 'Theme: Cyberpunk Neon', sub: 'Switch theme to Neon Cyberpunk', icon: 'palette', cat: 'actions', action: () => applyTheme('cyberpunk') },
+  { id: 'theme-dracula', title: 'Theme: Dracula', sub: 'Switch theme to Gothic Dracula Dark', icon: 'palette', cat: 'actions', action: () => applyTheme('dracula') },
+  { id: 'theme-monokai', title: 'Theme: Monokai Pro', sub: 'Switch theme to Monokai High Contrast', icon: 'palette', cat: 'actions', action: () => applyTheme('monokai') },
+  { id: 'theme-matrix', title: 'Theme: Matrix Terminal', sub: 'Switch theme to Phosphor Green Matrix', icon: 'palette', cat: 'actions', action: () => applyTheme('matrix') }
+];
+
+function openSpotlightModal() {
+  const modal = document.getElementById('spotlight-modal');
+  if (!modal) return;
+  
+  spotlightQuery = '';
+  spotlightCurrentCat = 'all';
+  spotlightSelectedIndex = 0;
+  
+  const input = document.getElementById('spotlight-input');
+  if (input) input.value = '';
+  
+  const clearBtn = document.getElementById('spotlight-clear-btn');
+  if (clearBtn) clearBtn.style.display = 'none';
+
+  updateSpotlightCatButtons();
+  buildSpotlightItems();
+  renderSpotlightResults();
+  
+  modal.style.display = 'flex';
+  setTimeout(() => input?.focus(), 50);
+}
+
+function closeSpotlightModal() {
+  const modal = document.getElementById('spotlight-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+function toggleSpotlightModal() {
+  const modal = document.getElementById('spotlight-modal');
+  if (modal && modal.style.display === 'flex') {
+    closeSpotlightModal();
+  } else {
+    openSpotlightModal();
+  }
+}
+
+function clearSpotlightInput() {
+  const input = document.getElementById('spotlight-input');
+  if (input) {
+    input.value = '';
+    handleSpotlightInput('');
+    input.focus();
+  }
+}
+
+function filterSpotlightCategory(cat) {
+  spotlightCurrentCat = cat;
+  updateSpotlightCatButtons();
+  spotlightSelectedIndex = 0;
+  buildSpotlightItems();
+  renderSpotlightResults();
+}
+
+function updateSpotlightCatButtons() {
+  const cats = ['all', 'actions', 'paths', 'bookmarks', 'recent'];
+  cats.forEach(c => {
+    const btn = document.getElementById(`spotlight-cat-${c}`);
+    if (btn) {
+      if (c === spotlightCurrentCat) btn.classList.add('active');
+      else btn.classList.remove('active');
+    }
+  });
+}
+
+function handleSpotlightInput(val) {
+  spotlightQuery = (val || '').trim();
+  const clearBtn = document.getElementById('spotlight-clear-btn');
+  if (clearBtn) clearBtn.style.display = spotlightQuery ? 'inline-flex' : 'none';
+  spotlightSelectedIndex = 0;
+  buildSpotlightItems();
+  renderSpotlightResults();
+}
+
+function recordRecentHistory(item) {
+  if (!item || (!item.path && !item.title)) return;
+  try {
+    let recents = JSON.parse(localStorage.getItem('cd_spotlight_recents') || '[]');
+    recents = recents.filter(r => r.path !== item.path && r.title !== item.title);
+    recents.unshift({
+      title: item.title,
+      sub: item.sub || item.path,
+      path: item.path,
+      icon: item.icon || (item.is_dir ? 'folder' : 'file-text'),
+      cat: 'recent',
+      is_dir: item.is_dir !== false,
+      timestamp: Date.now()
+    });
+    if (recents.length > 20) recents = recents.slice(0, 20);
+    localStorage.setItem('cd_spotlight_recents', JSON.stringify(recents));
+  } catch (e) {}
+}
+
+function getRecentHistory() {
+  try {
+    return JSON.parse(localStorage.getItem('cd_spotlight_recents') || '[]');
+  } catch (e) {
+    return [];
+  }
+}
+
+function getBookmarksLocalCache() {
+  try {
+    return JSON.parse(localStorage.getItem('cd_bookmarks_cache') || '[]');
+  } catch (e) {
+    return [];
+  }
+}
+
+function buildSpotlightItems() {
+  const q = spotlightQuery.toLowerCase();
+  let pool = [];
+
+  // 1. Static Actions
+  if (spotlightCurrentCat === 'all' || spotlightCurrentCat === 'actions') {
+    pool.push(...SPOTLIGHT_STATIC_ACTIONS.map(a => ({
+      title: a.title,
+      sub: a.sub,
+      icon: a.icon,
+      cat: 'action',
+      badge: 'Action',
+      handler: a.action
+    })));
+  }
+
+  // 2. Standard & Open Paths
+  if (spotlightCurrentCat === 'all' || spotlightCurrentCat === 'paths') {
+    const userHome = `/home/${App.user?.username || 'bolt'}`;
+    const standardPaths = [
+      { title: 'Home Directory', path: userHome, icon: 'home', sub: userHome },
+      { title: 'Root Filesystem', path: '/', icon: 'hard-drive', sub: '/' },
+      { title: 'Downloads', path: `${userHome}/Downloads`, icon: 'download', sub: `${userHome}/Downloads` },
+      { title: 'Documents', path: `${userHome}/Documents`, icon: 'file-text', sub: `${userHome}/Documents` },
+      { title: 'Projects', path: `${userHome}/projects`, icon: 'folder-git-2', sub: `${userHome}/projects` },
+      { title: 'Temporary /tmp', path: '/tmp', icon: 'zap', sub: '/tmp' },
+      { title: 'System Config /etc', path: '/etc', icon: 'settings', sub: '/etc' },
+      { title: 'System Logs /var/log', path: '/var/log', icon: 'file-text', sub: '/var/log' }
+    ];
+
+    // Add active open panes
+    App.panes.forEach((p, idx) => {
+      if (p.path) {
+        standardPaths.push({
+          title: `Pane ${idx + 1}: ${p.path.split('/').filter(Boolean).pop() || '/'}`,
+          path: p.path,
+          icon: 'columns-2',
+          sub: p.path
+        });
+      }
+    });
+
+    standardPaths.forEach(p => {
+      pool.push({
+        title: p.title,
+        sub: p.sub,
+        path: p.path,
+        icon: p.icon,
+        cat: 'path',
+        badge: 'Folder',
+        handler: () => {
+          recordRecentHistory({ title: p.title, path: p.path, is_dir: true, icon: p.icon });
+          navigatePane(App.activePaneIndex, p.path);
+        }
+      });
+    });
+
+    // If query looks like an absolute path or URI, offer to jump directly
+    if (spotlightQuery.startsWith('/') || spotlightQuery.startsWith('~') || spotlightQuery.startsWith('smb://') || spotlightQuery.startsWith('sftp://')) {
+      const targetP = spotlightQuery.startsWith('~') ? spotlightQuery.replace('~', userHome) : spotlightQuery;
+      pool.unshift({
+        title: `Jump to path: ${targetP}`,
+        sub: `Navigate active pane to ${targetP}`,
+        path: targetP,
+        icon: 'folder-symlink',
+        cat: 'path',
+        badge: 'Direct Path',
+        handler: () => {
+          recordRecentHistory({ title: `Path: ${targetP}`, path: targetP, is_dir: true, icon: 'folder' });
+          navigatePane(App.activePaneIndex, targetP);
+        }
+      });
+    }
+  }
+
+  // 3. Bookmarks & Mounts
+  if (spotlightCurrentCat === 'all' || spotlightCurrentCat === 'bookmarks') {
+    const bookmarks = getBookmarksLocalCache();
+    bookmarks.forEach(b => {
+      pool.push({
+        title: b.name || b.path,
+        sub: `${b.protocol ? b.protocol.toUpperCase() + ' • ' : ''}${b.path}`,
+        path: b.path,
+        icon: 'star',
+        cat: 'bookmark',
+        badge: b.protocol || 'Bookmark',
+        handler: () => {
+          recordRecentHistory({ title: b.name || b.path, path: b.path, is_dir: true, icon: 'star' });
+          if (b.has_password) {
+            openRemoteAuthModal(b.path, b.protocol);
+          } else {
+            navigatePane(App.activePaneIndex, b.path);
+          }
+        }
+      });
+    });
+  }
+
+  // 4. Recent History
+  if (spotlightCurrentCat === 'all' || spotlightCurrentCat === 'recent') {
+    const recents = getRecentHistory();
+    recents.forEach(r => {
+      pool.push({
+        title: r.title,
+        sub: r.sub || r.path,
+        path: r.path,
+        icon: r.icon || 'history',
+        cat: 'recent',
+        badge: 'Recent',
+        handler: () => {
+          if (r.path) {
+            navigatePane(App.activePaneIndex, r.path);
+          }
+        }
+      });
+    });
+  }
+
+  // Filter pool by query with score matching
+  if (q) {
+    spotlightItems = pool.filter(it => {
+      const matchTitle = it.title && it.title.toLowerCase().includes(q);
+      const matchSub = it.sub && it.sub.toLowerCase().includes(q);
+      return matchTitle || matchSub;
+    }).sort((a, b) => {
+      const aStarts = a.title && a.title.toLowerCase().startsWith(q);
+      const bStarts = b.title && b.title.toLowerCase().startsWith(q);
+      if (aStarts && !bStarts) return -1;
+      if (!aStarts && bStarts) return 1;
+      return 0;
+    });
+  } else {
+    // Show top curated items
+    spotlightItems = pool.slice(0, 30);
+  }
+}
+
+function renderSpotlightResults() {
+  const container = document.getElementById('spotlight-results');
+  if (!container) return;
+
+  if (spotlightItems.length === 0) {
+    container.innerHTML = `
+      <div style="text-align: center; padding: 32px 16px; color: var(--text-muted);">
+        <div style="font-size: 28px; margin-bottom: 8px;">🔍</div>
+        <div style="font-size: 13px; font-weight: 600; color: var(--text-main);">No matching results found</div>
+        <div style="font-size: 11px; margin-top: 4px;">Try typing a path (e.g. <code>/etc</code>, <code>/var/log</code>) or a command name.</div>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = spotlightItems.map((it, idx) => {
+    const isSelected = idx === spotlightSelectedIndex;
+    return `
+      <div class="spotlight-item ${isSelected ? 'selected' : ''}" data-index="${idx}" onclick="executeSpotlightIndex(${idx})">
+        <div class="spotlight-item-icon">
+          <i data-lucide="${it.icon || 'file'}"></i>
+        </div>
+        <div class="spotlight-item-content">
+          <div class="spotlight-item-title">${escapeHtml(it.title)}</div>
+          ${it.sub ? `<div class="spotlight-item-sub">${escapeHtml(it.sub)}</div>` : ''}
+        </div>
+        ${it.badge ? `<span class="spotlight-item-badge">${escapeHtml(it.badge)}</span>` : ''}
+      </div>
+    `;
+  }).join('');
+
+  if (window.lucide) lucide.createIcons();
+
+  const selectedEl = container.querySelector('.spotlight-item.selected');
+  if (selectedEl) {
+    selectedEl.scrollIntoView({ block: 'nearest' });
+  }
+}
+
+function handleSpotlightKey(e) {
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    if (spotlightItems.length > 0) {
+      spotlightSelectedIndex = (spotlightSelectedIndex + 1) % spotlightItems.length;
+      renderSpotlightResults();
+    }
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (spotlightItems.length > 0) {
+      spotlightSelectedIndex = (spotlightSelectedIndex - 1 + spotlightItems.length) % spotlightItems.length;
+      renderSpotlightResults();
+    }
+  } else if (e.key === 'Enter') {
+    e.preventDefault();
+    if (spotlightItems.length > 0 && spotlightItems[spotlightSelectedIndex]) {
+      executeSpotlightIndex(spotlightSelectedIndex);
+    }
+  } else if (e.key === 'Escape') {
+    e.preventDefault();
+    closeSpotlightModal();
+  }
+}
+
+function executeSpotlightIndex(idx) {
+  const item = spotlightItems[idx];
+  if (!item) return;
+
+  closeSpotlightModal();
+  if (typeof item.handler === 'function') {
+    item.handler();
+  }
+}
 
 
 

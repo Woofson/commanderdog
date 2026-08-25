@@ -49,6 +49,11 @@
       <!-- Separator -->
       <div class="header-sep desktop-only"></div>
 
+      <!-- Spotlight Quick-Switcher Button (Mobile & Foldable Viewports) -->
+      <button class="btn btn-icon mobile-foldable-tool" id="btn-header-spotlight" onclick="openSpotlightModal()" title="Spotlight Quick-Switcher">
+        <i data-lucide="search"></i>
+      </button>
+
       <!-- 3. Terminal Button (Desktop Only) -->
       <button class="btn btn-icon desktop-only" id="btn-toggle-terminal" onclick="toggleTerminal()" title="Terminal Console (`)">
         <i data-lucide="terminal"></i>
@@ -68,6 +73,7 @@
           <i data-lucide="menu" class="mobile-only"></i>
         </button>
         <div class="tools-dropdown-menu" id="tools-dropdown-menu">
+          <div class="dropdown-item" onclick="openSpotlightModal()"><i data-lucide="sparkles" style="color: var(--accent);"></i> Spotlight Quick-Switcher (Ctrl+K)</div>
           <div class="dropdown-item" onclick="toggleTerminal()"><i data-lucide="terminal"></i> Terminal Console (`)</div>
           <div class="dropdown-item" onclick="openFloatingEditor()"><i data-lucide="code"></i> Multi-Tab Power Editor (F4)</div>
           <div class="dropdown-item" onclick="triggerDiff()"><i data-lucide="git-compare"></i> Compare / Diff (F9)</div>
@@ -297,6 +303,54 @@
       <div class="modal-footer">
         <button class="btn" onclick="closeModal('permissions-modal')">Cancel</button>
         <button class="btn btn-accent" id="btn-save-permissions">Apply Permissions</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Global Spotlight Quick-Switcher & Command Palette Modal -->
+  <div class="modal-overlay" id="spotlight-modal" style="z-index: 3000; align-items: flex-start; padding-top: 10vh;" onclick="if(event.target === this) closeSpotlightModal();">
+    <div class="spotlight-box" id="spotlight-box">
+      <!-- Search Input Header -->
+      <div class="spotlight-input-wrapper">
+        <i data-lucide="search" class="spotlight-search-icon"></i>
+        <input type="text" id="spotlight-input" class="spotlight-input" placeholder="Type a path, folder, bookmark, or action (e.g. 'down', 'term', '/var')..." autocomplete="off" spellcheck="false" oninput="handleSpotlightInput(this.value)" onkeydown="handleSpotlightKey(event)">
+        <button class="btn btn-icon spotlight-clear-btn" id="spotlight-clear-btn" onclick="clearSpotlightInput()" style="display: none;" title="Clear">
+          <i data-lucide="x" style="width: 13px; height: 13px;"></i>
+        </button>
+        <button class="btn btn-icon spotlight-close-btn" onclick="closeSpotlightModal()" title="Close (Esc)">
+          <i data-lucide="x" style="width: 15px; height: 15px;"></i>
+        </button>
+      </div>
+
+      <!-- Quick Filter Category Tabs -->
+      <div class="spotlight-categories">
+        <button class="spotlight-cat-btn active" id="spotlight-cat-all" onclick="filterSpotlightCategory('all')">All</button>
+        <button class="spotlight-cat-btn" id="spotlight-cat-actions" onclick="filterSpotlightCategory('actions')"><i data-lucide="zap"></i> Actions</button>
+        <button class="spotlight-cat-btn" id="spotlight-cat-paths" onclick="filterSpotlightCategory('paths')"><i data-lucide="folder"></i> Paths</button>
+        <button class="spotlight-cat-btn" id="spotlight-cat-bookmarks" onclick="filterSpotlightCategory('bookmarks')"><i data-lucide="star"></i> Bookmarks</button>
+        <button class="spotlight-cat-btn" id="spotlight-cat-recent" onclick="filterSpotlightCategory('recent')"><i data-lucide="history"></i> Recent</button>
+      </div>
+
+      <!-- Results Container -->
+      <div class="spotlight-results" id="spotlight-results">
+        <!-- Live items rendered dynamically -->
+      </div>
+
+      <!-- Footer Hints -->
+      <div class="spotlight-footer">
+        <div class="spotlight-hint">
+          <kbd>↑</kbd><kbd>↓</kbd> Navigate
+        </div>
+        <div class="spotlight-hint">
+          <kbd>↵</kbd> Select / Open
+        </div>
+        <div class="spotlight-hint">
+          <kbd>Esc</kbd> Close
+        </div>
+        <div style="flex: 1;"></div>
+        <div style="font-size: 10px; color: var(--text-dim);">
+          CommanderDog Spotlight
+        </div>
       </div>
     </div>
   </div>
@@ -2022,7 +2076,7 @@
           <div style="font-size: 18px; font-weight: 800; color: var(--accent); letter-spacing: 0.5px;">CommanderDog</div>
           <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 10px;">Multi-Tab Web Commander - By Woofson</div>
           <div style="display: flex; justify-content: center; gap: 6px; flex-wrap: wrap;">
-            <span class="badge" style="background: rgba(245, 158, 11, 0.2); color: var(--accent); border: 1px solid rgba(245, 158, 11, 0.4); font-weight: 700;">v0.2.7 (Release)</span>
+            <span class="badge" style="background: rgba(245, 158, 11, 0.2); color: var(--accent); border: 1px solid rgba(245, 158, 11, 0.4); font-weight: 700;">v0.2.8 (Release)</span>
             <span class="badge" style="background: rgba(56, 189, 248, 0.15); color: var(--info); border: 1px solid rgba(56, 189, 248, 0.3);">Rust + Axum + Tokio</span>
             <span class="badge" style="background: rgba(34, 197, 94, 0.15); color: var(--success); border: 1px solid rgba(34, 197, 94, 0.3);">MIT Open Source</span>
           </div>
