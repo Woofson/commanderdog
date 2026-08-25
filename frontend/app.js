@@ -3365,6 +3365,7 @@ function showContextMenu(x, y) {
       ${headerText}
     </div>
     <div class="context-item" onclick="triggerView()"><i data-lucide="eye" style="width: 14px;"></i> Quick View (F3)</div>
+    <div class="context-item" onclick="triggerMediaInspector()"><i data-lucide="info" style="width: 14px; color: var(--accent);"></i> Media & EXIF Inspector...</div>
     <div class="context-item" onclick="triggerEditor()"><i data-lucide="file-edit" style="width: 14px;"></i> Edit File (F4)</div>
     <div class="context-item" onclick="triggerDiff()"><i data-lucide="git-compare" style="width: 14px;"></i> Compare / Diff</div>
     <div class="context-sep"></div>
@@ -9510,6 +9511,468 @@ function executeSpotlightIndex(idx) {
   if (typeof item.handler === 'function') {
     item.handler();
   }
+}
+
+// ---------------- RICH MEDIA & EXIF GPS INSPECTOR ----------------
+let inspectorMapInstance = null;
+let currentInspectorCoords = null;
+
+function inspectCurrentImage() {
+  if (currentImageList && currentImageList[currentImageIndex]) {
+    openMediaInspector(currentImageList[currentImageIndex]);
+  }
+}
+
+function triggerMediaInspector() {
+  const pane = App.panes[App.activePaneIndex];
+  const item = App.contextItem || pane.entries[pane.cursorIndex];
+  if (item) {
+    openMediaInspector(item.path);
+  }
+}
+
+function copyToClipboardText(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => {
+      showToast(`Copied: ${text}`, 'info');
+    }).catch(() => {});
+  } else {
+    showToast(`Copied: ${text}`, 'info');
+  }
+}
+
+function extractDominantColors(imgEl) {
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = 40;
+    canvas.height = 40;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(imgEl, 0, 0, 40, 40);
+    const data = ctx.getImageData(0, 0, 40, 40).data;
+    
+    const colors = {};
+    for (let i = 0; i < data.length; i += 16) {
+      const r = Math.round(data[i] / 32) * 32;
+      const g = Math.round(data[i + 1] / 32) * 32;
+      const b = Math.round(data[i + 2] / 32) * 32;
+      const hex = `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
+      colors[hex] = (colors[hex] || 0) + 1;
+    }
+    
+    const sorted = Object.entries(colors)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 6)
+      .map(entry => entry[0]);
+    return sorted;
+  } catch (e) {
+    return [];
+  }
+}
+
+async function openMediaInspector(filePath) {
+  const fileName = filePath.split('/').pop() || filePath;
+  const ext = fileName.split('.').pop().toLowerCase();
+
+  const titleEl = document.getElementById('inspector-file-title');
+  const mainName = document.getElementById('inspector-main-name');
+  const mainSub = document.getElementById('inspector-main-sub');
+  const dlBtn = document.getElementById('inspector-file-download');
+  const thumbImg = document.getElementById('inspector-preview-img');
+  const thumbIcon = document.getElementById('inspector-preview-icon');
+  const paletteRow = document.getElementById('inspector-palette-row');
+
+  const secCamera = document.getElementById('inspector-section-camera');
+  const gridCamera = document.getElementById('inspector-camera-grid');
+  const secGps = document.getElementById('inspector-section-gps');
+  const secStream = document.getElementById('inspector-section-stream');
+  const gridStream = document.getElementById('inspector-stream-grid');
+  const gridFs = document.getElementById('inspector-fs-grid');
+
+  if (titleEl) titleEl.textContent = `Media Inspector: ${fileName}`;
+  if (mainName) mainName.textContent = fileName;
+  if (mainSub) mainSub.textContent = `Analyzing ${ext.toUpperCase()} media...`;
+  if (paletteRow) paletteRow.innerHTML = '';
+
+  const downloadUrl = `/api/fs/download?path=${encodeURIComponent(filePath)}`;
+  const streamUrl = `/api/fs/download?path=${encodeURIComponent(filePath)}&inline=true`;
+
+  if (dlBtn) {
+    dlBtn.href = downloadUrl;
+    dlBtn.download = fileName;
+  }
+
+  if (secCamera) secCamera.style.display = 'none';
+  if (secGps) secGps.style.display = 'none';
+  if (secStream) secStream.style.display = 'none';
+
+  // Populate FS Info
+  if (gridFs) {
+    gridFs.innerHTML = `
+      <div class="inspector-grid-item">
+        <span class="inspector-grid-label">Full Path</span>
+        <span class="inspector-grid-value" style="font-size: 11px;">${escapeHtml(filePath)}</span>
+      </div>
+      <div class="inspector-grid-item">
+        <span class="inspector-grid-label">File Type</span>
+        <span class="inspector-grid-value">${escapeHtml(ext.toUpperCase())}</span>
+      </div>
+    `;
+  }
+
+  const isImg = isImageExtension(fileName);
+  const isAud = isAudioExtension(fileName);
+  const isVid = isVideoExtension(fileName);
+
+  if (isImg) {
+    if (thumbIcon) thumbIcon.style.display = 'none';
+    if (thumbImg) {
+      thumbImg.style.display = 'block';
+      thumbImg.src = streamUrl;
+      thumbImg.onload = () => {
+        const colors = extractDominantColors(thumbImg);
+        if (paletteRow && colors.length > 0) {
+          paletteRow.innerHTML = colors.map(hex => `
+            <div class="inspector-color-swatch" style="background: ${hex};" title="Click to copy ${hex}" onclick="copyToClipboardText('${hex}')"></div>
+          `).join('');
+        }
+      };
+    }
+  } else {
+    if (thumbImg) thumbImg.style.display = 'none';
+    if (thumbIcon) {
+      thumbIcon.style.display = 'block';
+      thumbIcon.textContent = isVid ? '🎬' : (isAud ? '🎵' : '📄');
+    }
+  }
+
+  showModal('media-inspector-modal');
+  if (window.lucide) lucide.createIcons();
+
+  // Load and Parse
+  try {
+    const resp = await fetch(`/api/fs/download?path=${encodeURIComponent(filePath)}`, {
+      headers: { 'Authorization': `Bearer ${App.token}` }
+    });
+
+    if (resp.ok) {
+      const buffer = await resp.arrayBuffer();
+      const fileSize = formatFileSize(buffer.byteLength);
+
+      if (isImg) {
+        // Parse EXIF
+        const exif = parseExifFromBuffer(buffer);
+        const imgWidth = exif.PixelXDimension || exif.ImageWidth;
+        const imgHeight = exif.PixelYDimension || exif.ImageHeight;
+        const mp = (imgWidth && imgHeight) ? ((imgWidth * imgHeight) / 1000000).toFixed(1) + ' MP' : '';
+
+        if (mainSub) {
+          mainSub.textContent = `${ext.toUpperCase()} Image • ${imgWidth ? `${imgWidth} × ${imgHeight} (${mp}) • ` : ''}${fileSize}`;
+        }
+
+        // Camera Details
+        const cameraItems = [];
+        if (exif.Make || exif.Model) cameraItems.push({ label: 'Camera Body', val: `${exif.Make || ''} ${exif.Model || ''}`.trim() });
+        if (exif.LensModel) cameraItems.push({ label: 'Lens Model', val: exif.LensModel });
+        if (exif.FNumber) cameraItems.push({ label: 'Aperture', val: `ƒ/${exif.FNumber}` });
+        if (exif.ExposureTime) cameraItems.push({ label: 'Shutter Speed', val: formatShutterSpeed(exif.ExposureTime) });
+        if (exif.ISOSpeedRatings) cameraItems.push({ label: 'ISO Sensitivity', val: `ISO ${exif.ISOSpeedRatings}` });
+        if (exif.FocalLength) cameraItems.push({ label: 'Focal Length', val: `${exif.FocalLength}mm${exif.FocalLengthIn35mmFilm ? ` (${exif.FocalLengthIn35mmFilm}mm in 35mm)` : ''}` });
+        if (exif.ExposureBiasValue !== undefined) cameraItems.push({ label: 'Exposure Bias', val: `${exif.ExposureBiasValue > 0 ? '+' : ''}${exif.ExposureBiasValue} EV` });
+        if (exif.DateTimeOriginal) cameraItems.push({ label: 'Date Taken', val: exif.DateTimeOriginal });
+        if (exif.Software) cameraItems.push({ label: 'Software / OS', val: exif.Software });
+
+        if (cameraItems.length > 0) {
+          if (secCamera) secCamera.style.display = 'block';
+          if (gridCamera) {
+            gridCamera.innerHTML = cameraItems.map(it => `
+              <div class="inspector-grid-item">
+                <span class="inspector-grid-label">${escapeHtml(it.label)}</span>
+                <span class="inspector-grid-value">${escapeHtml(it.val)}</span>
+              </div>
+            `).join('');
+          }
+        }
+
+        // GPS Location & Map
+        if (exif.gps && exif.gps.lat !== undefined && exif.gps.lon !== undefined) {
+          currentInspectorCoords = exif.gps;
+          const lat = exif.gps.lat;
+          const lon = exif.gps.lon;
+          const alt = exif.gps.altitude ? ` • Alt: ${exif.gps.altitude.toFixed(1)}m` : '';
+
+          if (secGps) secGps.style.display = 'block';
+          const coordsEl = document.getElementById('inspector-gps-coords');
+          if (coordsEl) coordsEl.textContent = `📍 ${lat.toFixed(6)}°, ${lon.toFixed(6)}°${alt}`;
+
+          const linkOsm = document.getElementById('inspector-link-osm');
+          if (linkOsm) linkOsm.href = `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=16/${lat}/${lon}`;
+          const linkGmaps = document.getElementById('inspector-link-gmaps');
+          if (linkGmaps) linkGmaps.href = `https://www.google.com/maps?q=${lat},${lon}`;
+          const linkApple = document.getElementById('inspector-link-apple');
+          if (linkApple) linkApple.href = `https://maps.apple.com/?q=${lat},${lon}`;
+
+          setTimeout(() => {
+            if (window.L) {
+              const mapEl = document.getElementById('inspector-leaflet-map');
+              if (mapEl) {
+                if (inspectorMapInstance) {
+                  inspectorMapInstance.remove();
+                  inspectorMapInstance = null;
+                }
+                inspectorMapInstance = L.map('inspector-leaflet-map').setView([lat, lon], 14);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                  attribution: '© OpenStreetMap contributors'
+                }).addTo(inspectorMapInstance);
+                L.marker([lat, lon]).addTo(inspectorMapInstance)
+                  .bindPopup(`<b>${escapeHtml(fileName)}</b><br>${lat.toFixed(5)}, ${lon.toFixed(5)}`)
+                  .openPopup();
+              }
+            }
+          }, 200);
+        }
+
+      } else if (isVid || isAud) {
+        // Video / Audio Stream Inspection
+        if (secStream) secStream.style.display = 'block';
+        if (gridStream) gridStream.innerHTML = '<div style="color: var(--text-dim);">Analyzing stream...</div>';
+
+        const tempEl = document.createElement(isVid ? 'video' : 'audio');
+        tempEl.src = streamUrl;
+        tempEl.onloadedmetadata = () => {
+          const durationStr = formatMediaDuration(tempEl.duration);
+          if (mainSub) {
+            mainSub.textContent = `${ext.toUpperCase()} ${isVid ? 'Video' : 'Audio'} • ${durationStr} • ${fileSize}`;
+          }
+          const streamItems = [
+            { label: 'Container Format', val: ext.toUpperCase() },
+            { label: 'Total Duration', val: durationStr },
+            { label: 'File Size', val: fileSize }
+          ];
+
+          if (isVid && tempEl.videoWidth) {
+            const resLabel = getResolutionLabel(tempEl.videoWidth, tempEl.videoHeight);
+            streamItems.push({ label: 'Video Dimensions', val: `${tempEl.videoWidth} × ${tempEl.videoHeight} (${resLabel})` });
+            const gcd = (a, b) => b ? gcd(b, a % b) : a;
+            const d = gcd(tempEl.videoWidth, tempEl.videoHeight);
+            streamItems.push({ label: 'Aspect Ratio', val: `${tempEl.videoWidth / d}:${tempEl.videoHeight / d}` });
+          }
+
+          if (gridStream) {
+            gridStream.innerHTML = streamItems.map(it => `
+              <div class="inspector-grid-item">
+                <span class="inspector-grid-label">${escapeHtml(it.label)}</span>
+                <span class="inspector-grid-value">${escapeHtml(it.val)}</span>
+              </div>
+            `).join('');
+          }
+        };
+      }
+    }
+  } catch (e) {
+    console.error('Media inspection error:', e);
+  }
+  if (window.lucide) lucide.createIcons();
+}
+
+function copyInspectorCoordinates() {
+  if (currentInspectorCoords) {
+    const str = `${currentInspectorCoords.lat.toFixed(6)}, ${currentInspectorCoords.lon.toFixed(6)}`;
+    copyToClipboardText(str);
+  }
+}
+
+function formatShutterSpeed(val) {
+  if (!val) return '';
+  if (val < 1) {
+    return `1/${Math.round(1 / val)}s`;
+  }
+  return `${val}s`;
+}
+
+function formatMediaDuration(seconds) {
+  if (!seconds || isNaN(seconds)) return '0:00';
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  const h = Math.floor(m / 60);
+  if (h > 0) {
+    return `${h}:${(m % 60).toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  }
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+function getResolutionLabel(w, h) {
+  const maxDim = Math.max(w, h);
+  if (maxDim >= 3800) return '4K UHD';
+  if (maxDim >= 2500) return '2K QHD';
+  if (maxDim >= 1900) return '1080p FHD';
+  if (maxDim >= 1200) return '720p HD';
+  if (maxDim >= 800) return '480p SD';
+  return 'Standard';
+}
+
+function parseExifFromBuffer(buffer) {
+  const view = new DataView(buffer);
+  const result = {};
+
+  if (view.getUint16(0, false) !== 0xFFD8) {
+    return result;
+  }
+
+  let offset = 2;
+  const length = view.byteLength;
+
+  while (offset < length) {
+    if (view.getUint8(offset) !== 0xFF) break;
+    const marker = view.getUint8(offset + 1);
+
+    if (marker === 0xE1) {
+      const exifHeader = view.getUint32(offset + 4, false);
+      if (exifHeader === 0x45786966 && view.getUint16(offset + 8, false) === 0x0000) {
+        const tiffOffset = offset + 10;
+        parseTiffHeader(view, tiffOffset, result);
+      }
+      break;
+    } else {
+      offset += 2 + view.getUint16(offset + 2, false);
+    }
+  }
+
+  return result;
+}
+
+function parseTiffHeader(view, tiffOffset, result) {
+  if (tiffOffset + 8 > view.byteLength) return;
+  const byteOrder = view.getUint16(tiffOffset, false);
+  const littleEndian = byteOrder === 0x4949;
+
+  if (view.getUint16(tiffOffset + 2, littleEndian) !== 0x002A) {
+    return;
+  }
+
+  const ifd0Offset = view.getUint32(tiffOffset + 4, littleEndian);
+  parseIFD(view, tiffOffset, tiffOffset + ifd0Offset, littleEndian, result);
+}
+
+function parseIFD(view, tiffOffset, ifdOffset, littleEndian, result) {
+  if (ifdOffset + 2 > view.byteLength) return;
+  const numEntries = view.getUint16(ifdOffset, littleEndian);
+  let offset = ifdOffset + 2;
+
+  const TAGS = {
+    0x010F: 'Make',
+    0x0110: 'Model',
+    0x0112: 'Orientation',
+    0x011A: 'XResolution',
+    0x011B: 'YResolution',
+    0x0131: 'Software',
+    0x0132: 'DateTime',
+    0x8769: 'ExifIFDPointer',
+    0x8825: 'GPSInfoIFDPointer',
+    0xA002: 'PixelXDimension',
+    0xA003: 'PixelYDimension',
+    0x0100: 'ImageWidth',
+    0x0101: 'ImageHeight'
+  };
+
+  const EXIF_TAGS = {
+    0x829A: 'ExposureTime',
+    0x829D: 'FNumber',
+    0x8827: 'ISOSpeedRatings',
+    0x9003: 'DateTimeOriginal',
+    0x9004: 'CreateDate',
+    0x9204: 'ExposureBiasValue',
+    0x9207: 'MeteringMode',
+    0x9209: 'Flash',
+    0x920A: 'FocalLength',
+    0xA405: 'FocalLengthIn35mmFilm',
+    0xA434: 'LensModel'
+  };
+
+  for (let i = 0; i < numEntries; i++) {
+    if (offset + 12 > view.byteLength) break;
+    const tag = view.getUint16(offset, littleEndian);
+    const type = view.getUint16(offset + 2, littleEndian);
+    const count = view.getUint32(offset + 4, littleEndian);
+    const valueOffset = view.getUint32(offset + 8, littleEndian);
+
+    const tagName = TAGS[tag] || EXIF_TAGS[tag];
+    if (tagName) {
+      result[tagName] = readTagValue(view, tiffOffset, offset + 8, type, count, littleEndian);
+    }
+
+    if (tag === 0x8769) {
+      parseIFD(view, tiffOffset, tiffOffset + valueOffset, littleEndian, result);
+    } else if (tag === 0x8825) {
+      parseGPSIFD(view, tiffOffset, tiffOffset + valueOffset, littleEndian, result);
+    }
+
+    offset += 12;
+  }
+}
+
+function parseGPSIFD(view, tiffOffset, ifdOffset, littleEndian, result) {
+  if (ifdOffset + 2 > view.byteLength) return;
+  const numEntries = view.getUint16(ifdOffset, littleEndian);
+  let offset = ifdOffset + 2;
+  const gps = {};
+
+  for (let i = 0; i < numEntries; i++) {
+    if (offset + 12 > view.byteLength) break;
+    const tag = view.getUint16(offset, littleEndian);
+    const type = view.getUint16(offset + 2, littleEndian);
+    const count = view.getUint32(offset + 4, littleEndian);
+
+    if (tag === 0x0001) gps.latRef = readTagValue(view, tiffOffset, offset + 8, type, count, littleEndian);
+    else if (tag === 0x0002) gps.latRaw = readTagValue(view, tiffOffset, offset + 8, type, count, littleEndian);
+    else if (tag === 0x0003) gps.lonRef = readTagValue(view, tiffOffset, offset + 8, type, count, littleEndian);
+    else if (tag === 0x0004) gps.lonRaw = readTagValue(view, tiffOffset, offset + 8, type, count, littleEndian);
+    else if (tag === 0x0006) gps.altitude = readTagValue(view, tiffOffset, offset + 8, type, count, littleEndian);
+
+    offset += 12;
+  }
+
+  if (Array.isArray(gps.latRaw) && gps.latRaw.length === 3 && Array.isArray(gps.lonRaw) && gps.lonRaw.length === 3) {
+    let lat = gps.latRaw[0] + gps.latRaw[1] / 60 + gps.latRaw[2] / 3600;
+    if (gps.latRef === 'S') lat = -lat;
+    let lon = gps.lonRaw[0] + gps.lonRaw[1] / 60 + gps.lonRaw[2] / 3600;
+    if (gps.lonRef === 'W') lon = -lon;
+    result.gps = { lat, lon, altitude: gps.altitude };
+  }
+}
+
+function readTagValue(view, tiffOffset, valOffset, type, count, littleEndian) {
+  if (type === 2) {
+    const ptr = count > 4 ? tiffOffset + view.getUint32(valOffset, littleEndian) : valOffset;
+    let str = '';
+    for (let i = 0; i < count - 1; i++) {
+      if (ptr + i < view.byteLength) {
+        const c = view.getUint8(ptr + i);
+        if (c === 0) break;
+        str += String.fromCharCode(c);
+      }
+    }
+    return str.trim();
+  } else if (type === 3) {
+    return view.getUint16(valOffset, littleEndian);
+  } else if (type === 4) {
+    return view.getUint32(valOffset, littleEndian);
+  } else if (type === 5 || type === 10) {
+    const ptr = tiffOffset + view.getUint32(valOffset, littleEndian);
+    if (count === 1) {
+      const num = type === 10 ? view.getInt32(ptr, littleEndian) : view.getUint32(ptr, littleEndian);
+      const den = type === 10 ? view.getInt32(ptr + 4, littleEndian) : view.getUint32(ptr + 4, littleEndian);
+      return den !== 0 ? num / den : 0;
+    } else {
+      const arr = [];
+      for (let i = 0; i < count; i++) {
+        const num = type === 10 ? view.getInt32(ptr + i * 8, littleEndian) : view.getUint32(ptr + i * 8, littleEndian);
+        const den = type === 10 ? view.getInt32(ptr + i * 8 + 4, littleEndian) : view.getUint32(ptr + i * 8 + 4, littleEndian);
+        arr.push(den !== 0 ? num / den : 0);
+      }
+      return arr;
+    }
+  }
+  return null;
 }
 
 
