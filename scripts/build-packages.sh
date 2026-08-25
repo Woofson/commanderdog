@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# 🐕 CommanderDog - Multi-Format Release Packaging Script
+# CommanderDog - Multi-Format Release Packaging Script
 # Generates: Standalone Tarballs (.tar.gz), Debian (.deb), and Checksums
 # ==============================================================================
 
@@ -11,11 +11,11 @@ ARCH=$(uname -m)
 DIST_DIR="./dist"
 
 echo "======================================================"
-echo "🐕 Building CommanderDog Release Packages (v${VERSION})..."
+echo "Building CommanderDog Release Packages (v${VERSION})..."
 echo "======================================================"
 
 # 1. Compile Release Binary
-echo "🔨 Compiling standalone release binary with PAM support..."
+echo "Compiling standalone release binary with PAM support..."
 mkdir -p target/libs
 if [ -f "/usr/lib/x86_64-linux-gnu/libpam.so.0" ]; then
     ln -sf /usr/lib/x86_64-linux-gnu/libpam.so.0 target/libs/libpam.so
@@ -59,7 +59,7 @@ Priority: optional
 Architecture: amd64
 Maintainer: Bolt J Woofson <bolt@boop.no>
 Depends: ca-certificates, libsqlite3-0, libssh2-1, tar, bzip2, p7zip-full
-Description: Quad-pane high-performance web file commander
+Description: Multi-Tab Web Commander
  Blending the orthodox speed of Total Commander / Midnight Commander
  with the modern responsiveness of Next Explorer.
 DEBEOF

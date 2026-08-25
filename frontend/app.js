@@ -1,4 +1,4 @@
-// 🐕 CommanderDog Quad-Pane State & Engine
+// CommanderDog Multi-Tab Web Commander - By Woofson
 const App = {
   panes: [],
   activePaneIndex: 0,
@@ -6021,7 +6021,7 @@ function connectTerminal(cwd) {
 
   termWs.onopen = () => {
     if (termInstance) {
-      termInstance.writeln('\x1b[38;5;214m🐕 CommanderDog PTY Session Connected\x1b[0m [\x1b[38;5;244mcwd:\x1b[0m ' + cwd + ']\r\n');
+      termInstance.writeln('\x1b[38;5;214mCommanderDog PTY Session Connected\x1b[0m [\x1b[38;5;244mcwd:\x1b[0m ' + cwd + ']\r\n');
       termInstance.focus();
     }
   };

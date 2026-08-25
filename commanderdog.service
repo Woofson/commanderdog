@@ -1,5 +1,5 @@
 [Unit]
-Description=CommanderDog - Quad-Pane Web File Commander
+Description=CommanderDog - Multi-Tab Web Commander
 After=network.target network-online.target
 Wants=network-online.target
 

@@ -1,9 +1,9 @@
 [package]
 name = "commanderdog"
-version = "0.2.5"
+version = "0.2.6"
 edition = "2021"
 authors = ["Bolt J Woofson <bolt@boop.no>"]
-description = "Quad-pane web file browser with orthodox commander power, WebDAV/SFTP, diffing, and paranoid file handling"
+description = "Multi-Tab Web Commander - By Woofson"
 license = "MIT"
 
 [dependencies]
@@ -54,10 +54,10 @@ maintainer = "Bolt J Woofson <bolt@boop.no>"
 copyright = "2026, Bolt J Woofson <bolt@boop.no>"
 license-file = ["LICENSE", "4"]
 extended-description = """\
-Quad-pane web file browser blending the orthodox speed of Total Commander / \
+Multi-Tab Web Commander blending the orthodox speed of Total Commander / \
 Midnight Commander with the modern responsiveness of Next Explorer. Features \
 1-to-4 toggleable panes, WebDAV/SFTP, S3 Cloud Storage, DeltaCopy/TeraCopy \
-engine, dual-pane editor with Mermaid diagrams, slide-up web terminal, \
+engine, floating multi-tab power editor with Markdown & Mermaid, slide-up web terminal, \
 directory sync, and 11 customizable themes."""
 section = "utils"
 priority = "optional"

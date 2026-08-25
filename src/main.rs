@@ -29,7 +29,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 / /__| (_) | | | | | | | | | | | (_| | | | | (_| |  __/ | / /_// (_) | (_| |
 \____/\___/|_| |_| |_|_| |_| |_|\__,_|_| |_|\__,_|\___|_|/___,' \___/ \__, |
                                                                        |___/ 
-      🐕 Quad-Pane High-Performance Web Commander | Orthodox Power 🐕
+        Multi-Tab Web Commander - By Woofson
     "#);
 
     let config = ConfigManager::load_all();

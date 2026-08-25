@@ -2,7 +2,7 @@
 
 <div align="center">
   <img src="assets/commanderdogq.png" alt="CommanderDog Quad-Pane Banner" width="800" style="border-radius: 8px; box-shadow: 0 12px 32px rgba(0,0,0,0.6);" />
-  <p><em>Quad-Pane High-Performance Web File Commander | Orthodox Power with Modern Polish</em></p>
+  <p><em>Multi-Tab Web Commander - By Woofson</em></p>
 </div>
 
 ---

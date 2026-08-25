@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# 🐕 CommanderDog - LXC / Bare-Metal Automated Installer
+# CommanderDog - LXC / Bare-Metal Automated Installer
 # Supported: Debian 11/12, Ubuntu 22.04/24.04, Proxmox LXC Containers
 # ==============================================================================
 
 set -euo pipefail
 
 echo "======================================================"
-echo "🐕 Installing CommanderDog on Linux / Proxmox LXC..."
+echo "Installing CommanderDog on Linux / Proxmox LXC..."
 echo "======================================================"
 
 # 1. Install prerequisites
