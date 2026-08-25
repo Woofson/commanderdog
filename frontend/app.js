@@ -3502,6 +3502,22 @@ function showContextMenu(x, y) {
     <div class="context-item" onclick="triggerDiff()"><i data-lucide="git-compare" style="width: 14px;"></i> Compare / Diff</div>
     <div class="context-sep"></div>
 
+    <!-- Color Label Palette & Tags -->
+    <div class="context-item context-color-palette-item" style="display: flex; justify-content: space-between; align-items: center; cursor: default;" onclick="event.stopPropagation()">
+      <span style="display: flex; align-items: center; gap: 6px;"><i data-lucide="tag" style="width: 14px; color: var(--accent);"></i> Color Label:</span>
+      <div class="context-color-palette">
+        <span class="color-dot color-red" onclick="setContextFileColor('red')" title="Red (Urgent)"></span>
+        <span class="color-dot color-orange" onclick="setContextFileColor('orange')" title="Orange (Pending)"></span>
+        <span class="color-dot color-yellow" onclick="setContextFileColor('yellow')" title="Yellow (Review)"></span>
+        <span class="color-dot color-green" onclick="setContextFileColor('green')" title="Green (Approved)"></span>
+        <span class="color-dot color-blue" onclick="setContextFileColor('blue')" title="Blue (Important)"></span>
+        <span class="color-dot color-purple" onclick="setContextFileColor('purple')" title="Purple (Personal)"></span>
+        <span class="color-dot color-none" onclick="setContextFileColor('none')" title="Clear Label">✕</span>
+      </div>
+    </div>
+    <div class="context-item" onclick="triggerEditTagsModal()"><i data-lucide="tags" style="width: 14px; color: var(--accent);"></i> Edit Custom Tags...</div>
+    <div class="context-sep"></div>
+
     <div class="context-item" onclick="triggerCopyClipboard()"><i data-lucide="clipboard-copy" style="width: 14px;"></i> Copy to Clipboard (Ctrl+C)</div>
     <div class="context-item" onclick="triggerCutClipboard()"><i data-lucide="scissors" style="width: 14px;"></i> Cut (Ctrl+X)</div>
     <div class="context-item ${App.clipboard ? '' : 'disabled'}" onclick="triggerPaste(App.activePaneIndex)" style="${App.clipboard ? '' : 'opacity: 0.5; pointer-events: none;'}"><i data-lucide="clipboard-paste" style="width: 14px;"></i> Paste (Ctrl+V)</div>
@@ -3648,6 +3664,7 @@ function showEmptySpaceContextMenu(x, y, paneIndex) {
       <span>${escapeHtml(pane.path.split('/').pop() || pane.path || '/')}</span>
     </div>
     <div class="context-item" onclick="openSpotlightModal()"><i data-lucide="sparkles" style="width: 14px; color: var(--accent);"></i> Spotlight Quick-Switcher (Ctrl+K)...</div>
+    <div class="context-item" onclick="toggleBranchView(${paneIndex})"><i data-lucide="git-branch" style="width: 14px; color: var(--accent);"></i> Flat / Branch View (Ctrl+B)</div>
     <div class="context-item" onclick="triggerDeviceUpload(${paneIndex})"><i data-lucide="upload-cloud" style="width: 14px; color: #38bdf8;"></i> Upload Files from Device...</div>
     <div class="context-item" onclick="triggerDeviceFolderUpload(${paneIndex})"><i data-lucide="folder-up" style="width: 14px; color: #38bdf8;"></i> Upload Folder from Device...</div>
     <div class="context-item" onclick="triggerDownloadCurrentDirectory(${paneIndex})"><i data-lucide="download" style="width: 14px;"></i> Download Directory (.zip)</div>
