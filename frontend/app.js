@@ -10171,7 +10171,7 @@ let spotlightSelectedIndex = 0;
 let spotlightItems = [];
 
 const SPOTLIGHT_STATIC_ACTIONS = [
-  { id: 'calc', title: 'Floating Calculator & Byte Math', sub: 'Interactive floating calculator with byte units, storage math & base conversions', icon: 'calculator', cat: 'actions', action: () => openFloatingCalculator() },
+  { id: 'calc', title: 'Calculator', sub: 'Interactive floating calculator with storage units & base conversions', icon: 'calculator', cat: 'actions', action: () => openFloatingCalculator() },
   { id: 'branch', title: 'Flat / Branch View', sub: 'Flatten all subdirectories into a single unified list (Ctrl+B)', icon: 'git-branch', cat: 'actions', action: () => toggleBranchView() },
   { id: 'tags', title: 'Color Labels & Custom Tags', sub: 'Assign color labels and custom tags to selected items', icon: 'tag', cat: 'actions', action: () => triggerEditTagsModal() },
   { id: 'term', title: 'Terminal Console', sub: 'Open integrated interactive terminal (` or F4)', icon: 'terminal', cat: 'actions', action: () => toggleTerminal() },
