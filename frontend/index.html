@@ -77,6 +77,7 @@
         </button>
         <div class="tools-dropdown-menu" id="tools-dropdown-menu">
           <div class="dropdown-item" onclick="openSpotlightModal()"><i data-lucide="sparkles" style="color: var(--accent);"></i> Spotlight Quick-Switcher (Ctrl+K)</div>
+          <div class="dropdown-item" onclick="toggleBranchView()"><i data-lucide="git-branch" style="color: var(--accent);"></i> Flat / Branch View (Ctrl+B)</div>
           <div class="dropdown-item" onclick="toggleTerminal()"><i data-lucide="terminal"></i> Terminal Console (`)</div>
           <div class="dropdown-item" onclick="openFloatingEditor()"><i data-lucide="code"></i> Multi-Tab Power Editor (F4)</div>
           <div class="dropdown-item" onclick="triggerDiff()"><i data-lucide="git-compare"></i> Compare / Diff (F9)</div>
@@ -224,6 +225,20 @@
     <div class="context-item" onclick="triggerConvertFile()"><i data-lucide="file-output" style="width: 14px;"></i> Convert File (ConvertX)...</div>
     <div class="context-item" onclick="triggerCompressModal()"><i data-lucide="archive" style="width: 14px;"></i> Compress to Archive...</div>
     <div class="context-item" onclick="triggerExtractModal()"><i data-lucide="folder-archive" style="width: 14px;"></i> Extract Archive...</div>
+    <div class="context-sep"></div>
+    <div class="context-item context-color-palette-item" style="display: flex; justify-content: space-between; align-items: center;" onclick="event.stopPropagation()">
+      <span style="display: flex; align-items: center; gap: 6px;"><i data-lucide="tag" style="width: 14px; color: var(--accent);"></i> Color Label:</span>
+      <div class="context-color-palette">
+        <span class="color-dot color-red" onclick="setContextFileColor('red')" title="Red (Urgent)"></span>
+        <span class="color-dot color-orange" onclick="setContextFileColor('orange')" title="Orange (Pending)"></span>
+        <span class="color-dot color-yellow" onclick="setContextFileColor('yellow')" title="Yellow (Review)"></span>
+        <span class="color-dot color-green" onclick="setContextFileColor('green')" title="Green (Approved)"></span>
+        <span class="color-dot color-blue" onclick="setContextFileColor('blue')" title="Blue (Important)"></span>
+        <span class="color-dot color-purple" onclick="setContextFileColor('purple')" title="Purple (Personal)"></span>
+        <span class="color-dot color-none" onclick="setContextFileColor('none')" title="Clear Label">✕</span>
+      </div>
+    </div>
+    <div class="context-item" onclick="triggerEditTagsModal()"><i data-lucide="tags" style="width: 14px;"></i> Edit Custom Tags...</div>
   </div>
 
   <!-- Linux / Unix Permissions & Ownership Manager Modal -->
@@ -1076,51 +1091,82 @@
       <div class="editor-header-left">
         <span class="editor-header-drag-handle" style="font-weight: 700; display: flex; align-items: center; gap: 6px; cursor: grab;">
           <i data-lucide="code-2" style="color: var(--accent); width: 16px;"></i>
-          <span>Power Editor</span>
+          <span class="desktop-only">Power Editor</span>
         </span>
 
-        <div class="header-sep desktop-only"></div>
+        <!-- Desktop Direct Selectors -->
+        <div class="desktop-only" style="display: flex; align-items: center; gap: 6px;">
+          <!-- Split View Layout Selector -->
+          <select id="editor-view-mode" class="btn btn-sm" onchange="handleEditorViewModeChange(this.value)" title="Change Editor Layout">
+            <option value="single-editor">Single View</option>
+            <option value="dual-vertical">Dual View (Side-by-Side)</option>
+            <option value="dual-horizontal">Dual View (Stacked)</option>
+            <option value="split-markdown">Markdown & Live Mermaid</option>
+          </select>
 
-        <!-- Split View Layout Selector -->
-        <select id="editor-view-mode" class="btn btn-sm" onchange="handleEditorViewModeChange(this.value)" title="Change Editor Layout">
-          <option value="single-editor">Single View</option>
-          <option value="dual-vertical">Dual View (Side-by-Side)</option>
-          <option value="dual-horizontal">Dual View (Stacked)</option>
-          <option value="split-markdown">Markdown & Live Mermaid</option>
-        </select>
+          <!-- Syntax Language Selector -->
+          <select id="editor-language-select" class="btn btn-sm" onchange="handleEditorLanguageChange(this.value)" title="Syntax Highlighting Mode">
+            <option value="auto">Language: Auto</option>
+            <option value="rust">Rust</option>
+            <option value="python">Python</option>
+            <option value="javascript">JavaScript / TypeScript</option>
+            <option value="html">HTML / XML</option>
+            <option value="css">CSS / SCSS</option>
+            <option value="json">JSON</option>
+            <option value="yaml">YAML</option>
+            <option value="toml">TOML</option>
+            <option value="bash">Bash / Shell</option>
+            <option value="sql">SQL</option>
+            <option value="markdown">Markdown</option>
+            <option value="clike">C / C++</option>
+            <option value="docker">Dockerfile</option>
+            <option value="ini">INI / Conf</option>
+          </select>
 
-        <!-- Syntax Language Selector -->
-        <select id="editor-language-select" class="btn btn-sm" onchange="handleEditorLanguageChange(this.value)" title="Syntax Highlighting Mode">
-          <option value="auto">Language: Auto</option>
-          <option value="rust">Rust</option>
-          <option value="python">Python</option>
-          <option value="javascript">JavaScript / TypeScript</option>
-          <option value="html">HTML / XML</option>
-          <option value="css">CSS / SCSS</option>
-          <option value="json">JSON</option>
-          <option value="yaml">YAML</option>
-          <option value="toml">TOML</option>
-          <option value="bash">Bash / Shell</option>
-          <option value="sql">SQL</option>
-          <option value="markdown">Markdown</option>
-          <option value="clike">C / C++</option>
-          <option value="docker">Dockerfile</option>
-          <option value="ini">INI / Conf</option>
-        </select>
-
-        <!-- conf.d Section Quick Jump Selector (Visible for assembled configs) -->
-        <select id="editor-confd-jump" class="btn btn-sm" style="display: none; max-width: 190px;" onchange="jumpToConfdSection(this.value)" title="Jump to Config Section">
-          <option value="">Jump to Section...</option>
-        </select>
+          <!-- conf.d Section Quick Jump Selector (Visible for assembled configs) -->
+          <select id="editor-confd-jump" class="btn btn-sm" style="display: none; max-width: 170px;" onchange="jumpToConfdSection(this.value)" title="Jump to Config Section">
+            <option value="">Jump to Section...</option>
+          </select>
+        </div>
       </div>
 
       <div class="editor-header-right">
-        <button class="btn btn-sm" onclick="createNewEditorTab()" title="New Tab (Ctrl+N)"><i data-lucide="plus"></i> New</button>
-        <button class="btn btn-sm" onclick="toggleFindBar()" title="Find & Replace (Ctrl+F / Ctrl+H)"><i data-lucide="search"></i> Find</button>
+        <button class="btn btn-sm" onclick="createNewEditorTab()" title="New Tab (Ctrl+N)"><i data-lucide="plus"></i> <span class="desktop-only">New</span></button>
+        <button class="btn btn-sm desktop-only" onclick="toggleFindBar()" title="Find & Replace (Ctrl+F / Ctrl+H)"><i data-lucide="search"></i> Find</button>
         <button class="btn btn-sm btn-accent" id="btn-save-editor" onclick="saveActiveEditorTab()" title="Save Current Tab (Ctrl+S)"><i data-lucide="save"></i> Save</button>
-        <button class="btn btn-sm" onclick="saveAllEditorTabs()" title="Save All Open Tabs (Ctrl+Shift+S)"><i data-lucide="save-all"></i> Save All</button>
-        <button class="btn btn-sm btn-icon" onclick="minimizeFloatingEditor()" title="Minimize to Pill"><i data-lucide="minus"></i></button>
-        <button class="btn btn-sm btn-icon" onclick="maximizeFloatingEditor()" title="Maximize / Restore Window"><i data-lucide="maximize-2"></i></button>
+        <button class="btn btn-sm desktop-only" onclick="saveAllEditorTabs()" title="Save All Open Tabs (Ctrl+Shift+S)"><i data-lucide="save-all"></i> Save All</button>
+
+        <!-- Mobile / Foldable Consolidated Menu Dropdown -->
+        <div class="dropdown-container mobile-only" id="editor-actions-dropdown-container" style="position: relative;">
+          <button class="btn btn-sm" onclick="toggleEditorActionsDropdown(event)" title="Editor Settings & Tools"><i data-lucide="more-horizontal"></i></button>
+          <div class="dropdown-menu" id="editor-actions-dropdown-menu" style="display: none; right: 0; min-width: 210px;">
+            <div class="dropdown-item" onclick="toggleFindBar(); closeEditorActionsDropdown();"><i data-lucide="search"></i> Find & Replace (Ctrl+F)</div>
+            <div class="dropdown-item" onclick="saveAllEditorTabs(); closeEditorActionsDropdown();"><i data-lucide="save-all"></i> Save All Tabs</div>
+            <div class="context-sep"></div>
+            <div style="padding: 6px 12px; font-size: 10px; color: var(--text-dim); text-transform: uppercase; font-weight: 700;">Layout & View</div>
+            <div class="dropdown-item" onclick="handleEditorViewModeChange('single-editor'); closeEditorActionsDropdown();"><i data-lucide="square"></i> Single View</div>
+            <div class="dropdown-item" onclick="handleEditorViewModeChange('dual-horizontal'); closeEditorActionsDropdown();"><i data-lucide="rows"></i> Dual Stacked View</div>
+            <div class="dropdown-item" onclick="handleEditorViewModeChange('split-markdown'); closeEditorActionsDropdown();"><i data-lucide="book-open"></i> Markdown Preview</div>
+            <div class="context-sep"></div>
+            <div style="padding: 6px 12px; font-size: 10px; color: var(--text-dim); text-transform: uppercase; font-weight: 700;">Syntax Language</div>
+            <div style="padding: 4px 12px;">
+              <select id="editor-language-select-mobile" class="pane-quick-filter" style="width: 100%; font-size: 11px;" onchange="handleEditorLanguageChange(this.value); closeEditorActionsDropdown();">
+                <option value="auto">Auto Detect</option>
+                <option value="rust">Rust</option>
+                <option value="python">Python</option>
+                <option value="javascript">JavaScript</option>
+                <option value="html">HTML / Web</option>
+                <option value="json">JSON</option>
+                <option value="yaml">YAML / TOML</option>
+                <option value="bash">Bash Script</option>
+                <option value="markdown">Markdown</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <button class="btn btn-sm btn-icon desktop-only" onclick="minimizeFloatingEditor()" title="Minimize to Pill"><i data-lucide="minus"></i></button>
+        <button class="btn btn-sm btn-icon desktop-only" onclick="maximizeFloatingEditor()" title="Maximize / Restore Window"><i data-lucide="maximize-2"></i></button>
         <button class="btn btn-sm btn-icon" onclick="closeEditorModal()" title="Close Editor"><i data-lucide="x"></i></button>
       </div>
     </div>
@@ -1314,29 +1360,50 @@
 
   <!-- Rich Image Viewer Modal -->
   <div class="modal-overlay" id="image-viewer-modal">
-    <div class="modal-box image-viewer-box">
-      <div class="image-viewer-toolbar">
-        <div style="display: flex; align-items: center; gap: 8px;">
+    <div class="modal-box image-viewer-box" id="image-viewer-box">
+      <div class="image-viewer-toolbar" id="image-viewer-toolbar">
+        <div class="image-viewer-title-group">
           <span style="color: var(--accent); font-weight: 700;">🖼️</span>
-          <span id="img-viewer-title" style="font-weight: 600; font-size: 13px;">image.png</span>
-          <span id="img-viewer-meta" style="color: var(--text-muted); font-size: 11px; font-family: var(--font-mono);">(1920x1080 - 1.2 MB)</span>
+          <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+            <span id="img-viewer-title" style="font-weight: 600; font-size: 13px;">image.png</span>
+            <span id="img-viewer-meta" style="color: var(--text-muted); font-size: 10.5px; font-family: var(--font-mono); margin-left: 6px;">(1920x1080 - 1.2 MB)</span>
+          </div>
         </div>
 
-        <div style="display: flex; align-items: center; gap: 6px;">
-          <button class="btn btn-icon" onclick="navImageViewer(-1)" title="Previous Image (Left Arrow)"><i data-lucide="chevron-left"></i></button>
-          <span id="img-viewer-counter" style="font-size: 11px; color: var(--text-dim); min-width: 40px; text-align: center;">1 / 1</span>
-          <button class="btn btn-icon" onclick="navImageViewer(1)" title="Next Image (Right Arrow)"><i data-lucide="chevron-right"></i></button>
-          <div style="width: 1px; height: 16px; background: var(--border); margin: 0 4px;"></div>
-          <button class="btn btn-icon" onclick="zoomImage(0.2)" title="Zoom In (+)"><i data-lucide="zoom-in"></i></button>
-          <button class="btn btn-icon" onclick="zoomImage(-0.2)" title="Zoom Out (-)"><i data-lucide="zoom-out"></i></button>
-          <button class="btn btn-icon" onclick="resetImageTransform()" title="Reset 1:1 View"><i data-lucide="refresh-cw"></i></button>
-          <button class="btn btn-icon" onclick="rotateImage(90)" title="Rotate Clockwise 90°"><i data-lucide="rotate-cw"></i></button>
-          <button class="btn btn-icon" onclick="flipImage('h')" title="Flip Horizontal"><i data-lucide="flip-horizontal"></i></button>
-          <button class="btn btn-icon" onclick="flipImage('v')" title="Flip Vertical"><i data-lucide="flip-vertical"></i></button>
-          <div style="width: 1px; height: 16px; background: var(--border); margin: 0 4px;"></div>
-          <button class="btn btn-icon" onclick="inspectCurrentImage()" title="Inspect EXIF & GPS Metadata"><i data-lucide="info"></i></button>
-          <button class="btn btn-icon" onclick="downloadCurrentImage()" title="Download Image"><i data-lucide="download"></i></button>
-          <button class="btn btn-icon" onclick="closeModal('image-viewer-modal')" title="Close Viewer (Esc)"><i data-lucide="x"></i></button>
+        <div class="image-viewer-nav-pill">
+          <button class="btn btn-icon btn-sm" onclick="navImageViewer(-1)" title="Previous Image (Left Arrow)"><i data-lucide="chevron-left"></i></button>
+          <span id="img-viewer-counter" style="font-size: 11px; font-family: var(--font-mono); color: var(--text-dim); min-width: 42px; text-align: center;">1 / 1</span>
+          <button class="btn btn-icon btn-sm" onclick="navImageViewer(1)" title="Next Image (Right Arrow)"><i data-lucide="chevron-right"></i></button>
+        </div>
+
+        <div class="image-viewer-actions-group">
+          <!-- Desktop Direct Transform Buttons -->
+          <div class="desktop-only" style="display: flex; align-items: center; gap: 4px;">
+            <button class="btn btn-icon btn-sm" onclick="zoomImage(0.2)" title="Zoom In (+)"><i data-lucide="zoom-in"></i></button>
+            <button class="btn btn-icon btn-sm" onclick="zoomImage(-0.2)" title="Zoom Out (-)"><i data-lucide="zoom-out"></i></button>
+            <button class="btn btn-icon btn-sm" onclick="resetImageTransform()" title="Reset 1:1 View"><i data-lucide="refresh-cw"></i></button>
+            <button class="btn btn-icon btn-sm" onclick="rotateImage(90)" title="Rotate Clockwise 90°"><i data-lucide="rotate-cw"></i></button>
+            <button class="btn btn-icon btn-sm" onclick="flipImage('h')" title="Flip Horizontal"><i data-lucide="flip-horizontal"></i></button>
+            <button class="btn btn-icon btn-sm" onclick="flipImage('v')" title="Flip Vertical"><i data-lucide="flip-vertical"></i></button>
+          </div>
+
+          <!-- Mobile / Foldable Consolidated Transform Dropdown -->
+          <div class="dropdown-container mobile-only" id="img-transform-dropdown-container" style="position: relative;">
+            <button class="btn btn-sm" onclick="toggleImgTransformDropdown(event)" title="Transform Tools"><i data-lucide="sliders"></i> Tools ▾</button>
+            <div class="dropdown-menu" id="img-transform-dropdown-menu" style="display: none; right: 0; min-width: 170px;">
+              <div class="dropdown-item" onclick="zoomImage(0.2); closeImgTransformDropdown();"><i data-lucide="zoom-in"></i> Zoom In (+)</div>
+              <div class="dropdown-item" onclick="zoomImage(-0.2); closeImgTransformDropdown();"><i data-lucide="zoom-out"></i> Zoom Out (-)</div>
+              <div class="dropdown-item" onclick="resetImageTransform(); closeImgTransformDropdown();"><i data-lucide="refresh-cw"></i> Reset (1:1)</div>
+              <div class="dropdown-item" onclick="rotateImage(90); closeImgTransformDropdown();"><i data-lucide="rotate-cw"></i> Rotate 90°</div>
+              <div class="dropdown-item" onclick="flipImage('h'); closeImgTransformDropdown();"><i data-lucide="flip-horizontal"></i> Flip Horizontal</div>
+              <div class="dropdown-item" onclick="flipImage('v'); closeImgTransformDropdown();"><i data-lucide="flip-vertical"></i> Flip Vertical</div>
+            </div>
+          </div>
+
+          <div style="width: 1px; height: 16px; background: var(--border); margin: 0 2px;"></div>
+          <button class="btn btn-icon btn-sm" onclick="inspectCurrentImage()" title="Inspect EXIF & GPS Metadata"><i data-lucide="info"></i></button>
+          <a id="img-viewer-download-link" class="btn btn-icon btn-sm" href="#" download title="Download Image"><i data-lucide="download"></i></a>
+          <button class="btn btn-icon btn-sm" onclick="closeModal('image-viewer-modal')" title="Close Viewer (Esc)"><i data-lucide="x"></i></button>
         </div>
       </div>
 
@@ -1670,8 +1737,9 @@
         </div>
       </div>
 
-      <div class="modal-footer">
-        <button class="btn btn-accent" onclick="closeModal('search-modal')">Close</button>
+      <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center;">
+        <button class="btn btn-accent" id="btn-feed-to-pane" style="display: none;" onclick="feedSearchResultsToActivePane()"><i data-lucide="arrow-down-to-dot"></i> Feed to Active Pane</button>
+        <button class="btn" onclick="closeModal('search-modal')">Close</button>
       </div>
     </div>
   </div>
@@ -2156,7 +2224,7 @@
           <div style="font-size: 18px; font-weight: 800; color: var(--accent); letter-spacing: 0.5px;">CommanderDog</div>
           <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 10px;">Multi-Tab Web Commander - By Woofson</div>
           <div style="display: flex; justify-content: center; gap: 6px; flex-wrap: wrap;">
-            <span class="badge" style="background: rgba(245, 158, 11, 0.2); color: var(--accent); border: 1px solid rgba(245, 158, 11, 0.4); font-weight: 700;">v0.2.11 (Release)</span>
+            <span class="badge" style="background: rgba(245, 158, 11, 0.2); color: var(--accent); border: 1px solid rgba(245, 158, 11, 0.4); font-weight: 700;">v0.2.12 (Release)</span>
             <span class="badge" style="background: rgba(56, 189, 248, 0.15); color: var(--info); border: 1px solid rgba(56, 189, 248, 0.3);">Rust + Axum + Tokio</span>
             <span class="badge" style="background: rgba(34, 197, 94, 0.15); color: var(--success); border: 1px solid rgba(34, 197, 94, 0.3);">MIT Open Source</span>
           </div>
@@ -2701,6 +2769,50 @@
       <div class="modal-footer">
         <button class="btn" onclick="closeModal('remote-auth-modal')">Cancel</button>
         <button class="btn btn-accent" onclick="submitRemoteAuth()"><i data-lucide="key"></i> Connect</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Custom Tags & Color Labels Editor Modal -->
+  <div class="modal-overlay" id="tags-modal">
+    <div class="modal-box" style="width: 440px;">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 16px;">🏷️</span>
+          <span style="font-weight: 700;">Color Labels & Tags</span>
+        </div>
+        <button class="btn btn-icon" onclick="closeModal('tags-modal')"><i data-lucide="x"></i></button>
+      </div>
+
+      <div class="modal-body" style="padding: 16px; display: flex; flex-direction: column; gap: 14px;">
+        <div>
+          <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 6px;">Target Items:</div>
+          <div id="tags-modal-targets" style="font-size: 12px; font-weight: 600; font-family: var(--font-mono); word-break: break-all;">1 file selected</div>
+        </div>
+
+        <div>
+          <label style="font-size: 11px; font-weight: 600; display: block; margin-bottom: 6px;">Color Label:</label>
+          <div class="tags-color-picker" id="tags-modal-color-picker">
+            <button type="button" class="tag-color-btn color-none active" onclick="selectModalColor('none')" title="None">✕</button>
+            <button type="button" class="tag-color-btn color-red" onclick="selectModalColor('red')" title="Red (Urgent)"></button>
+            <button type="button" class="tag-color-btn color-orange" onclick="selectModalColor('orange')" title="Orange (Pending)"></button>
+            <button type="button" class="tag-color-btn color-yellow" onclick="selectModalColor('yellow')" title="Yellow (Review)"></button>
+            <button type="button" class="tag-color-btn color-green" onclick="selectModalColor('green')" title="Green (Approved)"></button>
+            <button type="button" class="tag-color-btn color-blue" onclick="selectModalColor('blue')" title="Blue (Important)"></button>
+            <button type="button" class="tag-color-btn color-purple" onclick="selectModalColor('purple')" title="Purple (Personal)"></button>
+          </div>
+        </div>
+
+        <div>
+          <label style="font-size: 11px; font-weight: 600; display: block; margin-bottom: 6px;">Custom Text Tags (comma separated):</label>
+          <input type="text" id="tags-modal-input" class="pane-quick-filter" style="width: 100%;" placeholder="e.g. invoice, urgent, reviewed, v2">
+          <div style="font-size: 10px; color: var(--text-dim); margin-top: 4px;">Press Apply to save color labels and tags</div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn" onclick="closeModal('tags-modal')">Cancel</button>
+        <button class="btn btn-accent" onclick="saveModalTags()"><i data-lucide="check"></i> Apply Tags</button>
       </div>
     </div>
   </div>

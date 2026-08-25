@@ -59,6 +59,9 @@ class PaneState {
     this.protocol = 'local';
     this.showHidden = App.showHiddenDefault;
     this.viewMode = 'details'; // 'details', 'compact', 'grid'
+    this.isBranchView = false;
+    this.isVirtual = false;
+    this.virtualTitle = '';
   }
 }
 
@@ -97,6 +100,7 @@ async function checkAuthAndLoad() {
         await loadConfig();
         await loadSystemUsersGroups();
         await loadAdminSecuritySettings();
+        await loadAllFileTags();
 
         // If session was locked before browser refresh, keep session locked!
         if (localStorage.getItem('cd_is_locked') === 'true') {
@@ -410,7 +414,8 @@ async function loadPaneDirectory(paneIndex, targetPath, pushHistory = true, sele
   }
 
   try {
-    const url = `/api/fs/list?path=${encodeURIComponent(targetPath)}&show_hidden=${pane.showHidden}`;
+    const flatParam = pane.isBranchView ? '&flat=true' : '';
+    const url = `/api/fs/list?path=${encodeURIComponent(targetPath)}&show_hidden=${pane.showHidden}${flatParam}`;
     const resp = await fetch(url, {
       headers: { 'Authorization': `Bearer ${App.token}` }
     });
@@ -448,9 +453,52 @@ async function loadPaneDirectory(paneIndex, targetPath, pushHistory = true, sele
 }
 
 function renderPaneBreadcrumbs(paneIndex, pathStr) {
+  const pane = App.panes[paneIndex];
   const container = document.getElementById(`pane-crumbs-${paneIndex}`);
   if (!container) return;
   container.innerHTML = '';
+
+  if (pane && pane.isBranchView) {
+    const branchBadge = document.createElement('span');
+    branchBadge.className = 'branch-view-badge';
+    branchBadge.innerHTML = '<i data-lucide="git-branch" style="width:11px; height:11px;"></i> Flat Branch View';
+    container.appendChild(branchBadge);
+
+    const pathCrumb = document.createElement('span');
+    pathCrumb.className = 'crumb';
+    pathCrumb.style.maxWidth = '180px';
+    pathCrumb.style.overflow = 'hidden';
+    pathCrumb.style.textOverflow = 'ellipsis';
+    pathCrumb.textContent = pathStr;
+    container.appendChild(pathCrumb);
+
+    const exitBtn = document.createElement('button');
+    exitBtn.className = 'btn btn-xs';
+    exitBtn.style.marginLeft = 'auto';
+    exitBtn.style.padding = '1px 6px';
+    exitBtn.textContent = '✕ Exit Branch';
+    exitBtn.onclick = (e) => { e.stopPropagation(); toggleBranchView(paneIndex); };
+    container.appendChild(exitBtn);
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
+
+  if (pane && pane.isVirtual) {
+    const virtBadge = document.createElement('span');
+    virtBadge.className = 'virtual-pane-badge';
+    virtBadge.innerHTML = `<i data-lucide="search" style="width:11px; height:11px;"></i> ${escapeHtml(pane.virtualTitle || 'Search Results')}`;
+    container.appendChild(virtBadge);
+
+    const exitBtn = document.createElement('button');
+    exitBtn.className = 'btn btn-xs';
+    exitBtn.style.marginLeft = 'auto';
+    exitBtn.style.padding = '1px 6px';
+    exitBtn.textContent = '✕ Exit Virtual';
+    exitBtn.onclick = (e) => { e.stopPropagation(); exitVirtualPane(paneIndex); };
+    container.appendChild(exitBtn);
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
 
   if (pathStr.startsWith('archive://')) {
     const raw = pathStr.replace('archive://', '');
@@ -668,9 +716,21 @@ function renderPaneTable(paneIndex) {
   }
 
   filtered.forEach((entry, idx) => {
+    const tagInfo = fileTagsMap.get(entry.path);
+    let colorClass = '';
+    let tagsHtml = '';
+    if (tagInfo) {
+      if (tagInfo.color_label && tagInfo.color_label !== 'none') {
+        colorClass = `file-row-color-${tagInfo.color_label}`;
+      }
+      if (tagInfo.tags && tagInfo.tags.length > 0) {
+        tagsHtml = tagInfo.tags.map(t => `<span class="file-tag-badge">#${escapeHtml(t)}</span>`).join('');
+      }
+    }
+
     const isSelected = pane.selected.has(entry.path);
     const tr = document.createElement('tr');
-    tr.className = `file-row ${isSelected ? 'selected' : ''} ${idx === pane.cursorIndex ? 'cursor-focus' : ''}`;
+    tr.className = `file-row ${isSelected ? 'selected' : ''} ${idx === pane.cursorIndex ? 'cursor-focus' : ''} ${colorClass}`;
     tr.draggable = !isTouchDevice;
 
     if (!isTouchDevice) {
@@ -865,7 +925,7 @@ function renderPaneTable(paneIndex) {
         </div>
       </td>
       <td class="file-cell file-cell-name">
-        <span class="file-name-text">${escapeHtml(entry.name)}</span>
+        <span class="file-name-text">${escapeHtml(entry.name)}</span>${tagsHtml}
       </td>
       <td class="file-cell file-cell-mono file-cell-size">${entry.is_dir ? '<DIR>' : formatBytes(entry.size)}</td>
       <td class="file-cell file-cell-mono">${formatDate(entry.modified)}</td>
@@ -1463,6 +1523,11 @@ function setupKeyboardNavigation() {
       if (e.key === 'v' || e.key === 'V') {
         e.preventDefault();
         triggerPaste(App.activePaneIndex);
+        return;
+      }
+      if (e.key === 'b' || e.key === 'B') {
+        e.preventDefault();
+        toggleBranchView(App.activePaneIndex);
         return;
       }
     }
@@ -3089,6 +3154,32 @@ function toggleProfileMenu(e) {
   if (menu) menu.classList.toggle('active');
 }
 
+function toggleEditorActionsDropdown(e) {
+  if (e) e.stopPropagation();
+  const menu = document.getElementById('editor-actions-dropdown-menu');
+  if (!menu) return;
+  const isShown = menu.style.display === 'block';
+  menu.style.display = isShown ? 'none' : 'block';
+}
+
+function closeEditorActionsDropdown() {
+  const menu = document.getElementById('editor-actions-dropdown-menu');
+  if (menu) menu.style.display = 'none';
+}
+
+function toggleImgTransformDropdown(e) {
+  if (e) e.stopPropagation();
+  const menu = document.getElementById('img-transform-dropdown-menu');
+  if (!menu) return;
+  const isShown = menu.style.display === 'block';
+  menu.style.display = isShown ? 'none' : 'block';
+}
+
+function closeImgTransformDropdown() {
+  const menu = document.getElementById('img-transform-dropdown-menu');
+  if (menu) menu.style.display = 'none';
+}
+
 // Close dropdowns on outside click
 document.addEventListener('click', (e) => {
   if (!e.target.closest('.tools-dropdown-wrapper')) {
@@ -3096,6 +3187,14 @@ document.addEventListener('click', (e) => {
   }
   if (!e.target.closest('.profile-dropdown-wrapper')) {
     document.getElementById('profile-dropdown-menu')?.classList.remove('active');
+  }
+  if (!e.target.closest('#editor-actions-dropdown-container')) {
+    const m = document.getElementById('editor-actions-dropdown-menu');
+    if (m) m.style.display = 'none';
+  }
+  if (!e.target.closest('#img-transform-dropdown-container')) {
+    const m = document.getElementById('img-transform-dropdown-menu');
+    if (m) m.style.display = 'none';
   }
   const favMenu = document.getElementById('pane-favorites-popup');
   if (favMenu && !e.target.closest('.pane-favorites-dropdown') && !e.target.closest('[id^="btn-favorites-"]')) {
@@ -7537,6 +7636,9 @@ function loadImageToViewer(path) {
   const imgUrl = `/api/fs/download?path=${encodeURIComponent(path)}`;
   imgEl.src = imgUrl;
 
+  const dlLink = document.getElementById('img-viewer-download-link');
+  if (dlLink) dlLink.href = imgUrl;
+
   imgEl.onload = () => {
     metaEl.textContent = `(${imgEl.naturalWidth} × ${imgEl.naturalHeight} px)`;
   };
@@ -8958,9 +9060,13 @@ async function runDiskUsageScan(path) {
 
 // ---------------- GLOBAL SEARCH ENGINE ----------------
 
+let lastSearchResults = [];
+
 function openSearchModal() {
   const activePane = App.panes[App.activePaneIndex];
   document.getElementById('search-root-input').value = activePane.path;
+  const feedBtn = document.getElementById('btn-feed-to-pane');
+  if (feedBtn) feedBtn.style.display = lastSearchResults.length > 0 ? 'inline-flex' : 'none';
   showModal('search-modal');
   document.getElementById('search-name-pattern')?.focus();
 }
@@ -8976,9 +9082,11 @@ async function runGlobalSearch() {
 
   const tbody = document.getElementById('search-results-tbody');
   const stats = document.getElementById('search-results-stats');
+  const feedBtn = document.getElementById('btn-feed-to-pane');
 
   tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--accent); padding: 20px;">Searching directories...</td></tr>';
   stats.textContent = 'Searching...';
+  if (feedBtn) feedBtn.style.display = 'none';
 
   const resp = await fetch('/api/tools/search', {
     method: 'POST',
@@ -9000,7 +9108,12 @@ async function runGlobalSearch() {
   }
 
   const items = await resp.json();
+  lastSearchResults = items;
   stats.textContent = `${items.length} items found`;
+
+  if (feedBtn && items.length > 0) {
+    feedBtn.style.display = 'inline-flex';
+  }
 
   if (items.length === 0) {
     tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 20px;">No matching files or content found</td></tr>';
@@ -9035,12 +9148,238 @@ function jumpToSearchResult(filePath, isDir) {
     loadPaneDirectory(App.activePaneIndex, filePath);
   } else {
     const parentDir = filePath.substring(0, filePath.lastIndexOf('/')) || '/';
-    loadPaneDirectory(App.activePaneIndex, parentDir);
+    loadPaneDirectory(App.activePaneIndex, parentDir, true, filePath);
     if (isImageExtension(filePath)) {
       openImageViewer(filePath);
     } else {
       openEditorWithFile(filePath);
     }
+  }
+}
+
+// ---------------- 🌲 FLAT / BRANCH VIEW (<kbd>Ctrl+B</kbd>) ----------------
+
+function toggleBranchView(paneIndex) {
+  const pIdx = (paneIndex !== undefined) ? paneIndex : App.activePaneIndex;
+  const pane = App.panes[pIdx];
+  if (!pane) return;
+
+  pane.isBranchView = !pane.isBranchView;
+  pane.isVirtual = false;
+  showToast(pane.isBranchView ? '🌲 Flat Branch View Enabled' : 'Standard Directory View', 'info');
+  loadPaneDirectory(pIdx, pane.path);
+}
+
+function feedSearchResultsToActivePane() {
+  if (!lastSearchResults || lastSearchResults.length === 0) {
+    showToast('No search results to feed', 'warning');
+    return;
+  }
+  const pIdx = App.activePaneIndex;
+  const pane = App.panes[pIdx];
+  if (!pane) return;
+
+  pane.isVirtual = true;
+  pane.isBranchView = false;
+  pane.virtualType = 'search';
+  pane.virtualTitle = `Search Results (${lastSearchResults.length} items)`;
+
+  pane.entries = lastSearchResults.map(item => ({
+    name: item.path.replace(/^\/+/, ''),
+    path: item.path,
+    is_dir: item.is_dir,
+    is_symlink: false,
+    is_empty: null,
+    size: item.size,
+    modified: item.modified,
+    permissions: item.is_dir ? 'drwxr-xr-x' : '-rw-r--r--',
+    mode_octal: item.is_dir ? '0755' : '0644',
+    owner: 'user',
+    group: 'user',
+    uid: 1000,
+    gid: 1000,
+    mime_type: null,
+    is_archive: isArchiveFile(item.name),
+  }));
+
+  pane.selected.clear();
+  pane.cursorIndex = 0;
+
+  renderPaneBreadcrumbs(pIdx, 'virtual://search');
+  renderPaneTable(pIdx);
+  updatePaneFooter(pIdx, {
+    total_files: pane.entries.filter(e => !e.is_dir).length,
+    total_dirs: pane.entries.filter(e => e.is_dir).length,
+    total_size: pane.entries.reduce((sum, e) => sum + (e.size || 0), 0)
+  });
+
+  closeModal('search-modal');
+  showToast(`📥 Fed ${lastSearchResults.length} search items into active pane`, 'success');
+}
+
+function exitVirtualPane(paneIndex) {
+  const pIdx = (paneIndex !== undefined) ? paneIndex : App.activePaneIndex;
+  const pane = App.panes[pIdx];
+  if (!pane) return;
+
+  pane.isVirtual = false;
+  pane.isBranchView = false;
+  loadPaneDirectory(pIdx, pane.path);
+}
+
+// ---------------- 🏷️ COLOR LABELS & CUSTOM TAGS ----------------
+
+let fileTagsMap = new Map();
+let selectedModalColor = 'none';
+let modalTargetPaths = [];
+
+async function loadAllFileTags() {
+  try {
+    const resp = await fetch('/api/fs/tags/all', {
+      headers: { 'Authorization': `Bearer ${App.token}` }
+    });
+    if (resp.ok) {
+      const data = await resp.json();
+      fileTagsMap.clear();
+      if (data.tags && Array.isArray(data.tags)) {
+        data.tags.forEach(t => {
+          fileTagsMap.set(t.path, t);
+        });
+      }
+    }
+  } catch (e) {
+    console.error('Failed to load file tags:', e);
+  }
+}
+
+async function setContextFileColor(color) {
+  hideContextMenu();
+  const paths = getSelectedOrCursorPaths();
+  if (paths.length === 0) return;
+
+  try {
+    const resp = await fetch('/api/fs/tags/set', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${App.token}`
+      },
+      body: JSON.stringify({
+        paths,
+        color_label: color === 'none' ? null : color
+      })
+    });
+
+    if (resp.ok) {
+      paths.forEach(p => {
+        const existing = fileTagsMap.get(p) || { path: p, tags: [], updated_at: Date.now() };
+        existing.color_label = (color === 'none') ? null : color;
+        if (!existing.color_label && (!existing.tags || existing.tags.length === 0)) {
+          fileTagsMap.delete(p);
+        } else {
+          fileTagsMap.set(p, existing);
+        }
+      });
+      renderPaneTable(App.activePaneIndex);
+      showToast(color === 'none' ? 'Color label cleared' : `Color label set to ${color}`, 'success');
+    } else {
+      showToast('Failed to update color label', 'error');
+    }
+  } catch (e) {
+    console.error('Color label set error:', e);
+    showToast('Error setting color label', 'error');
+  }
+}
+
+function triggerEditTagsModal() {
+  hideContextMenu();
+  const paths = getSelectedOrCursorPaths();
+  if (paths.length === 0) {
+    showToast('No file selected', 'warning');
+    return;
+  }
+  modalTargetPaths = paths;
+  const targetLabel = document.getElementById('tags-modal-targets');
+  if (targetLabel) {
+    if (paths.length === 1) {
+      targetLabel.textContent = paths[0].split('/').pop() || paths[0];
+    } else {
+      targetLabel.textContent = `${paths.length} items selected`;
+    }
+  }
+
+  let curColor = 'none';
+  let curTags = [];
+  if (paths.length === 1 && fileTagsMap.has(paths[0])) {
+    const info = fileTagsMap.get(paths[0]);
+    curColor = info.color_label || 'none';
+    curTags = info.tags || [];
+  }
+
+  selectModalColor(curColor);
+  const inputEl = document.getElementById('tags-modal-input');
+  if (inputEl) inputEl.value = curTags.join(', ');
+
+  showModal('tags-modal');
+  inputEl?.focus();
+}
+
+function selectModalColor(color) {
+  selectedModalColor = color;
+  const btns = document.querySelectorAll('#tags-modal-color-picker .tag-color-btn');
+  btns.forEach(btn => {
+    if (btn.classList.contains(`color-${color}`)) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  });
+}
+
+async function saveModalTags() {
+  if (modalTargetPaths.length === 0) return;
+  const inputEl = document.getElementById('tags-modal-input');
+  const rawText = inputEl ? inputEl.value.trim() : '';
+  const tagsList = rawText ? rawText.split(',').map(s => s.trim()).filter(Boolean) : [];
+
+  try {
+    const resp = await fetch('/api/fs/tags/set', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${App.token}`
+      },
+      body: JSON.stringify({
+        paths: modalTargetPaths,
+        color_label: selectedModalColor === 'none' ? null : selectedModalColor,
+        set_tags: tagsList
+      })
+    });
+
+    if (resp.ok) {
+      modalTargetPaths.forEach(p => {
+        const existing = {
+          path: p,
+          color_label: selectedModalColor === 'none' ? null : selectedModalColor,
+          tags: tagsList,
+          updated_at: Date.now()
+        };
+        if (!existing.color_label && existing.tags.length === 0) {
+          fileTagsMap.delete(p);
+        } else {
+          fileTagsMap.set(p, existing);
+        }
+      });
+
+      renderPaneTable(App.activePaneIndex);
+      closeModal('tags-modal');
+      showToast('Tags and color labels updated', 'success');
+    } else {
+      showToast('Failed to save tags', 'error');
+    }
+  } catch (e) {
+    console.error('Save tags error:', e);
+    showToast('Error saving tags', 'error');
   }
 }
 
@@ -9423,6 +9762,8 @@ let spotlightSelectedIndex = 0;
 let spotlightItems = [];
 
 const SPOTLIGHT_STATIC_ACTIONS = [
+  { id: 'branch', title: 'Flat / Branch View', sub: 'Flatten all subdirectories into a single unified list (Ctrl+B)', icon: 'git-branch', cat: 'actions', action: () => toggleBranchView() },
+  { id: 'tags', title: 'Color Labels & Custom Tags', sub: 'Assign color labels and custom tags to selected items', icon: 'tag', cat: 'actions', action: () => triggerEditTagsModal() },
   { id: 'term', title: 'Terminal Console', sub: 'Open integrated interactive terminal (` or F4)', icon: 'terminal', cat: 'actions', action: () => toggleTerminal() },
   { id: 'edit', title: 'Multi-Tab Power Editor', sub: 'Open floating code & text editor (F4)', icon: 'code', cat: 'actions', action: () => openFloatingEditor() },
   { id: 'diff', title: 'File & Folder Diff', sub: 'Compare files or directories side-by-side (F9)', icon: 'git-compare', cat: 'actions', action: () => triggerDiff() },

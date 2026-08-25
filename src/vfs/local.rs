@@ -169,6 +169,127 @@ impl LocalFs {
         })
     }
 
+    /// Recursively flattens directory tree into a branch view
+    pub fn list_branch_view(path_str: &str, show_hidden: bool, max_depth: Option<usize>) -> Result<DirectoryListing, std::io::Error> {
+        let path = Path::new(path_str);
+        if !path.exists() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("Directory not found: {}", path_str),
+            ));
+        }
+
+        let canonical = path.canonicalize()?;
+        let canonical_str = canonical.to_string_lossy().to_string();
+        let parent_path = canonical.parent().map(|p| p.to_string_lossy().to_string());
+
+        let (user_map, group_map) = Self::get_user_group_maps();
+
+        let mut entries = Vec::new();
+        let mut total_files = 0;
+        let mut total_dirs = 0;
+        let mut total_size = 0u64;
+
+        let mut walker = walkdir::WalkDir::new(&canonical);
+        if let Some(depth) = max_depth {
+            walker = walker.max_depth(depth);
+        }
+
+        for entry_res in walker.into_iter().filter_map(|e| e.ok()) {
+            if entry_res.path() == canonical {
+                continue;
+            }
+
+            let file_name = entry_res.file_name().to_string_lossy().to_string();
+            if !show_hidden && file_name.starts_with('.') {
+                continue;
+            }
+
+            let rel_path = entry_res.path().strip_prefix(&canonical)
+                .map(|p| p.to_string_lossy().to_string())
+                .unwrap_or_else(|_| file_name.clone());
+
+            let file_path = entry_res.path();
+            let file_path_str = file_path.to_string_lossy().to_string();
+
+            let metadata = entry_res.metadata().ok();
+            let is_dir = metadata.as_ref().map_or(false, |m| m.is_dir());
+            let is_symlink = metadata.as_ref().map_or(false, |m| m.file_type().is_symlink());
+            let size = metadata.as_ref().map_or(0, |m| m.len());
+            let modified = metadata.as_ref().and_then(|m| {
+                m.modified().ok().and_then(|t| t.duration_since(UNIX_EPOCH).ok().map(|d| d.as_secs()))
+            });
+
+            let raw_mode = metadata.as_ref().map(|m| m.mode()).unwrap_or(0o644);
+            let mode_octal = format!("{:04o}", raw_mode & 0o7777);
+            let permissions = Self::mode_to_symbolic(raw_mode, is_dir);
+
+            let uid = metadata.as_ref().map(|m| m.uid()).unwrap_or(1000);
+            let gid = metadata.as_ref().map(|m| m.gid()).unwrap_or(1000);
+            let owner = user_map.get(&uid).cloned().unwrap_or_else(|| uid.to_string());
+            let group = group_map.get(&gid).cloned().unwrap_or_else(|| gid.to_string());
+
+            let mime = if !is_dir {
+                mime_guess::from_path(file_path).first_raw().map(|s| s.to_string())
+            } else {
+                None
+            };
+
+            let is_archive = !is_dir && is_archive_file(&file_name);
+            let is_empty = if is_dir {
+                std::fs::read_dir(&file_path).map(|mut r| r.next().is_none()).ok()
+            } else {
+                None
+            };
+
+            if is_dir {
+                total_dirs += 1;
+            } else {
+                total_files += 1;
+                total_size += size;
+            }
+
+            entries.push(FileEntry {
+                name: rel_path,
+                path: file_path_str,
+                is_dir,
+                is_symlink,
+                is_empty,
+                size,
+                modified,
+                permissions,
+                mode_octal,
+                owner,
+                group,
+                uid,
+                gid,
+                mime_type: mime,
+                is_archive,
+            });
+        }
+
+        // Sort: directories first (alphabetical), then files (alphabetical)
+        entries.sort_by(|a, b| {
+            if a.is_dir == b.is_dir {
+                a.name.to_lowercase().cmp(&b.name.to_lowercase())
+            } else if a.is_dir {
+                std::cmp::Ordering::Less
+            } else {
+                std::cmp::Ordering::Greater
+            }
+        });
+
+        Ok(DirectoryListing {
+            current_path: canonical_str,
+            parent_path,
+            entries,
+            total_files,
+            total_dirs,
+            total_size,
+            protocol: "branch".to_string(),
+        })
+    }
+
     pub fn chmod_entry(path_str: &str, mode: u32, recursive: bool) -> Result<(), std::io::Error> {
         let p = Path::new(path_str);
         if !p.exists() {

@@ -38,6 +38,7 @@ pub struct AppState {
     pub config: Arc<AppConfig>,
     pub auth: Arc<AuthManager>,
     pub tasks: Arc<TaskManager>,
+    pub tags: Arc<crate::tools::tags::TagManager>,
 }
 
 pub fn create_router(state: AppState) -> Router {
@@ -73,6 +74,9 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/public/shares/:token/upload", post(handle_public_upload_share))
         // VFS File Operations
         .route("/api/fs/list", get(handle_list_dir))
+        .route("/api/fs/tags", get(handle_get_file_tags))
+        .route("/api/fs/tags/all", get(handle_get_all_tags))
+        .route("/api/fs/tags/set", post(handle_set_tags))
         .route("/api/fs/read", get(handle_read_file))
         .route("/api/fs/write", post(handle_write_file))
         .route("/api/fs/mkdir", post(handle_mkdir))
@@ -1145,10 +1149,45 @@ async fn handle_public_share_page(
 struct ListQuery {
     path: Option<String>,
     show_hidden: Option<bool>,
+    flat: Option<bool>,
+    max_depth: Option<usize>,
     host: Option<String>,
     port: Option<u16>,
     user: Option<String>,
     pass: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct GetTagsQuery {
+    path: Option<String>,
+}
+
+async fn handle_get_file_tags(
+    State(state): State<AppState>,
+    Query(query): Query<GetTagsQuery>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    if let Some(p) = query.path {
+        let tag_info = state.tags.get_tags_for_path(&p);
+        Ok(Json(serde_json::json!({ "success": true, "tag": tag_info })))
+    } else {
+        let all = state.tags.get_all_tags().map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
+        Ok(Json(serde_json::json!({ "success": true, "tags": all })))
+    }
+}
+
+async fn handle_get_all_tags(
+    State(state): State<AppState>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let all = state.tags.get_all_tags().map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
+    Ok(Json(serde_json::json!({ "success": true, "tags": all })))
+}
+
+async fn handle_set_tags(
+    State(state): State<AppState>,
+    Json(payload): Json<crate::tools::tags::SetTagsRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let count = state.tags.set_tags(payload).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
+    Ok(Json(serde_json::json!({ "success": true, "count": count })))
 }
 
 async fn handle_list_dir(
@@ -1229,6 +1268,10 @@ async fn handle_list_dir(
         crate::vfs::nfs::NfsClient::list_dir(&params, show_hidden)
             .map(Json)
             .map_err(|e| (StatusCode::BAD_REQUEST, format!("NFS list failed: {}", e)))
+    } else if query.flat.unwrap_or(false) {
+        LocalFs::list_branch_view(&target_path, show_hidden, query.max_depth)
+            .map(Json)
+            .map_err(|e| (StatusCode::BAD_REQUEST, format!("Failed to list branch view: {}", e)))
     } else {
         LocalFs::list_dir(&target_path, show_hidden)
             .map(Json)

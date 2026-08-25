@@ -166,6 +166,10 @@ impl AuthManager {
         Ok(count as usize)
     }
 
+    pub fn db(&self) -> Arc<Mutex<Connection>> {
+        self.db.clone()
+    }
+
     pub fn create_user(
         &self,
         username: &str,

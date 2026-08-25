@@ -7,4 +7,5 @@ pub mod paranoid;
 pub mod search;
 pub mod sync;
 pub mod syncthing;
+pub mod tags;
 pub mod tasks;
