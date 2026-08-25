@@ -82,7 +82,8 @@
           <div class="dropdown-item" onclick="triggerDiff()"><i data-lucide="git-compare"></i> Compare / Diff (F9)</div>
           <div class="dropdown-item" onclick="openSearchModal()"><i data-lucide="search"></i> Deep File Search (Ctrl+F)</div>
           <div class="dropdown-item" onclick="openSharesManager()"><i data-lucide="share-2"></i> Active Shares & Dropboxes</div>
-          <div class="dropdown-item" onclick="openSyncModal()"><i data-lucide="refresh-cw"></i> Directory Sync & Mirror</div>
+          <div class="dropdown-item" onclick="openSyncModal()"><i data-lucide="refresh-cw"></i> Two-Way Directory Sync</div>
+          <div class="dropdown-item" onclick="openDiskUsageModal()"><i data-lucide="pie-chart" style="color: var(--accent);"></i> Disk Usage & Treemap Analyzer</div>
           <div class="dropdown-item" onclick="openSyncthingModal()"><i data-lucide="repeat"></i> Syncthing Dashboard</div>
           <div class="dropdown-item" onclick="openConverterModal()"><i data-lucide="file-output"></i> ConvertX Converters</div>
           <div class="dropdown-item" onclick="openFloatingTaskManager()"><i data-lucide="list-checks"></i> Background Transfers & Queue</div>
@@ -1214,16 +1215,19 @@
   </div>
 
   <!-- Diff & Comparison Modal -->
-  <div class="modal-overlay" id="diff-modal">
-    <div class="modal-box" style="width: 85vw; height: 85vh;">
-      <div class="modal-header">
-        <span>⚖️ Comparison & Diff Engine (Files & Folders)</span>
-        <div style="display: flex; gap: 8px;">
-          <button class="btn btn-icon" onclick="triggerDiff(true)" title="Deep Recursive SHA-256 Hash Compare"><i data-lucide="shield-check"></i> Deep Hash</button>
-          <button class="btn" onclick="closeModal('diff-modal')"><i data-lucide="x"></i></button>
+  <div class="modal-overlay" id="diff-modal" style="z-index: 2840;">
+    <div class="modal-box diff-modal-box" id="diff-modal-box">
+      <div class="modal-header diff-modal-header">
+        <div class="diff-header-title-group">
+          <i data-lucide="git-compare" class="diff-header-icon"></i>
+          <span class="diff-header-title">Comparison & Diff Engine</span>
+        </div>
+        <div class="diff-header-actions">
+          <button class="btn btn-sm btn-outline diff-deep-btn" onclick="triggerDiff(true)" title="Deep Recursive SHA-256 Hash Compare"><i data-lucide="shield-check"></i> <span class="diff-btn-label">Deep Hash</span></button>
+          <button class="btn btn-icon" onclick="closeModal('diff-modal')"><i data-lucide="x"></i></button>
         </div>
       </div>
-      <div class="modal-body" id="diff-modal-body"></div>
+      <div class="modal-body diff-modal-body" id="diff-modal-body"></div>
     </div>
   </div>
 
@@ -1464,58 +1468,130 @@
     </div>
   </div>
 
-  <!-- Directory Synchronization & Mirror Modal -->
-  <div class="modal-overlay" id="sync-modal">
-    <div class="modal-box" style="width: 650px; max-height: 85vh;">
-      <div class="modal-header">
-        <span style="color: var(--accent); font-weight: 700;">🔄 Directory Synchronization & Mirror Engine</span>
-        <button class="btn" onclick="closeModal('sync-modal')"><i data-lucide="x"></i></button>
+  <!-- Two-Way Visual Directory Synchronizer Modal -->
+  <div class="modal-overlay" id="sync-modal" style="z-index: 2850;">
+    <div class="modal-box sync-modal-box" id="sync-modal-box">
+      <!-- Header -->
+      <div class="modal-header" style="padding: 10px 16px; background: var(--bg-header); border-bottom: 1px solid var(--border);">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <i data-lucide="refresh-cw" style="color: var(--accent); width: 16px;"></i>
+          <span style="font-weight: 700; font-size: 13px;">Two-Way Visual Directory Synchronizer</span>
+        </div>
+        <button class="btn btn-icon" onclick="closeModal('sync-modal')"><i data-lucide="x"></i></button>
       </div>
 
-      <div class="modal-body" style="padding: 14px; display: flex; flex-direction: column; gap: 10px;">
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-          <div>
-            <label style="font-size: 11px;">Source Directory (Left):</label>
-            <input type="text" id="sync-src-input" class="pane-quick-filter" style="width: 100%; font-family: var(--font-mono);">
+      <!-- Paths and Mode Bar -->
+      <div class="sync-top-bar">
+        <div class="sync-path-selector-row">
+          <div class="sync-path-input-group">
+            <span class="sync-pane-badge">Left (Pane 1)</span>
+            <input type="text" id="sync-src-input" class="pane-quick-filter" placeholder="/path/to/source">
           </div>
-          <div>
-            <label style="font-size: 11px;">Destination Directory (Right):</label>
-            <input type="text" id="sync-dest-input" class="pane-quick-filter" style="width: 100%; font-family: var(--font-mono);">
-          </div>
-        </div>
-
-        <div style="background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px;">
-          <label style="font-size: 11px; font-weight: 600; display: block; margin-bottom: 6px;">Sync Mode:</label>
-          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;">
-            <label style="cursor: pointer; background: var(--bg-dark); border: 1px solid var(--border); padding: 8px; border-radius: 4px; font-size: 11px;">
-              <input type="radio" name="sync-mode" value="mirror" checked> <b>🪞 Mirror (1-Way)</b>
-              <div style="color: var(--text-muted); font-size: 10px; margin-top: 2px;">Target becomes exact copy of source (deletes orphan files in target).</div>
-            </label>
-            <label style="cursor: pointer; background: var(--bg-dark); border: 1px solid var(--border); padding: 8px; border-radius: 4px; font-size: 11px;">
-              <input type="radio" name="sync-mode" value="update"> <b>⚡ Update (1-Way)</b>
-              <div style="color: var(--text-muted); font-size: 10px; margin-top: 2px;">Copy new and modified files only (safe, no deletion).</div>
-            </label>
-            <label style="cursor: pointer; background: var(--bg-dark); border: 1px solid var(--border); padding: 8px; border-radius: 4px; font-size: 11px;">
-              <input type="radio" name="sync-mode" value="bidirectional"> <b>🔄 2-Way Sync</b>
-              <div style="color: var(--text-muted); font-size: 10px; margin-top: 2px;">Sync both directions, copying newer versions to both sides.</div>
-            </label>
-          </div>
-          <div style="display: flex; gap: 14px; margin-top: 10px; font-size: 11px;">
-            <label style="cursor: pointer;"><input type="checkbox" id="sync-verify-crc32" checked> 🔒 Verify CRC32 Checksums</label>
-            <label style="cursor: pointer;"><input type="checkbox" id="sync-dry-run"> 🛡️ Dry-Run Preview Only</label>
+          <button class="btn btn-icon" onclick="swapSyncPaths()" title="Swap Left & Right Directories"><i data-lucide="arrow-left-right"></i></button>
+          <div class="sync-path-input-group">
+            <span class="sync-pane-badge">Right (Pane 2)</span>
+            <input type="text" id="sync-dest-input" class="pane-quick-filter" placeholder="/path/to/destination">
           </div>
         </div>
 
-        <div id="sync-analysis-card" style="display: none; background: var(--bg-dark); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px;">
-          <div style="font-weight: 600; font-size: 11px; color: var(--accent); margin-bottom: 6px;">📊 Pre-Sync Analysis Summary:</div>
-          <div id="sync-analysis-stats" style="font-size: 11px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;"></div>
+        <div class="sync-options-row">
+          <div class="sync-mode-selector">
+            <label class="sync-mode-radio"><input type="radio" name="sync-mode" value="mirror_left_to_right" checked onchange="handleSyncModeChange()"> <b>🪞 Mirror Left ➔ Right</b></label>
+            <label class="sync-mode-radio"><input type="radio" name="sync-mode" value="mirror_right_to_left" onchange="handleSyncModeChange()"> <b>🪞 Mirror Right ➔ Left</b></label>
+            <label class="sync-mode-radio"><input type="radio" name="sync-mode" value="bidirectional_newer" onchange="handleSyncModeChange()"> <b>🔄 Smart 2-Way (Newer)</b></label>
+          </div>
+          <div class="sync-filter-toggles">
+            <button class="btn btn-sm sync-filter-btn active" id="btn-sync-filter-all" onclick="filterSyncGrid('all')">All (<span id="sync-cnt-all">0</span>)</button>
+            <button class="btn btn-sm sync-filter-btn" id="btn-sync-filter-left" onclick="filterSyncGrid('left')">➔ Left (<span id="sync-cnt-left">0</span>)</button>
+            <button class="btn btn-sm sync-filter-btn" id="btn-sync-filter-right" onclick="filterSyncGrid('right')">⬅ Right (<span id="sync-cnt-right">0</span>)</button>
+            <button class="btn btn-sm sync-filter-btn" id="btn-sync-filter-mod" onclick="filterSyncGrid('modified')">⚠️ Diff (<span id="sync-cnt-mod">0</span>)</button>
+            <button class="btn btn-sm sync-filter-btn" id="btn-sync-filter-eq" onclick="filterSyncGrid('identical')">✔ Equal (<span id="sync-cnt-eq">0</span>)</button>
+          </div>
         </div>
       </div>
 
-      <div class="modal-footer">
-        <button class="btn" onclick="closeModal('sync-modal')">Cancel</button>
-        <button class="btn" onclick="analyzeSync()">Analyze Differences</button>
-        <button class="btn btn-accent" id="btn-run-sync" onclick="executeSync()">⚡ Run Synchronization</button>
+      <!-- Diff Comparison Table -->
+      <div class="sync-grid-container">
+        <table class="sync-diff-table" id="sync-diff-table">
+          <thead>
+            <tr>
+              <th style="width: 85px; text-align: right;">Left Size</th>
+              <th style="width: 40%;">Left File</th>
+              <th style="width: 50px; text-align: center;">Action</th>
+              <th style="width: 40%;">Right File</th>
+              <th style="width: 85px; text-align: left;">Right Size</th>
+            </tr>
+          </thead>
+          <tbody id="sync-diff-body">
+            <tr><td colspan="5" style="text-align: center; padding: 40px; color: var(--text-dim);">Click <b>Compare & Analyze</b> to inspect differences.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Footer Bar -->
+      <div class="modal-footer" style="padding: 10px 16px; background: var(--bg-header); border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+        <div id="sync-footer-stats" style="font-size: 11px; font-family: var(--font-mono); color: var(--text-muted);">
+          Ready to compare directories.
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn" onclick="analyzeSync()"><i data-lucide="search"></i> Compare & Analyze</button>
+          <button class="btn btn-accent" id="btn-run-sync" onclick="executeSync()"><i data-lucide="refresh-cw"></i> Synchronize</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Visual Disk Usage & Storage Treemap Analyzer Modal -->
+  <div class="modal-overlay" id="disk-usage-modal" style="z-index: 2860;">
+    <div class="modal-box disk-usage-box" id="disk-usage-box">
+      <div class="modal-header" style="padding: 10px 16px; background: var(--bg-header); border-bottom: 1px solid var(--border);">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <i data-lucide="pie-chart" style="color: var(--accent); width: 16px;"></i>
+          <span style="font-weight: 700; font-size: 13px;">Visual Disk Usage & Storage Treemap Analyzer</span>
+        </div>
+        <button class="btn btn-icon" onclick="closeModal('disk-usage-modal')"><i data-lucide="x"></i></button>
+      </div>
+
+      <div class="du-top-bar">
+        <div style="display: flex; align-items: center; gap: 8px; flex: 1;">
+          <span style="font-size: 11px; color: var(--text-muted); font-weight: 600;">Scan Path:</span>
+          <input type="text" id="du-path-input" class="pane-quick-filter" style="flex: 1; font-family: var(--font-mono);" placeholder="/path/to/folder" onkeydown="if(event.key==='Enter') runDiskUsageScan(this.value)">
+        </div>
+        <button class="btn btn-sm" onclick="runDiskUsageScan(document.getElementById('du-path-input').value)"><i data-lucide="refresh-cw"></i> Rescan</button>
+      </div>
+
+      <!-- Stats Summary Card -->
+      <div class="du-stats-summary" id="du-stats-summary">
+        <div class="du-stat-card">
+          <span class="du-stat-label">Total Space</span>
+          <span class="du-stat-val" id="du-total-space">0 B</span>
+        </div>
+        <div class="du-stat-card">
+          <span class="du-stat-label">Files</span>
+          <span class="du-stat-val" id="du-total-files">0</span>
+        </div>
+        <div class="du-stat-card">
+          <span class="du-stat-label">Directories</span>
+          <span class="du-stat-val" id="du-total-dirs">0</span>
+        </div>
+      </div>
+
+      <!-- Visual Breakdown List / Treemap Grid -->
+      <div class="du-content-body">
+        <div style="font-size: 11px; font-weight: 700; color: var(--accent); text-transform: uppercase; margin-bottom: 8px;">Subdirectories & Item Consumption</div>
+        <div id="du-items-list" class="du-items-list">
+          <!-- Item rows rendered here -->
+        </div>
+
+        <div style="font-size: 11px; font-weight: 700; color: var(--accent); text-transform: uppercase; margin-top: 18px; margin-bottom: 8px;">Top 20 Largest Files</div>
+        <div id="du-largest-files" class="du-items-list">
+          <!-- Largest files rows rendered here -->
+        </div>
+      </div>
+
+      <div class="modal-footer" style="padding: 10px 16px; background: var(--bg-header); border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+        <span style="font-size: 11px; color: var(--text-dim);">Click any folder row to drill down into that directory.</span>
+        <button class="btn btn-accent" onclick="closeModal('disk-usage-modal')">Close</button>
       </div>
     </div>
   </div>
@@ -2080,7 +2156,7 @@
           <div style="font-size: 18px; font-weight: 800; color: var(--accent); letter-spacing: 0.5px;">CommanderDog</div>
           <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 10px;">Multi-Tab Web Commander - By Woofson</div>
           <div style="display: flex; justify-content: center; gap: 6px; flex-wrap: wrap;">
-            <span class="badge" style="background: rgba(245, 158, 11, 0.2); color: var(--accent); border: 1px solid rgba(245, 158, 11, 0.4); font-weight: 700;">v0.2.10 (Release)</span>
+            <span class="badge" style="background: rgba(245, 158, 11, 0.2); color: var(--accent); border: 1px solid rgba(245, 158, 11, 0.4); font-weight: 700;">v0.2.11 (Release)</span>
             <span class="badge" style="background: rgba(56, 189, 248, 0.15); color: var(--info); border: 1px solid rgba(56, 189, 248, 0.3);">Rust + Axum + Tokio</span>
             <span class="badge" style="background: rgba(34, 197, 94, 0.15); color: var(--success); border: 1px solid rgba(34, 197, 94, 0.3);">MIT Open Source</span>
           </div>

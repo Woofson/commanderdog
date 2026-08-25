@@ -1,79 +1,79 @@
 # 🗺️ CommanderDog Product Roadmap
 
-> **Slogan**: *Multi-Tab Web Commander - By Woofson*
+> **Slogan**: *Multi-Tab Web Commander — By Woofson*  
+> **Current Version**: `v0.2.10 (Release)`
 
-This roadmap outlines planned capabilities, UX enhancements, and architectural milestones for CommanderDog, informed by an architectural evaluation of orthodox file commanders, modern cloud file managers (including [NextExplorer](https://github.com/Woofson/NextExplorer)), and adaptive multi-pane mobile form factors.
-
----
-
-## 📱 1. Foldable & Tablet Adaptive Multi-Pane (Immediate Priority)
-
-### 📐 The Challenge:
-Current responsive design collapses viewports $\le 768\text{px}$ into a single-pane vertical stack. Modern foldable devices (such as Samsung Galaxy Z Fold, Google Pixel Fold, OnePlus Open) feature outer screens ($\sim 380\text{px}$–$420\text{px}$) and inner unfolded screens ($\sim 600\text{px}$–$900\text{px}$) with square/portrait aspect ratios ($\approx 4:3$, $6:5$, or $1:1$). Users unfolding their devices expect **at least two active panes side-by-side** for true orthodox dual-pane file management.
-
-### 🎯 Roadmap Initiatives:
-- **Dual-Pane Foldable Breakpoint ($\ge 600\text{px}$)**:
-  - Transition from strict $768\text{px}$ single-pane to an adaptive dual-pane layout when horizontal width $\ge 600\text{px}$.
-  - Support dual vertical panes (`layout-dual-vertical`) with compact columns (Icon + Name + Size) on foldable screens.
-- **CSS Screen-Spanning & Viewport Segments**:
-  - Leverage `@media (horizontal-viewport-segments: 2)` and `screen-spanning: single-fold-vertical` to place Pane 1 on the left display half and Pane 2 on the right display half, avoiding the center hinge/fold seam.
-- **Touch-Optimized Drag & Swipe Across Folded Panes**:
-  - Direct touch drag-and-drop or 1-tap "Transfer to Opposite Pane" buttons on foldable touch interfaces.
-  - Quick-switch tabs for Pane 3 & 4 while preserving the primary dual-pane split on screen.
+This roadmap outlines planned capabilities, UX enhancements, and architectural milestones for CommanderDog, merging orthodox file commander power tools (Total Commander, Double Commander, Krusader, Directory Opus) with modern responsive web architecture.
 
 ---
 
-## 🔍 2. Evaluated Features from NextExplorer (`../NextExplorer/`)
+## 🚀 1. Completed Milestones (v0.1.0 — v0.2.10)
 
-NextExplorer offers a modern web explorer interface with rich media, sharing, and integration capabilities. The following high-value features have been evaluated and prioritized for CommanderDog:
-
-### 🔗 A. Temporary Link Sharing & Guest Upload Dropboxes
-- **Public & Password-Protected Shares**: Generate secure, time-limited share links for individual files or entire folders (`1 hour`, `24 hours`, `7 days`, `custom expiration`).
-- **Read-Write Guest Dropboxes**: Allow external collaborators to upload files directly into a designated target directory via a clean web drop-zone without requiring a user account.
-- **Active Shares Dashboard**: Built-in tab in the Settings/Profile Hub to monitor, audit access logs, extend expiry, or revoke active links in one click.
-
-### 📄 B. Document Viewing & Collaborative Editing (ONLYOFFICE & Collabora WOPI)
-- **WOPI / ONLYOFFICE Integration**: Connect to an external or self-hosted ONLYOFFICE DocumentServer or Collabora Online instance.
-- **In-Browser Office Editing**: Edit `.docx`, `.xlsx`, `.pptx`, `.odt`, `.ods` directly within CommanderDog floating windows with real-time multi-user collaboration.
-
-### 🗺️ C. Rich Media Inspector & EXIF GPS Map Preview
-- **EXIF Metadata Inspector**: View detailed camera metadata (shutter speed, aperture, ISO, focal length, camera body & lens model).
-- **Interactive GPS Location Preview**: For geotagged photos, embed a lightweight interactive map preview showing the exact coordinates where the image was captured.
-- **Audio & Video Codec Details**: Inspect bitrates, audio channels, video codecs, and container formats.
-
-### ⚡ D. Global Spotlight Quick-Switcher (`Ctrl+K` / `Cmd+K`)
-- **Spotlight Search Bar**: Modal overlay triggered anywhere via `Ctrl+K` for instantaneous fuzzy matching across recent files, bookmarks, active mounts, commands, and settings.
-- **Keyboard-First Navigation**: Instant directory jumping without leaving the active panel.
-
-### 📦 E. Archive Manager & In-Browser Unpacker
-- **Multi-Format Extraction**: In-browser decompression and extraction for `.zip`, `.tar.gz`, `.tar.bz2`, `.tar.xz`, `.7z`, and `.rar` directly to the active or opposite pane.
-- **Archive Creation**: Select multiple files/folders and compress directly to `.zip` or `.tar.gz` with custom compression levels.
-
-### 🔐 F. POSIX & ACL Visual Permissions Editor
-- **Visual Chmod/Chown**: Intuitive octal (`755`, `644`) permission matrix with checkbox grid for Owner, Group, and Others (Read, Write, Execute, SUID, SGID, Sticky).
-- **Recursive Permission Apply**: Option to recursively apply ownership/permissions to subdirectories and files.
-
-### 🌐 G. OpenID Connect (OIDC) & SSO Integration
-- **Enterprise SSO**: Support OpenID Connect (OIDC) authentication flows (Authelia, Authentik, Keycloak, Okta, Google Workspace) alongside existing Linux PAM and SQLite auth engines.
-- **Role & Group Mapping**: Map OIDC group claims directly to CommanderDog RBAC roles (`admin`, `power_user`, `user`, `viewer`).
+- [x] **📱 Foldable & Adaptive Multi-Pane (`v0.3.0 UX`)**: Adaptive dual-pane breakpoint ($\ge 601\text{px}$), CSS viewport segments (`horizontal-viewport-segments: 2`), hinge/seam avoidance, and touch swipe gestures.
+- [x] **📦 In-Browser Archive Engine**: Compress & Extract `.zip`, `.tar.gz`, `.tar.bz2`, `.tar.xz`, and `.7z` with custom compression levels.
+- [x] **🔗 Link Sharing & Guest Upload Dropboxes**: Time/download-limited share links, password protection, guest `/share/:token` upload dropboxes, and active shares audit dashboard.
+- [x] **⚡ Global Spotlight Quick-Switcher (<kbd>Ctrl+K</kbd> / <kbd>Cmd+K</kbd>)**: Real-time fuzzy command palette searching across actions, common paths, bookmarks, and recent history.
+- [x] **📚 Universal Document & PDF Reader**: In-browser PDF stream viewer with zoom/rotate/print/fullscreen, rich GitHub Markdown renderer with raw toggle, CSV/TSV interactive data grids with filter and sort, and web previews.
+- [x] **📸 Rich Media Inspector & EXIF GPS Geotag Engine**: TIFF/EXIF binary camera parser, interactive Leaflet + OpenStreetMap location pin with Google/Apple Maps links, dominant color palette extraction, and byte-range video/audio stream player.
+- [x] **🔐 Visual POSIX Permissions Matrix**: Visual $3\times 3$ `chmod`/`chown` matrix with octal calculator and recursive `-R` toggle.
+- [x] **☁️ Multi-Cloud & Remote Storage**: SMB/CIFS, NFS, AWS S3/MinIO/R2, SFTP, WebDAV, Syncthing, and Proton Drive.
 
 ---
 
-## 📋 3. Architecture & Release Milestone Phasing
+## 🎯 2. Active Roadmap Priorities
+
+### 🔀 A. Two-Way Visual Directory Synchronizer (Active Implementation)
+- **Side-by-Side Folder Diff**: Compares Source (Pane 1) vs Destination (Pane 2) with visual status indicators (**Newer ➔**, **Older ⬅**, **Identical ✔**, **Missing ❌**, **Different Size ⚠️**).
+- **Synchronize Modes**: 1-click execution for **Mirror Left-to-Right**, **Mirror Right-to-Left**, and **Smart Two-Way Sync** with conflict resolution rules.
+- **Custom Direction Overrides**: Toggle per-file copy directions or skip individual files before batch synchronization.
+
+### 📊 B. Visual Disk Usage Treemap & Sunburst Analyzer (Active Implementation)
+- **Interactive Space Visualizer** (*ncdu* / *WizTree* style): Visual interactive nested blocks and bar grids showing exactly which folders and files are consuming disk space.
+- **Direct Drill-Down**: Click any block in the treemap to navigate directly into that folder in the active pane or trigger cleanup actions.
+
+---
+
+## 🔮 3. Future Orthodox & Cloud Milestones
+
+### 🌲 C. Flat / Branch View (<kbd>Ctrl+B</kbd>)
+- **Subfolder Flattening**: Flattens the entire folder hierarchy into a single unified list inside the pane.
+- **Global Sort**: Sort all nested files across hundreds of subdirectories by **File Size** (find largest files instantly) or **Date Modified**.
+
+### 🔍 D. Live Content Grep & "Feed to Pane" Virtual Results
+- **Ripgrep-Powered Content Search**: Deep regex search inside file contents across directory trees with line number and syntax-highlighted match snippets.
+- **"Feed to Pane" (Classic TC Feature)**: Dumps search results directly into a virtual pane for batch selecting, renaming, or copying.
+
+### 🏷️ E. Color Labels & Custom Tagging System
+- **Visual Triage**: Color-code files and directories (🔴 Urgent/Red, 🟢 Done/Green, 🟡 WIP, 🔵 Archive).
+- **Custom Tags & Filtering**: Filter by tags across panes for rapid organization.
+
+### 🧩 F. Multi-Part File Splitter & Combiner
+- **Split Large Files**: Split multi-gigabyte files into fixed-size chunks (e.g. `100MB`, `1GB`, `.001`, `.002`).
+- **Join & Verify**: Concatenate split parts back into the original file with CRC32/SHA-256 integrity verification.
+
+### 🔒 G. Transparent Encrypted Vaults (AES-256)
+- **Zero-Knowledge Encrypted Folders**: Create password-protected encrypted vault directories.
+- **On-the-Fly Decryption**: Files decrypt transparently in memory inside CommanderDog without exposing unencrypted files on disk.
+
+### ⚙️ H. Webhook & Automation Triggers
+- **Folder Watchers**: Trigger automated actions when files arrive in a folder (e.g. auto-convert with ConvertX, decompress downloads, or run custom scripts).
+
+### 🌐 I. OpenID Connect (OIDC) & SSO Integration
+- **Enterprise SSO**: Support OpenID Connect (Authelia, Authentik, Keycloak, Okta, Google Workspace) alongside existing Linux PAM and SQLite auth engines.
+
+### 📄 J. Collaborative Office Editing (ONLYOFFICE & Collabora WOPI)
+- **WOPI / ONLYOFFICE Integration**: Live collaborative editing for `.docx`, `.xlsx`, `.pptx`.
+
+---
+
+## 📋 4. Release Phasing Matrix
 
 ```mermaid
 graph TD
-    A["v0.2.6 (Current)"] --> B["v0.3.0: Foldable & Adaptive Multi-Pane"]
-    B --> C["v0.3.5: Archive Engine & Permissions Manager"]
-    C --> D["v0.4.0: Link Sharing & Guest Upload Dropboxes"]
-    D --> E["v0.4.5: Spotlight Search & EXIF Map Inspector"]
+    A["v0.2.10 (Current)"] --> B["v0.3.0: Visual Synchronizer & Disk Treemap Analyzer"]
+    B --> C["v0.3.5: Flat Branch View & Content Grep Feed-to-Pane"]
+    C --> D["v0.4.0: Color Labels & File Splitter/Combiner"]
+    D --> E["v0.4.5: Encrypted Vaults & Webhook Automations"]
     E --> F["v0.5.0: OIDC SSO & ONLYOFFICE / Collabora WOPI"]
 ```
 
-| Phase | Milestone | Focus Areas |
-| :--- | :--- | :--- |
-| **Phase 1** | **`v0.3.0`** | Foldable phone ($\ge 600\text{px}$) dual-pane UX, hinge/seam-aware layout, touch splitter. |
-| **Phase 2** | **`v0.3.5`** | In-browser Archive Extractor (`.zip`, `.tar.gz`, `.7z`), Visual POSIX Chmod/Chown panel. |
-| **Phase 3** | **`v0.4.0`** | Link-based sharing, guest upload dropboxes, password & expiry tokens, shares dashboard. |
-| **Phase 4** | **`v0.4.5`** | Global Spotlight switcher (<kbd>Ctrl+K</kbd>), EXIF GPS Map preview, media audio/video inspection. |
-| **Phase 5** | **`v0.5.0`** | OIDC / SSO integration, ONLYOFFICE & Collabora document editing integration. |

@@ -28,6 +28,21 @@ const App = {
   taskVerbosity: localStorage.getItem('cd_task_verbosity') || 'detailed',
 };
 
+function getBasename(path) {
+  if (!path) return '';
+  return path.split('/').filter(Boolean).pop() || path;
+}
+
+function formatBytes(bytes) {
+  if (bytes === 0 || !bytes) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+}
+
+const formatFileSize = formatBytes;
+
 class PaneState {
   constructor(id, initialPath = '/') {
     this.id = id;
@@ -2726,68 +2741,78 @@ function setDiffFilter(filter) {
 
 function renderFolderDiff(diff, filter = 'all') {
   const body = document.getElementById('diff-modal-body');
+  if (!body) return;
   
-  let filteredEntries = diff.entries;
-  if (filter === 'modified') filteredEntries = diff.entries.filter(e => e.status === 'modified');
-  else if (filter === 'left_only') filteredEntries = diff.entries.filter(e => e.status === 'left_only');
-  else if (filter === 'right_only') filteredEntries = diff.entries.filter(e => e.status === 'right_only');
-  else if (filter === 'identical') filteredEntries = diff.entries.filter(e => e.status === 'identical');
+  let filteredEntries = diff.entries || [];
+  if (filter === 'modified') filteredEntries = filteredEntries.filter(e => e.status === 'modified');
+  else if (filter === 'left_only') filteredEntries = filteredEntries.filter(e => e.status === 'left_only');
+  else if (filter === 'right_only') filteredEntries = filteredEntries.filter(e => e.status === 'right_only');
+  else if (filter === 'identical') filteredEntries = filteredEntries.filter(e => e.status === 'identical');
 
   body.innerHTML = `
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; background: var(--bg-header); padding: 10px 14px; border-radius: var(--radius); border: 1px solid var(--border);">
-      <div style="display: flex; gap: 20px; font-size: 12px;">
-        <div><b>Left:</b> <code style="color: var(--accent);">${diff.dir_left}</code></div>
-        <div><b>Right:</b> <code style="color: var(--accent);">${diff.dir_right}</code></div>
+    <div class="diff-paths-card">
+      <div class="diff-path-chips">
+        <div class="diff-path-chip" title="${escapeHtml(diff.dir_left)}">
+          <span style="font-weight: 700; color: var(--info);">L:</span>
+          <code>${escapeHtml(diff.dir_left)}</code>
+        </div>
+        <span style="color: var(--text-dim); font-size: 11px;">⟷</span>
+        <div class="diff-path-chip" title="${escapeHtml(diff.dir_right)}">
+          <span style="font-weight: 700; color: #c084fc;">R:</span>
+          <code>${escapeHtml(diff.dir_right)}</code>
+        </div>
       </div>
-      <div style="display: flex; gap: 6px;">
-        <button class="btn btn-accent" onclick="triggerDiff(false)" title="Fast Immediate Compare"><i data-lucide="zap"></i> Fast Compare</button>
-        <button class="btn" onclick="triggerDiff(true)" title="Deep Recursive SHA-256 Compare"><i data-lucide="shield-check"></i> Deep Hash Scan</button>
+      <div class="diff-action-buttons">
+        <button class="btn btn-sm" onclick="triggerDiff(false)" title="Fast Immediate Compare"><i data-lucide="zap"></i> Fast</button>
+        <button class="btn btn-sm btn-accent" onclick="triggerDiff(true)" title="Deep Recursive SHA-256 Compare"><i data-lucide="shield-check"></i> Deep Hash</button>
       </div>
     </div>
 
-    <!-- Filter Buttons -->
+    <!-- Filter Buttons Bar -->
     <div class="diff-filter-bar">
       <button class="diff-filter-btn ${filter === 'all' ? 'active' : ''}" onclick="setDiffFilter('all')">
-        All Items (${diff.entries.length})
+        All (${diff.entries.length})
       </button>
       <button class="diff-filter-btn ${filter === 'modified' ? 'active' : ''}" onclick="setDiffFilter('modified')">
         <span style="color: var(--accent);">⚠️ Modified (${diff.modified_count})</span>
       </button>
       <button class="diff-filter-btn ${filter === 'left_only' ? 'active' : ''}" onclick="setDiffFilter('left_only')">
-        <span style="color: var(--info);">⬅️ Left Only (${diff.left_only_count})</span>
+        <span style="color: var(--info);">⬅ Left Only (${diff.left_only_count})</span>
       </button>
       <button class="diff-filter-btn ${filter === 'right_only' ? 'active' : ''}" onclick="setDiffFilter('right_only')">
-        <span style="color: var(--danger);">➡️ Right Only (${diff.right_only_count})</span>
+        <span style="color: var(--danger);">➡ Right Only (${diff.right_only_count})</span>
       </button>
       <button class="diff-filter-btn ${filter === 'identical' ? 'active' : ''}" onclick="setDiffFilter('identical')">
-        <span style="color: var(--success);">✅ Identical (${diff.identical_count})</span>
+        <span style="color: var(--success);">✔ Identical (${diff.identical_count})</span>
       </button>
     </div>
 
-    <div style="max-height: 58vh; overflow: auto; border: 1px solid var(--border); border-radius: var(--radius);">
-      <table class="file-table">
+    <div class="diff-table-wrapper">
+      <table class="diff-table">
         <thead>
           <tr>
-            <th>Relative Path</th>
-            <th>Status</th>
-            <th>Left Size</th>
-            <th>Right Size</th>
-            <th style="width: 100px; text-align: center;">Actions</th>
+            <th style="text-align: left;">Relative Path</th>
+            <th style="width: 85px; text-align: center;">Status</th>
+            <th style="width: 80px; text-align: right;">Left Size</th>
+            <th style="width: 80px; text-align: right;">Right Size</th>
+            <th style="width: 60px; text-align: center;">Diff</th>
           </tr>
         </thead>
         <tbody>
-          ${filteredEntries.length === 0 ? '<tr><td colspan="5" style="text-align:center; padding: 20px; color: var(--text-dim);">No files match this filter.</td></tr>' : ''}
+          ${filteredEntries.length === 0 ? '<tr><td colspan="5" style="text-align:center; padding: 28px; color: var(--text-dim);">No files match this filter.</td></tr>' : ''}
           ${filteredEntries.map(e => `
-            <tr class="file-row">
-              <td class="file-cell"><span style="font-family: var(--font-mono);">${e.relative_path}</span></td>
-              <td class="file-cell" style="color: ${e.status === 'identical' ? 'var(--success)' : (e.status === 'modified' ? 'var(--accent)' : (e.status === 'left_only' ? 'var(--info)' : 'var(--danger)'))}; font-weight: 700; font-size: 11px;">
+            <tr>
+              <td style="font-family: var(--font-mono); max-width: 320px; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(e.relative_path)}">
+                ${escapeHtml(e.relative_path)}
+              </td>
+              <td style="text-align: center; color: ${e.status === 'identical' ? 'var(--success)' : (e.status === 'modified' ? 'var(--accent)' : (e.status === 'left_only' ? 'var(--info)' : 'var(--danger)'))}; font-weight: 700; font-size: 10px;">
                 ${e.status.replace('_', ' ').toUpperCase()}
               </td>
-              <td class="file-cell file-cell-mono">${e.size_left !== null ? formatBytes(e.size_left) : '-'}</td>
-              <td class="file-cell file-cell-mono">${e.size_right !== null ? formatBytes(e.size_right) : '-'}</td>
-              <td class="file-cell" style="text-align: center;">
+              <td style="text-align: right; font-family: var(--font-mono); color: var(--text-muted);">${e.size_left !== null ? formatBytes(e.size_left) : '-'}</td>
+              <td style="text-align: right; font-family: var(--font-mono); color: var(--text-muted);">${e.size_right !== null ? formatBytes(e.size_right) : '-'}</td>
+              <td style="text-align: center;">
                 ${!e.is_dir && (e.status === 'modified' || e.status === 'identical') ? `
-                  <button class="btn btn-icon" onclick="openFileDiffView('${diff.dir_left}/${e.relative_path}', '${diff.dir_right}/${e.relative_path}')" title="Inspect Side-by-Side Diff">
+                  <button class="btn btn-icon btn-sm" onclick="openFileDiffView('${escapeHtml(diff.dir_left)}/${escapeHtml(e.relative_path)}', '${escapeHtml(diff.dir_right)}/${escapeHtml(e.relative_path)}')" title="Inspect Side-by-Side Diff">
                     <i data-lucide="eye" style="width:12px;"></i>
                   </button>
                 ` : ''}
@@ -2804,7 +2829,9 @@ function renderFolderDiff(diff, filter = 'all') {
 async function openFileDiffView(fileL, fileR) {
   showModal('diff-modal');
   const body = document.getElementById('diff-modal-body');
-  body.innerHTML = '<div style="padding: 20px; color: var(--accent);">Loading side-by-side file comparison...</div>';
+  if (!body) return;
+  body.innerHTML = '<div style="padding: 30px; text-align: center; color: var(--accent);"><i data-lucide="loader"></i> Loading side-by-side file comparison...</div>';
+  if (window.lucide) lucide.createIcons();
 
   try {
     const resp = await fetch('/api/tools/diff/files', {
@@ -2816,18 +2843,24 @@ async function openFileDiffView(fileL, fileR) {
     if (resp.ok) {
       const diffData = await resp.json();
       body.innerHTML = `
-        <div style="margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; background: var(--bg-header); padding: 8px 12px; border-radius: var(--radius);">
-          <div style="font-size: 12px;">
-            <span style="color: var(--accent); font-weight: 700;">Left:</span> ${escapeHtml(sanitizeCredentials(diffData.file_left))} 
-            <span style="margin: 0 8px; color: var(--text-dim);">⟷</span>
-            <span style="color: var(--accent); font-weight: 700;">Right:</span> ${escapeHtml(sanitizeCredentials(diffData.file_right))}
-            <span class="badge" style="margin-left: 12px; font-size: 11px; background: rgba(245, 158, 11, 0.2); color: var(--accent); padding: 2px 6px;">
+        <div class="diff-file-header-card">
+          <div class="diff-file-stats">
+            <div class="diff-path-chip" title="${escapeHtml(sanitizeCredentials(diffData.file_left))}">
+              <span style="font-weight: 700; color: var(--info);">L:</span>
+              <code>${escapeHtml(getBasename(diffData.file_left))}</code>
+            </div>
+            <span style="color: var(--text-dim); font-size: 11px;">⟷</span>
+            <div class="diff-path-chip" title="${escapeHtml(sanitizeCredentials(diffData.file_right))}">
+              <span style="font-weight: 700; color: #c084fc;">R:</span>
+              <code>${escapeHtml(getBasename(diffData.file_right))}</code>
+            </div>
+            <span style="margin-left: 6px; font-size: 10.5px; font-family: var(--font-mono); background: rgba(245, 158, 11, 0.15); color: var(--accent); padding: 2px 6px; border-radius: 3px; font-weight: 700; white-space: nowrap;">
               +${diffData.additions} / -${diffData.deletions}
             </span>
           </div>
-          <button class="btn" onclick="triggerDiff(false)"><i data-lucide="arrow-left"></i> Back to Folder Diff</button>
+          <button class="btn btn-sm" onclick="triggerDiff(false)"><i data-lucide="arrow-left"></i> Back</button>
         </div>
-        <div class="diff-container" style="max-height: 68vh; overflow: auto;">
+        <div class="diff-container">
           ${diffData.lines.map(line => `
             <div class="diff-line ${line.tag}">
               <div class="diff-gutter">${line.line_num_left || ''} | ${line.line_num_right || ''}</div>
@@ -2838,10 +2871,10 @@ async function openFileDiffView(fileL, fileR) {
       `;
       if (window.lucide) lucide.createIcons();
     } else {
-      body.innerHTML = `<div style="color: var(--danger); padding: 20px;">Failed to compare files: ${await resp.text()}</div>`;
+      body.innerHTML = `<div style="color: var(--danger); padding: 20px;">Failed to compare files: ${escapeHtml(await resp.text())}</div>`;
     }
   } catch (e) {
-    body.innerHTML = `<div style="color: var(--danger); padding: 20px;">Error: ${e}</div>`;
+    body.innerHTML = `<div style="color: var(--danger); padding: 20px;">Error: ${escapeHtml(String(e))}</div>`;
   }
 }
 
@@ -3421,7 +3454,8 @@ function showContextMenu(x, y) {
         <div class="context-item" onclick="runPredefinedAction('wc -l &quot;{file}&quot;', 'Line Count')"><i data-lucide="list-ordered" style="width:13px;"></i> Count Lines (wc -l)</div>
       </div>
     </div>
-    <div class="context-item" onclick="openSyncModal()"><i data-lucide="refresh-cw" style="width: 14px;"></i> Sync with Opposite Pane...</div>
+    <div class="context-item" onclick="openSyncModal()"><i data-lucide="refresh-cw" style="width: 14px;"></i> Two-Way Directory Sync...</div>
+    <div class="context-item" onclick="openDiskUsageModal()"><i data-lucide="pie-chart" style="width: 14px; color: var(--accent);"></i> Disk Usage & Space Analyzer...</div>
     <div class="context-item" onclick="openSearchModal()"><i data-lucide="search" style="width: 14px;"></i> Deep Search in Directory (Ctrl+F)</div>
 
     <div class="context-sep"></div>
@@ -3529,7 +3563,8 @@ function showEmptySpaceContextMenu(x, y, paneIndex) {
     <div class="context-sep"></div>
     <div class="context-item" onclick="openTerminalInPath('${escapeHtml(pane.path)}')"><i data-lucide="terminal" style="width: 14px; color: var(--accent);"></i> Open in Terminal (\`)</div>
     <div class="context-item" onclick="openSearchModal()"><i data-lucide="search" style="width: 14px;"></i> Deep Search in Directory (Ctrl+F)</div>
-    <div class="context-item" onclick="openSyncModal()"><i data-lucide="refresh-cw" style="width: 14px;"></i> Sync with Opposite Pane...</div>
+    <div class="context-item" onclick="openSyncModal()"><i data-lucide="refresh-cw" style="width: 14px;"></i> Two-Way Directory Sync...</div>
+    <div class="context-item" onclick="openDiskUsageModal('${escapeHtml(pane.path)}')"><i data-lucide="pie-chart" style="width: 14px; color: var(--accent);"></i> Disk Usage & Treemap Analyzer...</div>
     <div class="context-item" onclick="openRemoteModal(${paneIndex})"><i data-lucide="network" style="width: 14px;"></i> Mount Remote Storage Here...</div>
     <div class="context-item" onclick="addCurrentPaneToQuickDest()"><i data-lucide="bookmark-plus" style="width: 14px;"></i> Bookmark Current Path</div>
     <div class="context-sep"></div>
@@ -5898,14 +5933,6 @@ function setupHistoryNavigation() {
       history.pushState({ type: 'dir', paneIndex: App.activePaneIndex, path: pane?.path || '/' }, '', '');
     }
   });
-}
-
-function formatBytes(bytes) {
-  if (bytes === 0 || !bytes) return '0 B';
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 }
 
 function formatDate(timestampSec) {
@@ -8619,63 +8646,190 @@ async function executeBulkRename() {
   }
 }
 
-// ---------------- DIRECTORY SYNCHRONIZATION ENGINE ----------------
+// ---------------- TWO-WAY VISUAL DIRECTORY SYNCHRONIZER ----------------
+let syncAnalysisData = null;
+let syncCurrentFilter = 'all';
 
 function openSyncModal() {
   const visible = getVisiblePaneCount();
   const srcPane = App.panes[App.activePaneIndex];
   const destPane = App.panes[(App.activePaneIndex + 1) % visible] || srcPane;
 
-  document.getElementById('sync-src-input').value = srcPane.path;
-  document.getElementById('sync-dest-input').value = destPane.path;
-  document.getElementById('sync-analysis-card').style.display = 'none';
+  const srcIn = document.getElementById('sync-src-input');
+  const destIn = document.getElementById('sync-dest-input');
+  if (srcIn) srcIn.value = srcPane.path;
+  if (destIn) destIn.value = destPane.path;
+
+  syncAnalysisData = null;
+  syncCurrentFilter = 'all';
+  updateSyncCounters(0, 0, 0, 0, 0);
+
+  const tbody = document.getElementById('sync-diff-body');
+  if (tbody) tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 40px; color: var(--text-dim);">Click <b>Compare & Analyze</b> to inspect differences.</td></tr>`;
+
+  const footerStats = document.getElementById('sync-footer-stats');
+  if (footerStats) footerStats.textContent = 'Ready to compare directories.';
 
   showModal('sync-modal');
+  if (srcPane.path && destPane.path && srcPane.path !== destPane.path) {
+    analyzeSync();
+  }
+}
+
+function swapSyncPaths() {
+  const srcIn = document.getElementById('sync-src-input');
+  const destIn = document.getElementById('sync-dest-input');
+  if (srcIn && destIn) {
+    const tmp = srcIn.value;
+    srcIn.value = destIn.value;
+    destIn.value = tmp;
+    analyzeSync();
+  }
+}
+
+function handleSyncModeChange() {
+  if (syncAnalysisData) {
+    analyzeSync();
+  }
+}
+
+function updateSyncCounters(all, left, right, mod, eq) {
+  const cAll = document.getElementById('sync-cnt-all');
+  const cLeft = document.getElementById('sync-cnt-left');
+  const cRight = document.getElementById('sync-cnt-right');
+  const cMod = document.getElementById('sync-cnt-mod');
+  const cEq = document.getElementById('sync-cnt-eq');
+
+  if (cAll) cAll.textContent = all;
+  if (cLeft) cLeft.textContent = left;
+  if (cRight) cRight.textContent = right;
+  if (cMod) cMod.textContent = mod;
+  if (cEq) cEq.textContent = eq;
+}
+
+function filterSyncGrid(mode) {
+  syncCurrentFilter = mode;
+  document.querySelectorAll('.sync-filter-btn').forEach(b => b.classList.remove('active'));
+  const activeBtn = document.getElementById(`btn-sync-filter-${mode === 'all' ? 'all' : (mode === 'left' ? 'left' : (mode === 'right' ? 'right' : (mode === 'modified' ? 'mod' : 'eq')))}`);
+  if (activeBtn) activeBtn.classList.add('active');
+  renderSyncDiffTable();
 }
 
 async function analyzeSync() {
-  const source = document.getElementById('sync-src-input').value.trim();
-  const destination = document.getElementById('sync-dest-input').value.trim();
-  const mode = document.querySelector('input[name="sync-mode"]:checked').value;
-  const verify_checksum = document.getElementById('sync-verify-crc32').checked;
+  const source = document.getElementById('sync-src-input')?.value.trim();
+  const destination = document.getElementById('sync-dest-input')?.value.trim();
+  const mode = document.querySelector('input[name="sync-mode"]:checked')?.value || 'mirror_left_to_right';
 
   if (!source || !destination) {
     showToast('Please specify source and destination directories', 'warning');
     return;
   }
 
-  const card = document.getElementById('sync-analysis-card');
-  const stats = document.getElementById('sync-analysis-stats');
+  const tbody = document.getElementById('sync-diff-body');
+  const footerStats = document.getElementById('sync-footer-stats');
+  if (tbody) tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 40px; color: var(--accent);"><i data-lucide="loader"></i> Analyzing directory differences...</td></tr>`;
+  if (window.lucide) lucide.createIcons();
 
-  stats.innerHTML = '<div style="grid-column: span 4; color: var(--accent);">Analyzing directory differences...</div>';
-  card.style.display = 'block';
+  try {
+    const resp = await fetch('/api/tools/sync/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
+      body: JSON.stringify({ source, destination, options: { mode, dry_run: true, verify_checksum: true, delete_orphans: mode.includes('mirror') } })
+    });
 
-  const resp = await fetch('/api/tools/sync/analyze', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
-    body: JSON.stringify({ source, destination, options: { mode, dry_run: true, verify_checksum, delete_orphans: mode === 'mirror' } })
-  });
+    if (!resp.ok) {
+      if (tbody) tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 40px; color: var(--danger);">Analysis failed: ${escapeHtml(await resp.text())}</td></tr>`;
+      return;
+    }
 
-  if (!resp.ok) {
-    stats.innerHTML = `<div style="grid-column: span 4; color: var(--danger);">Analysis failed: ${await resp.text()}</div>`;
+    syncAnalysisData = await resp.json();
+    const files = syncAnalysisData.files || [];
+
+    const leftCnt = files.filter(f => f.status === 'left_only' || f.status === 'modified_newer_left').length;
+    const rightCnt = files.filter(f => f.status === 'right_only' || f.status === 'modified_newer_right').length;
+    const modCnt = files.filter(f => f.status.startsWith('modified_') || f.status === 'size_conflict').length;
+    const eqCnt = files.filter(f => f.status === 'identical').length;
+
+    updateSyncCounters(files.length, leftCnt, rightCnt, modCnt, eqCnt);
+
+    if (footerStats) {
+      footerStats.textContent = `Found ${files.length} total files: ${leftCnt} left-only/newer, ${rightCnt} right-only/newer, ${modCnt} modified, ${eqCnt} identical (${formatFileSize(syncAnalysisData.total_transfer_bytes)} to transfer).`;
+    }
+
+    renderSyncDiffTable();
+  } catch (e) {
+    if (tbody) tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 40px; color: var(--danger);">Error: ${escapeHtml(String(e))}</td></tr>`;
+  }
+}
+
+function toggleFileAction(index) {
+  if (!syncAnalysisData || !syncAnalysisData.files[index]) return;
+  const item = syncAnalysisData.files[index];
+  const cycle = ['copy_right', 'copy_left', 'skip'];
+  const curIdx = cycle.indexOf(item.suggested_action);
+  item.suggested_action = cycle[(curIdx + 1) % cycle.length];
+  renderSyncDiffTable();
+}
+
+function renderSyncDiffTable() {
+  const tbody = document.getElementById('sync-diff-body');
+  if (!tbody || !syncAnalysisData) return;
+
+  const files = syncAnalysisData.files || [];
+  let filtered = files;
+
+  if (syncCurrentFilter === 'left') {
+    filtered = files.filter(f => f.status === 'left_only' || f.status === 'modified_newer_left');
+  } else if (syncCurrentFilter === 'right') {
+    filtered = files.filter(f => f.status === 'right_only' || f.status === 'modified_newer_right');
+  } else if (syncCurrentFilter === 'modified') {
+    filtered = files.filter(f => f.status.startsWith('modified_') || f.status === 'size_conflict');
+  } else if (syncCurrentFilter === 'identical') {
+    filtered = files.filter(f => f.status === 'identical');
+  }
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 40px; color: var(--text-dim);">No files match the selected filter.</td></tr>`;
     return;
   }
 
-  const data = await resp.json();
-  stats.innerHTML = `
-    <div style="background:var(--bg-header); padding:6px; border-radius:4px;"><b style="color:var(--success);">+ ${data.to_copy.length}</b> To Copy</div>
-    <div style="background:var(--bg-header); padding:6px; border-radius:4px;"><b style="color:var(--accent);">⚡ ${data.to_update.length}</b> To Update</div>
-    <div style="background:var(--bg-header); padding:6px; border-radius:4px;"><b style="color:var(--danger);">✕ ${data.to_delete.length}</b> To Delete</div>
-    <div style="background:var(--bg-header); padding:6px; border-radius:4px;"><b style="color:var(--text-dim);">= ${data.identical_count}</b> Identical</div>
-  `;
+  tbody.innerHTML = filtered.map(f => {
+    let actionBadge = '';
+    if (f.suggested_action === 'copy_right') {
+      actionBadge = `<span class="sync-action-badge action-copy-right" title="Copy Left ➔ Right (Click to change)" onclick="toggleFileAction(${files.indexOf(f)})">➔</span>`;
+    } else if (f.suggested_action === 'copy_left') {
+      actionBadge = `<span class="sync-action-badge action-copy-left" title="Copy Right ➔ Left (Click to change)" onclick="toggleFileAction(${files.indexOf(f)})">⬅</span>`;
+    } else if (f.suggested_action === 'delete_right') {
+      actionBadge = `<span class="sync-action-badge action-delete-right" title="Delete from Target (Mirror mode)" onclick="toggleFileAction(${files.indexOf(f)})">✕</span>`;
+    } else if (f.suggested_action === 'identical') {
+      actionBadge = `<span class="sync-action-badge action-identical" title="Identical File" onclick="toggleFileAction(${files.indexOf(f)})">✔</span>`;
+    } else {
+      actionBadge = `<span class="sync-action-badge action-skip" title="Skip File (Click to change)" onclick="toggleFileAction(${files.indexOf(f)})">⊘</span>`;
+    }
+
+    const leftFileClass = f.status === 'left_only' ? 'color: var(--info); font-weight: 600;' : (f.status === 'right_only' ? 'color: var(--text-dim);' : 'color: var(--text-main);');
+    const rightFileClass = f.status === 'right_only' ? 'color: #c084fc; font-weight: 600;' : (f.status === 'left_only' ? 'color: var(--text-dim);' : 'color: var(--text-main);');
+
+    return `
+      <tr>
+        <td style="text-align: right; color: var(--text-muted);">${escapeHtml(f.src_size_formatted)}</td>
+        <td style="${leftFileClass} text-overflow: ellipsis; overflow: hidden; max-width: 300px;" title="${escapeHtml(f.rel_path)}">
+          ${escapeHtml(f.rel_path)}
+        </td>
+        <td style="text-align: center;">${actionBadge}</td>
+        <td style="${rightFileClass} text-overflow: ellipsis; overflow: hidden; max-width: 300px;" title="${escapeHtml(f.rel_path)}">
+          ${escapeHtml(f.rel_path)}
+        </td>
+        <td style="text-align: left; color: var(--text-muted);">${escapeHtml(f.dest_size_formatted)}</td>
+      </tr>
+    `;
+  }).join('');
 }
 
 async function executeSync() {
-  const source = document.getElementById('sync-src-input').value.trim();
-  const destination = document.getElementById('sync-dest-input').value.trim();
-  const mode = document.querySelector('input[name="sync-mode"]:checked').value;
-  const verify_checksum = document.getElementById('sync-verify-crc32').checked;
-  const dry_run = document.getElementById('sync-dry-run').checked;
+  const source = document.getElementById('sync-src-input')?.value.trim();
+  const destination = document.getElementById('sync-dest-input')?.value.trim();
+  const mode = document.querySelector('input[name="sync-mode"]:checked')?.value || 'mirror_left_to_right';
 
   if (!source || !destination) {
     showToast('Please specify source and destination directories', 'warning');
@@ -8684,20 +8838,121 @@ async function executeSync() {
 
   closeModal('sync-modal');
 
-  const resp = await fetch('/api/tools/sync/execute', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
-    body: JSON.stringify({ source, destination, options: { mode, dry_run, verify_checksum, delete_orphans: mode === 'mirror' } })
-  });
+  try {
+    const resp = await fetch('/api/tools/sync/execute', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
+      body: JSON.stringify({ source, destination, options: { mode, dry_run: false, verify_checksum: true, delete_orphans: mode.includes('mirror') } })
+    });
 
-  if (resp.ok) {
-    showToast('Sync initiated successfully', 'success');
-    if (!dry_run) {
+    if (resp.ok) {
+      showToast('⚡ Synchronization completed successfully', 'success');
       for (let i = 0; i < getVisiblePaneCount(); i++) refreshPane(i);
       openFloatingTaskManager();
+    } else {
+      showToast('Sync error: ' + await resp.text(), 'error');
     }
-  } else {
-    showToast('Sync error: ' + await resp.text(), 'error');
+  } catch (e) {
+    showToast('Sync execution failed: ' + String(e), 'error');
+  }
+}
+
+// ---------------- VISUAL DISK USAGE TREEMAP & BAR ANALYZER ----------------
+function openDiskUsageModal(path) {
+  const targetPath = path || App.panes[App.activePaneIndex]?.path || '/';
+  const pathIn = document.getElementById('du-path-input');
+  if (pathIn) pathIn.value = targetPath;
+
+  showModal('disk-usage-modal');
+  runDiskUsageScan(targetPath);
+}
+
+async function runDiskUsageScan(path) {
+  if (!path) return;
+  const pathIn = document.getElementById('du-path-input');
+  if (pathIn) pathIn.value = path;
+
+  const totalSpaceEl = document.getElementById('du-total-space');
+  const totalFilesEl = document.getElementById('du-total-files');
+  const totalDirsEl = document.getElementById('du-total-dirs');
+  const itemsList = document.getElementById('du-items-list');
+  const largestList = document.getElementById('du-largest-files');
+
+  if (itemsList) itemsList.innerHTML = '<div style="padding: 24px; text-align: center; color: var(--accent);"><i data-lucide="loader"></i> Scanning directory storage consumption...</div>';
+  if (largestList) largestList.innerHTML = '';
+  if (window.lucide) lucide.createIcons();
+
+  try {
+    const resp = await fetch(`/api/tools/disk-usage?path=${encodeURIComponent(path)}`, {
+      headers: { 'Authorization': `Bearer ${App.token}` }
+    });
+
+    if (!resp.ok) {
+      if (itemsList) itemsList.innerHTML = `<div style="padding: 24px; text-align: center; color: var(--danger);">Scan failed: ${escapeHtml(await resp.text())}</div>`;
+      return;
+    }
+
+    const data = await resp.json();
+
+    if (totalSpaceEl) totalSpaceEl.textContent = data.formatted_total;
+    if (totalFilesEl) totalFilesEl.textContent = data.total_files.toLocaleString();
+    if (totalDirsEl) totalDirsEl.textContent = data.total_dirs.toLocaleString();
+
+    if (itemsList) {
+      if (!data.items || data.items.length === 0) {
+        itemsList.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-dim);">Directory is empty.</div>';
+      } else {
+        itemsList.innerHTML = data.items.map(it => {
+          const icon = it.is_dir ? '📁' : '📄';
+          const subInfo = it.is_dir ? `${it.file_count} files • ${it.dir_count} subdirs` : 'Single file';
+          const pct = Math.max(1, Math.min(100, Math.round(it.percentage)));
+          const clickAction = it.is_dir ? `onclick="runDiskUsageScan('${escapeHtml(it.path)}')"` : '';
+
+          return `
+            <div class="du-item-row" ${clickAction} title="${it.is_dir ? 'Click to drill down' : ''}">
+              <div style="font-size: 16px;">${icon}</div>
+              <div class="du-item-name-col">
+                <div class="du-item-name">${escapeHtml(it.name)}</div>
+                <div class="du-item-sub">${escapeHtml(subInfo)}</div>
+              </div>
+              <div class="du-item-bar-wrapper">
+                <div class="du-item-bar-fill" style="width: ${pct}%;"></div>
+              </div>
+              <div class="du-item-size-col">${escapeHtml(it.formatted_size)}</div>
+              <div class="du-item-pct-col">${it.percentage.toFixed(1)}%</div>
+            </div>
+          `;
+        }).join('');
+      }
+    }
+
+    if (largestList) {
+      if (!data.largest_files || data.largest_files.length === 0) {
+        largestList.innerHTML = '<div style="padding: 12px; text-align: center; color: var(--text-dim);">No files found.</div>';
+      } else {
+        largestList.innerHTML = data.largest_files.map(it => {
+          const pct = Math.max(1, Math.min(100, Math.round(it.percentage)));
+          return `
+            <div class="du-item-row" style="cursor: default;">
+              <div style="font-size: 16px;">📄</div>
+              <div class="du-item-name-col">
+                <div class="du-item-name">${escapeHtml(it.name)}</div>
+                <div class="du-item-sub">${escapeHtml(it.path)}</div>
+              </div>
+              <div class="du-item-bar-wrapper">
+                <div class="du-item-bar-fill" style="width: ${pct}%; background: #38bdf8;"></div>
+              </div>
+              <div class="du-item-size-col">${escapeHtml(it.formatted_size)}</div>
+              <div class="du-item-pct-col">${it.percentage.toFixed(1)}%</div>
+            </div>
+          `;
+        }).join('');
+      }
+    }
+
+    if (window.lucide) lucide.createIcons();
+  } catch (e) {
+    if (itemsList) itemsList.innerHTML = `<div style="padding: 24px; text-align: center; color: var(--danger);">Error: ${escapeHtml(String(e))}</div>`;
   }
 }
 
@@ -9174,6 +9429,7 @@ const SPOTLIGHT_STATIC_ACTIONS = [
   { id: 'search', title: 'Deep File Search', sub: 'Search files and folders recursively (Ctrl+F)', icon: 'search', cat: 'actions', action: () => openSearchModal() },
   { id: 'shares', title: 'Active Shares & Dropboxes', sub: 'Manage public share links and guest upload dropboxes', icon: 'share-2', cat: 'actions', action: () => openSharesManager() },
   { id: 'sync', title: 'Directory Sync & Mirror', sub: 'Compare and sync two directories bidirectionally', icon: 'refresh-cw', cat: 'actions', action: () => openSyncModal() },
+  { id: 'du', title: 'Disk Usage & Storage Treemap Analyzer', sub: 'Inspect space consumption, largest folders & files', icon: 'pie-chart', cat: 'actions', action: () => openDiskUsageModal() },
   { id: 'syncthing', title: 'Syncthing Dashboard', sub: 'Continuous peer-to-peer file synchronization', icon: 'repeat', cat: 'actions', action: () => openSyncthingModal() },
   { id: 'convert', title: 'ConvertX File Converter', sub: 'Batch convert images, documents, audio, videos', icon: 'file-output', cat: 'actions', action: () => openConverterModal() },
   { id: 'tasks', title: 'Background Transfers & Queue', sub: 'View active transfers, speeds, and queued jobs', icon: 'list-checks', cat: 'actions', action: () => openFloatingTaskManager() },

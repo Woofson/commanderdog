@@ -2,6 +2,7 @@ pub mod actions;
 pub mod converter;
 pub mod deltacopy;
 pub mod diff;
+pub mod disk_usage;
 pub mod paranoid;
 pub mod search;
 pub mod sync;

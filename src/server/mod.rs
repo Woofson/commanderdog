@@ -100,6 +100,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/tools/paranoid/dry-run", post(handle_paranoid_dry_run))
         .route("/api/tools/sync/analyze", post(handle_sync_analyze))
         .route("/api/tools/sync/execute", post(handle_sync_execute))
+        .route("/api/tools/disk-usage", get(handle_disk_usage))
         .route("/api/tools/syncthing/status", get(handle_syncthing_status))
         .route("/api/tools/syncthing/scan", post(handle_syncthing_scan))
         .route("/api/tools/search", post(handle_search))
@@ -2144,6 +2145,15 @@ async fn handle_sync_execute(
     ).await
     .map(Json)
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Sync execution failed: {}", e)))
+}
+
+async fn handle_disk_usage(
+    Query(query): Query<HashMap<String, String>>,
+) -> Result<Json<crate::tools::disk_usage::DiskUsageReport>, (StatusCode, String)> {
+    let path = query.get("path").ok_or((StatusCode::BAD_REQUEST, "Missing path param".to_string()))?;
+    crate::tools::disk_usage::DiskUsageEngine::analyze(path)
+        .map(Json)
+        .map_err(|e| (StatusCode::BAD_REQUEST, format!("Disk usage analysis failed: {}", e)))
 }
 
 async fn handle_search(
