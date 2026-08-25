@@ -3524,9 +3524,9 @@ function showContextMenu(x, y) {
     <div class="context-sep"></div>
     
     <!-- Dynamic Advanced Copy Submenu -->
-    <div class="context-item has-submenu">
+    <div class="context-item has-submenu" onclick="toggleContextSubmenu(event, this)">
       <div style="display:flex; align-items:center; gap:8px;"><i data-lucide="copy" style="width: 14px;"></i> Quick Copy to...</div>
-      <i data-lucide="chevron-right" style="width: 12px;"></i>
+      <i data-lucide="chevron-right" class="submenu-chevron" style="width: 12px;"></i>
       <div class="context-submenu">
         ${copyPaneItems ? `<div class="submenu-header">Active Panes</div>${copyPaneItems}<div class="context-sep"></div>` : ''}
         <div class="submenu-header">Favorite Destinations</div>
@@ -3538,9 +3538,9 @@ function showContextMenu(x, y) {
     </div>
 
     <!-- Dynamic Advanced Move Submenu -->
-    <div class="context-item has-submenu">
+    <div class="context-item has-submenu" onclick="toggleContextSubmenu(event, this)">
       <div style="display:flex; align-items:center; gap:8px;"><i data-lucide="move" style="width: 14px;"></i> Quick Move to...</div>
-      <i data-lucide="chevron-right" style="width: 12px;"></i>
+      <i data-lucide="chevron-right" class="submenu-chevron" style="width: 12px;"></i>
       <div class="context-submenu">
         ${movePaneItems ? `<div class="submenu-header">Active Panes</div>${movePaneItems}<div class="context-sep"></div>` : ''}
         <div class="submenu-header">Favorite Destinations</div>
@@ -3556,9 +3556,9 @@ function showContextMenu(x, y) {
     <div class="context-sep"></div>
 
     <!-- Dynamic Custom Script Actions Submenu -->
-    <div class="context-item has-submenu">
+    <div class="context-item has-submenu" onclick="toggleContextSubmenu(event, this)">
       <div style="display:flex; align-items:center; gap:8px;"><i data-lucide="terminal-square" style="width: 14px; color: var(--accent);"></i> Custom Script Actions</div>
-      <i data-lucide="chevron-right" style="width: 12px;"></i>
+      <i data-lucide="chevron-right" class="submenu-chevron" style="width: 12px;"></i>
       <div class="context-submenu">
         <div class="submenu-header">Shell Actions (conf.d)</div>
         <div class="context-item" onclick="runPredefinedAction('chmod +x &quot;{file}&quot;', 'Make Executable (chmod +x)')"><i data-lucide="shield" style="width:13px;"></i> Make Executable (chmod +x)</div>
@@ -3592,17 +3592,24 @@ function showContextMenu(x, y) {
     // Mobile Bottom Sheet positioning
     if (backdrop) backdrop.classList.add('active');
     if (actBtn) actBtn.classList.add('active');
+    menu.classList.remove('submenu-flip-left');
     menu.style.position = 'fixed';
     menu.style.left = '10px';
     menu.style.right = '10px';
     menu.style.width = 'calc(100vw - 20px)';
     menu.style.maxHeight = '70vh';
     menu.style.overflowY = 'auto';
+    menu.style.overflowX = 'hidden';
     menu.style.bottom = '56px';
     menu.style.top = 'auto';
     menu.style.borderRadius = '12px';
   } else {
     if (backdrop) backdrop.classList.remove('active');
+    if (x > window.innerWidth - 480) {
+      menu.classList.add('submenu-flip-left');
+    } else {
+      menu.classList.remove('submenu-flip-left');
+    }
     menu.style.position = 'fixed';
     menu.style.left = `${Math.min(x, window.innerWidth - 240)}px`;
     menu.style.top = `${Math.min(y, window.innerHeight - 380)}px`;
@@ -3610,6 +3617,20 @@ function showContextMenu(x, y) {
     menu.style.bottom = 'auto';
     menu.style.width = 'auto';
     menu.style.maxHeight = 'none';
+  }
+}
+
+function toggleContextSubmenu(e, itemEl) {
+  if (window.innerWidth <= 768 || window.matchMedia('(pointer: coarse)').matches) {
+    e.stopPropagation();
+    const isOpen = itemEl.classList.contains('expanded');
+    const menu = itemEl.closest('.context-menu');
+    if (menu) {
+      menu.querySelectorAll('.context-item.has-submenu.expanded').forEach(el => {
+        if (el !== itemEl) el.classList.remove('expanded');
+      });
+    }
+    itemEl.classList.toggle('expanded', !isOpen);
   }
 }
 
