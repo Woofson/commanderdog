@@ -1,7 +1,7 @@
 # 🗺️ CommanderDog Product Roadmap
 
 > **Slogan**: *Multi-Tab Web Commander — By Woofson*  
-> **Current Version**: `v0.2.12 (Release)`
+> **Current Version**: `v0.2.13 (Release)`
 
 This roadmap outlines planned capabilities, UX enhancements, and architectural milestones for CommanderDog, merging orthodox file commander power tools (Total Commander, Double Commander, Krusader, Directory Opus) with modern responsive web architecture.
 
