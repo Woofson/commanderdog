@@ -32,7 +32,10 @@ This roadmap outlines planned capabilities, UX enhancements, and architectural m
 ### 🖥️ 1. Standalone Native Desktop App (Tauri 2.0)
 - **Rust + Native OS WebView**: Embed Axum local server with WebKitGTK (Linux), WebKit (macOS), and WebView2 (Windows) for ultra-low memory (~30 MB RAM) and small binary footprint (~15 MB). Zero Electron.
 - **Native OS Integrations**: System tray icon with background minimize, global OS summon hotkey (e.g. <kbd>Super+C</kbd>), native OS file drag-and-drop, and native window chrome matching active theme.
-- **Cross-Platform Installers**: Single-click `.AppImage`, `.deb`, `.rpm` for Linux; `.dmg` for macOS (Apple Silicon & Intel); `.msi` / `.exe` for Windows.
+- **Cross-Platform Installers & Repositories**:
+  - 🐧 **Linux**: **Arch User Repository (AUR)** (`commanderdog` / `commanderdog-bin`), `.AppImage`, `.deb`, `.rpm`, `.tar.gz`.
+  - 🍏 **macOS**: `.dmg`, `.app` (Universal binary for Apple Silicon & Intel), Homebrew Cask.
+  - 🪟 **Windows**: `.msi`, `.exe` (NSIS Installer & Portable), WinGet.
 
 ### 🪟 2. Dockable Tool Panels (In-Pane & In-Tab Docking)
 - **Transform Floating Tools into In-Pane Tabs**: 1-click `⇲ Dock into Left/Right Pane` or `Dock as Tab` on floating tools (Power Editor, Terminal, Document/Media/PDF Viewers, Quick Preview, Diff Engine, Disk Usage, and Calculator).
