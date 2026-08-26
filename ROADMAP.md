@@ -34,21 +34,26 @@ This roadmap outlines planned capabilities, UX enhancements, and architectural m
 - **Native OS Integrations**: System tray icon with background minimize, global OS summon hotkey (e.g. <kbd>Super+C</kbd>), native OS file drag-and-drop, and native window chrome matching active theme.
 - **Cross-Platform Installers**: Single-click `.AppImage`, `.deb`, `.rpm` for Linux; `.dmg` for macOS (Apple Silicon & Intel); `.msi` / `.exe` for Windows.
 
-### 🧩 2. Multi-Part File Splitter & Combiner
+### 🪟 2. Dockable Tool Panels (In-Pane & In-Tab Docking)
+- **Transform Floating Tools into In-Pane Tabs**: 1-click `⇲ Dock into Left/Right Pane` or `Dock as Tab` on floating tools (Power Editor, Terminal, Document/Media/PDF Viewers, Quick Preview, Diff Engine, Disk Usage, and Calculator).
+- **Non-Blocking Side-by-Side Workflows**: File browsing, navigation, and file actions (<kbd>F5</kbd> Copy, <kbd>F6</kbd> Move, Drag-and-Drop, Delete) continue unimpeded on one pane while viewing/editing in the other pane, eliminating modal locking.
+- **1-Click Undock / Float**: Instantly pop docked panels back out into floating draggable windows (`⇱ Float`).
+
+### 🧩 3. Multi-Part File Splitter & Combiner
 - **Split Large Files**: Split multi-gigabyte files into fixed-size chunks (e.g. `100MB`, `1GB`, `.001`, `.002`).
 - **Join & Verify**: Concatenate split parts back into the original file with CRC32/SHA-256 integrity verification.
 
-### 🔒 3. Transparent Encrypted Vaults (AES-256)
+### 🔒 4. Transparent Encrypted Vaults (AES-256)
 - **Zero-Knowledge Encrypted Folders**: Create password-protected encrypted vault directories.
 - **On-the-Fly Decryption**: Files decrypt transparently in memory inside CommanderDog without exposing unencrypted files on disk.
 
-### ⚙️ 4. Webhook & Automation Triggers
+### ⚙️ 5. Webhook & Automation Triggers
 - **Folder Watchers**: Trigger automated actions when files arrive in a folder (e.g. auto-convert with ConvertX, decompress downloads, or run custom scripts).
 
-### 🌐 5. OpenID Connect (OIDC) & SSO Integration
+### 🌐 6. OpenID Connect (OIDC) & SSO Integration
 - **Enterprise SSO**: Support OpenID Connect (Authelia, Authentik, Keycloak, Okta, Google Workspace) alongside existing Linux PAM and SQLite auth engines.
 
-### 📄 6. Collaborative Office Editing (ONLYOFFICE & Collabora WOPI)
+### 📄 7. Collaborative Office Editing (ONLYOFFICE & Collabora WOPI)
 - **WOPI / ONLYOFFICE Integration**: Live collaborative editing for `.docx`, `.xlsx`, `.pptx`.
 
 ---
@@ -58,7 +63,7 @@ This roadmap outlines planned capabilities, UX enhancements, and architectural m
 ```mermaid
 graph TD
     A["v0.2.13 (Current Release)"] --> B["Testing & FAT Verification Phase"]
-    B --> C["Tauri 2.0 Native Desktop App (Linux, macOS, Windows)"]
+    B --> C["Tauri 2.0 Native Desktop App & Dockable Tool Panels"]
     C --> D["Multi-Part File Splitter & Combiner"]
     D --> E["Encrypted Vaults (AES-256) & Webhook Automations"]
     E --> F["Enterprise OIDC SSO & Collaborative Office (WOPI)"]
