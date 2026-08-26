@@ -7,14 +7,16 @@ This roadmap outlines planned capabilities, UX enhancements, and architectural m
 
 ---
 
-## 🚀 1. Completed Milestones (v0.1.0 — v0.2.11)
+## 🚀 1. Completed Milestones (v0.1.0 — v0.2.13)
 
+- [x] **🧮 Built-in Floating Calculator & Byte Math (`v0.2.13`)**: Draggable & minimizable floating window with taskbar pill docking, storage byte multipliers (`KB`, `MB`, `GB`, `TB`), live base conversions (Hex, Octal/chmod, Binary), calculation history tape, 1-click clipboard copy, and native keyboard typing.
+- [x] **📱 Mobile Accordion Submenus & Responsive Viewport (`v0.2.13`)**: Vertical accordion drawer submenus for touch devices ($\le 768\text{px}$), viewport height auto-sync (`--viewport-height`, `--mobile-bottom-offset`), and right-edge desktop submenu flipping (`.submenu-flip-left`).
 - [x] **📱 Foldable & Adaptive Multi-Pane (`v0.3.0 UX`)**: Adaptive dual-pane breakpoint ($\ge 601\text{px}$), CSS viewport segments (`horizontal-viewport-segments: 2`), hinge/seam avoidance, and touch swipe gestures.
 - [x] **🌲 Flat / Branch View (<kbd>Ctrl+B</kbd>)**: Recursive directory flattening into a unified pane view with global sorting (by size/date) and full batch operations.
 - [x] **🔍 Live Content Grep & "Feed to Pane"**: Deep regex content search across trees with line snippets and 1-click **"Feed to Pane"** virtual results for batch operations.
 - [x] **🏷️ Color Labels & Custom Tagging System**: SQLite-persisted color labels (🔴, 🟠, 🟡, 🟢, 🔵, 🟣) and custom text tag chips with context menu palette and interactive tag manager.
-- [x] **🔀 Two-Way Visual Directory Synchronizer (`v0.2.11`)**: Side-by-side comparison between Left & Right directories with visual status indicators (**Newer ➔**, **Older ⬅**, **Identical ✔**, **Different Size ⚠️**, **Delete ✕**), 1-click direction override toggles, category filter chips, and Mirror/Smart 2-Way execution.
-- [x] **📊 Visual Disk Usage Treemap & Storage Analyzer (`v0.2.11`)**: Rust recursive space aggregation engine with percentage consumption bars, 1-click folder drill-down, and Top 20 largest files table.
+- [x] **🔀 Two-Way Visual Directory Synchronizer**: Side-by-side comparison between Left & Right directories with visual status indicators (**Newer ➔**, **Older ⬅**, **Identical ✔**, **Different Size ⚠️**, **Delete ✕**), 1-click direction override toggles, category filter chips, and Mirror/Smart 2-Way execution.
+- [x] **📊 Visual Disk Usage Treemap & Storage Analyzer**: Rust recursive space aggregation engine with percentage consumption bars, 1-click folder drill-down, and Top 20 largest files table.
 - [x] **📦 In-Browser Archive Engine**: Compress & Extract `.zip`, `.tar.gz`, `.tar.bz2`, `.tar.xz`, and `.7z` with custom compression levels.
 - [x] **🔗 Link Sharing & Guest Upload Dropboxes**: Time/download-limited share links, password protection, guest `/share/:token` upload dropboxes, and active shares audit dashboard.
 - [x] **⚡ Global Spotlight Quick-Switcher (<kbd>Ctrl+K</kbd> / <kbd>Cmd+K</kbd>)**: Real-time fuzzy command palette searching across actions, common paths, bookmarks, and recent history.
@@ -27,33 +29,39 @@ This roadmap outlines planned capabilities, UX enhancements, and architectural m
 
 ## 🎯 2. Active Next Priorities
 
-### 🧩 1. Multi-Part File Splitter & Combiner
+### 🖥️ 1. Standalone Native Desktop App (Tauri 2.0)
+- **Rust + Native OS WebView**: Embed Axum local server with WebKitGTK (Linux), WebKit (macOS), and WebView2 (Windows) for ultra-low memory (~30 MB RAM) and small binary footprint (~15 MB). Zero Electron.
+- **Native OS Integrations**: System tray icon with background minimize, global OS summon hotkey (e.g. <kbd>Super+C</kbd>), native OS file drag-and-drop, and native window chrome matching active theme.
+- **Cross-Platform Installers**: Single-click `.AppImage`, `.deb`, `.rpm` for Linux; `.dmg` for macOS (Apple Silicon & Intel); `.msi` / `.exe` for Windows.
+
+### 🧩 2. Multi-Part File Splitter & Combiner
 - **Split Large Files**: Split multi-gigabyte files into fixed-size chunks (e.g. `100MB`, `1GB`, `.001`, `.002`).
 - **Join & Verify**: Concatenate split parts back into the original file with CRC32/SHA-256 integrity verification.
 
-### 🔒 2. Transparent Encrypted Vaults (AES-256)
+### 🔒 3. Transparent Encrypted Vaults (AES-256)
 - **Zero-Knowledge Encrypted Folders**: Create password-protected encrypted vault directories.
 - **On-the-Fly Decryption**: Files decrypt transparently in memory inside CommanderDog without exposing unencrypted files on disk.
 
-### ⚙️ 3. Webhook & Automation Triggers
+### ⚙️ 4. Webhook & Automation Triggers
 - **Folder Watchers**: Trigger automated actions when files arrive in a folder (e.g. auto-convert with ConvertX, decompress downloads, or run custom scripts).
 
-### 🌐 4. OpenID Connect (OIDC) & SSO Integration
+### 🌐 5. OpenID Connect (OIDC) & SSO Integration
 - **Enterprise SSO**: Support OpenID Connect (Authelia, Authentik, Keycloak, Okta, Google Workspace) alongside existing Linux PAM and SQLite auth engines.
 
-### 📄 J. Collaborative Office Editing (ONLYOFFICE & Collabora WOPI)
+### 📄 6. Collaborative Office Editing (ONLYOFFICE & Collabora WOPI)
 - **WOPI / ONLYOFFICE Integration**: Live collaborative editing for `.docx`, `.xlsx`, `.pptx`.
 
 ---
 
-## 📋 4. Release Phasing Matrix
+## 📋 3. Release Phasing Matrix
 
 ```mermaid
 graph TD
-    A["v0.2.10 (Current)"] --> B["v0.3.0: Visual Synchronizer & Disk Treemap Analyzer"]
-    B --> C["v0.3.5: Flat Branch View & Content Grep Feed-to-Pane"]
-    C --> D["v0.4.0: Color Labels & File Splitter/Combiner"]
-    D --> E["v0.4.5: Encrypted Vaults & Webhook Automations"]
-    E --> F["v0.5.0: OIDC SSO & ONLYOFFICE / Collabora WOPI"]
+    A["v0.2.13 (Current Release)"] --> B["Testing & FAT Verification Phase"]
+    B --> C["Tauri 2.0 Native Desktop App (Linux, macOS, Windows)"]
+    C --> D["Multi-Part File Splitter & Combiner"]
+    D --> E["Encrypted Vaults (AES-256) & Webhook Automations"]
+    E --> F["Enterprise OIDC SSO & Collaborative Office (WOPI)"]
 ```
+
 
