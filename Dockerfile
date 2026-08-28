@@ -1,5 +1,7 @@
-# CommanderDog — Official Minimal Container Image (Debian Bookworm)
-FROM debian:bookworm-slim
+# CommanderDog — Official Minimal Container Image (Ubuntu 24.04 Noble)
+FROM ubuntu:24.04
+
+ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y \
     ca-certificates \
