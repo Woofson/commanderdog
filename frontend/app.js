@@ -249,6 +249,34 @@ function createPaneElement(pane, index) {
 
   const paneTitle = pane.customName || `Pane ${index + 1}`;
 
+  if (pane.dockedTool) {
+    const tool = pane.dockedTool;
+    const toolTitles = {
+      'editor': '💻 EditorDog',
+      'terminal': '📟 Terminal Console',
+      'calculator': '🧮 Calculator',
+      'git': '🌲 Git Manager',
+      'tasks': '⚡ Transfers & Queue'
+    };
+    el.innerHTML = `
+      ${mobileTabs}
+      <div class="pane-header">
+        <div style="display: flex; align-items: center; gap: 8px; flex: 1;">
+          <span style="font-weight: 700; font-size: 12px; color: var(--accent);">${toolTitles[tool] || 'Docked Tool'}</span>
+          <span class="badge" style="font-size: 9px;">DOCKED PANE ${index + 1}</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 4px;">
+          <button class="btn btn-xs btn-outline" onclick="event.stopPropagation(); undockToolFromPane(${index})" title="Undock to Floating Window"><i data-lucide="external-link" style="width:11px; height:11px;"></i> Float</button>
+          <button class="btn btn-xs btn-icon btn-danger" onclick="event.stopPropagation(); closeDockedTool(${index})" title="Close Docked Tool"><i data-lucide="x" style="width:11px; height:11px;"></i></button>
+        </div>
+      </div>
+      <div class="pane-content" id="pane-content-${index}" style="padding: 0; overflow: hidden; display: flex; flex-direction: column;">
+        <div id="docked-tool-mount-${index}" style="flex: 1; height: 100%; width: 100%; display: flex; flex-direction: column; overflow: hidden;"></div>
+      </div>
+    `;
+    return el;
+  }
+
   el.innerHTML = `
     ${mobileTabs}
     <div class="pane-header">
@@ -1813,7 +1841,7 @@ function minimizeFloatingEditor() {
     pill.style.display = 'flex';
     const dirtyCount = editorTabs.filter(t => t.isDirty).length;
     const tabCount = editorTabs.length;
-    if (pillText) pillText.textContent = `📝 Editor (${tabCount} file${tabCount === 1 ? '' : 's'})`;
+    if (pillText) pillText.textContent = `📝 EditorDog (${tabCount} file${tabCount === 1 ? '' : 's'})`;
     if (pillDirty) pillDirty.style.display = dirtyCount > 0 ? 'inline-block' : 'none';
     if (window.lucide) lucide.createIcons();
   }
@@ -2372,49 +2400,50 @@ function initCalcDrag() {
 }
 
 function calcUpdateDisplay() {
-  const exprEl = document.getElementById('calc-expr-display');
-  const inputEl = document.getElementById('calc-display-input');
-  if (exprEl) exprEl.textContent = calcExpr || '\u00A0';
-  if (inputEl) inputEl.value = calcCurrentVal;
+  document.querySelectorAll('#calc-expr-display, [id^="docked-calc-expr"]').forEach(el => {
+    el.textContent = calcExpr || '\u00A0';
+  });
+  document.querySelectorAll('#calc-display-input, [id^="docked-calc-display"]').forEach(el => {
+    el.value = calcCurrentVal;
+  });
 
   const num = parseFloat(calcCurrentVal) || 0;
 
   // Format Byte Size
-  const sizeEl = document.getElementById('calc-conv-size');
-  if (sizeEl) sizeEl.textContent = formatBytes(Math.abs(num));
+  const sizeStr = formatBytes(Math.abs(num));
+  document.querySelectorAll('#calc-conv-size, [id^="docked-calc-conv-size"]').forEach(el => {
+    el.textContent = sizeStr;
+  });
 
   // Format Hexadecimal
-  const hexEl = document.getElementById('calc-conv-hex');
-  if (hexEl) {
-    if (!isNaN(num) && Math.abs(num) < 0x1000000000000) {
-      const intVal = Math.floor(Math.abs(num));
-      hexEl.textContent = (num < 0 ? '-' : '') + '0x' + intVal.toString(16).toUpperCase();
-    } else {
-      hexEl.textContent = '-';
-    }
+  let hexStr = '-';
+  if (!isNaN(num) && Math.abs(num) < 0x1000000000000) {
+    const intVal = Math.floor(Math.abs(num));
+    hexStr = (num < 0 ? '-' : '') + '0x' + intVal.toString(16).toUpperCase();
   }
+  document.querySelectorAll('#calc-conv-hex, [id^="docked-calc-conv-hex"]').forEach(el => {
+    el.textContent = hexStr;
+  });
 
   // Format Octal (useful for chmod!)
-  const octEl = document.getElementById('calc-conv-oct');
-  if (octEl) {
-    if (!isNaN(num) && Math.abs(num) < 0x1000000) {
-      const intVal = Math.floor(Math.abs(num));
-      octEl.textContent = (num < 0 ? '-' : '') + '0' + intVal.toString(8);
-    } else {
-      octEl.textContent = '-';
-    }
+  let octStr = '-';
+  if (!isNaN(num) && Math.abs(num) < 0x1000000) {
+    const intVal = Math.floor(Math.abs(num));
+    octStr = (num < 0 ? '-' : '') + '0' + intVal.toString(8);
   }
+  document.querySelectorAll('#calc-conv-oct, [id^="docked-calc-conv-oct"]').forEach(el => {
+    el.textContent = octStr;
+  });
 
   // Format Binary
-  const binEl = document.getElementById('calc-conv-bin');
-  if (binEl) {
-    if (!isNaN(num) && Math.abs(num) <= 0xFFFF) {
-      const intVal = Math.floor(Math.abs(num));
-      binEl.textContent = (num < 0 ? '-' : '') + '0b' + intVal.toString(2);
-    } else {
-      binEl.textContent = '-';
-    }
+  let binStr = '-';
+  if (!isNaN(num) && Math.abs(num) <= 0xFFFF) {
+    const intVal = Math.floor(Math.abs(num));
+    binStr = (num < 0 ? '-' : '') + '0b' + intVal.toString(2);
   }
+  document.querySelectorAll('#calc-conv-bin, [id^="docked-calc-conv-bin"]').forEach(el => {
+    el.textContent = binStr;
+  });
 }
 
 function calcAppendNum(digit) {
@@ -3600,6 +3629,9 @@ function toggleEditorActionsDropdown(e) {
   if (!menu) return;
   const isShown = menu.style.display === 'block';
   menu.style.display = isShown ? 'none' : 'block';
+  if (!isShown && window.lucide) {
+    lucide.createIcons({ root: menu });
+  }
 }
 
 function closeEditorActionsDropdown() {
@@ -4023,9 +4055,10 @@ function showContextMenu(x, y) {
       <i data-lucide="chevron-right" class="submenu-chevron" style="width: 12px;"></i>
       <div class="context-submenu">
         <div class="submenu-header">Dockable Panels</div>
-        <div class="context-item" onclick="dockToolToPane('editor', App.activePaneIndex)"><i data-lucide="file-code" style="width:13px;"></i> 💻 Power Code Editor</div>
+        <div class="context-item" onclick="dockToolToPane('editor', App.activePaneIndex)"><i data-lucide="file-code" style="width:13px;"></i> 💻 EditorDog Multi-Tab</div>
         <div class="context-item" onclick="dockToolToPane('terminal', App.activePaneIndex)"><i data-lucide="terminal" style="width:13px;"></i> 📟 Terminal Console</div>
         <div class="context-item" onclick="dockToolToPane('calculator', App.activePaneIndex)"><i data-lucide="calculator" style="width:13px;"></i> 🧮 Byte Calculator</div>
+        <div class="context-item" onclick="dockToolToPane('tasks', App.activePaneIndex)"><i data-lucide="activity" style="width:13px;"></i> ⚡ Background Transfers</div>
         <div class="context-item" onclick="dockToolToPane('git', App.activePaneIndex)"><i data-lucide="git-branch" style="width:13px;"></i> 🌲 Git Working Tree</div>
       </div>
     </div>
@@ -7668,6 +7701,7 @@ async function pollTasks() {
 
       updateTasksPillState(list);
       renderFloatingTaskManager(list);
+      renderDockedTasksPanes(list);
     }
   } catch (e) {
     // Ignore polling errors
@@ -10353,7 +10387,7 @@ const SPOTLIGHT_STATIC_ACTIONS = [
   { id: 'branch', title: 'Flat / Branch View', sub: 'Flatten all subdirectories into a single unified list (Ctrl+B)', icon: 'git-branch', cat: 'actions', action: () => toggleBranchView() },
   { id: 'tags', title: 'Color Labels & Custom Tags', sub: 'Assign color labels and custom tags to selected items', icon: 'tag', cat: 'actions', action: () => triggerEditTagsModal() },
   { id: 'term', title: 'Terminal Console', sub: 'Open integrated interactive terminal (` or F4)', icon: 'terminal', cat: 'actions', action: () => toggleTerminal() },
-  { id: 'edit', title: 'Multi-Tab Power Editor', sub: 'Open floating code & text editor (F4)', icon: 'code', cat: 'actions', action: () => openFloatingEditor() },
+  { id: 'edit', title: 'EditorDog Multi-Tab', sub: 'Open floating EditorDog code & text editor (F4)', icon: 'code', cat: 'actions', action: () => openFloatingEditor() },
   { id: 'diff', title: 'File & Folder Diff', sub: 'Compare files or directories side-by-side (F9)', icon: 'git-compare', cat: 'actions', action: () => triggerDiff() },
   { id: 'search', title: 'Deep File Search', sub: 'Search files and folders recursively (Ctrl+F)', icon: 'search', cat: 'actions', action: () => openSearchModal() },
   { id: 'shares', title: 'Active Shares & Dropboxes', sub: 'Manage public share links and guest upload dropboxes', icon: 'share-2', cat: 'actions', action: () => openSharesManager() },
@@ -11176,8 +11210,35 @@ function dockCalculatorToActivePane() {
   dockToolToPane('calculator', App.activePaneIndex);
 }
 
+function dockTasksToActivePane() {
+  dockToolToPane('tasks', App.activePaneIndex);
+}
+
 function dockGitToActivePane() {
   dockToolToPane('git', App.activePaneIndex);
+}
+
+function rebuildPaneDOM(paneIndex) {
+  const oldPaneEl = document.getElementById(`pane-${paneIndex}`);
+  const pane = App.panes[paneIndex];
+  if (!pane) return;
+
+  const newPaneEl = createPaneElement(pane, paneIndex);
+  if (oldPaneEl && oldPaneEl.parentNode) {
+    oldPaneEl.replaceWith(newPaneEl);
+  } else {
+    renderAllPanes();
+    return;
+  }
+
+  if (pane.dockedTool) {
+    mountDockedTool(paneIndex);
+  } else {
+    loadPaneDirectory(paneIndex, pane.path);
+  }
+
+  applyPaneColors();
+  if (window.lucide) lucide.createIcons();
 }
 
 function dockToolToPane(toolName, paneIndex) {
@@ -11212,12 +11273,16 @@ function dockToolToPane(toolName, paneIndex) {
     const pill = document.getElementById('calc-pill');
     if (pill) pill.style.display = 'none';
   }
-  // 4. Git: close git modal
+  // 4. Tasks: hide floating task manager & backdrop
+  else if (toolName === 'tasks') {
+    closeFloatingTaskManager();
+  }
+  // 5. Git: close git modal
   else if (toolName === 'git') {
     closeModal('git-modal');
   }
 
-  renderDockedPaneTool(paneIndex);
+  rebuildPaneDOM(paneIndex);
   showToast(`Docked ${toolName.toUpperCase()} into Pane ${paneIndex + 1}`, 'info');
 }
 
@@ -11237,8 +11302,8 @@ function undockToolFromPane(paneIndex) {
     }
   }
 
-  // Restore the normal file table in this pane!
-  loadPaneDirectory(paneIndex, pane.path);
+  // Cleanly restore the full file browser in this pane!
+  rebuildPaneDOM(paneIndex);
 
   // Pop open the floating tool!
   if (tool === 'editor') {
@@ -11254,6 +11319,8 @@ function undockToolFromPane(paneIndex) {
     toggleTerminal(true);
   } else if (tool === 'calculator') {
     openFloatingCalculator();
+  } else if (tool === 'tasks') {
+    openFloatingTaskManager();
   } else if (tool === 'git') {
     openGitManager(paneIndex, pane.path);
   }
@@ -11273,40 +11340,14 @@ function closeDockedTool(paneIndex) {
     }
   }
 
-  loadPaneDirectory(paneIndex, pane.path);
+  rebuildPaneDOM(paneIndex);
 }
 
-function renderDockedPaneTool(paneIndex) {
+function mountDockedTool(paneIndex) {
   const pane = App.panes[paneIndex];
-  const contentEl = document.getElementById(`pane-content-${paneIndex}`);
-  if (!pane || !contentEl) return;
+  if (!pane || !pane.dockedTool) return;
 
   const tool = pane.dockedTool;
-  const toolTitles = {
-    'editor': '💻 Code Editor',
-    'terminal': '📟 Terminal Console',
-    'calculator': '🧮 Calculator',
-    'git': '🌲 Git Manager'
-  };
-
-  contentEl.innerHTML = `
-    <div class="pane-docked-tool-container">
-      <div class="pane-docked-header">
-        <span style="display: flex; align-items: center; gap: 6px;">
-          <span>${toolTitles[tool] || 'Docked Tool'}</span>
-          <span class="badge" style="font-size: 9px;">DOCKED PANE ${paneIndex + 1}</span>
-        </span>
-        <div style="display: flex; align-items: center; gap: 4px;">
-          <button class="btn btn-xs btn-outline" onclick="undockToolFromPane(${paneIndex})" title="Undock to Floating Window"><i data-lucide="external-link" style="width:11px; height:11px;"></i> Float</button>
-          <button class="btn btn-xs btn-icon btn-danger" onclick="closeDockedTool(${paneIndex})" title="Close Docked Tool"><i data-lucide="x" style="width:11px; height:11px;"></i></button>
-        </div>
-      </div>
-      <div id="docked-tool-mount-${paneIndex}" style="flex: 1; overflow: hidden; display: flex; flex-direction: column; height: calc(100% - 30px); width: 100%;">
-        <!-- Tool-specific mount -->
-      </div>
-    </div>
-  `;
-
   const mount = document.getElementById(`docked-tool-mount-${paneIndex}`);
   if (!mount) return;
 
@@ -11369,42 +11410,137 @@ function renderDockedPaneTool(paneIndex) {
       }
     }, 100);
   }
-  // 3. DOCKED CALCULATOR
+  // 3. DOCKED CALCULATOR (COMPLETE WITH CONVERTERS, STORAGE UNITS & HISTORY)
   else if (tool === 'calculator') {
     mount.innerHTML = `
-      <div style="padding: 12px; display: flex; flex-direction: column; height: 100%; gap: 10px; background: var(--bg-panel); overflow-y: auto;">
+      <div class="docked-calc-box" style="padding: 12px 16px; display: flex; flex-direction: column; width: 100%; max-width: 340px; height: 100%; gap: 8px; background: var(--bg-panel); overflow-y: auto;">
+        <!-- Screen / Display -->
         <div class="calc-display-panel">
-          <div class="calc-expression-line" id="docked-calc-expr">&nbsp;</div>
+          <div class="calc-expression-line" id="calc-expr-display">&nbsp;</div>
           <div class="calc-result-row">
-            <input type="text" class="calc-result-input" id="docked-calc-display" value="0" readonly />
-            <button class="btn btn-icon btn-xs calc-copy-btn" onclick="copyCalcResult()" title="Copy"><i data-lucide="copy" style="width: 13px;"></i></button>
+            <input type="text" class="calc-result-input" id="calc-display-input" value="0" autocomplete="off" spellcheck="false" readonly />
+            <button class="btn btn-icon btn-xs calc-copy-btn" onclick="copyCalcResult()" title="Copy Result to Clipboard"><i data-lucide="copy" style="width: 13px;"></i></button>
           </div>
         </div>
-        <div class="calc-keypad-grid" style="flex: 1;">
-          <button class="btn calc-btn calc-btn-op" onclick="calcAppend('(')">(</button>
-          <button class="btn calc-btn calc-btn-op" onclick="calcAppend(')')">)</button>
-          <button class="btn calc-btn calc-btn-clear" onclick="calcClear()">C</button>
-          <button class="btn calc-btn calc-btn-op" onclick="calcAppend('/')">÷</button>
-          <button class="btn calc-btn" onclick="calcAppend('7')">7</button>
-          <button class="btn calc-btn" onclick="calcAppend('8')">8</button>
-          <button class="btn calc-btn" onclick="calcAppend('9')">9</button>
-          <button class="btn calc-btn calc-btn-op" onclick="calcAppend('*')">×</button>
-          <button class="btn calc-btn" onclick="calcAppend('4')">4</button>
-          <button class="btn calc-btn" onclick="calcAppend('5')">5</button>
-          <button class="btn calc-btn" onclick="calcAppend('6')">6</button>
-          <button class="btn calc-btn calc-btn-op" onclick="calcAppend('-')">−</button>
-          <button class="btn calc-btn" onclick="calcAppend('1')">1</button>
-          <button class="btn calc-btn" onclick="calcAppend('2')">2</button>
-          <button class="btn calc-btn" onclick="calcAppend('3')">3</button>
-          <button class="btn calc-btn calc-btn-op" onclick="calcAppend('+')">+</button>
-          <button class="btn calc-btn" onclick="calcAppend('0')">0</button>
-          <button class="btn calc-btn" onclick="calcAppend('.')">.</button>
-          <button class="btn calc-btn calc-btn-eq" style="grid-column: span 2;" onclick="calcEvaluate()">=</button>
+
+        <!-- Live Byte & Base Converter Bar -->
+        <div class="calc-converters-bar" id="calc-converters-bar">
+          <div class="calc-conv-item" title="Human-readable File Size"><span class="calc-conv-lbl">SIZE:</span> <span class="calc-conv-val" id="calc-conv-size">0 B</span></div>
+          <div class="calc-conv-item" title="Hexadecimal"><span class="calc-conv-lbl">HEX:</span> <span class="calc-conv-val" id="calc-conv-hex">0x0</span></div>
+          <div class="calc-conv-item" title="Octal (chmod mode)"><span class="calc-conv-lbl">OCT:</span> <span class="calc-conv-val" id="calc-conv-oct">0</span></div>
+          <div class="calc-conv-item" title="Binary"><span class="calc-conv-lbl">BIN:</span> <span class="calc-conv-val" id="calc-conv-bin">0b0</span></div>
+        </div>
+
+        <!-- Mode & Quick Byte Multipliers Row -->
+        <div class="calc-units-row">
+          <button class="btn btn-xs calc-unit-btn" onclick="calcAppendUnit('KB')" title="Multiply by 1024 (KB)">KB</button>
+          <button class="btn btn-xs calc-unit-btn" onclick="calcAppendUnit('MB')" title="Multiply by 1024² (MB)">MB</button>
+          <button class="btn btn-xs calc-unit-btn" onclick="calcAppendUnit('GB')" title="Multiply by 1024³ (GB)">GB</button>
+          <button class="btn btn-xs calc-unit-btn" onclick="calcAppendUnit('TB')" title="Multiply by 1024⁴ (TB)">TB</button>
+          <button class="btn btn-xs calc-unit-btn" onclick="calcAppendFunc('sqrt(')" title="Square Root">√</button>
+          <button class="btn btn-xs calc-unit-btn" onclick="calcAppendOp('^')" title="Exponent / Power">xʸ</button>
+        </div>
+
+        <!-- Main Keypad Grid -->
+        <div class="calc-keypad-grid">
+          <button class="btn calc-btn calc-btn-fn" onclick="calcClearAll()">C</button>
+          <button class="btn calc-btn calc-btn-fn" onclick="calcClearEntry()">CE</button>
+          <button class="btn calc-btn calc-btn-fn" onclick="calcBackspace()" title="Backspace"><i data-lucide="delete" style="width: 14px;"></i></button>
+          <button class="btn calc-btn calc-btn-op" onclick="calcAppendOp('/')">÷</button>
+
+          <button class="btn calc-btn calc-btn-fn" onclick="calcAppendChar('(')">(</button>
+          <button class="btn calc-btn calc-btn-fn" onclick="calcAppendChar(')')">)</button>
+          <button class="btn calc-btn calc-btn-fn" onclick="calcAppendOp('%')">%</button>
+          <button class="btn calc-btn calc-btn-op" onclick="calcAppendOp('*')">×</button>
+
+          <button class="btn calc-btn calc-btn-num" onclick="calcAppendNum('7')">7</button>
+          <button class="btn calc-btn calc-btn-num" onclick="calcAppendNum('8')">8</button>
+          <button class="btn calc-btn calc-btn-num" onclick="calcAppendNum('9')">9</button>
+          <button class="btn calc-btn calc-btn-op" onclick="calcAppendOp('-')">−</button>
+
+          <button class="btn calc-btn calc-btn-num" onclick="calcAppendNum('4')">4</button>
+          <button class="btn calc-btn calc-btn-num" onclick="calcAppendNum('5')">5</button>
+          <button class="btn calc-btn calc-btn-num" onclick="calcAppendNum('6')">6</button>
+          <button class="btn calc-btn calc-btn-op" onclick="calcAppendOp('+')">+</button>
+
+          <button class="btn calc-btn calc-btn-num" onclick="calcAppendNum('1')">1</button>
+          <button class="btn calc-btn calc-btn-num" onclick="calcAppendNum('2')">2</button>
+          <button class="btn calc-btn calc-btn-num" onclick="calcAppendNum('3')">3</button>
+          <button class="btn calc-btn calc-btn-equals" onclick="calcEvaluate()">=</button>
+
+          <button class="btn calc-btn calc-btn-fn" onclick="calcToggleSign()">±</button>
+          <button class="btn calc-btn calc-btn-num" onclick="calcAppendNum('0')">0</button>
+          <button class="btn calc-btn calc-btn-num" onclick="calcAppendDot()">.</button>
+          <button class="btn calc-btn calc-btn-fn" onclick="calcAppendPi()" title="Pi (3.14159...)">π</button>
+        </div>
+
+        <!-- History Tape Drawer Toggle -->
+        <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 4px; border-top: 1px solid var(--border);">
+          <button class="btn btn-xs btn-outline" onclick="toggleCalcHistory()" style="font-size: 10px;"><i data-lucide="history" style="width: 11px; height: 11px;"></i> History</button>
+          <span style="font-size: 10px; color: var(--text-dim);">Keyboard Active</span>
         </div>
       </div>
     `;
+    calcUpdateDisplay();
   }
-  // 4. DOCKED GIT MANAGER
+  // 4. DOCKED TASKS & BACKGROUND TRANSFERS
+  else if (tool === 'tasks') {
+    mount.innerHTML = `
+      <div style="padding: 12px; display: flex; flex-direction: column; height: 100%; gap: 10px; background: var(--bg-panel); overflow-y: auto;">
+        <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-dark); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border);">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span class="task-status-indicator" id="docked-task-indicator-${paneIndex}"></span>
+            <span style="font-weight: 700; font-size: 12px;" id="docked-task-title-${paneIndex}">⚡ Transfers (0 active)</span>
+            <span class="task-speed-badge" id="docked-task-speed-${paneIndex}">0 B/s</span>
+          </div>
+          <div style="display: flex; gap: 4px;">
+            <button class="btn btn-xs btn-outline" onclick="pollTasks()" title="Refresh Status"><i data-lucide="rotate-cw" style="width:11px; height:11px;"></i></button>
+          </div>
+        </div>
+
+        <!-- Batch Progress Summary -->
+        <div class="task-batch-summary" style="margin: 0;">
+          <div class="task-progress-meta">
+            <span id="docked-task-batch-files-${paneIndex}">0 / 0 files</span>
+            <span id="docked-task-batch-percent-${paneIndex}">0%</span>
+            <span id="docked-task-batch-bytes-${paneIndex}">0 B / 0 B</span>
+            <span id="docked-task-batch-eta-${paneIndex}" style="color: var(--accent); font-weight: 700;">ETA: --:--</span>
+          </div>
+          <div class="task-progress-bar-track">
+            <div class="task-progress-bar-fill" id="docked-task-batch-fill-${paneIndex}" style="width: 0%;"></div>
+          </div>
+        </div>
+
+        <!-- Active File Card -->
+        <div class="task-active-file-card" style="margin: 0;">
+          <div class="task-file-info">
+            <span style="display: flex; align-items: center; gap: 6px; min-width: 0; flex: 1;">
+              <i data-lucide="file-text" style="width: 14px; height: 14px; color: var(--accent);"></i>
+              <span class="task-cur-filename" id="docked-task-filename-${paneIndex}">Idle (No active file)</span>
+            </span>
+            <span class="task-cur-speed" id="docked-task-cur-speed-${paneIndex}">0 B/s</span>
+          </div>
+          <div class="task-progress-bar-track task-file-track">
+            <div class="task-progress-bar-fill task-file-fill" id="docked-task-file-fill-${paneIndex}" style="width: 0%;"></div>
+          </div>
+          <div class="task-file-stats">
+            <span id="docked-task-file-bytes-${paneIndex}">0 B / 0 B</span>
+            <span id="docked-task-file-percent-${paneIndex}">0%</span>
+          </div>
+        </div>
+
+        <!-- Queue List -->
+        <div style="font-weight: 700; font-size: 11px; color: var(--text-dim); margin-top: 4px;">Transfer Queue & History:</div>
+        <div id="docked-task-queue-${paneIndex}" class="task-queue-list" style="flex: 1; min-height: 120px; max-height: none; background: var(--bg-dark); border-radius: 6px; border: 1px solid var(--border); padding: 6px; overflow-y: auto;"></div>
+      </div>
+    `;
+    if (lastKnownTasksList) {
+      renderDockedTasksForPane(paneIndex, lastKnownTasksList);
+    } else {
+      pollTasks();
+    }
+  }
+  // 5. DOCKED GIT MANAGER
   else if (tool === 'git') {
     mount.innerHTML = `
       <div style="padding: 10px; display: flex; flex-direction: column; height: 100%; gap: 8px;">
@@ -11418,7 +11554,155 @@ function renderDockedPaneTool(paneIndex) {
     loadGitStatusForDocked(paneIndex, pane.path);
   }
 
-  if (window.lucide) lucide.createIcons({ root: contentEl });
+  if (window.lucide) lucide.createIcons({ root: mount });
+}
+
+function renderDockedTasksPanes(list) {
+  App.panes.forEach((p, idx) => {
+    if (p.dockedTool === 'tasks') {
+      renderDockedTasksForPane(idx, list);
+    }
+  });
+}
+
+function renderDockedTasksForPane(paneIndex, list) {
+  const mount = document.getElementById(`docked-tool-mount-${paneIndex}`);
+  if (!mount) return;
+
+  const running = list.filter(t => t.status === 'running');
+  const totalSpeed = running.reduce((acc, t) => acc + (t.speed_bytes_per_sec || 0), 0);
+  const speedStr = totalSpeed > 0 ? `${formatBytes(totalSpeed)}/s` : '0 B/s';
+
+  const titleEl = document.getElementById(`docked-task-title-${paneIndex}`);
+  const indEl = document.getElementById(`docked-task-indicator-${paneIndex}`);
+  const speedEl = document.getElementById(`docked-task-speed-${paneIndex}`);
+
+  if (titleEl) titleEl.textContent = `⚡ Transfers (${running.length} active${list.length > running.length ? `, ${list.length - running.length} done` : ''})`;
+  if (indEl) {
+    if (running.length > 0) indEl.classList.add('active');
+    else indEl.classList.remove('active');
+  }
+  if (speedEl) {
+    speedEl.textContent = speedStr;
+    speedEl.style.display = totalSpeed > 0 ? 'inline-block' : 'none';
+  }
+
+  let totalBatchBytes = 0;
+  let totalProcessedBytes = 0;
+  let totalBatchFiles = 0;
+  let totalProcessedFiles = 0;
+  let activeCurrentFile = null;
+  let activeCurBytes = 0;
+  let activeCurTotal = 0;
+  let activeSpeed = 0;
+
+  list.forEach(t => {
+    totalBatchBytes += t.total_bytes || 0;
+    totalProcessedBytes += t.bytes_processed || 0;
+    totalBatchFiles += t.total_files || 1;
+    totalProcessedFiles += t.files_processed || (t.status === 'completed' ? (t.total_files || 1) : 0);
+
+    if (t.status === 'running' && !activeCurrentFile) {
+      activeCurrentFile = sanitizeCredentials(t.current_file || t.name);
+      activeCurBytes = t.current_file_bytes || t.bytes_processed;
+      activeCurTotal = t.current_file_total_bytes || t.total_bytes;
+      activeSpeed = t.speed_bytes_per_sec || 0;
+    }
+  });
+
+  const overallPercent = totalBatchBytes > 0 ? Math.min(100, Math.round((totalProcessedBytes / totalBatchBytes) * 100)) : (running.length === 0 && list.length > 0 ? 100 : 0);
+
+  const batchFill = document.getElementById(`docked-task-batch-fill-${paneIndex}`);
+  const batchPercent = document.getElementById(`docked-task-batch-percent-${paneIndex}`);
+  const batchFiles = document.getElementById(`docked-task-batch-files-${paneIndex}`);
+  const batchBytes = document.getElementById(`docked-task-batch-bytes-${paneIndex}`);
+  const batchEta = document.getElementById(`docked-task-batch-eta-${paneIndex}`);
+
+  if (batchFill) batchFill.style.width = `${overallPercent}%`;
+  if (batchPercent) batchPercent.textContent = `${overallPercent}%`;
+  if (batchFiles) batchFiles.textContent = `${totalProcessedFiles} / ${totalBatchFiles} files`;
+  if (batchBytes) batchBytes.textContent = `${formatBytes(totalProcessedBytes)} / ${formatBytes(totalBatchBytes)}`;
+
+  if (batchEta) {
+    if (running.length > 0 && totalSpeed > 0 && totalBatchBytes > totalProcessedBytes) {
+      const etaSec = Math.round((totalBatchBytes - totalProcessedBytes) / totalSpeed);
+      const mins = Math.floor(etaSec / 60);
+      const secs = etaSec % 60;
+      batchEta.textContent = `ETA: ${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    } else if (running.length === 0) {
+      batchEta.textContent = list.length > 0 ? '✓ Complete' : 'Idle';
+    } else {
+      batchEta.textContent = 'ETA: --:--';
+    }
+  }
+
+  const curNameEl = document.getElementById(`docked-task-filename-${paneIndex}`);
+  const curSpeedEl = document.getElementById(`docked-task-cur-speed-${paneIndex}`);
+  const curFillEl = document.getElementById(`docked-task-file-fill-${paneIndex}`);
+  const curBytesEl = document.getElementById(`docked-task-file-bytes-${paneIndex}`);
+  const curPercentEl = document.getElementById(`docked-task-file-percent-${paneIndex}`);
+
+  if (activeCurrentFile) {
+    if (curNameEl) curNameEl.textContent = activeCurrentFile;
+    if (curSpeedEl) curSpeedEl.textContent = activeSpeed > 0 ? `${formatBytes(activeSpeed)}/s` : '';
+    const filePct = activeCurTotal > 0 ? Math.min(100, Math.round((activeCurBytes / activeCurTotal) * 100)) : 0;
+    if (curFillEl) curFillEl.style.width = `${filePct}%`;
+    if (curBytesEl) curBytesEl.textContent = `${formatBytes(activeCurBytes)} / ${formatBytes(activeCurTotal)}`;
+    if (curPercentEl) curPercentEl.textContent = `${filePct}%`;
+  } else {
+    if (curNameEl) curNameEl.textContent = running.length === 0 ? 'No active file transfer' : 'Preparing next file...';
+    if (curSpeedEl) curSpeedEl.textContent = '';
+    if (curFillEl) curFillEl.style.width = '0%';
+    if (curBytesEl) curBytesEl.textContent = '0 B / 0 B';
+    if (curPercentEl) curPercentEl.textContent = '0%';
+  }
+
+  const queueList = document.getElementById(`docked-task-queue-${paneIndex}`);
+  if (queueList) {
+    if (list.length === 0) {
+      queueList.innerHTML = '<div style="padding: 12px; text-align: center; color: var(--text-muted); font-size: 11px;">No active background jobs</div>';
+    } else {
+      queueList.innerHTML = list.map(t => {
+        const pct = t.total_bytes > 0 ? Math.min(100, Math.round((t.bytes_processed / t.total_bytes) * 100)) : (t.status === 'completed' ? 100 : 0);
+        const badgeClass = `task-badge-${t.status || 'running'}`;
+        const isRunning = t.status === 'running';
+        const isPaused = t.status === 'paused';
+        const safeName = sanitizeCredentials(t.name);
+        const safeSrc = sanitizeCredentials(t.source);
+        const safeDest = sanitizeCredentials(t.destination);
+
+        return `
+          <div class="task-queue-item" style="margin-bottom: 6px;">
+            <div class="task-queue-details">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div style="display: flex; align-items: center; gap: 6px; overflow: hidden;">
+                  <span class="task-queue-name" title="${escapeHtml(safeName)}">${escapeHtml(safeName)}</span>
+                  ${isRunning && t.speed_bytes_per_sec > 0 ? `<span style="font-size: 9px; font-family: var(--font-mono); color: var(--accent); font-weight: 700;">⚡ ${formatBytes(t.speed_bytes_per_sec)}/s</span>` : ''}
+                </div>
+                <span class="task-queue-badge ${badgeClass}">${escapeHtml(t.status)}</span>
+              </div>
+              <div class="task-queue-sub" title="${escapeHtml(safeSrc)} ➔ ${escapeHtml(safeDest)}">${escapeHtml(safeSrc)} ➔ ${escapeHtml(safeDest)}</div>
+              ${isRunning || isPaused ? `
+                <div style="height: 3px; background: rgba(255,255,255,0.06); border-radius: 2px; margin-top: 3px; overflow: hidden;">
+                  <div style="height: 100%; width: ${pct}%; background: var(--accent);"></div>
+                </div>
+              ` : ''}
+            </div>
+            <div style="display: flex; gap: 4px; align-items: center; flex-shrink: 0;">
+              ${isRunning ? `
+                <button class="btn btn-xs btn-icon" onclick="pauseTask('${t.id}')" title="Pause"><i data-lucide="pause" style="width: 10px; height: 10px;"></i></button>
+                <button class="btn btn-xs btn-icon btn-danger" onclick="cancelTask('${t.id}')" title="Cancel"><i data-lucide="x" style="width: 10px; height: 10px;"></i></button>
+              ` : (isPaused ? `
+                <button class="btn btn-xs btn-icon" onclick="resumeTask('${t.id}')" title="Resume"><i data-lucide="play" style="width: 10px; height: 10px;"></i></button>
+                <button class="btn btn-xs btn-icon btn-danger" onclick="cancelTask('${t.id}')" title="Cancel"><i data-lucide="x" style="width: 10px; height: 10px;"></i></button>
+              ` : '')}
+            </div>
+          </div>
+        `;
+      }).join('');
+      if (window.lucide) lucide.createIcons({ root: queueList });
+    }
+  }
 }
 
 function renderDockedEditorTabs(paneIndex) {

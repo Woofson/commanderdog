@@ -1,6 +1,6 @@
 # Maintainer: Bolt J Woofson <bolt@boop.no>
 pkgname=commanderdog
-pkgver=0.2.13
+pkgver=0.2.14
 pkgrel=1
 pkgdesc="Multi-Tab Web Commander - By Woofson"
 arch=('x86_64' 'aarch64')

@@ -80,7 +80,7 @@
           <div class="dropdown-item" onclick="toggleBranchView()"><i data-lucide="git-branch" style="color: var(--accent);"></i> Flat / Branch View (Ctrl+B)</div>
           <div class="dropdown-item" onclick="openFloatingCalculator()"><i data-lucide="calculator" style="color: var(--accent);"></i> Calculator</div>
           <div class="dropdown-item" onclick="toggleTerminal()"><i data-lucide="terminal"></i> Terminal Console (`)</div>
-          <div class="dropdown-item" onclick="openFloatingEditor()"><i data-lucide="code"></i> Multi-Tab Power Editor (F4)</div>
+          <div class="dropdown-item" onclick="openFloatingEditor()"><i data-lucide="code"></i> EditorDog Multi-Tab (F4)</div>
           <div class="dropdown-item" onclick="triggerDiff()"><i data-lucide="git-compare"></i> Compare / Diff (F9)</div>
           <div class="dropdown-item" onclick="openSearchModal()"><i data-lucide="search"></i> Deep File Search (Ctrl+F)</div>
           <div class="dropdown-item" onclick="openSharesManager()"><i data-lucide="share-2"></i> Active Shares & Dropboxes</div>
@@ -1092,7 +1092,7 @@
       <div class="editor-header-left">
         <span class="editor-header-drag-handle" style="font-weight: 700; display: flex; align-items: center; gap: 6px; cursor: grab;">
           <i data-lucide="code-2" style="color: var(--accent); width: 16px;"></i>
-          <span class="desktop-only">Power Editor</span>
+          <span>EditorDog</span>
         </span>
 
         <!-- Desktop Direct Selectors -->
@@ -1131,45 +1131,59 @@
         </div>
       </div>
 
-      <div class="editor-header-right">
+      <div class="editor-header-right" style="display: flex; align-items: center; gap: 4px;">
+        <button class="btn btn-sm btn-accent" id="btn-save-editor" onclick="saveActiveEditorTab()" title="Save Current Tab (Ctrl+S)"><i data-lucide="save"></i> <span>Save</span></button>
         <button class="btn btn-sm" onclick="createNewEditorTab()" title="New Tab (Ctrl+N)"><i data-lucide="plus"></i> <span class="desktop-only">New</span></button>
-        <button class="btn btn-sm desktop-only" onclick="toggleFindBar()" title="Find & Replace (Ctrl+F / Ctrl+H)"><i data-lucide="search"></i> Find</button>
-        <button class="btn btn-sm btn-accent" id="btn-save-editor" onclick="saveActiveEditorTab()" title="Save Current Tab (Ctrl+S)"><i data-lucide="save"></i> Save</button>
+        <button class="btn btn-sm" onclick="toggleFindBar()" title="Find & Replace (Ctrl+F / Ctrl+H)"><i data-lucide="search"></i> <span class="desktop-only">Find</span></button>
         <button class="btn btn-sm desktop-only" onclick="saveAllEditorTabs()" title="Save All Open Tabs (Ctrl+Shift+S)"><i data-lucide="save-all"></i> Save All</button>
 
-        <!-- Mobile / Foldable Consolidated Menu Dropdown -->
-        <div class="dropdown-container mobile-only" id="editor-actions-dropdown-container" style="position: relative;">
-          <button class="btn btn-sm" onclick="toggleEditorActionsDropdown(event)" title="Editor Settings & Tools"><i data-lucide="more-horizontal"></i></button>
-          <div class="dropdown-menu" id="editor-actions-dropdown-menu" style="display: none; right: 0; min-width: 210px;">
-            <div class="dropdown-item" onclick="toggleFindBar(); closeEditorActionsDropdown();"><i data-lucide="search"></i> Find & Replace (Ctrl+F)</div>
-            <div class="dropdown-item" onclick="saveAllEditorTabs(); closeEditorActionsDropdown();"><i data-lucide="save-all"></i> Save All Tabs</div>
+        <!-- Touch & Mobile Viewports Tools Dropdown -->
+        <div class="dropdown-container mobile-foldable-tool" id="editor-actions-dropdown-container" style="position: relative;">
+          <button class="btn btn-sm" id="btn-editor-touch-tools" onclick="toggleEditorActionsDropdown(event)" title="Editor Tools, Layout & Languages" style="display: flex; align-items: center; gap: 4px; padding: 5px 8px;">
+            <i data-lucide="sliders-horizontal" style="width: 14px; height: 14px;"></i>
+            <span style="font-size: 11px;">Tools ▾</span>
+          </button>
+          <div class="dropdown-menu editor-touch-menu" id="editor-actions-dropdown-menu" style="display: none; right: 0; min-width: 230px; z-index: 1700;">
+            <div class="dropdown-item" onclick="saveActiveEditorTab(); closeEditorActionsDropdown();"><i data-lucide="save"></i> 💾 Save Active File (Ctrl+S)</div>
+            <div class="dropdown-item" onclick="saveAllEditorTabs(); closeEditorActionsDropdown();"><i data-lucide="save-all"></i> 💾 Save All Open Tabs</div>
+            <div class="dropdown-item" onclick="createNewEditorTab(); closeEditorActionsDropdown();"><i data-lucide="plus"></i> ➕ New File (Ctrl+N)</div>
+            <div class="dropdown-item" onclick="toggleFindBar(); closeEditorActionsDropdown();"><i data-lucide="search"></i> 🔍 Find & Replace (Ctrl+F)</div>
+            <div class="dropdown-item" onclick="dockEditorToActivePane(); closeEditorActionsDropdown();"><i data-lucide="panel-left-close"></i> 🪟 Dock Editor into Pane</div>
             <div class="context-sep"></div>
             <div style="padding: 6px 12px; font-size: 10px; color: var(--text-dim); text-transform: uppercase; font-weight: 700;">Layout & View</div>
             <div class="dropdown-item" onclick="handleEditorViewModeChange('single-editor'); closeEditorActionsDropdown();"><i data-lucide="square"></i> Single View</div>
             <div class="dropdown-item" onclick="handleEditorViewModeChange('dual-horizontal'); closeEditorActionsDropdown();"><i data-lucide="rows"></i> Dual Stacked View</div>
-            <div class="dropdown-item" onclick="handleEditorViewModeChange('split-markdown'); closeEditorActionsDropdown();"><i data-lucide="book-open"></i> Markdown Preview</div>
+            <div class="dropdown-item" onclick="handleEditorViewModeChange('split-markdown'); closeEditorActionsDropdown();"><i data-lucide="book-open"></i> Markdown & Live Preview</div>
             <div class="context-sep"></div>
             <div style="padding: 6px 12px; font-size: 10px; color: var(--text-dim); text-transform: uppercase; font-weight: 700;">Syntax Language</div>
-            <div style="padding: 4px 12px;">
-              <select id="editor-language-select-mobile" class="pane-quick-filter" style="width: 100%; font-size: 11px;" onchange="handleEditorLanguageChange(this.value); closeEditorActionsDropdown();">
+            <div style="padding: 6px 12px;">
+              <select id="editor-language-select-mobile" class="pane-quick-filter" style="width: 100%; font-size: 12px; padding: 6px;" onchange="handleEditorLanguageChange(this.value); closeEditorActionsDropdown();">
                 <option value="auto">Auto Detect</option>
                 <option value="rust">Rust</option>
                 <option value="python">Python</option>
-                <option value="javascript">JavaScript</option>
+                <option value="javascript">JavaScript / TypeScript</option>
                 <option value="html">HTML / Web</option>
+                <option value="css">CSS / SCSS</option>
                 <option value="json">JSON</option>
-                <option value="yaml">YAML / TOML</option>
+                <option value="yaml">YAML</option>
+                <option value="toml">TOML</option>
                 <option value="bash">Bash Script</option>
+                <option value="sql">SQL</option>
                 <option value="markdown">Markdown</option>
+                <option value="clike">C / C++</option>
+                <option value="docker">Dockerfile</option>
+                <option value="ini">INI / Conf</option>
               </select>
             </div>
+            <div class="context-sep"></div>
+            <div class="dropdown-item" onclick="cycleEditorTabSize(); closeEditorActionsDropdown();"><i data-lucide="indent"></i> Toggle Tab Size (2 / 4 spaces)</div>
           </div>
         </div>
 
         <button class="btn btn-sm btn-icon desktop-only" onclick="dockEditorToActivePane()" title="Dock Editor into Active Pane (Keep browsing on other pane)"><i data-lucide="panel-left-close"></i></button>
         <button class="btn btn-sm btn-icon desktop-only" onclick="minimizeFloatingEditor()" title="Minimize to Pill"><i data-lucide="minus"></i></button>
         <button class="btn btn-sm btn-icon desktop-only" onclick="maximizeFloatingEditor()" title="Maximize / Restore Window"><i data-lucide="maximize-2"></i></button>
-        <button class="btn btn-sm btn-icon" onclick="closeEditorModal()" title="Close Editor"><i data-lucide="x"></i></button>
+        <button class="btn btn-sm btn-icon btn-danger" onclick="closeEditorModal()" title="Close Editor"><i data-lucide="x"></i></button>
       </div>
     </div>
 
@@ -1256,9 +1270,9 @@
   </div>
 
   <!-- Minimized Editor Floating Pill -->
-  <div class="editor-pill" id="editor-pill" style="display: none;" onclick="restoreFloatingEditor()" title="Click to restore Editor (F4)">
+  <div class="editor-pill" id="editor-pill" style="display: none;" onclick="restoreFloatingEditor()" title="Click to restore EditorDog (F4)">
     <i data-lucide="code-2" style="color: var(--accent); width: 14px; height: 14px;"></i>
-    <span id="editor-pill-text">📝 Editor (1 file)</span>
+    <span id="editor-pill-text">📝 EditorDog (1 file)</span>
     <span class="editor-pill-dirty" id="editor-pill-dirty" style="display: none;"></span>
   </div>
 
@@ -2327,7 +2341,7 @@
           <div style="font-size: 18px; font-weight: 800; color: var(--accent); letter-spacing: 0.5px;">CommanderDog</div>
           <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 10px;">Multi-Tab Web Commander - By Woofson</div>
           <div style="display: flex; justify-content: center; gap: 6px; flex-wrap: wrap;">
-            <span class="badge" style="background: rgba(245, 158, 11, 0.2); color: var(--accent); border: 1px solid rgba(245, 158, 11, 0.4); font-weight: 700;">v0.2.13 (Release)</span>
+            <span class="badge" style="background: rgba(245, 158, 11, 0.2); color: var(--accent); border: 1px solid rgba(245, 158, 11, 0.4); font-weight: 700;">v0.2.14 (Release)</span>
             <span class="badge" style="background: rgba(56, 189, 248, 0.15); color: var(--info); border: 1px solid rgba(56, 189, 248, 0.3);">Rust + Axum + Tokio</span>
             <span class="badge" style="background: rgba(34, 197, 94, 0.15); color: var(--success); border: 1px solid rgba(34, 197, 94, 0.3);">MIT Open Source</span>
           </div>
@@ -2405,7 +2419,7 @@
 
         <!-- Right: Universal Actions -->
         <div class="doc-viewer-actions-right">
-          <button class="btn btn-icon" id="doc-viewer-edit-btn" onclick="docViewerEditFile()" title="Edit in Multi-Tab Power Editor (F4)"><i data-lucide="code"></i></button>
+          <button class="btn btn-icon" id="doc-viewer-edit-btn" onclick="docViewerEditFile()" title="Edit in EditorDog (F4)"><i data-lucide="code"></i></button>
           <a id="doc-viewer-download" class="btn btn-icon" href="#" download title="Download File"><i data-lucide="download"></i></a>
           <a id="doc-viewer-external" class="btn btn-icon" href="#" target="_blank" title="Open in New Tab"><i data-lucide="external-link"></i></a>
           <button class="btn btn-icon" id="doc-viewer-fullscreen" onclick="toggleDocViewerFullscreen()" title="Toggle Fullscreen"><i data-lucide="maximize-2"></i></button>
@@ -2670,6 +2684,7 @@
         <span class="task-speed-badge" id="task-speed-badge">0 B/s</span>
       </div>
       <div class="task-win-controls">
+        <button class="btn-task-control desktop-only" onclick="dockTasksToActivePane()" title="Dock Tasks into Active Pane"><i data-lucide="panel-left-close"></i></button>
         <button class="btn-task-control desktop-only" onclick="minimizeFloatingTaskManager()" title="Minimize to Pill"><i data-lucide="minus"></i></button>
         <button class="btn-task-control desktop-only" onclick="maximizeFloatingTaskManager()" title="Expand / Restore"><i data-lucide="maximize-2"></i></button>
         <button class="btn-task-control btn-task-close" onclick="closeFloatingTaskManager()" title="Close Transfer Window"><i data-lucide="x"></i></button>

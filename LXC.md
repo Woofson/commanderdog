@@ -37,7 +37,7 @@ If you built or downloaded the `.deb` release package:
 apt-get update && apt-get install -y ca-certificates libsqlite3-0 libssh2-1 tar bzip2 p7zip-full
 
 # 2. Install CommanderDog
-dpkg -i commanderdog_0.2.13_amd64.deb
+dpkg -i commanderdog_0.2.14_amd64.deb
 
 # 3. Enable and Start Systemd Service
 systemctl daemon-reload
@@ -53,9 +53,9 @@ systemctl status commanderdog
 
 ```bash
 # 1. Download and extract release tarball
-wget https://github.com/Woofson/commanderdog/releases/latest/download/commanderdog-v0.2.13-linux-x86_64.tar.gz
-tar -xzf commanderdog-v0.2.13-linux-x86_64.tar.gz
-cd commanderdog-v0.2.13-linux-x86_64
+wget https://github.com/Woofson/commanderdog/releases/latest/download/commanderdog-v0.2.14-linux-x86_64.tar.gz
+tar -xzf commanderdog-v0.2.14-linux-x86_64.tar.gz
+cd commanderdog-v0.2.14-linux-x86_64
 
 # 2. Copy binary to system path
 install -m 755 commanderdog /usr/local/bin/commanderdog
