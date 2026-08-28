@@ -9,6 +9,11 @@ This roadmap outlines planned capabilities, UX enhancements, and architectural m
 
 ## 🚀 1. Completed Milestones (v0.1.0 — v0.2.13)
 
+- [x] **🪟 Dockable Tool Panels (In-Pane Docking) (`v0.2.14`)**: 1-click `⇲ Dock into Left/Right Pane` on floating tools (Power Code Editor, Terminal Console, Byte Calculator, and Git Manager), keeping the opposite pane active for non-blocking file browsing/copying/moving with 1-click undock (`⇱ Float`).
+- [x] **🌲 Integrated Git Client & Version Control Engine (`v0.2.14`)**: Real-time git status indicators and branch badges on pane breadcrumbs, side-by-side git diff viewer, visual staging (`+` / `-`), commit composer, Push/Pull actions, and commit history log viewer.
+- [x] **🌐 Web Bookmarks & External URI Manager (`v0.2.14`)**: Support for `https://...` URLs, external web apps, and custom schemes with target choice (`_blank` tab or in-app).
+- [x] **🏷️ Custom Pane Renaming & Workspace Aliases (`v0.2.14`)**: Interactive tab double-click / right-click pane label customization persisted across reloads.
+- [x] **🧩 Multi-Part File Splitter & Combiner (`v0.2.14`)**: Chunk splitting (10MB, 50MB, 100MB, 1GB, custom) with automatic `.sha256` manifest generation, part file concatenation (`.001`, `.002`...), and SHA-256 integrity verification.
 - [x] **🧮 Built-in Floating Calculator & Byte Math (`v0.2.13`)**: Draggable & minimizable floating window with taskbar pill docking, storage byte multipliers (`KB`, `MB`, `GB`, `TB`), live base conversions (Hex, Octal/chmod, Binary), calculation history tape, 1-click clipboard copy, and native keyboard typing.
 - [x] **📱 Mobile Accordion Submenus & Responsive Viewport (`v0.2.13`)**: Vertical accordion drawer submenus for touch devices ($\le 768\text{px}$), viewport height auto-sync (`--viewport-height`, `--mobile-bottom-offset`), and right-edge desktop submenu flipping (`.submenu-flip-left`).
 - [x] **📱 Foldable & Adaptive Multi-Pane (`v0.3.0 UX`)**: Adaptive dual-pane breakpoint ($\ge 601\text{px}$), CSS viewport segments (`horizontal-viewport-segments: 2`), hinge/seam avoidance, and touch swipe gestures.
@@ -37,30 +42,14 @@ This roadmap outlines planned capabilities, UX enhancements, and architectural m
   - 🍏 **macOS**: `.dmg`, `.app` (Universal binary for Apple Silicon & Intel), Homebrew Cask.
   - 🪟 **Windows**: `.msi`, `.exe` (NSIS Installer & Portable), WinGet.
 
-### 🪟 2. Dockable Tool Panels (In-Pane & In-Tab Docking)
-- **Transform Floating Tools into In-Pane Tabs**: 1-click `⇲ Dock into Left/Right Pane` or `Dock as Tab` on floating tools (Power Editor, Terminal, Document/Media/PDF Viewers, Quick Preview, Diff Engine, Disk Usage, and Calculator).
-- **Non-Blocking Side-by-Side Workflows**: File browsing, navigation, and file actions (<kbd>F5</kbd> Copy, <kbd>F6</kbd> Move, Drag-and-Drop, Delete) continue unimpeded on one pane while viewing/editing in the other pane, eliminating modal locking.
-- **1-Click Undock / Float**: Instantly pop docked panels back out into floating draggable windows (`⇱ Float`).
+### 🔒 2. Transparent Encrypted Vaults (AES-256)
+- **Zero-Knowledge Encrypted Folders**: Create password-protected encrypted vault directories.
+- **On-the-Fly Decryption**: Files decrypt transparently in memory inside CommanderDog without exposing unencrypted files on disk.
 
-### 🌲 3. Integrated Git Client & Version Control Engine
-- **Git Status & Branch Badges**: Real-time git status indicators for tracked directories (branch name, ahead/behind commits, modified/staged/untracked counters).
-- **Visual Staging, Diffs & Commits**: 1-click stage/unstage files, side-by-side git diff inspection, commit message composer, and 1-click Push / Pull / Fetch.
-- **Git Log Graph & Blame**: Visual commit history graph, tag browser, and per-line file blame viewer.
+### ⚙️ 3. Webhook & Automation Triggers
+- **Folder Watchers**: Trigger automated actions when files arrive in a folder (e.g. auto-convert with ConvertX, decompress downloads, or run custom scripts).
 
-### 🌐 4. Web Bookmarks & External URI Manager
-- **Universal URL / URI Bookmarking**: Save web links (`https://...`), cloud consoles, Syncthing dashboards, and custom schemes (`sftp://`, `smb://`, `ssh://`).
-- **Flexible Open Targets**: Configure each bookmark to open in a new browser tab, external window, or navigate in-app.
-- **Bookmark Categories & Spotlight Integration**: Organize by tags/categories and search via <kbd>Ctrl+K</kbd> Spotlight quick-switcher.
-
-### 🏷️ 5. Custom Pane Renaming & Workspace Aliases
-- **Interactive Tab & Pane Renaming**: Double-click or right-click any pane header/tab to set custom friendly labels (e.g. *"Source*", *"Backup Drive*", *"Production Server"*, *"Scratchpad"*).
-- **Workspace Preset Persistence**: Persist custom pane names across sessions and layout presets.
-
-### 🧩 6. Multi-Part File Splitter & Combiner
-- **Split Large Files**: Split multi-gigabyte files into fixed-size chunks (e.g. `100MB`, `1GB`, `.001`, `.002`).
-- **Join & Verify**: Concatenate split parts back into the original file with CRC32/SHA-256 integrity verification.
-
-### 🔒 7. Transparent Encrypted Vaults (AES-256)
+### 🌐 4. OpenID Connect (OIDC) & SSO Integration
 - **Zero-Knowledge Encrypted Folders**: Create password-protected encrypted vault directories.
 - **On-the-Fly Decryption**: Files decrypt transparently in memory inside CommanderDog without exposing unencrypted files on disk.
 

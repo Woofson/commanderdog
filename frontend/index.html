@@ -1166,6 +1166,7 @@
           </div>
         </div>
 
+        <button class="btn btn-sm btn-icon desktop-only" onclick="dockEditorToActivePane()" title="Dock Editor into Active Pane (Keep browsing on other pane)"><i data-lucide="panel-left-close"></i></button>
         <button class="btn btn-sm btn-icon desktop-only" onclick="minimizeFloatingEditor()" title="Minimize to Pill"><i data-lucide="minus"></i></button>
         <button class="btn btn-sm btn-icon desktop-only" onclick="maximizeFloatingEditor()" title="Maximize / Restore Window"><i data-lucide="maximize-2"></i></button>
         <button class="btn btn-sm btn-icon" onclick="closeEditorModal()" title="Close Editor"><i data-lucide="x"></i></button>
@@ -1274,6 +1275,7 @@
 
       <div class="calc-header-actions" style="display: flex; align-items: center; gap: 4px;">
         <button class="btn btn-icon btn-xs" onclick="toggleCalcHistory()" id="btn-calc-history-toggle" title="Calculation History"><i data-lucide="history" style="width: 13px;"></i></button>
+        <button class="btn btn-icon btn-xs" onclick="dockCalculatorToActivePane()" title="Dock Calculator into Active Pane"><i data-lucide="panel-left-close" style="width: 13px;"></i></button>
         <button class="btn btn-icon btn-xs" onclick="minimizeFloatingCalculator()" title="Minimize to Taskbar"><i data-lucide="minus" style="width: 13px;"></i></button>
         <button class="btn btn-icon btn-xs" onclick="closeFloatingCalculator()" title="Close Calculator"><i data-lucide="x" style="width: 13px;"></i></button>
       </div>
@@ -2297,6 +2299,7 @@
         <span style="color: var(--text-dim);" id="terminal-cwd-indicator">~</span>
       </div>
       <div style="display: flex; gap: 4px;">
+        <button class="btn btn-icon" onclick="dockTerminalToActivePane()" title="Dock Terminal into Active Pane"><i data-lucide="panel-left-close" style="width:12px;"></i></button>
         <button class="btn btn-icon" onclick="toggleTerminalFullscreen()" title="Toggle Maximize"><i data-lucide="maximize-2" style="width:12px;"></i></button>
         <button class="btn btn-icon" onclick="clearTerminal()" title="Clear Terminal"><i data-lucide="trash" style="width:12px;"></i></button>
         <button class="btn btn-icon" onclick="toggleTerminal(false)" title="Close Terminal"><i data-lucide="x" style="width:12px;"></i></button>
@@ -2923,6 +2926,160 @@
       <div class="modal-footer">
         <button class="btn" onclick="closeModal('tags-modal')">Cancel</button>
         <button class="btn btn-accent" onclick="saveModalTags()"><i data-lucide="check"></i> Apply Tags</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Git Repository Manager & Diff Inspector Modal -->
+  <div class="modal-overlay" id="git-modal" style="z-index: 2050;">
+    <div class="modal-box" style="width: 960px; max-width: calc(100vw - 32px); height: 85vh; max-height: 800px; display: flex; flex-direction: column;">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <i data-lucide="git-branch" style="color: var(--accent); width: 18px; height: 18px;"></i>
+          <span style="font-weight: 700; font-size: 14px;" id="git-modal-title">Git Manager</span>
+          <span class="badge" id="git-modal-branch-badge" style="font-size: 10px; text-transform: uppercase;">main</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <button class="btn btn-sm" onclick="gitPullCurrentRepo()" title="Pull changes from remote"><i data-lucide="download"></i> Pull</button>
+          <button class="btn btn-sm" onclick="gitPushCurrentRepo()" title="Push commits to remote"><i data-lucide="upload"></i> Push</button>
+          <button class="btn btn-sm btn-icon desktop-only" onclick="dockGitToActivePane()" title="Dock Git Manager into Active Pane"><i data-lucide="panel-left-close"></i></button>
+          <button class="btn btn-icon" onclick="closeModal('git-modal')"><i data-lucide="x"></i></button>
+        </div>
+      </div>
+
+      <div class="modal-tabs" style="display: flex; gap: 4px; padding: 0 16px; border-bottom: 1px solid var(--border); background: var(--bg-dark);">
+        <button class="modal-tab-btn active" id="git-tab-status-btn" onclick="switchGitTab('status')">Changes & Staging</button>
+        <button class="modal-tab-btn" id="git-tab-log-btn" onclick="switchGitTab('log')">Commit History (Log)</button>
+      </div>
+
+      <div class="modal-body" style="flex: 1; display: flex; overflow: hidden; padding: 0;" id="git-status-tab-body">
+        <!-- Left: Changes List -->
+        <div style="width: 320px; border-right: 1px solid var(--border); display: flex; flex-direction: column; background: var(--bg-panel);">
+          <div style="padding: 8px 12px; font-size: 11px; font-weight: 700; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+            <span id="git-changes-count">Changes</span>
+            <div style="display: flex; gap: 4px;">
+              <button class="btn btn-xs btn-accent" onclick="gitStageAll()" title="Stage all changes">Stage All (+)</button>
+              <button class="btn btn-xs" onclick="gitUnstageAll()" title="Unstage all changes">Unstage All</button>
+            </div>
+          </div>
+          <div id="git-files-list" style="flex: 1; overflow-y: auto; padding: 4px 0;"></div>
+          
+          <!-- Commit Composer -->
+          <div style="padding: 10px; border-top: 1px solid var(--border); background: var(--bg-dark);">
+            <textarea id="git-commit-msg-input" class="pane-quick-filter" style="width: 100%; height: 60px; resize: none; font-size: 11px; margin-bottom: 6px;" placeholder="Commit message (e.g. feat: update parser)..."></textarea>
+            <button class="btn btn-accent btn-sm btn-block" style="width: 100%; font-weight: 700; display: flex; justify-content: center; align-items: center; gap: 6px;" onclick="gitCommitStaged()">
+              <i data-lucide="check"></i> Commit Staged
+            </button>
+          </div>
+        </div>
+
+        <!-- Right: Diff Viewer -->
+        <div style="flex: 1; display: flex; flex-direction: column; overflow: hidden; background: #181a1f;">
+          <div style="padding: 8px 12px; font-size: 11px; font-weight: 700; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; background: var(--bg-dark);">
+            <span id="git-diff-filename">Select a file to inspect diff</span>
+            <span class="badge" id="git-diff-status-badge" style="display: none;"></span>
+          </div>
+          <div id="git-diff-viewer" style="flex: 1; overflow: auto; padding: 12px; font-family: var(--font-mono); font-size: 12px; line-height: 1.4; color: var(--text-main); white-space: pre-wrap;"></div>
+        </div>
+      </div>
+
+      <!-- Commit Log View -->
+      <div class="modal-body" style="flex: 1; overflow-y: auto; padding: 16px; display: none;" id="git-log-tab-body">
+        <table class="file-table">
+          <thead>
+            <tr>
+              <th style="width: 80px;">Hash</th>
+              <th>Message</th>
+              <th style="width: 140px;">Author</th>
+              <th style="width: 120px;">Date</th>
+            </tr>
+          </thead>
+          <tbody id="git-log-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Multi-Part File Splitter Modal -->
+  <div class="modal-overlay" id="file-splitter-modal" style="z-index: 2050;">
+    <div class="modal-box" style="width: 480px; max-width: calc(100vw - 32px);">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <i data-lucide="scissors" style="color: var(--accent); width: 18px; height: 18px;"></i>
+          <span style="font-weight: 700; font-size: 14px;">Multi-Part File Splitter</span>
+        </div>
+        <button class="btn btn-icon" onclick="closeModal('file-splitter-modal')"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body" style="padding: 16px; display: flex; flex-direction: column; gap: 12px;">
+        <div class="form-group">
+          <label>Source File to Split:</label>
+          <input type="text" id="split-source-path" class="pane-quick-filter" style="width: 100%;" readonly />
+          <div id="split-source-size-label" style="font-size: 11px; color: var(--text-dim); margin-top: 4px;">0 B</div>
+        </div>
+        <div class="form-group">
+          <label>Chunk Size:</label>
+          <div style="display: flex; gap: 8px;">
+            <select id="split-size-preset" class="pane-quick-filter" style="flex: 1;" onchange="handleSplitPresetChange(this.value)">
+              <option value="10">10 MB (Small Chunks)</option>
+              <option value="50">50 MB (Discord / Email)</option>
+              <option value="100" selected>100 MB (Standard Parts)</option>
+              <option value="250">250 MB</option>
+              <option value="500">500 MB</option>
+              <option value="1024">1 GB (Large Chunks)</option>
+              <option value="custom">Custom Size (MB)...</option>
+            </select>
+            <input type="number" id="split-size-custom" class="pane-quick-filter" style="width: 100px; display: none;" min="1" placeholder="MB" value="100" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Destination Folder:</label>
+          <input type="text" id="split-dest-dir" class="pane-quick-filter" style="width: 100%;" />
+        </div>
+        <div class="form-group">
+          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 12px;">
+            <input type="checkbox" id="split-generate-checksum" checked />
+            <span>Generate SHA-256 Checksum Manifest (.sha256)</span>
+          </label>
+        </div>
+        <div id="split-progress-box" style="display: none; padding: 10px; background: var(--bg-dark); border-radius: 4px; border: 1px solid var(--border);">
+          <div style="font-size: 11px; color: var(--accent); font-weight: 600;" id="split-status-text">Splitting file...</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="closeModal('file-splitter-modal')">Cancel</button>
+        <button class="btn btn-accent" id="btn-run-split" onclick="executeFileSplit()"><i data-lucide="scissors"></i> Split File</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Multi-Part File Combiner Modal -->
+  <div class="modal-overlay" id="file-combiner-modal" style="z-index: 2050;">
+    <div class="modal-box" style="width: 520px; max-width: calc(100vw - 32px);">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <i data-lucide="merge" style="color: var(--accent); width: 18px; height: 18px;"></i>
+          <span style="font-weight: 700; font-size: 14px;">Multi-Part File Combiner & Verifier</span>
+        </div>
+        <button class="btn btn-icon" onclick="closeModal('file-combiner-modal')"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body" style="padding: 16px; display: flex; flex-direction: column; gap: 12px;">
+        <div class="form-group">
+          <label>Detected Parts to Join:</label>
+          <div id="combine-parts-list" style="max-height: 120px; overflow-y: auto; padding: 6px; background: var(--bg-dark); border: 1px solid var(--border); border-radius: 4px; font-size: 11px; font-family: var(--font-mono);"></div>
+        </div>
+        <div class="form-group">
+          <label>Destination File Output:</label>
+          <input type="text" id="combine-dest-path" class="pane-quick-filter" style="width: 100%;" />
+        </div>
+        <div class="form-group">
+          <label>Expected SHA-256 Checksum (Optional verification):</label>
+          <input type="text" id="combine-expected-sha" class="pane-quick-filter" style="width: 100%; font-family: var(--font-mono); font-size: 11px;" placeholder="Auto-detected or paste SHA-256 hash" />
+        </div>
+        <div id="combine-result-box" style="display: none; padding: 10px; background: var(--bg-dark); border-radius: 4px; border: 1px solid var(--border); font-size: 11px;"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="closeModal('file-combiner-modal')">Cancel</button>
+        <button class="btn btn-accent" id="btn-run-combine" onclick="executeFileCombine()"><i data-lucide="merge"></i> Join & Verify</button>
       </div>
     </div>
   </div>

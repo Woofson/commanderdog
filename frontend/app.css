@@ -5558,10 +5558,103 @@ body {
     top: auto !important;
   }
   .calc-pill {
-    bottom: 60px;
+    bottom: 56px;
     right: 10px;
   }
 }
 
+/* --- In-Pane Docked Tool Containers --- */
+.pane-docked-tool-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  background: var(--bg-panel);
+  overflow: hidden;
+  position: relative;
+}
 
+.pane-docked-header {
+  padding: 6px 10px;
+  background: var(--bg-dark);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+}
 
+/* --- Git Badges & Manager UI --- */
+.pane-git-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  color: var(--accent);
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+  transition: all 0.15s ease;
+}
+
+.pane-git-badge:hover {
+  background: rgba(245, 158, 11, 0.25);
+  border-color: var(--accent);
+}
+
+.git-file-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 11.5px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  transition: background 0.1s ease;
+}
+
+.git-file-row:hover {
+  background: var(--bg-hover);
+}
+
+.git-file-row.active {
+  background: rgba(245, 158, 11, 0.15);
+  border-left: 3px solid var(--accent);
+}
+
+.git-status-char {
+  font-weight: 800;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  width: 16px;
+  text-align: center;
+  display: inline-block;
+}
+.git-status-char.staged { color: #22c55e; }
+.git-status-char.modified { color: #f59e0b; }
+.git-status-char.untracked { color: #38bdf8; }
+.git-status-char.deleted { color: #ef4444; }
+
+.diff-line-add {
+  background: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
+  display: block;
+}
+.diff-line-del {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  display: block;
+}
+.diff-line-hdr {
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+  font-weight: 700;
+  display: block;
+}

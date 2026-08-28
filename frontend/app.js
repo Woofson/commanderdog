@@ -498,8 +498,13 @@ async function loadPaneDirectory(paneIndex, targetPath, pushHistory = true, sele
     }
 
     renderPaneBreadcrumbs(paneIndex, pane.path);
-    renderPaneTable(paneIndex);
+    if (pane.dockedTool) {
+      renderDockedPaneTool(paneIndex);
+    } else {
+      renderPaneTable(paneIndex);
+    }
     updatePaneFooter(paneIndex, data);
+    fetchGitStatusForPane(paneIndex, pane.path);
   } catch (e) {
     console.error('Directory load error:', e);
   }
@@ -3994,9 +3999,25 @@ function showContextMenu(x, y) {
         <div class="context-item" onclick="runPredefinedAction('wc -l &quot;{file}&quot;', 'Line Count')"><i data-lucide="list-ordered" style="width:13px;"></i> Count Lines (wc -l)</div>
       </div>
     </div>
+    <div class="context-item" onclick="triggerGitManager()"><i data-lucide="git-branch" style="width: 14px; color: var(--accent);"></i> Git Manager & Diff...</div>
+    <div class="context-item" onclick="triggerFileSplit()"><i data-lucide="scissors" style="width: 14px; color: var(--accent);"></i> Split Large File...</div>
+    <div class="context-item" onclick="triggerFileCombine()"><i data-lucide="merge" style="width: 14px; color: var(--accent);"></i> Combine Part Files (.001, .002)...</div>
     <div class="context-item" onclick="openSyncModal()"><i data-lucide="refresh-cw" style="width: 14px;"></i> Two-Way Directory Sync...</div>
     <div class="context-item" onclick="openDiskUsageModal()"><i data-lucide="pie-chart" style="width: 14px; color: var(--accent);"></i> Disk Usage & Space Analyzer...</div>
     <div class="context-item" onclick="openSearchModal()"><i data-lucide="search" style="width: 14px;"></i> Deep Search in Directory (Ctrl+F)</div>
+
+    <!-- Dock Tool Panel Submenu -->
+    <div class="context-item has-submenu" onclick="toggleContextSubmenu(event, this)">
+      <div style="display:flex; align-items:center; gap:8px;"><i data-lucide="panel-left-close" style="width: 14px; color: var(--accent);"></i> Dock Tool in this Pane</div>
+      <i data-lucide="chevron-right" class="submenu-chevron" style="width: 12px;"></i>
+      <div class="context-submenu">
+        <div class="submenu-header">Dockable Panels</div>
+        <div class="context-item" onclick="dockToolToPane('editor', App.activePaneIndex)"><i data-lucide="file-code" style="width:13px;"></i> 💻 Power Code Editor</div>
+        <div class="context-item" onclick="dockToolToPane('terminal', App.activePaneIndex)"><i data-lucide="terminal" style="width:13px;"></i> 📟 Terminal Console</div>
+        <div class="context-item" onclick="dockToolToPane('calculator', App.activePaneIndex)"><i data-lucide="calculator" style="width:13px;"></i> 🧮 Byte Calculator</div>
+        <div class="context-item" onclick="dockToolToPane('git', App.activePaneIndex)"><i data-lucide="git-branch" style="width:13px;"></i> 🌲 Git Working Tree</div>
+      </div>
+    </div>
 
     <div class="context-sep"></div>
     <div class="context-item" onclick="triggerPermissions()"><i data-lucide="lock" style="width: 14px;"></i> Permissions & Ownership</div>
@@ -4195,6 +4216,46 @@ async function triggerPaste(targetPaneIdx = App.activePaneIndex) {
   if (action === 'cut') {
     App.clipboard = null;
   }
+}
+
+function triggerGitManager() {
+  openGitManager(App.activePaneIndex);
+}
+
+function triggerFileSplit() {
+  const item = getActiveOrFirstSelectedItem();
+  if (!item || item.is_dir) {
+    showToast('Please select a file to split', 'warning');
+    return;
+  }
+  openFileSplitterModal(item.path, item.size);
+}
+
+function triggerFileCombine() {
+  const pane = App.panes[App.activePaneIndex];
+  if (!pane) return;
+
+  const selPaths = Array.from(pane.selected);
+  let parts = [];
+
+  if (selPaths.length > 0) {
+    parts = selPaths.filter(p => /\.\d{3}$/.test(p) || /\.part\d+/i.test(p));
+  }
+  
+  if (parts.length === 0 && pane.entries) {
+    // Auto-detect part files in current pane
+    parts = pane.entries
+      .filter(e => !e.is_dir && (/\.\d{3}$/.test(e.name) || /\.part\d+/i.test(e.name)))
+      .map(e => e.path);
+  }
+
+  if (parts.length === 0) {
+    showToast('No multi-part files (.001, .002...) detected in pane', 'info');
+    openFileCombinerModal([]);
+    return;
+  }
+
+  openFileCombinerModal(parts);
 }
 
 async function triggerNewFile() {
@@ -11086,6 +11147,725 @@ function readTagValue(view, tiffOffset, valOffset, type, count, littleEndian) {
     }
   }
   return null;
+}
+
+// =========================================================================
+// 🪟 IN-PANE TOOL DOCKING ENGINE (Editor, Terminal, Calc, Git)
+// =========================================================================
+
+function dockEditorToActivePane() {
+  dockToolToPane('editor', App.activePaneIndex);
+}
+
+function dockTerminalToActivePane() {
+  dockToolToPane('terminal', App.activePaneIndex);
+}
+
+function dockCalculatorToActivePane() {
+  dockToolToPane('calculator', App.activePaneIndex);
+}
+
+function dockGitToActivePane() {
+  dockToolToPane('git', App.activePaneIndex);
+}
+
+function dockToolToPane(toolName, paneIndex) {
+  const pane = App.panes[paneIndex];
+  if (!pane) return;
+
+  pane.dockedTool = toolName;
+  const contentEl = document.getElementById(`pane-content-${paneIndex}`);
+  if (!contentEl) return;
+
+  // Close/hide floating windows or modals
+  if (toolName === 'editor') {
+    const win = document.getElementById('floating-editor-window');
+    if (win) win.style.display = 'none';
+    const pill = document.getElementById('editor-pill');
+    if (pill) pill.style.display = 'none';
+  } else if (toolName === 'terminal') {
+    const drawer = document.getElementById('terminal-drawer');
+    if (drawer) drawer.classList.remove('open');
+  } else if (toolName === 'calculator') {
+    const win = document.getElementById('floating-calculator-window');
+    if (win) win.style.display = 'none';
+    const pill = document.getElementById('calc-pill');
+    if (pill) pill.style.display = 'none';
+  } else if (toolName === 'git') {
+    closeModal('git-modal');
+  }
+
+  renderDockedPaneTool(paneIndex);
+  showToast(`Docked ${toolName.toUpperCase()} into Pane ${paneIndex + 1}. You can continue file browsing in other panes!`, 'info');
+}
+
+function undockToolFromPane(paneIndex) {
+  const pane = App.panes[paneIndex];
+  if (!pane || !pane.dockedTool) return;
+
+  const tool = pane.dockedTool;
+  pane.dockedTool = null;
+
+  if (tool === 'editor') {
+    openPowerEditor();
+  } else if (tool === 'terminal') {
+    toggleTerminal(true);
+  } else if (tool === 'calculator') {
+    openFloatingCalculator();
+  } else if (tool === 'git') {
+    openGitManager(paneIndex);
+  }
+
+  renderAllPanes();
+}
+
+function closeDockedTool(paneIndex) {
+  const pane = App.panes[paneIndex];
+  if (!pane) return;
+  pane.dockedTool = null;
+  loadPaneDirectory(paneIndex, pane.path);
+}
+
+function renderDockedPaneTool(paneIndex) {
+  const pane = App.panes[paneIndex];
+  const contentEl = document.getElementById(`pane-content-${paneIndex}`);
+  if (!pane || !contentEl) return;
+
+  const tool = pane.dockedTool;
+  const toolTitles = {
+    'editor': '💻 Power Code Editor',
+    'terminal': '📟 Terminal Console',
+    'calculator': '🧮 Byte Calculator',
+    'git': '🌲 Git Manager'
+  };
+
+  contentEl.innerHTML = `
+    <div class="pane-docked-tool-container">
+      <div class="pane-docked-header">
+        <span style="display: flex; align-items: center; gap: 6px;">
+          <span>${toolTitles[tool] || 'Docked Tool'}</span>
+          <span class="badge" style="font-size: 9px;">DOCKED PANE ${paneIndex + 1}</span>
+        </span>
+        <div style="display: flex; align-items: center; gap: 4px;">
+          <button class="btn btn-xs btn-outline" onclick="undockToolFromPane(${paneIndex})" title="Undock to Floating Window"><i data-lucide="external-link" style="width:11px; height:11px;"></i> Float</button>
+          <button class="btn btn-xs btn-icon btn-danger" onclick="closeDockedTool(${paneIndex})" title="Close Docked Tool"><i data-lucide="x" style="width:11px; height:11px;"></i></button>
+        </div>
+      </div>
+      <div id="docked-tool-mount-${paneIndex}" style="flex: 1; overflow: hidden; display: flex; flex-direction: column;">
+        <!-- Tool-specific mount -->
+      </div>
+    </div>
+  `;
+
+  const mount = document.getElementById(`docked-tool-mount-${paneIndex}`);
+
+  if (tool === 'editor') {
+    mount.innerHTML = `
+      <div style="padding: 6px 10px; background: var(--bg-dark); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; font-size: 11px;">
+        <div style="display: flex; gap: 4px;">
+          <button class="btn btn-xs btn-accent" onclick="saveActiveEditorTab()"><i data-lucide="save" style="width:11px; height:11px;"></i> Save</button>
+          <button class="btn btn-xs" onclick="createNewEditorTab()"><i data-lucide="plus" style="width:11px; height:11px;"></i> New</button>
+        </div>
+        <div style="font-size: 11px; color: var(--text-dim);" id="docked-editor-file-label">Editing in Pane ${paneIndex + 1}</div>
+      </div>
+      <div class="editor-tab-strip" style="background: var(--bg-panel); border-bottom: 1px solid var(--border);">
+        <div class="editor-tabs-scroll" id="docked-editor-tabs-${paneIndex}"></div>
+      </div>
+      <div style="flex: 1; position: relative;">
+        <textarea id="docked-editor-textarea-${paneIndex}" class="editor-textarea" style="width: 100%; height: 100%; resize: none; background: #181a1f; color: #f8fafc; font-family: var(--font-mono); font-size: 12px; padding: 10px; border: none; outline: none;" oninput="syncDockedEditorInput(${paneIndex}, this.value)"></textarea>
+      </div>
+    `;
+    const tab = editorTabs[activeEditorTabIndex];
+    if (tab) {
+      const textarea = document.getElementById(`docked-editor-textarea-${paneIndex}`);
+      if (textarea) textarea.value = tab.content || '';
+      const lbl = document.getElementById('docked-editor-file-label');
+      if (lbl) lbl.textContent = tab.filename;
+    }
+  } else if (tool === 'terminal') {
+    mount.innerHTML = `
+      <div style="flex: 1; background: #0c0d10; color: #38bdf8; font-family: var(--font-mono); font-size: 12px; padding: 10px; overflow-y: auto;" id="docked-term-output-${paneIndex}">
+        <div>CommanderDog PTY Terminal (Pane ${paneIndex + 1})</div>
+        <div style="color: var(--text-dim); margin-bottom: 8px;">Type command and press Enter:</div>
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <span style="color: var(--accent); font-weight: 700;">$</span>
+          <input type="text" id="docked-term-input-${paneIndex}" class="pane-quick-filter" style="flex: 1; background: transparent; border: none; color: #fff;" placeholder="command..." onkeydown="handleDockedTermKey(event, ${paneIndex})" />
+        </div>
+      </div>
+    `;
+  } else if (tool === 'calculator') {
+    mount.innerHTML = `
+      <div style="padding: 12px; display: flex; flex-direction: column; height: 100%; gap: 10px; background: var(--bg-panel);">
+        <div class="calc-display-panel">
+          <div class="calc-expression-line" id="docked-calc-expr">&nbsp;</div>
+          <div class="calc-result-row">
+            <input type="text" class="calc-result-input" id="docked-calc-display" value="0" readonly />
+            <button class="btn btn-icon btn-xs calc-copy-btn" onclick="copyCalcResult()" title="Copy"><i data-lucide="copy" style="width: 13px;"></i></button>
+          </div>
+        </div>
+        <div class="calc-keypad-grid" style="flex: 1;">
+          <button class="btn calc-btn calc-btn-op" onclick="calcAppend('(')">(</button>
+          <button class="btn calc-btn calc-btn-op" onclick="calcAppend(')')">)</button>
+          <button class="btn calc-btn calc-btn-clear" onclick="calcClear()">C</button>
+          <button class="btn calc-btn calc-btn-op" onclick="calcAppend('/')">÷</button>
+          <button class="btn calc-btn" onclick="calcAppend('7')">7</button>
+          <button class="btn calc-btn" onclick="calcAppend('8')">8</button>
+          <button class="btn calc-btn" onclick="calcAppend('9')">9</button>
+          <button class="btn calc-btn calc-btn-op" onclick="calcAppend('*')">×</button>
+          <button class="btn calc-btn" onclick="calcAppend('4')">4</button>
+          <button class="btn calc-btn" onclick="calcAppend('5')">5</button>
+          <button class="btn calc-btn" onclick="calcAppend('6')">6</button>
+          <button class="btn calc-btn calc-btn-op" onclick="calcAppend('-')">−</button>
+          <button class="btn calc-btn" onclick="calcAppend('1')">1</button>
+          <button class="btn calc-btn" onclick="calcAppend('2')">2</button>
+          <button class="btn calc-btn" onclick="calcAppend('3')">3</button>
+          <button class="btn calc-btn calc-btn-op" onclick="calcAppend('+')">+</button>
+          <button class="btn calc-btn" onclick="calcAppend('0')">0</button>
+          <button class="btn calc-btn" onclick="calcAppend('.')">.</button>
+          <button class="btn calc-btn calc-btn-eq" style="grid-column: span 2;" onclick="calcEvaluate()">=</button>
+        </div>
+      </div>
+    `;
+  } else if (tool === 'git') {
+    mount.innerHTML = `
+      <div style="padding: 10px; display: flex; flex-direction: column; height: 100%; gap: 8px;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-weight: 700; font-size: 11px;">Git Working Tree: <span id="docked-git-branch" class="badge">main</span></span>
+          <button class="btn btn-xs btn-accent" onclick="openGitManager(${paneIndex})">Open Full Git Manager</button>
+        </div>
+        <div id="docked-git-file-list" style="flex: 1; overflow-y: auto; background: var(--bg-dark); border-radius: 4px; border: 1px solid var(--border); padding: 4px;">Loading repository status...</div>
+      </div>
+    `;
+    loadGitStatusForDocked(paneIndex, pane.path);
+  }
+
+  if (window.lucide) lucide.createIcons({ root: contentEl });
+}
+
+function syncDockedEditorInput(paneIndex, val) {
+  const tab = editorTabs[activeEditorTabIndex];
+  if (tab) {
+    tab.content = val;
+    tab.isDirty = true;
+  }
+}
+
+function handleDockedTermKey(e, paneIndex) {
+  if (e.key === 'Enter') {
+    const input = document.getElementById(`docked-term-input-${paneIndex}`);
+    const out = document.getElementById(`docked-term-output-${paneIndex}`);
+    const cmd = input?.value?.trim();
+    if (!cmd) return;
+    if (input) input.value = '';
+
+    const line = document.createElement('div');
+    line.style.marginTop = '4px';
+    line.innerHTML = `<span style="color:var(--accent); font-weight:700;">$</span> ${escapeHtml(cmd)}`;
+    out.insertBefore(line, input.parentElement);
+
+    // Send through WebSocket terminal or run action
+    if (termWs && termWs.readyState === WebSocket.OPEN) {
+      termWs.send(cmd + '\n');
+    }
+  }
+}
+
+// =========================================================================
+// 🌲 GIT CLIENT & VERSION CONTROL ENGINE
+// =========================================================================
+
+let currentGitRepoPath = '';
+let currentGitStatusData = null;
+let currentGitDiffFile = null;
+
+async function fetchGitStatusForPane(paneIndex, path) {
+  if (!path || path.startsWith('smb://') || path.startsWith('sftp://')) return;
+  try {
+    const resp = await fetch(`/api/git/status?path=${encodeURIComponent(path)}`, {
+      headers: { 'Authorization': `Bearer ${App.token}` }
+    });
+    if (resp.ok) {
+      const data = await resp.json();
+      if (data.is_repo) {
+        const container = document.getElementById(`pane-crumbs-${paneIndex}`);
+        if (container) {
+          const badge = document.createElement('span');
+          badge.className = 'pane-git-badge';
+          badge.title = `Git Branch: ${data.branch} | ${data.files.length} changed files`;
+          badge.onclick = (e) => { e.stopPropagation(); openGitManager(paneIndex, data.root_path || path); };
+          badge.innerHTML = `
+            <i data-lucide="git-branch" style="width:11px; height:11px;"></i>
+            <span>${escapeHtml(data.branch)}</span>
+            ${data.ahead > 0 ? `<span style="color:#22c55e;">⇡${data.ahead}</span>` : ''}
+            ${data.behind > 0 ? `<span style="color:#ef4444;">⇣${data.behind}</span>` : ''}
+            ${!data.is_clean ? `<span style="color:#ef4444; font-size:12px; line-height:1;">●</span>` : ''}
+          `;
+          container.appendChild(badge);
+          if (window.lucide) lucide.createIcons({ root: badge });
+        }
+      }
+    }
+  } catch (e) {}
+}
+
+async function openGitManager(paneIndex = 0, prefillPath = null) {
+  const path = prefillPath || App.panes[paneIndex]?.path || '/';
+  currentGitRepoPath = path;
+  showModal('git-modal');
+  switchGitTab('status');
+  await loadGitStatus(path);
+}
+
+async function loadGitStatus(repoPath) {
+  const branchBadge = document.getElementById('git-modal-branch-badge');
+  const countEl = document.getElementById('git-changes-count');
+  const filesList = document.getElementById('git-files-list');
+  const diffViewer = document.getElementById('git-diff-viewer');
+  const diffHdr = document.getElementById('git-diff-filename');
+
+  if (filesList) filesList.innerHTML = '<div style="padding: 12px; color: var(--text-dim); text-align: center;">Loading git changes...</div>';
+
+  try {
+    const resp = await fetch(`/api/git/status?path=${encodeURIComponent(repoPath)}`, {
+      headers: { 'Authorization': `Bearer ${App.token}` }
+    });
+    if (!resp.ok) {
+      if (filesList) filesList.innerHTML = '<div style="padding: 12px; color: var(--danger); text-align: center;">Not a git repository.</div>';
+      return;
+    }
+
+    const data = await resp.json();
+    currentGitStatusData = data;
+    currentGitRepoPath = data.root_path || repoPath;
+
+    if (branchBadge) {
+      branchBadge.textContent = data.branch || 'HEAD';
+      branchBadge.title = `${data.ahead} ahead, ${data.behind} behind`;
+    }
+
+    if (countEl) {
+      countEl.textContent = `${data.files.length} Changes (${data.staged_count} staged)`;
+    }
+
+    renderGitFiles(data.files);
+
+    if (data.files.length > 0 && !currentGitDiffFile) {
+      selectGitFileDiff(data.files[0].path, data.files[0].is_staged);
+    } else if (data.files.length === 0) {
+      if (diffViewer) diffViewer.innerHTML = '<div style="color: var(--text-dim); padding: 20px; text-align: center;">✔ Working tree clean — no uncommitted changes.</div>';
+      if (diffHdr) diffHdr.textContent = 'Working Tree Clean';
+    }
+  } catch (e) {
+    if (filesList) filesList.innerHTML = `<div style="padding: 12px; color: var(--danger);">Error: ${e}</div>`;
+  }
+}
+
+function renderGitFiles(files) {
+  const filesList = document.getElementById('git-files-list');
+  if (!filesList) return;
+
+  if (files.length === 0) {
+    filesList.innerHTML = '<div style="padding: 16px; color: var(--text-dim); text-align: center; font-size: 11px;">No modified or untracked files.</div>';
+    return;
+  }
+
+  filesList.innerHTML = files.map(f => {
+    let statusClass = f.is_untracked ? 'untracked' : (f.is_staged ? 'staged' : (f.is_deleted ? 'deleted' : 'modified'));
+    let statusChar = f.is_untracked ? '?' : (f.is_deleted ? 'D' : (f.is_staged ? '+' : 'M'));
+    let actionBtn = f.is_staged
+      ? `<button class="btn btn-xs" onclick="event.stopPropagation(); gitUnstageFile('${escapeHtml(f.path)}')" title="Unstage file">−</button>`
+      : `<button class="btn btn-xs btn-accent" onclick="event.stopPropagation(); gitStageFile('${escapeHtml(f.path)}')" title="Stage file">+</button>`;
+
+    return `
+      <div class="git-file-row ${currentGitDiffFile === f.path ? 'active' : ''}" onclick="selectGitFileDiff('${escapeHtml(f.path)}', ${f.is_staged})">
+        <span style="display: flex; align-items: center; gap: 6px; overflow: hidden;">
+          <span class="git-status-char ${statusClass}">${statusChar}</span>
+          <span style="font-family: var(--font-mono); text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">${escapeHtml(f.path)}</span>
+        </span>
+        <div style="display: flex; gap: 4px; flex-shrink: 0;">
+          ${actionBtn}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function selectGitFileDiff(filePath, isStaged) {
+  currentGitDiffFile = filePath;
+  const diffViewer = document.getElementById('git-diff-viewer');
+  const diffHdr = document.getElementById('git-diff-filename');
+  const badge = document.getElementById('git-diff-status-badge');
+
+  if (diffHdr) diffHdr.textContent = filePath;
+  if (badge) {
+    badge.style.display = 'inline-block';
+    badge.textContent = isStaged ? 'STAGED' : 'UNSTAGED';
+    badge.className = `badge ${isStaged ? 'badge-success' : 'badge-warning'}`;
+  }
+  if (diffViewer) diffViewer.innerHTML = '<div style="color: var(--text-dim);">Loading diff...</div>';
+
+  try {
+    const url = `/api/git/diff?path=${encodeURIComponent(currentGitRepoPath)}&file=${encodeURIComponent(filePath)}&staged=${isStaged}`;
+    const resp = await fetch(url, { headers: { 'Authorization': `Bearer ${App.token}` } });
+    if (resp.ok) {
+      const data = await resp.json();
+      renderGitDiffOutput(data.diff || 'No diff output.');
+    }
+  } catch (e) {
+    if (diffViewer) diffViewer.textContent = `Error loading diff: ${e}`;
+  }
+}
+
+function renderGitDiffOutput(rawDiff) {
+  const viewer = document.getElementById('git-diff-viewer');
+  if (!viewer) return;
+
+  const lines = rawDiff.split('\n');
+  viewer.innerHTML = lines.map(line => {
+    const escaped = escapeHtml(line);
+    if (line.startsWith('+') && !line.startsWith('+++')) {
+      return `<span class="diff-line-add">${escaped}</span>`;
+    } else if (line.startsWith('-') && !line.startsWith('---')) {
+      return `<span class="diff-line-del">${escaped}</span>`;
+    } else if (line.startsWith('@@') || line.startsWith('diff --git')) {
+      return `<span class="diff-line-hdr">${escaped}</span>`;
+    }
+    return `<span>${escaped}</span>`;
+  }).join('');
+}
+
+async function gitStageFile(filePath) {
+  try {
+    await fetch('/api/git/stage', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${App.token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: currentGitRepoPath, files: [filePath] })
+    });
+    loadGitStatus(currentGitRepoPath);
+  } catch (e) {}
+}
+
+async function gitUnstageFile(filePath) {
+  try {
+    await fetch('/api/git/unstage', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${App.token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: currentGitRepoPath, files: [filePath] })
+    });
+    loadGitStatus(currentGitRepoPath);
+  } catch (e) {}
+}
+
+async function gitStageAll() {
+  try {
+    await fetch('/api/git/stage', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${App.token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: currentGitRepoPath, files: ['.'] })
+    });
+    showToast('Staged all changes (+)', 'success');
+    loadGitStatus(currentGitRepoPath);
+  } catch (e) {}
+}
+
+async function gitUnstageAll() {
+  try {
+    await fetch('/api/git/unstage', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${App.token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: currentGitRepoPath, files: ['.'] })
+    });
+    showToast('Unstaged all changes', 'info');
+    loadGitStatus(currentGitRepoPath);
+  } catch (e) {}
+}
+
+async function gitCommitStaged() {
+  const msgInput = document.getElementById('git-commit-msg-input');
+  const msg = msgInput?.value?.trim();
+  if (!msg) {
+    showToast('Please enter a commit message', 'warning');
+    return;
+  }
+
+  try {
+    const resp = await fetch('/api/git/commit', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${App.token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: currentGitRepoPath, message: msg })
+    });
+
+    if (resp.ok) {
+      if (msgInput) msgInput.value = '';
+      showToast(`Committed: "${msg}"`, 'success');
+      loadGitStatus(currentGitRepoPath);
+    } else {
+      const err = await resp.text();
+      showToast(`Commit failed: ${err}`, 'error');
+    }
+  } catch (e) {
+    showToast('Failed to commit', 'error');
+  }
+}
+
+async function gitPushCurrentRepo() {
+  showToast('Pushing commits to remote repository...', 'info');
+  try {
+    const resp = await fetch('/api/git/push', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${App.token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: currentGitRepoPath })
+    });
+    if (resp.ok) {
+      showToast('Pushed commits successfully! 🚀', 'success');
+      loadGitStatus(currentGitRepoPath);
+    } else {
+      const err = await resp.text();
+      showToast(`Push failed: ${err}`, 'error');
+    }
+  } catch (e) {
+    showToast('Push failed', 'error');
+  }
+}
+
+async function gitPullCurrentRepo() {
+  showToast('Pulling latest changes from remote...', 'info');
+  try {
+    const resp = await fetch('/api/git/pull', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${App.token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: currentGitRepoPath })
+    });
+    if (resp.ok) {
+      showToast('Pull complete! 📥', 'success');
+      loadGitStatus(currentGitRepoPath);
+      renderAllPanes();
+    } else {
+      const err = await resp.text();
+      showToast(`Pull failed: ${err}`, 'error');
+    }
+  } catch (e) {
+    showToast('Pull failed', 'error');
+  }
+}
+
+function switchGitTab(tabName) {
+  const statusTab = document.getElementById('git-status-tab-body');
+  const logTab = document.getElementById('git-log-tab-body');
+  const statusBtn = document.getElementById('git-tab-status-btn');
+  const logBtn = document.getElementById('git-tab-log-btn');
+
+  if (tabName === 'status') {
+    if (statusTab) statusTab.style.display = 'flex';
+    if (logTab) logTab.style.display = 'none';
+    if (statusBtn) statusBtn.classList.add('active');
+    if (logBtn) logBtn.classList.remove('active');
+  } else {
+    if (statusTab) statusTab.style.display = 'none';
+    if (logTab) logTab.style.display = 'block';
+    if (statusBtn) statusBtn.classList.remove('active');
+    if (logBtn) logBtn.classList.add('active');
+    loadGitLog(currentGitRepoPath);
+  }
+}
+
+async function loadGitLog(repoPath) {
+  const tbody = document.getElementById('git-log-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:16px;">Loading commit history...</td></tr>';
+
+  try {
+    const resp = await fetch(`/api/git/log?path=${encodeURIComponent(repoPath)}&count=40`, {
+      headers: { 'Authorization': `Bearer ${App.token}` }
+    });
+    if (resp.ok) {
+      const commits = await resp.json();
+      if (commits.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:16px;">No commits found in repository.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = commits.map(c => `
+        <tr>
+          <td><code style="color:var(--accent); font-weight:700;">${escapeHtml(c.short_hash)}</code></td>
+          <td style="font-weight:600;">${escapeHtml(c.message)}</td>
+          <td><span style="font-size:11px; color:var(--text-muted);">${escapeHtml(c.author_name)}</span></td>
+          <td><span style="font-size:10.5px; color:var(--text-dim);">${escapeHtml(c.date)}</span></td>
+        </tr>
+      `).join('');
+    }
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="4" style="color:var(--danger); padding:16px;">Error: ${e}</td></tr>`;
+  }
+}
+
+async function loadGitStatusForDocked(paneIndex, repoPath) {
+  const branchEl = document.getElementById('docked-git-branch');
+  const fileList = document.getElementById('docked-git-file-list');
+  try {
+    const resp = await fetch(`/api/git/status?path=${encodeURIComponent(repoPath)}`, {
+      headers: { 'Authorization': `Bearer ${App.token}` }
+    });
+    if (resp.ok) {
+      const data = await resp.json();
+      if (branchEl) branchEl.textContent = data.branch || 'HEAD';
+      if (fileList) {
+        if (data.files.length === 0) {
+          fileList.innerHTML = '<div style="padding:10px; color:#22c55e; text-align:center;">✔ Clean working directory</div>';
+        } else {
+          fileList.innerHTML = data.files.map(f => `
+            <div style="display:flex; justify-content:space-between; padding:3px 6px; font-size:11px; font-family:var(--font-mono);">
+              <span>${escapeHtml(f.path)}</span>
+              <span style="color:var(--accent); font-weight:700;">${f.is_staged ? '+' : 'M'}</span>
+            </div>
+          `).join('');
+        }
+      }
+    }
+  } catch (e) {}
+}
+
+// =========================================================================
+// 🧩 MULTI-PART FILE SPLITTER & COMBINER ENGINE
+// =========================================================================
+
+function openFileSplitterModal(filePath, sizeBytes) {
+  const modal = document.getElementById('file-splitter-modal');
+  if (!modal) return;
+
+  const srcInput = document.getElementById('split-source-path');
+  const sizeLbl = document.getElementById('split-source-size-label');
+  const destInput = document.getElementById('split-dest-dir');
+
+  if (srcInput) srcInput.value = filePath;
+  if (sizeLbl) sizeLbl.textContent = `Total Size: ${formatBytes(sizeBytes || 0)}`;
+  if (destInput) destInput.value = filePath.substring(0, filePath.lastIndexOf('/')) || '/';
+
+  showModal('file-splitter-modal');
+}
+
+function handleSplitPresetChange(val) {
+  const custom = document.getElementById('split-size-custom');
+  if (custom) {
+    custom.style.display = val === 'custom' ? 'block' : 'none';
+  }
+}
+
+async function executeFileSplit() {
+  const srcPath = document.getElementById('split-source-path')?.value;
+  const preset = document.getElementById('split-size-preset')?.value;
+  const custom = document.getElementById('split-size-custom')?.value;
+  const destDir = document.getElementById('split-dest-dir')?.value;
+  const genChk = document.getElementById('split-generate-checksum')?.checked ?? true;
+  const progBox = document.getElementById('split-progress-box');
+  const statusTxt = document.getElementById('split-status-text');
+  const btn = document.getElementById('btn-run-split');
+
+  const chunkMb = preset === 'custom' ? parseInt(custom, 10) : parseInt(preset, 10);
+  if (!chunkMb || chunkMb < 1) {
+    showToast('Please enter a valid chunk size', 'warning');
+    return;
+  }
+
+  if (progBox) progBox.style.display = 'block';
+  if (statusTxt) statusTxt.textContent = `Splitting file into ${chunkMb} MB chunks...`;
+  if (btn) btn.disabled = true;
+
+  try {
+    const resp = await fetch('/api/tools/split', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${App.token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        source_path: srcPath,
+        chunk_size_mb: chunkMb,
+        dest_dir: destDir || null,
+        generate_checksum: genChk
+      })
+    });
+
+    if (resp.ok) {
+      const res = await resp.json();
+      closeModal('file-splitter-modal');
+      showToast(`Successfully split into ${res.chunk_count} parts! SHA-256: ${res.sha256.substring(0, 10)}...`, 'success');
+      renderAllPanes();
+    } else {
+      const err = await resp.text();
+      showToast(`Split failed: ${err}`, 'error');
+    }
+  } catch (e) {
+    showToast(`Error splitting file: ${e}`, 'error');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+function openFileCombinerModal(partsList) {
+  const modal = document.getElementById('file-combiner-modal');
+  if (!modal) return;
+
+  const partsBox = document.getElementById('combine-parts-list');
+  const destInput = document.getElementById('combine-dest-path');
+  const expSha = document.getElementById('combine-expected-sha');
+
+  if (partsBox) {
+    partsBox.innerHTML = partsList.map(p => `<div>📦 ${escapeHtml(p)}</div>`).join('');
+  }
+
+  if (partsList.length > 0 && destInput) {
+    const firstPart = partsList[0];
+    const cleanedDest = firstPart.replace(/\.\d{3}$/, '').replace(/\.part\d+.*$/, '');
+    destInput.value = cleanedDest;
+  }
+
+  showModal('file-combiner-modal');
+}
+
+async function executeFileCombine() {
+  const partsBox = document.getElementById('combine-parts-list');
+  const destInput = document.getElementById('combine-dest-path');
+  const expSha = document.getElementById('combine-expected-sha');
+  const btn = document.getElementById('btn-run-combine');
+
+  const destPath = destInput?.value?.trim();
+  if (!destPath) {
+    showToast('Please enter output destination path', 'warning');
+    return;
+  }
+
+  const parts = Array.from(partsBox.querySelectorAll('div')).map(d => d.textContent.replace('📦 ', '').trim());
+  if (parts.length === 0) {
+    showToast('No part files selected', 'warning');
+    return;
+  }
+
+  if (btn) btn.disabled = true;
+  showToast('Combining and verifying file parts...', 'info');
+
+  try {
+    const resp = await fetch('/api/tools/combine', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${App.token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        parts,
+        dest_path: destPath,
+        expected_sha256: expSha?.value?.trim() || null
+      })
+    });
+
+    if (resp.ok) {
+      const res = await resp.json();
+      closeModal('file-combiner-modal');
+      const verifyMsg = res.is_verified ? '✔ Verified matching checksum!' : '⚠️ Checksum mismatch';
+      showToast(`Successfully combined ${res.parts_joined} parts (${formatBytes(res.total_bytes_written)})! ${verifyMsg}`, 'success');
+      renderAllPanes();
+    } else {
+      const err = await resp.text();
+      showToast(`Combine failed: ${err}`, 'error');
+    }
+  } catch (e) {
+    showToast(`Error combining files: ${e}`, 'error');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 }
 
 

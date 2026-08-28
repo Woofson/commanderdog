@@ -105,10 +105,21 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/tools/sync/analyze", post(handle_sync_analyze))
         .route("/api/tools/sync/execute", post(handle_sync_execute))
         .route("/api/tools/disk-usage", get(handle_disk_usage))
+        .route("/api/tools/split", post(handle_split_file))
+        .route("/api/tools/combine", post(handle_combine_files))
         .route("/api/tools/syncthing/status", get(handle_syncthing_status))
         .route("/api/tools/syncthing/scan", post(handle_syncthing_scan))
         .route("/api/tools/search", post(handle_search))
         .route("/api/actions/run", post(handle_run_action))
+        // Git Client & Version Control API
+        .route("/api/git/status", get(handle_git_status))
+        .route("/api/git/diff", get(handle_git_diff))
+        .route("/api/git/stage", post(handle_git_stage))
+        .route("/api/git/unstage", post(handle_git_unstage))
+        .route("/api/git/commit", post(handle_git_commit))
+        .route("/api/git/push", post(handle_git_push))
+        .route("/api/git/pull", post(handle_git_pull))
+        .route("/api/git/log", get(handle_git_log))
         .route("/api/tasks", get(handle_list_tasks))
         .route("/api/tasks/:id/cancel", post(handle_cancel_task))
         .route("/api/tasks/:id/pause", post(handle_pause_task))
@@ -2318,6 +2329,207 @@ async fn handle_get_confd_files() -> Json<Vec<ConfdFileInfo>> {
 
     result.sort_by(|a, b| a.filename.cmp(&b.filename));
     Json(result)
+}
+
+// ---------------- GIT & VERSION CONTROL HANDLERS ----------------
+
+#[derive(Deserialize)]
+struct GitPathQuery {
+    path: String,
+}
+
+#[derive(Deserialize)]
+struct GitDiffQuery {
+    path: String,
+    file: Option<String>,
+    #[serde(default)]
+    staged: Option<bool>,
+}
+
+#[derive(Deserialize)]
+struct GitLogQuery {
+    path: String,
+    #[serde(default)]
+    count: Option<usize>,
+}
+
+#[derive(Deserialize)]
+struct GitFilesRequest {
+    path: String,
+    #[serde(default)]
+    files: Vec<String>,
+}
+
+#[derive(Deserialize)]
+struct GitCommitRequest {
+    path: String,
+    message: String,
+}
+
+#[derive(Deserialize)]
+struct GitPushRequest {
+    path: String,
+    remote: Option<String>,
+    branch: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct GitPullRequest {
+    path: String,
+}
+
+async fn handle_git_status(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<GitPathQuery>,
+) -> Result<Json<crate::tools::git::GitStatusResponse>, (StatusCode, String)> {
+    let auth_header = headers.get(header::AUTHORIZATION).and_then(|v| v.to_str().ok());
+    if let Some(token_str) = auth_header.and_then(|h| h.strip_prefix("Bearer ")) {
+        let _ = state.auth.verify_token(token_str).map_err(|e| (StatusCode::UNAUTHORIZED, e.to_string()))?;
+        let res = crate::tools::git::get_git_status(Path::new(&query.path)).await;
+        return Ok(Json(res));
+    }
+    Err((StatusCode::UNAUTHORIZED, "Missing authorization token".to_string()))
+}
+
+async fn handle_git_diff(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<GitDiffQuery>,
+) -> Result<Json<crate::tools::git::GitDiffResponse>, (StatusCode, String)> {
+    let auth_header = headers.get(header::AUTHORIZATION).and_then(|v| v.to_str().ok());
+    if let Some(token_str) = auth_header.and_then(|h| h.strip_prefix("Bearer ")) {
+        let _ = state.auth.verify_token(token_str).map_err(|e| (StatusCode::UNAUTHORIZED, e.to_string()))?;
+        let res = crate::tools::git::get_git_diff(Path::new(&query.path), query.file.as_deref(), query.staged.unwrap_or(false)).await;
+        return Ok(Json(res));
+    }
+    Err((StatusCode::UNAUTHORIZED, "Missing authorization token".to_string()))
+}
+
+async fn handle_git_stage(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<GitFilesRequest>,
+) -> Result<Json<crate::tools::git::GitActionResponse>, (StatusCode, String)> {
+    let auth_header = headers.get(header::AUTHORIZATION).and_then(|v| v.to_str().ok());
+    if let Some(token_str) = auth_header.and_then(|h| h.strip_prefix("Bearer ")) {
+        let _ = state.auth.verify_token(token_str).map_err(|e| (StatusCode::UNAUTHORIZED, e.to_string()))?;
+        let res = crate::tools::git::git_stage(Path::new(&payload.path), &payload.files).await;
+        return Ok(Json(res));
+    }
+    Err((StatusCode::UNAUTHORIZED, "Missing authorization token".to_string()))
+}
+
+async fn handle_git_unstage(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<GitFilesRequest>,
+) -> Result<Json<crate::tools::git::GitActionResponse>, (StatusCode, String)> {
+    let auth_header = headers.get(header::AUTHORIZATION).and_then(|v| v.to_str().ok());
+    if let Some(token_str) = auth_header.and_then(|h| h.strip_prefix("Bearer ")) {
+        let _ = state.auth.verify_token(token_str).map_err(|e| (StatusCode::UNAUTHORIZED, e.to_string()))?;
+        let res = crate::tools::git::git_unstage(Path::new(&payload.path), &payload.files).await;
+        return Ok(Json(res));
+    }
+    Err((StatusCode::UNAUTHORIZED, "Missing authorization token".to_string()))
+}
+
+async fn handle_git_commit(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<GitCommitRequest>,
+) -> Result<Json<crate::tools::git::GitActionResponse>, (StatusCode, String)> {
+    let auth_header = headers.get(header::AUTHORIZATION).and_then(|v| v.to_str().ok());
+    if let Some(token_str) = auth_header.and_then(|h| h.strip_prefix("Bearer ")) {
+        let _ = state.auth.verify_token(token_str).map_err(|e| (StatusCode::UNAUTHORIZED, e.to_string()))?;
+        let res = crate::tools::git::git_commit(Path::new(&payload.path), &payload.message).await;
+        return Ok(Json(res));
+    }
+    Err((StatusCode::UNAUTHORIZED, "Missing authorization token".to_string()))
+}
+
+async fn handle_git_push(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<GitPushRequest>,
+) -> Result<Json<crate::tools::git::GitActionResponse>, (StatusCode, String)> {
+    let auth_header = headers.get(header::AUTHORIZATION).and_then(|v| v.to_str().ok());
+    if let Some(token_str) = auth_header.and_then(|h| h.strip_prefix("Bearer ")) {
+        let _ = state.auth.verify_token(token_str).map_err(|e| (StatusCode::UNAUTHORIZED, e.to_string()))?;
+        let res = crate::tools::git::git_push(Path::new(&payload.path), payload.remote.as_deref(), payload.branch.as_deref()).await;
+        return Ok(Json(res));
+    }
+    Err((StatusCode::UNAUTHORIZED, "Missing authorization token".to_string()))
+}
+
+async fn handle_git_pull(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<GitPullRequest>,
+) -> Result<Json<crate::tools::git::GitActionResponse>, (StatusCode, String)> {
+    let auth_header = headers.get(header::AUTHORIZATION).and_then(|v| v.to_str().ok());
+    if let Some(token_str) = auth_header.and_then(|h| h.strip_prefix("Bearer ")) {
+        let _ = state.auth.verify_token(token_str).map_err(|e| (StatusCode::UNAUTHORIZED, e.to_string()))?;
+        let res = crate::tools::git::git_pull(Path::new(&payload.path)).await;
+        return Ok(Json(res));
+    }
+    Err((StatusCode::UNAUTHORIZED, "Missing authorization token".to_string()))
+}
+
+async fn handle_git_log(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<GitLogQuery>,
+) -> Result<Json<Vec<crate::tools::git::GitCommitInfo>>, (StatusCode, String)> {
+    let auth_header = headers.get(header::AUTHORIZATION).and_then(|v| v.to_str().ok());
+    if let Some(token_str) = auth_header.and_then(|h| h.strip_prefix("Bearer ")) {
+        let _ = state.auth.verify_token(token_str).map_err(|e| (StatusCode::UNAUTHORIZED, e.to_string()))?;
+        let res = crate::tools::git::get_git_log(Path::new(&query.path), query.count.unwrap_or(30)).await;
+        return Ok(Json(res));
+    }
+    Err((StatusCode::UNAUTHORIZED, "Missing authorization token".to_string()))
+}
+
+// ---------------- FILE SPLITTER & COMBINER HANDLERS ----------------
+
+async fn handle_split_file(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<crate::tools::splitter::SplitRequest>,
+) -> Result<Json<crate::tools::splitter::SplitResponse>, (StatusCode, String)> {
+    let auth_header = headers.get(header::AUTHORIZATION).and_then(|v| v.to_str().ok());
+    if let Some(token_str) = auth_header.and_then(|h| h.strip_prefix("Bearer ")) {
+        let _ = state.auth.verify_token(token_str).map_err(|e| (StatusCode::UNAUTHORIZED, e.to_string()))?;
+        let source_path = Path::new(&payload.source_path);
+        let dest_dir = payload.dest_dir.as_ref().map(|p| Path::new(p));
+        let chunk_size = payload.chunk_size_mb.max(1) * 1024 * 1024;
+        let gen_chk = payload.generate_checksum.unwrap_or(true);
+
+        crate::tools::splitter::split_file_sync(source_path, dest_dir, chunk_size, gen_chk)
+            .map(Json)
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))
+    } else {
+        Err((StatusCode::UNAUTHORIZED, "Missing authorization token".to_string()))
+    }
+}
+
+async fn handle_combine_files(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<crate::tools::splitter::CombineRequest>,
+) -> Result<Json<crate::tools::splitter::CombineResponse>, (StatusCode, String)> {
+    let auth_header = headers.get(header::AUTHORIZATION).and_then(|v| v.to_str().ok());
+    if let Some(token_str) = auth_header.and_then(|h| h.strip_prefix("Bearer ")) {
+        let _ = state.auth.verify_token(token_str).map_err(|e| (StatusCode::UNAUTHORIZED, e.to_string()))?;
+        let parts: Vec<std::path::PathBuf> = payload.parts.iter().map(std::path::PathBuf::from).collect();
+        let dest_path = Path::new(&payload.dest_path);
+
+        crate::tools::splitter::combine_files_sync(&parts, dest_path, payload.expected_sha256.as_deref())
+            .map(Json)
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))
+    } else {
+        Err((StatusCode::UNAUTHORIZED, "Missing authorization token".to_string()))
+    }
 }
 
 // ---------------- STATIC ASSET EMBEDDED HANDLER ----------------

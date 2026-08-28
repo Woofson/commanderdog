@@ -57,9 +57,11 @@ default_admin_user = "admin"
 default_admin_pass = "admin123"
 """)
     
-    bin_path = os.path.abspath("./target/release/commanderdog")
-    if not os.path.exists(bin_path):
-        bin_path = os.path.abspath("./target/debug/commanderdog")
+    release_bin = os.path.abspath("./target/release/commanderdog")
+    debug_bin = os.path.abspath("./target/debug/commanderdog")
+    bin_path = debug_bin
+    if os.path.exists(release_bin) and (not os.path.exists(debug_bin) or os.path.getmtime(release_bin) >= os.path.getmtime(debug_bin)):
+        bin_path = release_bin
     
     # Symlink frontend assets into TEST_DIR so static assets serve cleanly
     os.symlink(os.path.abspath("./frontend"), os.path.join(TEST_DIR, "frontend"))
@@ -350,15 +352,78 @@ def run_tests():
     html_resp = requests.get(f"{BASE_URL}/")
     has_calculator = "floating-calculator-window" in html_resp.text
     has_branch = "toggleBranchView" in html_resp.text or "Flat / Branch View" in html_resp.text
-    log_test("WEB-01", "Frontend HTML & Component Integrity", html_resp.status_code == 200 and has_calculator and has_branch)
+    has_git_modal = "git-modal" in html_resp.text
+    has_split_modal = "file-splitter-modal" in html_resp.text
+    log_test("WEB-01", "Frontend HTML & Component Integrity", html_resp.status_code == 200 and has_calculator and has_branch and has_git_modal and has_split_modal)
 
-    # 2. JavaScript Syntax Validation via gjs
+    # 2. JavaScript Syntax Validation via gjs / node / quickjs
     gjs_cmd = subprocess.run(["gjs", "-c", """
     const GLib = imports.gi.GLib;
     const [ok, contents] = GLib.file_get_contents('frontend/app.js');
     new Function(imports.byteArray.toString(contents));
     """], capture_output=True)
     log_test("WEB-02", "ES6 JavaScript Parser & Syntax Validation", gjs_cmd.returncode == 0)
+
+    # -------------------------------------------------------------
+    # SUITE 11: Git Version Control Engine & APIs
+    # -------------------------------------------------------------
+    print(f"\n{BOLD}=== 🌲 SUITE 11: Git Engine & Version Control APIs ==={RESET}")
+
+    # 1. Git Status for non-repo
+    non_repo_resp = requests.get(f"{BASE_URL}/api/git/status", params={"path": data_dir}, headers=headers)
+    log_test("GIT-01", "Git Status on Directory (/api/git/status)", non_repo_resp.status_code == 200)
+
+    # 2. Create isolated git repo and test status / stage / commit
+    git_test_repo = os.path.join(TEST_DIR, "git_sandbox_repo")
+    os.makedirs(git_test_repo, exist_ok=True)
+    subprocess.run(["git", "init", "-b", "main"], cwd=git_test_repo, capture_output=True)
+    subprocess.run(["git", "config", "user.name", "FAT Tester"], cwd=git_test_repo, capture_output=True)
+    subprocess.run(["git", "config", "user.email", "tester@commanderdog.com"], cwd=git_test_repo, capture_output=True)
+
+    with open(os.path.join(git_test_repo, "demo.txt"), "w") as f:
+        f.write("Hello Git World\n")
+
+    git_stat = requests.get(f"{BASE_URL}/api/git/status", params={"path": git_test_repo}, headers=headers)
+    log_test("GIT-02", "Git Untracked File Detection", git_stat.status_code == 200 and git_stat.json().get("untracked_count", 0) >= 1)
+
+    stage_resp = requests.post(f"{BASE_URL}/api/git/stage", headers=headers, json={"path": git_test_repo, "files": ["demo.txt"]})
+    log_test("GIT-03", "Git Stage File (/api/git/stage)", stage_resp.status_code == 200 and stage_resp.json().get("success") is True)
+
+    commit_resp = requests.post(f"{BASE_URL}/api/git/commit", headers=headers, json={"path": git_test_repo, "message": "feat: test automated commit"})
+    log_test("GIT-04", "Git Commit Staged (/api/git/commit)", commit_resp.status_code == 200 and commit_resp.json().get("success") is True)
+
+    log_resp = requests.get(f"{BASE_URL}/api/git/log", params={"path": git_test_repo, "count": 10}, headers=headers)
+    log_test("GIT-05", "Git Commit Log (/api/git/log)", log_resp.status_code == 200 and len(log_resp.json()) >= 1)
+
+    # -------------------------------------------------------------
+    # SUITE 12: Multi-Part File Splitter & Combiner
+    # -------------------------------------------------------------
+    print(f"\n{BOLD}=== 🧩 SUITE 12: Multi-Part File Splitter & Combiner ==={RESET}")
+
+    # 1. Create 3MB binary test file
+    split_src_file = os.path.join(TEST_DIR, "large_sample.dat")
+    with open(split_src_file, "wb") as f:
+        f.write(os.urandom(3 * 1024 * 1024)) # 3MB
+
+    split_resp = requests.post(f"{BASE_URL}/api/tools/split", headers=headers, json={
+        "source_path": split_src_file,
+        "chunk_size_mb": 1,
+        "generate_checksum": True
+    })
+    log_test("SPLIT-01", "Split File into 1MB Chunks (/api/tools/split)", split_resp.status_code == 200 and split_resp.json().get("chunk_count") == 3)
+
+    if split_resp.status_code == 200:
+        split_data = split_resp.json()
+        parts = split_data.get("parts", [])
+        expected_sha = split_data.get("sha256", "")
+
+        combine_dest = os.path.join(TEST_DIR, "recombined_sample.dat")
+        combine_resp = requests.post(f"{BASE_URL}/api/tools/combine", headers=headers, json={
+            "parts": parts,
+            "dest_path": combine_dest,
+            "expected_sha256": expected_sha
+        })
+        log_test("SPLIT-02", "Combine Parts & Verify Checksum (/api/tools/combine)", combine_resp.status_code == 200 and combine_resp.json().get("is_verified") is True)
 
     # Summary
     print(f"\n{BOLD}======================================================{RESET}")
