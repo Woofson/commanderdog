@@ -21,6 +21,30 @@ allow_guest = false              # Allow anonymous guest access
 default_admin_user = "admin"     # Initial admin username
 default_admin_pass = "commanderdog" # Initial admin password
 
+# --- Storage Roots & Filesystem Sandboxing ---
+[storage]
+allow_entire_system = false           # When false, users and admins are strictly sandboxed to allowed root dirs + their personal home
+default_user_home_template = "/home/{username}" # Template path for newly created virtual/DB users
+
+[[storage.roots]]
+id = "storage"
+name = "Mass Storage"
+path = "/mnt/storage"
+read_only = false
+# allowed_roles = ["admin", "user"]
+
+[[storage.roots]]
+id = "data"
+name = "Application Data"
+path = "/data"
+read_only = false
+
+[[storage.roots]]
+id = "backups"
+name = "Backups (Read-Only)"
+path = "/mnt/backups"
+read_only = true
+
 # --- User Interface & Panels ---
 [ui]
 default_pane_count = 2           # Default number of visible panes on startup (1 to 4)

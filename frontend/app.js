@@ -1410,11 +1410,15 @@ async function loadUsersTable() {
   tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding: 16px;">Loading user database & RBAC permissions...</td></tr>';
 
   try {
-    const resp = await fetch('/api/auth/users', {
-      headers: { 'Authorization': `Bearer ${App.token}` }
-    });
-    if (resp.ok) {
-      const users = await resp.json();
+    const [usersRes, rootsRes] = await Promise.all([
+      fetch('/api/auth/users', { headers: { 'Authorization': `Bearer ${App.token}` } }),
+      fetch('/api/storage/roots', { headers: { 'Authorization': `Bearer ${App.token}` } })
+    ]);
+
+    if (usersRes.ok) {
+      const users = await usersRes.json();
+      const storageRoots = rootsRes.ok ? await rootsRes.json() : [];
+
       tbody.innerHTML = users.map(u => {
         let allowed = [];
         try {
@@ -1423,6 +1427,14 @@ async function loadUsersTable() {
           allowed = ['*'];
         }
         const hasAll = allowed.includes('*');
+
+        let allowedRoots = [];
+        try {
+          allowedRoots = typeof u.allowed_roots === 'string' ? JSON.parse(u.allowed_roots) : (u.allowed_roots || ['*']);
+        } catch (_) {
+          allowedRoots = ['*'];
+        }
+        const hasAllRoots = allowedRoots.includes('*');
 
         const services = ['local', 'smb', 'nfs', 's3', 'sftp', 'webdav', 'terminal', 'syncthing', 'converters', 'upload', 'download'];
         const serviceLabels = {
@@ -1464,26 +1476,48 @@ async function loadUsersTable() {
             </td>
             <td class="admin-user-cell">
               <select id="user-role-${safeUname}" class="pane-quick-filter" style="padding: 6px 8px; font-size: 11px; width: 100%;">
-                <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Administrator</option>
-                <option value="user" ${u.role === 'user' ? 'selected' : ''}>Standard User</option>
-                <option value="readonly" ${u.role === 'readonly' ? 'selected' : ''}>Read-Only</option>
+                <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Administrator (Full Access)</option>
+                <option value="user" ${u.role === 'user' ? 'selected' : ''}>Standard User (Read/Write)</option>
+                <option value="readonly" ${u.role === 'readonly' ? 'selected' : ''}>Read-Only User</option>
               </select>
             </td>
             <td class="admin-user-cell">
               <input type="text" id="user-home-${safeUname}" class="pane-quick-filter" value="${escapeHtml(u.home_dir)}" style="width: 100%; padding: 6px 8px; font-size: 11px;">
             </td>
             <td class="admin-user-cell">
-              <div style="background: rgba(0, 0, 0, 0.25); border: 1px solid var(--border); border-radius: 4px; padding: 8px 10px;">
-                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; font-size: 10px;">
-                  ${services.map(svc => {
-                    const isChecked = hasAll || allowed.includes(svc);
+              <div style="margin-bottom: 8px;">
+                <div style="font-size: 10px; font-weight: 700; color: var(--accent); margin-bottom: 4px; text-transform: uppercase;">Allowed Storage Roots</div>
+                <div style="background: rgba(0, 0, 0, 0.25); border: 1px solid var(--border); border-radius: 4px; padding: 6px 8px; max-height: 80px; overflow-y: auto;">
+                  <label style="display: flex; align-items: center; gap: 4px; font-weight: normal; font-size: 10px; cursor: pointer; color: var(--text-main); margin-bottom: 3px;">
+                    <input type="checkbox" class="user-root-cb-${safeUname}" value="*" ${hasAllRoots ? 'checked' : ''}>
+                    <span>⭐ All Storage Roots (*)</span>
+                  </label>
+                  ${storageRoots.filter(r => r.id !== 'system-root').map(r => {
+                    const isChecked = hasAllRoots || allowedRoots.includes(r.id) || allowedRoots.includes(r.path);
                     return `
-                      <label style="display: flex; align-items: center; gap: 4px; font-weight: normal; cursor: pointer; color: ${isChecked ? 'var(--text-main)' : 'var(--text-muted)'};">
-                        <input type="checkbox" id="svc-${safeUname}-${svc}" ${isChecked ? 'checked' : ''}>
-                        <span>${serviceLabels[svc]}</span>
+                      <label style="display: flex; align-items: center; gap: 4px; font-weight: normal; font-size: 10px; cursor: pointer; color: ${isChecked ? 'var(--text-main)' : 'var(--text-muted)'}; margin-bottom: 2px;">
+                        <input type="checkbox" class="user-root-cb-${safeUname}" value="${escapeHtml(r.id)}" ${isChecked ? 'checked' : ''}>
+                        <span>${escapeHtml(r.name)} ${r.read_only ? '(RO)' : ''}</span>
                       </label>
                     `;
                   }).join('')}
+                </div>
+              </div>
+
+              <div>
+                <div style="font-size: 10px; font-weight: 700; color: var(--text-muted); margin-bottom: 4px; text-transform: uppercase;">Allowed Protocol Services</div>
+                <div style="background: rgba(0, 0, 0, 0.25); border: 1px solid var(--border); border-radius: 4px; padding: 6px 8px;">
+                  <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; font-size: 10px;">
+                    ${services.map(svc => {
+                      const isChecked = hasAll || allowed.includes(svc);
+                      return `
+                        <label style="display: flex; align-items: center; gap: 4px; font-weight: normal; cursor: pointer; color: ${isChecked ? 'var(--text-main)' : 'var(--text-muted)'};">
+                          <input type="checkbox" id="svc-${safeUname}-${svc}" ${isChecked ? 'checked' : ''}>
+                          <span>${serviceLabels[svc]}</span>
+                        </label>
+                      `;
+                    }).join('')}
+                  </div>
                 </div>
               </div>
             </td>
@@ -1535,6 +1569,12 @@ async function saveUserRbac(username) {
     }
   }
 
+  const allowed_roots = [];
+  const rootCheckboxes = document.querySelectorAll(`.user-root-cb-${username}:checked`);
+  rootCheckboxes.forEach(cb => {
+    allowed_roots.push(cb.value);
+  });
+
   try {
     const resp = await fetch(`/api/auth/users/${encodeURIComponent(username)}`, {
       method: 'POST',
@@ -1542,13 +1582,14 @@ async function saveUserRbac(username) {
       body: JSON.stringify({
         role: role,
         allowed_services: allowed_services,
+        allowed_roots: allowed_roots.length > 0 ? allowed_roots : ['*'],
         home_dir: home_dir,
         is_disabled: is_disabled
       })
     });
 
     if (resp.ok) {
-      showToast(`RBAC & status for '${username}' saved!`, 'success');
+      showToast(`RBAC & storage roots for '${username}' saved!`, 'success');
       loadUsersTable();
     } else {
       showToast(`Failed to save RBAC: ${await resp.text()}`, 'error');
@@ -4108,26 +4149,21 @@ async function openPaneFavoritesMenu(e, paneIndex) {
   e.stopPropagation();
   document.getElementById('pane-favorites-popup')?.remove();
 
-  const localShortcuts = [
-    { name: 'Home Directory', path: `/home/${App.user?.username || 'bolt'}`, icon: 'home' },
-    { name: 'Root Filesystem', path: '/', icon: 'hard-drive' },
-    { name: 'Downloads', path: `/home/${App.user?.username || 'bolt'}/Downloads`, icon: 'download' },
-    { name: 'Documents', path: `/home/${App.user?.username || 'bolt'}/Documents`, icon: 'file-text' },
-    { name: 'Projects', path: `/home/${App.user?.username || 'bolt'}/projects`, icon: 'folder-git-2' },
-    { name: 'Temporary /tmp', path: '/tmp', icon: 'zap' }
-  ];
-
   let globalMounts = [];
   let userBookmarks = [];
+  let storageRoots = [];
+
   try {
-    const [mountsRes, bmRes] = await Promise.all([
+    const [mountsRes, bmRes, rootsRes] = await Promise.all([
       fetch('/api/mounts/accessible', { headers: { 'Authorization': `Bearer ${App.token}` } }),
-      fetch('/api/bookmarks', { headers: { 'Authorization': `Bearer ${App.token}` } })
+      fetch('/api/bookmarks', { headers: { 'Authorization': `Bearer ${App.token}` } }),
+      fetch('/api/storage/roots', { headers: { 'Authorization': `Bearer ${App.token}` } })
     ]);
     if (mountsRes.ok) globalMounts = await mountsRes.json();
     if (bmRes.ok) userBookmarks = await bmRes.json();
+    if (rootsRes.ok) storageRoots = await rootsRes.json();
   } catch (err) {
-    console.warn('Failed to load favorites/bookmarks:', err);
+    console.warn('Failed to load favorites/bookmarks/storage roots:', err);
   }
 
   const protoIcons = {
@@ -4150,10 +4186,27 @@ async function openPaneFavoritesMenu(e, paneIndex) {
 
   popup.innerHTML = `
     <div style="padding: 8px 12px; font-weight: 700; font-size: 11px; color: var(--accent); background: var(--bg-dark); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
-      <span>⭐ Quick Favorites & Bookmarks</span>
+      <span>⭐ Storage Roots & Bookmarks</span>
       <span style="font-size: 10px; color: var(--text-dim); cursor: pointer;" onclick="openBookmarksManager()">Manage ⚙️</span>
     </div>
     <div style="padding: 4px 0; max-height: 380px; overflow-y: auto;">
+      ${storageRoots.length > 0 ? `
+        <div style="padding: 4px 12px; font-size: 10px; color: var(--accent); font-weight: 700; text-transform: uppercase;">Authorized Storage Roots</div>
+        ${storageRoots.map(r => `
+          <div class="dropdown-item" onclick="loadPaneDirectory(${paneIndex}, '${r.path}'); document.getElementById('pane-favorites-popup')?.remove();">
+            <i data-lucide="${r.id === 'home' ? 'home' : (r.id === 'system-root' ? 'hard-drive' : 'server')}"></i>
+            <div>
+              <div style="font-weight: 600; display: flex; align-items: center; gap: 6px;">
+                <span>${escapeHtml(r.name)}</span>
+                ${r.read_only ? '<span class="badge" style="font-size: 8px; padding: 1px 4px; background: rgba(239,68,68,0.2); color: var(--danger);">READ ONLY</span>' : ''}
+              </div>
+              <div style="font-size: 10px; color: var(--text-dim); font-family: var(--font-mono);">${escapeHtml(r.path)}</div>
+            </div>
+          </div>
+        `).join('')}
+        <div class="context-sep" style="margin: 4px 0;"></div>
+      ` : ''}
+
       ${userBookmarks.length > 0 ? `
         <div style="padding: 4px 12px; font-size: 10px; color: var(--accent); font-weight: 700; text-transform: uppercase;">Saved Bookmarks</div>
         ${userBookmarks.map(b => `
@@ -4170,20 +4223,8 @@ async function openPaneFavoritesMenu(e, paneIndex) {
         `).join('')}
         <div class="context-sep" style="margin: 4px 0;"></div>
       ` : ''}
-      
-      <div style="padding: 4px 12px; font-size: 10px; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">Local Shortcuts</div>
-      ${localShortcuts.map(b => `
-        <div class="dropdown-item" onclick="loadPaneDirectory(${paneIndex}, '${b.path}'); document.getElementById('pane-favorites-popup')?.remove();">
-          <i data-lucide="${b.icon}"></i>
-          <div>
-            <div style="font-weight: 600;">${escapeHtml(b.name)}</div>
-            <div style="font-size: 10px; color: var(--text-dim); font-family: var(--font-mono);">${escapeHtml(b.path)}</div>
-          </div>
-        </div>
-      `).join('')}
 
       ${globalMounts.length > 0 ? `
-        <div class="context-sep" style="margin: 4px 0;"></div>
         <div style="padding: 4px 12px; font-size: 10px; color: var(--accent); font-weight: 700; text-transform: uppercase; display: flex; justify-content: space-between;">
           <span>🌐 Network Mounts</span>
           <span style="font-size: 9px; opacity: 0.8;">ADMIN</span>
@@ -4200,9 +4241,9 @@ async function openPaneFavoritesMenu(e, paneIndex) {
             </div>
           </div>
         `).join('')}
+        <div class="context-sep" style="margin: 4px 0;"></div>
       ` : ''}
 
-      <div class="context-sep" style="margin: 4px 0;"></div>
       <div class="dropdown-item" onclick="document.getElementById('pane-favorites-popup')?.remove(); addNewBookmark('${encodeURIComponent(curPanePath)}');" style="color: var(--accent);">
         <i data-lucide="bookmark-plus"></i>
         <div style="font-weight: 600;">+ Bookmark Current Folder</div>

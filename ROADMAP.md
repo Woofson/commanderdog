@@ -1,86 +1,117 @@
 # 🗺️ CommanderDog Product Roadmap
 
-> **Slogan**: *Multi-Tab Web Commander — By Woofson*  
-> **Current Version**: `v0.2.14 (Active Development)`
+> **Slogan**: *Multi-Tab File Commander for Web & Native Desktop — By Woofson*  
+> **Current Version**: `v0.4.1 (Desktop, Web & Docker Multi-Arch)`
 
-This roadmap outlines planned capabilities, UX enhancements, and architectural milestones for CommanderDog, merging orthodox file commander power tools (Total Commander, Double Commander, Krusader, Directory Opus) with modern responsive web architecture.
-
----
-
-## 🚀 1. Completed Milestones (v0.1.0 — v0.2.14)
-
-- [x] **🪟 In-Pane Tool Docking & Non-Blocking Workflow (`v0.2.14`)**: 1-click `⇲ Dock into Active Pane` across all floating tools with 1-click undock (`⇱ Float`) restoring the file browser:
-  - **EditorDog**: Multi-tab code editor with dirty markers, tab switching, and touch-optimized mobile action sheet menu.
-  - **Terminal Console**: Live interactive xterm.js PTY WebSocket terminal mounted in-pane.
-  - **Byte Calculator**: Full feature parity with floating window (Hex/Oct/Bin converters, storage multipliers `KB`-`TB`, history tape) scaled & left-aligned (`max-width: 340px`).
-  - **Background Transfers & Queue**: Real-time batch progress, TeraCopy stream, speed/ETA stats, and interactive job queue list with pause/resume/cancel controls.
-  - **Git Manager**: Direct working tree inspection and repository staging.
-- [x] **🌲 Integrated Git Client & Version Control Engine (`v0.2.14`)**: Real-time git status indicators and branch badges on pane breadcrumbs, side-by-side git diff viewer, visual staging (`+` / `-`), commit composer, Push/Pull actions, and commit history log viewer.
-- [x] **🌐 Web Bookmarks & External URI Manager (`v0.2.14`)**: Support for `https://...` URLs, external web apps, and custom schemes with target choice (`_blank` tab or in-app).
-- [x] **🏷️ Custom Pane Renaming & Workspace Aliases (`v0.2.14`)**: Interactive tab double-click / right-click pane label customization persisted across reloads.
-- [x] **🧩 Multi-Part File Splitter & Combiner (`v0.2.14`)**: Chunk splitting (10MB, 50MB, 100MB, 1GB, custom) with automatic `.sha256` manifest generation, part file concatenation (`.001`, `.002`...), and SHA-256 integrity verification.
-- [x] **📱 Mobile, Foldable & Touch Viewports (`v0.2.14`)**:
-  - Adaptive dual-pane breakpoint ($\ge 601\text{px}$) for foldable screens (Galaxy Z Fold, Pixel Fold, OnePlus Open).
-  - CSS Viewport Segments & hinge-avoidance (`horizontal-viewport-segments: 2`).
-  - Mobile action sheet drawer for EditorDog with large finger-friendly touch targets ($\ge 44\text{px}$) and touch-scrolling tab strip.
-- [x] **🌲 Flat / Branch View (<kbd>Ctrl+B</kbd>)**: Recursive directory flattening into a unified pane view with global sorting (by size/date) and full batch operations.
-- [x] **🔍 Live Content Grep & "Feed to Pane"**: Deep regex content search across trees with line snippets and 1-click **"Feed to Pane"** virtual results for batch operations.
-- [x] **🏷️ Color Labels & Custom Tagging System**: SQLite-persisted color labels (🔴, 🟠, 🟡, 🟢, 🔵, 🟣) and custom text tag chips with context menu palette and interactive tag manager.
-- [x] **🔀 Two-Way Visual Directory Synchronizer**: Side-by-side comparison between Left & Right directories with visual status indicators (**Newer ➔**, **Older ⬅**, **Identical ✔**, **Different Size ⚠️**, **Delete ✕**), 1-click direction override toggles, category filter chips, and Mirror/Smart 2-Way execution.
-- [x] **📊 Visual Disk Usage Treemap & Storage Analyzer**: Rust recursive space aggregation engine with percentage consumption bars, 1-click folder drill-down, and Top 20 largest files table.
-- [x] **📦 In-Browser Archive Engine**: Compress & Extract `.zip`, `.tar.gz`, `.tar.bz2`, `.tar.xz`, and `.7z` with custom compression levels.
-- [x] **🔗 Link Sharing & Guest Upload Dropboxes**: Time/download-limited share links, password protection, guest `/share/:token` upload dropboxes, and active shares audit dashboard.
-- [x] **⚡ Global Spotlight Quick-Switcher (<kbd>Ctrl+K</kbd> / <kbd>Cmd+K</kbd>)**: Real-time fuzzy command palette searching across actions, common paths, bookmarks, and recent history.
-- [x] **📚 Universal Document & PDF Reader**: In-browser PDF stream viewer with zoom/rotate/print/fullscreen, rich GitHub Markdown renderer with raw toggle, CSV/TSV interactive data grids with filter and sort, and web previews.
-- [x] **📸 Rich Media Inspector & EXIF GPS Geotag Engine**: TIFF/EXIF binary camera parser, interactive Leaflet + OpenStreetMap location pin with Google/Apple Maps links, dominant color palette extraction, and byte-range video/audio stream player.
-- [x] **🔐 Visual POSIX Permissions Matrix**: Visual $3\times 3$ `chmod`/`chown` matrix with octal calculator and recursive `-R` toggle.
-- [x] **☁️ Multi-Cloud & Remote Storage**: SMB/CIFS, NFS, AWS S3/MinIO/R2, SFTP, WebDAV, Syncthing, and Proton Drive.
+This roadmap outlines completed capabilities, active architectural enhancements, and future milestones for CommanderDog, combining orthodox two-pane file commander power tools (Total Commander, Double Commander, Krusader, Directory Opus) with modern responsive web and native standalone desktop architecture.
 
 ---
 
-## 🎯 2. Active Upcoming Priorities
+## 🚀 1. Completed Milestones (v0.1.0 — v0.4.1)
 
-### 🖥️ 1. Standalone Native Desktop App (Tauri 2.0) & AUR Packaging
-- **Zero-Electron Rust Architecture**: Embed Axum local server with native WebKitGTK (Linux), WebKit (macOS), and WebView2 (Windows) for ultra-low memory consumption (~30 MB RAM) and small binary size (~15 MB).
-- **Arch User Repository (AUR)**:
-  - `commanderdog` (Source build with Cargo)
-  - `commanderdog-bin` (Pre-compiled optimized release package for CachyOS & Arch Linux)
-- **Native OS Integrations**: System tray icon with background minimize, global summon hotkey (e.g. <kbd>Super+C</kbd>), native OS drag-and-drop, and window chrome.
-- **Cross-Platform Packages**: Linux (`AUR`, `.AppImage`, `.deb`, `.rpm`), macOS (`.dmg`, `.app`, Homebrew), Windows (`.msi`, `.exe`, WinGet).
+### 🛡️ Storage Roots, Sandboxing & Multi-Arch Containers (`v0.4.1`)
+- [x] **Configurable Storage Roots (`[[storage.roots]]`)**:
+  - Configure multiple isolated root directories with `id`, `name`, `path`, `read_only`, and `allowed_roles`.
+- [x] **Filesystem Sandboxing & Boundary Enforcement**:
+  - `allow_entire_system = false` strictly prevents access to `/` or unauthorized host paths.
+  - Unified path validation engine (`validate_path_access`) checking path normalization across all 20+ file operations.
+- [x] **Per-User Allowed Roots RBAC**:
+  - SQLite auto-migration adding `allowed_roots` to users and JWT claims.
+  - Interactive root assignment in the Admin Control Panel.
+- [x] **Dynamic Home Directory Resolution**:
+  - Native Linux PAM `$HOME` resolution from `/etc/passwd` alongside configurable virtual DB home templates (`default_user_home_template`).
+- [x] **Multi-Arch Docker Images on GHCR**:
+  - `ghcr.io/woofson/commanderdog:alpine` (~18MB static musl) and `ghcr.io/woofson/commanderdog:latest` (~35MB Debian slim) published for `linux/amd64` and `linux/arm64`.
 
-### 🔒 2. Transparent Encrypted Vaults (AES-256-GCM / Argon2id)
-- **Zero-Knowledge Encrypted Folders**: Create password-protected encrypted vault directories.
-- **On-the-Fly Decryption**: Files decrypt transparently in memory inside CommanderDog without exposing unencrypted files on disk.
+### 🪓 File Splitter, Git Client & User Home Startup (`v0.4.0`)
+- [x] **Multi-Part File Splitter & Combiner**:
+  - Split archives into chunks (`.001`, `.002`, ...) with SHA-256 integrity manifests and 1-click recombination.
+- [x] **Integrated Git Client**:
+  - Git status indicators, side-by-side git diff viewer, staging, commit composer, and Push/Pull/Log tools.
+- [x] **Universal Tilde Expansion & User `$HOME` Startup**:
+  - Automatic pane initialization in `/home/$USER` with universal tilde (`~` and `~/...`) resolution.
 
-### ⚙️ 3. Webhook & Automation Triggers
-- **Folder Watchers**: Trigger automated actions when files arrive in a folder (e.g. auto-convert with ConvertX, decompress downloads, or run custom scripts).
+### 🎨 Theming, Ricing & XDG Customization (`v0.3.6`)
+- [x] **Unified Fast-Path XDG Configuration**:
+  - Sub-millisecond single-pass loading of `~/.config/commanderdog/config.toml` (and `/etc/commanderdog/config.toml`).
+- [x] **External TOML Themes Discovery**:
+  - Automatically loads custom `.toml` themes dropped into `~/.config/commanderdog/themes/`.
+- [x] **In-Browser Web Custom Theme Creator & Exporter**:
+  - Interactive theme designer in Settings (<kbd>F10</kbd>) with live color pickers and 1-click TOML download.
+- [x] **Tiling WM Borderless Mode**:
+  - `--no-decorations` / `--frameless` CLI flags and `window_decorations = false` config option for Hyprland/Sway.
 
-### 🌐 4. OpenID Connect (OIDC) & SSO Integration
-- **Enterprise SSO**: Support OpenID Connect (Authelia, Authentik, Keycloak, Okta, Google Workspace) alongside existing Linux PAM and SQLite auth engines with RBAC group mapping.
+### 🖥️ Native Standalone Windowing & Wayland/Hyprland (`v0.3.2` — `v0.3.5`)
+- [x] **True Standalone Native Desktop Window (`commanderdog --standalone`)**:
+  - WebKitGTK (Linux), WebView2 (Windows), WKWebView (macOS) with tiny ~25–35 MB RAM footprint.
+- [x] **Wayland & Hyprland Explicit Sync Compatibility**:
+  - Resolved `wl_surface` protocol errors (GDK Error 71) on Wayland compositors.
 
-### 📄 5. Collaborative Office Editing (ONLYOFFICE & Collabora WOPI)
-- **WOPI / ONLYOFFICE Integration**: Live collaborative editing for `.docx`, `.xlsx`, `.pptx`, `.odt`, `.ods` directly within CommanderDog.
+### 🪟 In-Pane Docking & Power Tools (`v0.3.0` — `v0.3.1`)
+- [x] **In-Pane Tool Docking (`⇲ Dock / ⇱ Float`)**:
+  - Dock EditorDog, Terminal Console, Byte Calculator, Background Transfers, and Git Client into any directory pane.
+- [x] **ConvertX Universal File Converter**:
+  - Image, audio, video, and document format converter with quality sliders.
+
+### 🌐 Core Orthodox Commander & Multi-Cloud (`v0.1.0` — `v0.2.14`)
+- [x] **Dynamic 1-to-4 Toggleable Panes** (`Alt+1`–`4`) with orthodox keyboard shortcuts (`Tab`, `F1`–`F10`, `Insert`, `Space`).
+- [x] **DeltaCopy / RoboCopy / TeraCopy Engine** with bit-for-bit SHA-256 verification and resume.
+- [x] **Flat / Branch View (<kbd>Ctrl+B</kbd>)** and **Live Grep with "Feed to Pane"**.
+- [x] **Two-Way Directory Synchronizer** and **Visual Disk Usage Treemap Analyzer**.
+- [x] **Multi-Cloud & Remote Protocols**: SMB/CIFS, NFS, AWS S3/MinIO/R2, SFTP, WebDAV, Proton Drive E2EE, and Syncthing.
+- [x] **Visual POSIX Permissions Matrix** ($3\times 3$ `chmod`/`chown` with octal calculator).
 
 ---
 
-## 📋 3. Release Phasing Matrix
+## 🎯 2. What's Next on the Roadmap?
 
 ```mermaid
 graph TD
-    A["v0.2.14 (Current In-Pane Docking & EditorDog)"] --> B["Testing & Quality Verification Phase"]
-    B --> C["Tauri 2.0 Native Desktop App & AUR Packaging"]
-    C --> D["Transparent Encrypted Vaults (AES-256-GCM)"]
-    D --> E["Folder Automation Watchers & Webhooks"]
-    E --> F["Enterprise OIDC SSO & ONLYOFFICE / Collabora WOPI"]
+    A["v0.4.1 (Live: Storage Roots, Sandboxing, Multi-Arch Docker)"] --> B["1. Transparent Encrypted Vaults (AES-256-GCM)"]
+    B --> C["2. Folder Automation Watchers & Webhooks"]
+    C --> D["3. Global System Tray & Summon Hotkey (Super+C)"]
+    D --> E["4. Enterprise OIDC SSO & ONLYOFFICE / Collabora WOPI"]
 ```
 
-| Phase | Milestone | Focus Areas |
+### 🔒 Milestone 1: Transparent Encrypted Vaults (AES-256-GCM / Argon2id)
+- **Zero-Knowledge Encrypted Folders**: Create password-protected encrypted vault directories (`.vault` / `.enc`).
+- **On-the-Fly Decryption**: Files decrypt transparently in memory inside CommanderDog without exposing unencrypted files on disk.
+- **Auto-Lock Timeout**: Automatic vault lock when idle or when session locks.
+
+---
+
+### ⚙️ Milestone 2: Folder Automation Watchers & Webhooks
+- **Real-Time Directory Watchers**: Inotify / notify-rs backend tracking specified directories.
+- **Rule Engine**:
+  - Automatically convert incoming images/media using ConvertX.
+  - Automatically extract downloaded `.zip`/`.tar.gz`/`.7z` files.
+  - Automatically trigger two-way sync or backup to remote S3/SMB/SFTP shares.
+  - Execute custom user shell scripts or webhooks upon file creation/modification.
+
+---
+
+### 🔔 Milestone 3: Global System Tray & Desktop Integration
+- **System Tray Icon**: Minimize to tray with quick status, active background transfer count, and 1-click toggle.
+- **Global Summon Hotkey**: Summon CommanderDog anywhere on your system via configurable global shortcut (<kbd>Super+C</kbd> or <kbd>Ctrl+Alt+Space</kbd>).
+- **Native OS Drag-and-Drop**: Drag files directly between CommanderDog and native desktop file managers (Dolphin, Nautilus, Thunar, Windows Explorer, macOS Finder).
+
+---
+
+### 🌐 Milestone 4: Enterprise OIDC SSO & Collaborative Office (WOPI)
+- **OpenID Connect (OIDC)**: Seamless login via Authentik, Authelia, Keycloak, Okta, and Google Workspace alongside Linux PAM.
+- **Collaborative Office (WOPI)**: In-browser live editing for `.docx`, `.xlsx`, `.pptx`, `.odt`, `.ods` via ONLYOFFICE and Collabora Online integration.
+
+---
+
+## 📋 3. Release Version Matrix
+
+| Version | Milestone Focus | Status |
 | :--- | :--- | :--- |
-| **Phase 1** | **`v0.2.14`** *(Completed)* | In-Pane Docking (EditorDog, Terminal, Scaled Calculator, Tasks, Git), Foldable Dual-Pane $\ge 601\text{px}$, Mobile Touch Menus. |
-| **Phase 2** | **`v0.3.0`** *(Next)* | Tauri 2.0 Native Desktop Application, CachyOS / Arch Linux AUR packages (`commanderdog`, `commanderdog-bin`). |
-| **Phase 3** | **`v0.3.5`** | Transparent Encrypted Vaults (AES-256-GCM / Argon2id in-memory decryption). |
-| **Phase 4** | **`v0.4.0`** | Folder Automation Watchers & Webhook trigger rules. |
-| **Phase 5** | **`v0.5.0`** | Enterprise OIDC SSO, Collaborative ONLYOFFICE & Collabora WOPI integration. |
-
-
-
+| **`v0.3.0`** | In-Pane Tool Docking, ConvertX, Dual-Pane Editor | **Released** |
+| **`v0.3.5`** | Wayland Native Windowing, GDK Error 71 Fix, AUR Automated Sync | **Released** |
+| **`v0.3.6`** | XDG Fast-Path Config, External TOML Themes, Web Theme Creator, Tiling WM Frameless | **Released** |
+| **`v0.4.0`** | Multi-Part File Splitter & Combiner, Integrated Git Client, Auto-$HOME Startup | **Released** |
+| **`v0.4.1`** | **Configurable Storage Roots, Filesystem Sandboxing, Per-User Root RBAC, Multi-Arch Alpine/Debian GHCR** | **Released (Current)** |
+| **`v0.4.5`** | **Transparent Encrypted Vaults (AES-256-GCM)** & In-Memory Decryption | *Next Up* |
+| **`v0.5.0`** | **Folder Automation Watchers & Webhook Rules** | *Planned* |
+| **`v0.6.0`** | **System Tray, Global Summon Hotkey, Enterprise OIDC SSO & ONLYOFFICE WOPI** | *Planned* |

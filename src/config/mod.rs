@@ -10,6 +10,8 @@ pub struct AppConfig {
     #[serde(default)]
     pub auth: AuthConfig,
     #[serde(default)]
+    pub storage: StorageConfig,
+    #[serde(default)]
     pub themes: ThemeConfig,
     #[serde(default)]
     pub paranoid: ParanoidConfig,
@@ -30,6 +32,7 @@ impl Default for AppConfig {
         Self {
             server: ServerConfig::default(),
             auth: AuthConfig::default(),
+            storage: StorageConfig::default(),
             themes: ThemeConfig::default(),
             paranoid: ParanoidConfig::default(),
             ui: UiConfig::default(),
@@ -119,6 +122,68 @@ fn default_pam_service() -> String { "login".to_string() }
 fn default_false() -> bool { false }
 fn default_admin_username() -> String { "admin".to_string() }
 fn default_admin_password() -> String { "commanderdog".to_string() }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StorageConfig {
+    #[serde(default = "default_true")]
+    pub allow_entire_system: bool,
+    #[serde(default = "default_user_home_template")]
+    pub default_user_home_template: String,
+    #[serde(default = "default_storage_roots")]
+    pub roots: Vec<StorageRoot>,
+}
+
+impl Default for StorageConfig {
+    fn default() -> Self {
+        Self {
+            allow_entire_system: true,
+            default_user_home_template: default_user_home_template(),
+            roots: default_storage_roots(),
+        }
+    }
+}
+
+fn default_user_home_template() -> String {
+    if Path::new("/data").exists() {
+        "/data/users/{username}".to_string()
+    } else {
+        "/home/{username}".to_string()
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct StorageRoot {
+    pub id: String,
+    pub name: String,
+    pub path: String,
+    #[serde(default)]
+    pub read_only: bool,
+    #[serde(default)]
+    pub allowed_roles: Vec<String>,
+}
+
+fn default_storage_roots() -> Vec<StorageRoot> {
+    let mut list = Vec::new();
+    if Path::new("/data").exists() {
+        list.push(StorageRoot {
+            id: "data".to_string(),
+            name: "Application Data".to_string(),
+            path: "/data".to_string(),
+            read_only: false,
+            allowed_roles: vec![],
+        });
+    }
+    if Path::new("/mnt").exists() {
+        list.push(StorageRoot {
+            id: "mnt".to_string(),
+            name: "Mounts Storage".to_string(),
+            path: "/mnt".to_string(),
+            read_only: false,
+            allowed_roles: vec![],
+        });
+    }
+    list
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ThemeConfig {
@@ -727,5 +792,35 @@ mod tests {
         assert_eq!(config.ui.show_global_refresh, false);
         assert_eq!(config.desktop.global_summon_hotkey, "Super+C");
         assert_eq!(config.themes.default_theme, "catppuccin-mocha");
+    }
+
+    #[test]
+    fn test_storage_config_parsing() {
+        let sample_toml = r##"
+            [storage]
+            allow_entire_system = false
+            default_user_home_template = "/users/{username}"
+
+            [[storage.roots]]
+            id = "vault"
+            name = "Secure Vault"
+            path = "/mnt/vault"
+            read_only = true
+            allowed_roles = ["admin"]
+
+            [[storage.roots]]
+            id = "share"
+            name = "Public Share"
+            path = "/mnt/share"
+            read_only = false
+        "##;
+
+        let config: AppConfig = toml::from_str(sample_toml).unwrap();
+        assert_eq!(config.storage.allow_entire_system, false);
+        assert_eq!(config.storage.default_user_home_template, "/users/{username}");
+        assert_eq!(config.storage.roots.len(), 2);
+        assert_eq!(config.storage.roots[0].id, "vault");
+        assert_eq!(config.storage.roots[0].read_only, true);
+        assert_eq!(config.storage.roots[1].name, "Public Share");
     }
 }

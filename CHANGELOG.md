@@ -1,138 +1,112 @@
-# 📋 Changelog — CommanderDog
+# 📜 Changelog
 
-All notable changes to CommanderDog are documented in this file.
+All notable changes to **CommanderDog** will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
-## [v0.4.1] — 2026-08-28
+## [0.4.1] - 2026-08-28
 
-### Fixed
-- **🖱️ GDK Wayland Mouse Pointer Log Silencing (Structured GLib Logging)**:
-  - Fixed GDK cursor log spam under Wayland/Hyprland by hooking modern GLib structured logging (`g_log_set_writer_func`).
-  - Added smart XCursor theme resolution: auto-detects valid system cursor themes with existing `cursors/` directories, preventing invalid hyprcursor theme mismatches in GDK.
-- **🚪 Standalone Desktop Exit Button Rendering**:
-  - Fixed standalone desktop mode Exit button reactivity so the header profile dropdown reliably swaps "Log Out" for "Exit" (`power` icon) on startup and config load.
+### 🛡️ Added — Configurable Storage Roots & Sandboxed User RBAC
+- **Configurable Storage Roots (`[[storage.roots]]`)**:
+  - Define any number of storage roots in `config.toml` (e.g. Mass Storage `/mnt/storage`, Application Data `/data`, Read-Only Backups `/mnt/backups`).
+  - Each root supports `id`, `name`, `path`, `read_only: bool`, and `allowed_roles`.
+- **System-Wide Sandboxing Switch (`allow_entire_system = false`)**:
+  - Prevents CommanderDog from accessing arbitrary host files outside allowed storage roots and personal user homes.
+  - When disabled, non-admin users and sandboxed accounts cannot traverse to `/etc`, `/sys`, or other unauthorized host paths.
+- **Unified Path Validation Engine (`validate_path_access`)**:
+  - Enforces path normalization (resolving `..`, `.`, traversal attacks) across all filesystem endpoints: listing, read, write, upload, download, move, copy, deltacopy, chmod, chown, delete, archive, diff, sync, and disk usage.
+- **Per-User Allowed Roots RBAC (`allowed_roots`)**:
+  - User accounts can be assigned specific allowed roots (e.g. `["storage", "data"]`) or `["*"]` for all roots.
+  - Automatic SQLite migration: `ALTER TABLE users ADD COLUMN allowed_roots TEXT DEFAULT '["*"]'`.
+- **Dynamic Home Directory Resolution**:
+  - Linux PAM users dynamically resolve authentic `$HOME` from `/etc/passwd` (e.g. `/home/bolt`).
+  - Virtual/Database users use configured `home_dir` with template fallback (`default_user_home_template = "/home/{username}"`).
+- **Admin UI & Favorites Integration**:
+  - Admin User Management table features interactive **Allowed Storage Roots** checkboxes alongside Protocol Services.
+  - Pane **⭐ Quick Favorites** dropdown dynamically loads and renders authorized storage roots from `GET /api/storage/roots`.
 
----
-
-## [v0.4.0] — 2026-08-28
-
-### Added
-- **⚡ Unified Fast-Path Configuration (`config.toml`)**:
-  - Replaced legacy multi-file `conf.d/` directory fragmentation with a single, sub-millisecond fast-path master `config.toml`.
-  - Scans `~/.config/commanderdog/config.toml` (or `/etc/commanderdog/config.toml`) in < 0.2ms.
-  - External themes remain modular under `~/.config/commanderdog/themes/*.toml`.
-- **📜 Master `config.toml` Admin Panel Control Hub**:
-  - Full in-browser TOML editor under Admin Control Panel.
-  - Live pre-save syntax validation against `AppConfig` to prevent saving corrupt configurations.
-  - Hot-reload server configuration into memory (`POST /api/system/reload-config`).
-  - Clean server process restart (`POST /api/system/restart`).
-- **🌐 Standardized Network Defaults**:
-  - Changed default bind host to `0.0.0.0` (all interfaces) and standard port to `3140`.
-- **🚪 Standalone Desktop Exit Button**:
-  - In standalone desktop mode, the user profile button switches dynamically to an **Exit** button (`power` icon) calling `/api/system/exit` for clean process shutdown.
-- **🖱️ Complete GDK Wayland Mouse Pointer Log Silencer**:
-  - Implemented dynamic C-FFI GLib log filtering (`g_log_set_handler` / `g_log_set_default_handler`) to suppress GDK cursor loading warnings on Wayland/Hyprland.
-- **🔄 Toggleable Global Header Refresh**:
-  - Global "Refresh All" header button is now hidden by default for a clean, minimal header and can be toggled on/off in Settings (<kbd>F10</kbd>).
+### 🐳 Added — Multi-Arch Alpine & Debian Containers (GHCR)
+- **Multi-Arch Docker Images (`linux/amd64`, `linux/arm64`)**:
+  - `ghcr.io/woofson/commanderdog:alpine`: Ultra-lightweight static musl container (~18 MB).
+  - `ghcr.io/woofson/commanderdog:latest` & `:bookworm`: Debian 12 Bookworm slim container (~35 MB).
+- **Automated CI/CD Publishing**: GitHub Actions workflow (`.github/workflows/docker-publish.yml`) with automated QEMU multi-arch cross-compilation and GHCR publishing.
 
 ---
 
-## [v0.3.6] — 2026-08-28
+## [0.4.0] - 2026-08-28
 
-### Added
-- **🎨 User Configuration & XDG Hierarchy**:
-  - Automatically loads and merges `~/.config/commanderdog/config.toml` and `~/.config/commanderdog/conf.d/*.toml` with highest precedence over system defaults.
-  - Added support for defining active `default_theme` directly in `config.toml`.
-- **📁 External Theme Engine (`~/.config/commanderdog/themes/`)**:
-  - Drop any `.toml` file into `~/.config/commanderdog/themes/` (or `/etc/commanderdog/themes/`) to automatically load custom color palettes.
-  - Supports single flat theme files (`id`, `name`, `bg_dark`, `accent`, etc.) and multi-theme array files (`[[themes]]`).
-- **✨ In-Browser Custom Theme Creator**:
-  - Web UI theme creator under **Settings (<kbd>F10</kbd>) $\rightarrow$ Themes & Palette**.
-  - Interactive color pickers for background, panel, and accent colors.
-  - **Export to TOML**: 1-click download of ready-to-use `.toml` theme files.
-  - Client-side custom theme persistence in browser `localStorage`.
-- **🪟 Toggleable Native Window Decorations (Hyprland / Tiling WMs)**:
-  - Added CLI flags `--no-decorations` and `--frameless` to launch clean borderless windows without titlebars.
-  - Added `[ui] window_decorations = false` in `conf.d/50-ui.toml` / `config.toml`.
-  - Added in-app toggle in Settings UI.
-- **🖼️ Interactive Theme Swatch Cards**:
-  - Visual theme cards in Settings showing color dots and active outline ring.
-  - Dynamic registration of all external and custom themes into Spotlight search (<kbd>Ctrl+K</kbd>).
+### 🪓 Added — File Splitter, Git Client & User Home Startup
+- **Multi-Part File Splitter & Combiner**:
+  - Split large archives into sized chunks (`.001`, `.002`, ...) with `.sha256` integrity manifest generation.
+  - 1-Click synchronous file combiner with automated SHA-256 checksum verification.
+- **Integrated Git Client**:
+  - Real-time Git status indicator for repository directories.
+  - Side-by-side git diff viewer with staged vs unstaged file tracking.
+  - Commit composer, Git log history, and branch push/pull operations.
+- **Universal Tilde Expansion & User `$HOME` Startup**:
+  - Panes automatically launch in `/home/$USER` on session start.
+  - Universal path expansion for `~` and `~/...` across all directory and API handlers.
 
 ---
 
-## [v0.3.5] — 2026-08-28
+## [0.3.6] - 2026-08-28
 
-### Fixed
-- **Wayland / Hyprland DMA-BUF Protocol Crash (GDK Error 71)**:
-  - Automatically sets `WEBKIT_DISABLE_DMABUF_RENDERER=1` and `__NV_DISABLE_EXPLICIT_SYNC=1` on Linux Wayland environments.
-  - Eliminates Wayland `wl_surface` protocol crashes and allows smooth native rendering under Hyprland, Sway, and GNOME Wayland.
-
----
-
-## [v0.3.4] — 2026-08-28
-
-### Fixed
-- **Cross-Platform Native Window Handle Resolution**:
-  - Fixed `UnsupportedWindowHandle` error on Linux Wayland compositors by binding WebKitGTK directly to the GTK widget hierarchy via `build_gtk()`.
-  - Retained direct raw window handles (`build(&window)`) for Windows (WebView2) and macOS (WKWebView).
+### 🎨 Added — XDG Configuration, External Themes & Custom Palette Builder
+- **Unified Fast-Path XDG Configuration**:
+  - Sub-millisecond single-pass configuration loading from `~/.config/commanderdog/config.toml` (and `/etc/commanderdog/config.toml`).
+- **External TOML Themes Discovery**:
+  - Automatically loads custom `.toml` themes dropped into `~/.config/commanderdog/themes/` or `/etc/commanderdog/themes/`.
+  - Supports single-theme flat files and multi-theme array files (`[[themes]]`).
+- **In-Browser Web Custom Theme Creator & Exporter**:
+  - Interactive theme designer in Settings (<kbd>F10</kbd>) with live color pickers and 1-click TOML download.
+- **Tiling WM Borderless Mode**:
+  - CLI flags `--no-decorations` / `--frameless` and configuration setting `window_decorations = false` for seamless Hyprland/Sway integration.
 
 ---
 
-## [v0.3.3] — 2026-08-28
+## [0.3.5] - 2026-08-26
 
-### Changed
-- **Release Automation**:
-  - Added `scripts/release.sh` for one-command cleanup, version bump, package generation, git release, and AUR publishing.
-
----
-
-## [v0.3.2] — 2026-08-28
-
-### Added
-- **Standalone Native OS Window Mode (`commanderdog --standalone`)**:
-  - Runs CommanderDog in its own standalone native OS window (WebKitGTK on Linux, WebView2 on Windows, WKWebView on macOS) without launching external browser tabs.
-  - Automatically authenticates as the local OS user without login prompts.
+### 🖥️ Added — Native Standalone Window & Wayland Explicit Sync
+- **Standalone Native Desktop App (`commanderdog --standalone`)**:
+  - Runs with native WebKitGTK / WebView2 engine without Electron overhead (~25–35 MB RAM footprint).
+- **Wayland / Hyprland GDK Error 71 Resolution**:
+  - Explicit synchronization handling to eliminate `wl_surface` protocol crashes on Wayland compositors.
+- **Automated AUR Packaging**:
+  - Arch Linux AUR packages: `commanderdog` (source) and `commanderdog-bin` (pre-compiled binary).
 
 ---
 
-## [v0.3.1] — 2026-08-28
+## [0.3.0] - 2026-08-24
 
-### Added
-- **Auto-Start in User `$HOME`**:
-  - Automatically initializes all directory panes in `/home/$USER` instead of the root directory `/`.
-  - Added universal tilde expansion (`~` and `~/...`) in VFS backend and address bars.
-
----
-
-## [v0.3.0] — 2026-08-28
-
-### Added
-- **🪟 In-Pane Tool Docking (`⇲ Dock / ⇱ Float`)**:
+### 🪟 Added — In-Pane Tool Docking & Power Tools
+- **In-Pane Docking Engine (`⇲ Dock / ⇱ Float`)**:
   - Dock EditorDog, Terminal Console, Byte Calculator, Background Transfers, and Git Client directly into any active directory pane.
-- **🌲 Integrated Git Client & Version Control Engine**:
-  - Live repository status badges, side-by-side git diff viewer, visual staging, commit composer, and Push/Pull/Log tools.
-- **📦 Multi-Format Packaging**:
-  - Arch Linux AUR packages: `commanderdog` (source) and `commanderdog-bin` (binary).
-  - Alpine Linux `.apk` packaging in `scripts/build-packages.sh`.
-- **🧩 Multi-Part File Splitter & Combiner**:
-  - Split large archives into sized chunks with `.sha256` checksum manifests and 1-click combiner.
+- **Dual-Pane Text & Markdown Editor**:
+  - Syntax highlighting for 12+ programming languages, Find & Replace engine, and live Markdown preview with Mermaid.js diagram support.
+- **ConvertX Universal File Converter**:
+  - In-browser conversion for images (WebP, PNG, JPG, AVIF), audio (MP3, WAV, FLAC, OGG), video (MP4, WebM, MKV, GIF), and documents (PDF, TXT, HTML).
 
 ---
 
-## [v0.2.0] — [v0.2.14] — 2026-08-23 — 2026-08-28
+## [0.2.0] - 2026-08-22
 
-### Added
-- Flat / Branch View (<kbd>Ctrl+B</kbd>) across recursive trees.
-- Live Content Grep with **"Feed to Pane"** virtual lists.
-- Two-Way Directory Synchronizer with smart compare.
-- Disk Usage & Treemap Storage Analyzer.
-- Proton Drive E2EE integration, AWS S3/MinIO, SMB/CIFS, and NFS mounts.
-- Visual POSIX $3\times 3$ `chmod`/`chown` matrix editor.
-- ConvertX media & document format converter.
-- 11 built-in themes (Amber, Gruvbox, Catppuccin Mocha/Latte, Tokyo Night, Monokai, Nord, Dracula, etc.).
-- Linux PAM authentication & SQLite session backend.
+### ⚡ Added — DeltaCopy Engine & Cloud Storage Integrations
+- **DeltaCopy / RoboCopy / TeraCopy Engine**:
+  - Delta-skip unchanged files, post-transfer cryptographic SHA-256 verification, and exponential backoff auto-retries.
+- **Multi-Cloud & Remote Protocols**:
+  - Samba/CIFS (`smb://`), NFSv3/v4 (`nfs://`), AWS S3/MinIO/R2, SFTP/SSH, WebDAV, Proton Drive E2EE, and Syncthing dashboard.
+- **Visual POSIX Permissions ($3\times 3$ Matrix)**:
+  - Interactive `chmod`/`chown` matrix with real-time octal calculation and system user/group synchronization.
+
+---
+
+## [0.1.0] - 2026-08-20
+
+### 🚀 Initial Release
+- Multi-Tab orthodox 1-to-4 toggleable file panes (`Alt+1`–`4`).
+- Orthodox keyboard shortcuts (`Tab`, `F1`–`F10`, `Insert`, `Space`).
+- Slide-up native Web Terminal (PTY over WebSockets).
+- Real-time background task manager and floating progress indicator.

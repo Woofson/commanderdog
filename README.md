@@ -193,9 +193,10 @@ default_theme = "amber-charcoal" # Active theme ID or custom theme from themes/
 
 ---
 
-## 🗺️ Roadmap
+## 🗺️ Roadmap & Changelog
 
-Check out the full [**CommanderDog Product & Architecture Roadmap**](ROADMAP.md) covering upcoming features (Link Sharing, Foldable/Tablet Dual-Pane UX, In-Browser Archive Unpacker, Visual Permissions Editor, EXIF GPS Maps, and OIDC SSO).
+- Check out the full [**CommanderDog Product & Architecture Roadmap**](ROADMAP.md) covering upcoming milestones (Transparent Encrypted Vaults, Folder Automation Watchers, Global System Tray, and Enterprise OIDC SSO).
+- See detailed release history in [**CHANGELOG.md**](CHANGELOG.md).
 
 ---
 
