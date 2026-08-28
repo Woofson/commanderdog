@@ -25,9 +25,20 @@ jobs:
         run: |
           apt-get update
           apt-get install -y pkg-config libssl-dev libssh2-1-dev libsqlite3-dev libpam0g-dev zlib1g-dev libbz2-dev cmake clang build-essential
+          mkdir -p target/libs
+          for dir in /lib/x86_64-linux-gnu /usr/lib/x86_64-linux-gnu /lib /usr/lib; do
+            if [ -f "$dir/libpam_misc.so.0" ]; then
+              ln -sf "$dir/libpam_misc.so.0" target/libs/libpam_misc.so
+            fi
+            if [ -f "$dir/libpam.so.0" ]; then
+              ln -sf "$dir/libpam.so.0" target/libs/libpam.so
+            fi
+          done
 
       - name: Compile CommanderDog on Debian 12 Bookworm
         run: |
+          export LIBRARY_PATH="$PWD/target/libs:${LIBRARY_PATH:-}"
+          export RUSTFLAGS="-L native=$PWD/target/libs"
           cargo build --release --verbose --features pam
 
       - name: Upload compiled Debian Bookworm binary
