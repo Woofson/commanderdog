@@ -12,7 +12,6 @@ RUN apk add --no-cache \
     libssh2-dev \
     libssh2-static \
     sqlite-dev \
-    sqlite-static \
     zlib-dev \
     zlib-static \
     bzip2-dev \
