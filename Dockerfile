@@ -15,7 +15,10 @@ RUN apt-get update && apt-get install -y \
     cmake \
     clang \
     build-essential \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /usr/lib/x86_64-linux-gnu \
+    && (ln -sf /lib/x86_64-linux-gnu/libpam.so.0 /usr/lib/x86_64-linux-gnu/libpam.so || true) \
+    && (ln -sf /lib/x86_64-linux-gnu/libpam_misc.so.0 /usr/lib/x86_64-linux-gnu/libpam_misc.so || true)
 
 COPY Cargo.toml Cargo.lock build.rs config.toml ./
 COPY src ./src
