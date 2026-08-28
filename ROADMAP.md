@@ -42,21 +42,35 @@ This roadmap outlines planned capabilities, UX enhancements, and architectural m
 - **Non-Blocking Side-by-Side Workflows**: File browsing, navigation, and file actions (<kbd>F5</kbd> Copy, <kbd>F6</kbd> Move, Drag-and-Drop, Delete) continue unimpeded on one pane while viewing/editing in the other pane, eliminating modal locking.
 - **1-Click Undock / Float**: Instantly pop docked panels back out into floating draggable windows (`⇱ Float`).
 
-### 🧩 3. Multi-Part File Splitter & Combiner
+### 🌲 3. Integrated Git Client & Version Control Engine
+- **Git Status & Branch Badges**: Real-time git status indicators for tracked directories (branch name, ahead/behind commits, modified/staged/untracked counters).
+- **Visual Staging, Diffs & Commits**: 1-click stage/unstage files, side-by-side git diff inspection, commit message composer, and 1-click Push / Pull / Fetch.
+- **Git Log Graph & Blame**: Visual commit history graph, tag browser, and per-line file blame viewer.
+
+### 🌐 4. Web Bookmarks & External URI Manager
+- **Universal URL / URI Bookmarking**: Save web links (`https://...`), cloud consoles, Syncthing dashboards, and custom schemes (`sftp://`, `smb://`, `ssh://`).
+- **Flexible Open Targets**: Configure each bookmark to open in a new browser tab, external window, or navigate in-app.
+- **Bookmark Categories & Spotlight Integration**: Organize by tags/categories and search via <kbd>Ctrl+K</kbd> Spotlight quick-switcher.
+
+### 🏷️ 5. Custom Pane Renaming & Workspace Aliases
+- **Interactive Tab & Pane Renaming**: Double-click or right-click any pane header/tab to set custom friendly labels (e.g. *"Source*", *"Backup Drive*", *"Production Server"*, *"Scratchpad"*).
+- **Workspace Preset Persistence**: Persist custom pane names across sessions and layout presets.
+
+### 🧩 6. Multi-Part File Splitter & Combiner
 - **Split Large Files**: Split multi-gigabyte files into fixed-size chunks (e.g. `100MB`, `1GB`, `.001`, `.002`).
 - **Join & Verify**: Concatenate split parts back into the original file with CRC32/SHA-256 integrity verification.
 
-### 🔒 4. Transparent Encrypted Vaults (AES-256)
+### 🔒 7. Transparent Encrypted Vaults (AES-256)
 - **Zero-Knowledge Encrypted Folders**: Create password-protected encrypted vault directories.
 - **On-the-Fly Decryption**: Files decrypt transparently in memory inside CommanderDog without exposing unencrypted files on disk.
 
-### ⚙️ 5. Webhook & Automation Triggers
+### ⚙️ 8. Webhook & Automation Triggers
 - **Folder Watchers**: Trigger automated actions when files arrive in a folder (e.g. auto-convert with ConvertX, decompress downloads, or run custom scripts).
 
-### 🌐 6. OpenID Connect (OIDC) & SSO Integration
+### 🌐 9. OpenID Connect (OIDC) & SSO Integration
 - **Enterprise SSO**: Support OpenID Connect (Authelia, Authentik, Keycloak, Okta, Google Workspace) alongside existing Linux PAM and SQLite auth engines.
 
-### 📄 7. Collaborative Office Editing (ONLYOFFICE & Collabora WOPI)
+### 📄 10. Collaborative Office Editing (ONLYOFFICE & Collabora WOPI)
 - **WOPI / ONLYOFFICE Integration**: Live collaborative editing for `.docx`, `.xlsx`, `.pptx`.
 
 ---
@@ -67,8 +81,8 @@ This roadmap outlines planned capabilities, UX enhancements, and architectural m
 graph TD
     A["v0.2.13 (Current Release)"] --> B["Testing & FAT Verification Phase"]
     B --> C["Tauri 2.0 Native Desktop App & Dockable Tool Panels"]
-    C --> D["Multi-Part File Splitter & Combiner"]
-    D --> E["Encrypted Vaults (AES-256) & Webhook Automations"]
+    C --> D["Git Client Engine & Web Bookmarks Manager"]
+    D --> E["Multi-Part File Splitter & Encrypted Vaults"]
     E --> F["Enterprise OIDC SSO & Collaborative Office (WOPI)"]
 ```
 

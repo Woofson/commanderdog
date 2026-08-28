@@ -1868,12 +1868,37 @@ body {
 }
 
 .pane-favorites-wrapper,
-.pane-color-wrapper {
+.pane-color-wrapper,
+.pane-title-badge-wrapper {
   display: inline-flex;
   align-items: center;
   height: 26px;
   position: relative;
   flex-shrink: 0;
+}
+
+.pane-title-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 3px 8px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+  user-select: none;
+  box-sizing: border-box;
+}
+
+.pane-title-badge:hover {
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--accent);
+  border-color: rgba(245, 158, 11, 0.4);
 }
 
 .pane-favorites-wrapper .btn-icon,
@@ -4914,16 +4939,20 @@ body {
   border-top: 1px solid var(--border);
 }
 
-/* Toast Notifications */
+/* Toast Notifications (Top Center) */
 .toast-container {
   position: fixed;
   top: 20px;
-  right: 20px;
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 2200;
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 8px;
   pointer-events: none;
+  width: max-content;
+  max-width: calc(100vw - 32px);
 }
 
 .toast {

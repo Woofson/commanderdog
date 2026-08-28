@@ -62,7 +62,51 @@ class PaneState {
     this.isBranchView = false;
     this.isVirtual = false;
     this.virtualTitle = '';
+    this.customName = null;
   }
+}
+
+function loadPaneCustomNames() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('cd_pane_custom_names') || '[]');
+    if (Array.isArray(saved)) {
+      saved.forEach((name, i) => {
+        if (App.panes[i]) App.panes[i].customName = name;
+      });
+    }
+  } catch (e) {}
+}
+
+function savePaneCustomNames() {
+  const names = App.panes.map(p => p.customName || null);
+  localStorage.setItem('cd_pane_custom_names', JSON.stringify(names));
+}
+
+function promptRenamePane(index) {
+  const pane = App.panes[index];
+  if (!pane) return;
+  const currentName = pane.customName || `Pane ${index + 1}`;
+  const newName = prompt(`Enter custom name for Pane ${index + 1} (leave empty to reset):`, currentName === `Pane ${index + 1}` ? '' : currentName);
+  if (newName !== null) {
+    pane.customName = newName.trim() || null;
+    savePaneCustomNames();
+    updatePaneTitles();
+    showToast(pane.customName ? `Pane ${index + 1} renamed to "${pane.customName}"` : `Pane ${index + 1} name reset`, 'info');
+  }
+}
+
+function updatePaneTitles() {
+  App.panes.forEach((pane, pIdx) => {
+    const displayName = pane.customName || `Pane ${pIdx + 1}`;
+    document.querySelectorAll(`.mobile-pane-tab[data-pane-idx="${pIdx}"]`).forEach(tab => {
+      tab.innerHTML = `<img src="assets/folder-closed.png" style="width:13px; height:13px; vertical-align:middle; margin-right:4px;"> ${escapeHtml(displayName)}`;
+      tab.title = `${escapeHtml(displayName)} (Double-click or right-click to rename)`;
+    });
+    const titleBadge = document.getElementById(`pane-title-badge-${pIdx}`);
+    if (titleBadge) {
+      titleBadge.textContent = displayName;
+    }
+  });
 }
 
 // Initialization
@@ -85,6 +129,7 @@ function initPanes() {
   for (let i = 0; i < defaultCount; i++) {
     App.panes.push(new PaneState(i, '/'));
   }
+  loadPaneCustomNames();
 }
 
 async function checkAuthAndLoad() {
@@ -191,15 +236,18 @@ function createPaneElement(pane, index) {
           const isCustom = color.startsWith('#') || color.startsWith('rgb');
           const colorClass = (!isCustom && color !== 'default') ? `pane-tab-color-${color}` : (isCustom ? 'pane-tab-color-custom' : '');
           const customStyle = isCustom ? `style="border-color:${color}; color:${color}; --pane-custom-border:${color};"` : '';
+          const tabName = App.panes[pIdx]?.customName || `Pane ${pIdx + 1}`;
           return `
-            <button class="mobile-pane-tab ${colorClass} ${pIdx === index ? 'active' : ''}" ${customStyle} data-pane-idx="${pIdx}" onclick="event.stopPropagation(); setActivePane(${pIdx})">
-              <img src="assets/folder-closed.png" style="width:13px; height:13px; vertical-align:middle; margin-right:4px;"> Pane ${pIdx + 1}
+            <button class="mobile-pane-tab ${colorClass} ${pIdx === index ? 'active' : ''}" ${customStyle} data-pane-idx="${pIdx}" onclick="event.stopPropagation(); setActivePane(${pIdx})" ondblclick="event.stopPropagation(); promptRenamePane(${pIdx})" oncontextmenu="event.preventDefault(); event.stopPropagation(); promptRenamePane(${pIdx})" title="${escapeHtml(tabName)} (Double-click or right-click to rename)">
+              <img src="assets/folder-closed.png" style="width:13px; height:13px; vertical-align:middle; margin-right:4px;"> ${escapeHtml(tabName)}
             </button>
           `;
         }).join('')}
       </div>
     `;
   }
+
+  const paneTitle = pane.customName || `Pane ${index + 1}`;
 
   el.innerHTML = `
     ${mobileTabs}
@@ -225,11 +273,16 @@ function createPaneElement(pane, index) {
         </button>
       </div>
 
-      <!-- Pane Border Identification Color Selector (Desktop) -->
+      <!-- Pane Border Identification Color Selector & Label (Desktop) -->
       <div class="pane-color-wrapper desktop-header-tool">
         <button class="btn btn-icon pane-idx-badge" id="pane-idx-badge-${index}" onclick="event.stopPropagation(); cyclePaneColor(${index})" oncontextmenu="event.preventDefault(); event.stopPropagation(); openPaneColorPicker(event, ${index})" title="Pane ${index + 1} Identification Color (Left-click: Cycle, Right-click: Palette & Color Picker)">
           <i data-lucide="palette"></i>
         </button>
+      </div>
+
+      <!-- Pane Custom Label Badge (Desktop) -->
+      <div class="pane-title-badge-wrapper desktop-header-tool">
+        <span class="pane-title-badge" id="pane-title-badge-${index}" onclick="event.stopPropagation(); promptRenamePane(${index})" oncontextmenu="event.preventDefault(); event.stopPropagation(); promptRenamePane(${index})" title="Pane Label (Click or right-click to Rename)">${escapeHtml(paneTitle)}</span>
       </div>
 
       <!-- Foldable & Touch Cross-Pane Transfer Button (Desktop) -->
@@ -3700,6 +3753,7 @@ async function openPaneFavoritesMenu(e, paneIndex) {
 
   const protoIcons = {
     'local': 'folder',
+    'web': 'globe',
     'smb': 'share-2',
     'nfs': 'server',
     's3': 'cloud',
@@ -4309,6 +4363,12 @@ function navigateToBookmark(encodedPath, hasPassword, protocol) {
   const path = decodeURIComponent(encodedPath);
   const paneIndex = App.activePaneIndex;
 
+  if (protocol === 'web' || path.startsWith('http://') || path.startsWith('https://')) {
+    window.open(path, '_blank', 'noopener,noreferrer');
+    showToast(`🌐 Opened "${path}" in new browser tab`, 'info');
+    return;
+  }
+
   if (protocol === 'local' || protocol === 'nfs' || hasPassword || path.startsWith('/')) {
     loadPaneDirectory(paneIndex, path);
     return;
@@ -4339,7 +4399,7 @@ async function loadBookmarksList() {
         tbody.innerHTML = `
           <tr>
             <td colspan="4" style="text-align: center; color: var(--text-dim); padding: 16px;">
-              No custom bookmarks saved yet. Click "+ Add Bookmark" to bookmark local folders or network shares.
+              No custom bookmarks saved yet. Click "+ Add Bookmark" to bookmark local folders, web URLs, or network shares.
             </td>
           </tr>
         `;
@@ -4347,10 +4407,15 @@ async function loadBookmarksList() {
       }
 
       tbody.innerHTML = list.map(b => {
-        const protoBadge = `<span class="badge" style="font-size: 10px; text-transform: uppercase;">${escapeHtml(b.protocol)}</span>`;
+        const isWeb = b.protocol === 'web' || b.path.startsWith('http://') || b.path.startsWith('https://');
+        const protoBadge = isWeb 
+          ? `<span class="badge" style="font-size: 10px; background: rgba(56,189,248,0.15); color: #38bdf8; border: 1px solid rgba(56,189,248,0.3); text-transform: uppercase;">WEB URL</span>`
+          : `<span class="badge" style="font-size: 10px; text-transform: uppercase;">${escapeHtml(b.protocol)}</span>`;
         const safePath = sanitizeCredentials(b.path);
-        const passBadge = b.has_password ? `<span title="Stored with password" style="color: #22c55e; margin-left: 4px;">🔑</span>` : `<span title="Prompts on session access" style="color: var(--text-dim); margin-left: 4px;">🔒</span>`;
-        
+        const passBadge = b.has_password ? `<span title="Stored with password" style="color: #22c55e; margin-left: 4px;">🔑</span>` : (isWeb ? '' : `<span title="Prompts on session access" style="color: var(--text-dim); margin-left: 4px;">🔒</span>`);
+        const jumpLabel = isWeb ? 'Open Tab' : 'Jump';
+        const jumpIcon = isWeb ? 'external-link' : 'folder';
+
         return `
           <tr>
             <td><strong>${escapeHtml(b.name)}</strong> ${passBadge}</td>
@@ -4358,8 +4423,8 @@ async function loadBookmarksList() {
             <td><code>${escapeHtml(safePath)}</code></td>
             <td>
               <div style="display: flex; gap: 4px;">
-                <button class="btn btn-sm" onclick="navigateToBookmark('${encodeURIComponent(b.path)}', ${b.has_password}, '${b.protocol}'); closeModal('settings-modal');" title="Jump to destination">
-                  <i data-lucide="external-link" style="width: 12px; height: 12px;"></i> Jump
+                <button class="btn btn-sm ${isWeb ? 'btn-accent' : ''}" onclick="navigateToBookmark('${encodeURIComponent(b.path)}', ${b.has_password}, '${b.protocol}'); closeModal('settings-modal');" title="${isWeb ? 'Open URL in new tab' : 'Jump to destination'}">
+                  <i data-lucide="${jumpIcon}" style="width: 12px; height: 12px;"></i> ${jumpLabel}
                 </button>
                 <button class="btn btn-sm btn-icon btn-danger" onclick="deleteBookmark(${b.id})" title="Delete Bookmark">
                   <i data-lucide="trash-2" style="width: 12px; height: 12px;"></i>
@@ -4390,7 +4455,8 @@ function addNewBookmark(prefillPath = null, prefillName = null) {
   if (pathInput) pathInput.value = sanitizeCredentials(rawPath);
 
   let proto = 'local';
-  if (rawPath.startsWith('smb://')) proto = 'smb';
+  if (rawPath.startsWith('http://') || rawPath.startsWith('https://')) proto = 'web';
+  else if (rawPath.startsWith('smb://')) proto = 'smb';
   else if (rawPath.startsWith('sftp://')) proto = 'sftp';
   else if (rawPath.startsWith('nfs://')) proto = 'nfs';
   else if (rawPath.startsWith('webdav://')) proto = 'webdav';
@@ -4418,6 +4484,7 @@ function addNewBookmark(prefillPath = null, prefillName = null) {
 function onBookmarkProtocolChange() {
   const proto = document.getElementById('bm-select-protocol')?.value;
   const passGroup = document.getElementById('bm-password-group');
+  const webGroup = document.getElementById('bm-web-target-group');
   const pathLabel = document.getElementById('bm-label-path');
   const pathInput = document.getElementById('bm-input-path');
 
@@ -4425,8 +4492,15 @@ function onBookmarkProtocolChange() {
     passGroup.style.display = (proto === 'smb' || proto === 'sftp' || proto === 'webdav' || proto === 's3') ? 'block' : 'none';
   }
 
+  if (webGroup) {
+    webGroup.style.display = (proto === 'web') ? 'block' : 'none';
+  }
+
   if (pathLabel && pathInput) {
-    if (proto === 'smb') {
+    if (proto === 'web') {
+      pathLabel.textContent = 'Web URL / Link:';
+      if (!pathInput.value || pathInput.value.startsWith('/')) pathInput.placeholder = 'https://github.com/Woofson/commanderdog';
+    } else if (proto === 'smb') {
       pathLabel.textContent = 'SMB Share URI:';
       if (!pathInput.value.startsWith('smb://')) pathInput.placeholder = 'smb://192.168.1.100/share';
     } else if (proto === 'sftp') {
@@ -4569,11 +4643,25 @@ async function submitUnlockSession() {
 
       showToast('Session unlocked. Welcome back!', 'success');
     } else {
-      if (errMsg) {
-        errMsg.textContent = 'Invalid password. Please try again.';
-        errMsg.style.display = 'block';
+      const errText = await resp.text();
+      const isTokenExpired = errText.toLowerCase().includes('token') || 
+                             errText.toLowerCase().includes('expired') || 
+                             errText.toLowerCase().includes('unauthorized') ||
+                             (resp.status === 401 && !errText.toLowerCase().includes('password'));
+
+      if (isTokenExpired) {
+        if (errMsg) {
+          errMsg.innerHTML = `⚠️ <strong>Session has expired.</strong> Please log in again to continue.<br><button type="button" class="btn btn-sm btn-accent" style="margin-top: 8px; width: 100%; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 6px;" onclick="logout()"><i data-lucide="log-in" style="width: 14px; height: 14px;"></i> Go to Login</button>`;
+          errMsg.style.display = 'block';
+          if (window.lucide) lucide.createIcons({ root: errMsg });
+        }
+      } else {
+        if (errMsg) {
+          errMsg.textContent = 'Invalid password. Please try again.';
+          errMsg.style.display = 'block';
+        }
+        passIn?.select();
       }
-      passIn?.select();
     }
   } catch (e) {
     if (errMsg) {
@@ -4585,7 +4673,9 @@ async function submitUnlockSession() {
 
 function initInactivityTracker() {
   const updateActivity = () => {
-    lastUserActivityTime = Date.now();
+    if (!App.isLocked) {
+      lastUserActivityTime = Date.now();
+    }
   };
 
   window.addEventListener('mousemove', updateActivity, { passive: true });
@@ -4596,7 +4686,7 @@ function initInactivityTracker() {
   window.addEventListener('scroll', updateActivity, { passive: true });
 
   setInterval(() => {
-    if (!App.token || App.isLocked) return;
+    if (!App.token) return;
     const settings = App.securitySettings || {
       auto_lock_enabled: true,
       auto_lock_minutes: 15,
@@ -4607,7 +4697,8 @@ function initInactivityTracker() {
     const idleMinutes = (Date.now() - lastUserActivityTime) / (60 * 1000);
     const idleHours = idleMinutes / 60;
 
-    if (settings.auto_lock_enabled && idleMinutes >= settings.auto_lock_minutes) {
+    // 1. Auto-Lock when not yet locked
+    if (!App.isLocked && settings.auto_lock_enabled && idleMinutes >= settings.auto_lock_minutes) {
       const isTaskRunning = lastKnownTasksList && lastKnownTasksList.some(t => t.status === 'running');
       if (isTaskRunning && settings.lock_prevented_by_tasks) {
         return;
@@ -4615,10 +4706,22 @@ function initInactivityTracker() {
       lockSession();
     }
 
+    // 2. Session Timeout Expiration (even if locked)
     if (idleHours >= settings.session_timeout_hours) {
       const isTaskRunning = lastKnownTasksList && lastKnownTasksList.some(t => t.status === 'running');
       if (!isTaskRunning) {
-        logout();
+        if (App.isLocked) {
+          const errMsg = document.getElementById('unlock-error-msg');
+          const passIn = document.getElementById('unlock-password-input');
+          if (errMsg) {
+            errMsg.innerHTML = `⚠️ <strong>Session timed out due to inactivity.</strong> Please log in again.<br><button type="button" class="btn btn-sm btn-accent" style="margin-top: 8px; width: 100%; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 6px;" onclick="logout()"><i data-lucide="log-in" style="width: 14px; height: 14px;"></i> Go to Login</button>`;
+            errMsg.style.display = 'block';
+            if (window.lucide) lucide.createIcons({ root: errMsg });
+          }
+          if (passIn) passIn.disabled = true;
+        } else {
+          logout();
+        }
       }
     }
   }, 15000);
@@ -5865,6 +5968,9 @@ function openPaneToolsMenu(e, paneIndex) {
       </div>
       <div class="dropdown-item" onclick="triggerDeviceFolderUpload(${paneIndex}); document.getElementById('pane-tools-popup')?.remove();">
         <i data-lucide="folder-up" style="color: #38bdf8;"></i> Upload Folder from Device...
+      </div>
+      <div class="dropdown-item" onclick="promptRenamePane(${paneIndex}); document.getElementById('pane-tools-popup')?.remove();">
+        <i data-lucide="edit-3" style="color: var(--accent);"></i> Rename Pane Label...
       </div>
       <div class="dropdown-sep" style="height: 1px; background: var(--border); margin: 4px 0;"></div>
       

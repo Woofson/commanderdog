@@ -2812,6 +2812,7 @@
           <label>Protocol Type:</label>
           <select id="bm-select-protocol" class="pane-quick-filter" style="width: 100%; padding: 8px;" onchange="onBookmarkProtocolChange()">
             <option value="local">📁 Local Filesystem</option>
+            <option value="web">🌐 Web URL / URI (https://...)</option>
             <option value="smb">🪟 SMB / Samba Share (smb://)</option>
             <option value="sftp">🔒 SFTP / SSH (sftp://)</option>
             <option value="nfs">🐧 NFS Share (nfs://)</option>
@@ -2823,6 +2824,15 @@
         <div class="form-group">
           <label id="bm-label-path">Target Path / URI:</label>
           <input type="text" id="bm-input-path" class="pane-quick-filter" style="width: 100%; padding: 8px;" placeholder="/home/user or smb://192.168.1.100/share" />
+        </div>
+        <div class="form-group" id="bm-web-target-group" style="display: none;">
+          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 12px; font-weight: 600; color: var(--text-main);">
+            <input type="checkbox" id="bm-input-open-tab" checked style="cursor: pointer;" />
+            <span>Open in New Browser Tab (target="_blank")</span>
+          </label>
+          <div style="font-size: 11px; color: var(--text-dim); margin-top: 4px;">
+            💡 When clicked, immediately opens this web URL in a separate browser tab or window.
+          </div>
         </div>
         <div class="form-group" id="bm-password-group" style="display: none;">
           <label>Remote Password (Optional):</label>

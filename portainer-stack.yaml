@@ -1,5 +1,8 @@
 version: '3.8'
 
+# 🐕 CommanderDog — Portainer Stack Template
+# Copy and paste this directly into Portainer > Stacks > Add Stack (Web editor)
+
 services:
   commanderdog:
     image: ghcr.io/woofson/commanderdog:latest
@@ -8,18 +11,16 @@ services:
     ports:
       - "8080:8080"
     environment:
-      - TZ=UTC
+      - TZ=Europe/Oslo
       - CD_PORT=8080
       - CD_BIND=0.0.0.0
     volumes:
-      # Data & Configuration persistence
-      - ./data:/data
-      - ./conf.d:/etc/commanderdog/conf.d:ro
+      # Persistent SQLite DB and runtime state
+      - commanderdog_data:/data
       
-      # Host Storage / Shares (Mount host directories to manage)
-      - /home:/mnt/home:rw
+      # Host Storage / Shares (Adjust host mount paths to match your server)
+      - /home:/mnt/host_home:rw
       - /mnt/storage:/mnt/storage:rw
-      - /media:/mnt/media:rw
       
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8080/ || exit 1"]
@@ -30,3 +31,7 @@ services:
     
     security_opt:
       - no-new-privileges:true
+
+volumes:
+  commanderdog_data:
+    driver: local
