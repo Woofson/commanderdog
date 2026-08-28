@@ -1,5 +1,5 @@
 # Stage 1: Build CommanderDog binary
-FROM rust:1.80-slim-bullseye AS builder
+FROM rust:1.85-slim-bookworm AS builder
 
 WORKDIR /usr/src/commanderdog
 
@@ -21,7 +21,7 @@ COPY config.toml ./config.toml
 RUN cargo build --release
 
 # Stage 2: Minimal runtime image
-FROM debian:bullseye-slim
+FROM debian:bookworm-slim
 
 RUN apt-get update && apt-get install -y \
     ca-certificates \
@@ -29,7 +29,7 @@ RUN apt-get update && apt-get install -y \
     bash \
     coreutils \
     procps \
-    libssl1.1 \
+    libssl3 \
     libssh2-1 \
     libsqlite3-0 \
     libpam0g \
