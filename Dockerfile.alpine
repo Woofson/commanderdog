@@ -1,39 +1,4 @@
-# Stage 1: Build CommanderDog directly on Alpine Linux (musl)
-FROM rust:1.85-alpine3.20 AS builder
-
-WORKDIR /usr/src/commanderdog
-
-# Install Alpine native build dependencies (Alpine -dev packages include both .so and .a)
-RUN apk add --no-cache \
-    musl-dev \
-    pkgconfig \
-    openssl-dev \
-    libssh2-dev \
-    sqlite-dev \
-    zlib-dev \
-    bzip2-dev \
-    linux-headers \
-    utmps-dev \
-    perl \
-    cmake \
-    clang \
-    make \
-    gcc \
-    g++ \
-    git
-
-# Copy entire codebase and metadata
-COPY . .
-
-ENV RUSTFLAGS="-C target-feature=-crt-static"
-ENV LIBSSH2_SYS_USE_PKG_CONFIG=1
-ENV OPENSSL_NO_VENDOR=1
-ENV RUST_BACKTRACE=1
-
-# Compile release binary on Alpine
-RUN cargo build --release --verbose --no-default-features
-
-# Stage 2: Ultra-Minimal runtime Alpine image (~18 MB)
+# CommanderDog — Official Ultra-Minimal Container Image (Alpine Linux)
 FROM alpine:3.20
 
 RUN apk add --no-cache \
@@ -56,9 +21,9 @@ RUN apk add --no-cache \
 
 WORKDIR /app
 
-# Copy compiled Alpine binary and configuration
-COPY --from=builder /usr/src/commanderdog/target/release/commanderdog /usr/local/bin/commanderdog
-COPY --from=builder /usr/src/commanderdog/config.toml /etc/commanderdog/config.toml
+# Copy compiled musl binary and master config.toml
+COPY target/x86_64-unknown-linux-musl/release/commanderdog /usr/local/bin/commanderdog
+COPY config.toml /etc/commanderdog/config.toml
 
 # Setup storage and runtime directories
 RUN mkdir -p /data /mnt
