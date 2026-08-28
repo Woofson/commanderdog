@@ -3,13 +3,17 @@ FROM rust:1.85-slim-bookworm AS builder
 
 WORKDIR /usr/src/commanderdog
 
-# Install build dependencies (openssl, libssh2, sqlite, pam, pkg-config)
+# Install build dependencies (openssl, libssh2, sqlite, pam, zlib, bz2, cmake, pkg-config)
 RUN apt-get update && apt-get install -y \
     pkg-config \
     libssl-dev \
     libssh2-1-dev \
     libsqlite3-dev \
     libpam0g-dev \
+    zlib1g-dev \
+    libbz2-dev \
+    cmake \
+    clang \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
@@ -18,7 +22,8 @@ COPY src ./src
 COPY frontend ./frontend
 COPY config.toml ./config.toml
 
-RUN cargo build --release
+# Build release binary (pam feature enabled)
+RUN cargo build --release --no-default-features --features pam
 
 # Stage 2: Minimal runtime image
 FROM debian:bookworm-slim
@@ -33,6 +38,8 @@ RUN apt-get update && apt-get install -y \
     libssh2-1 \
     libsqlite3-0 \
     libpam0g \
+    zlib1g \
+    libbz2-1.0 \
     tar \
     gzip \
     bzip2 \
