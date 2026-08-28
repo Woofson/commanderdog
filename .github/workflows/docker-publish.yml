@@ -19,23 +19,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install native build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y pkg-config libssl-dev libssh2-1-dev libsqlite3-dev libpam0g-dev
-
-      - name: Set up Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Compile CommanderDog release binary
-        run: |
-          mkdir -p target/libs
-          if [ -f "/usr/lib/x86_64-linux-gnu/libpam.so.0" ]; then
-            ln -sf /usr/lib/x86_64-linux-gnu/libpam.so.0 target/libs/libpam.so
-            ln -sf /usr/lib/x86_64-linux-gnu/libpam_misc.so.0 target/libs/libpam_misc.so
-          fi
-          cargo build --release --features pam
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
