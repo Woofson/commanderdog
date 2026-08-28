@@ -17,10 +17,9 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-COPY Cargo.toml Cargo.lock ./
+COPY Cargo.toml Cargo.lock build.rs config.toml ./
 COPY src ./src
 COPY frontend ./frontend
-COPY config.toml ./config.toml
 
 # Build release binary (pam feature enabled)
 RUN cargo build --release --no-default-features --features pam
