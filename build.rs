@@ -1,5 +1,5 @@
 fn main() {
-    #[cfg(target_os = "linux")]
+    #[cfg(all(target_os = "linux", feature = "pam"))]
     {
         // Common multiarch library directories across Debian, Ubuntu, Arch, Fedora, Alpine
         for dir in &[

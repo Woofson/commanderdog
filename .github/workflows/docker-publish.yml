@@ -24,26 +24,11 @@ jobs:
       - name: Install Debian 12 Bookworm build dependencies
         run: |
           apt-get update
-          apt-get install -y pkg-config libssl-dev libssh2-1-dev libsqlite3-dev libpam0g-dev zlib1g-dev libbz2-dev cmake clang build-essential
-          mkdir -p target/libs
-          for dir in /lib/x86_64-linux-gnu /usr/lib/x86_64-linux-gnu /lib /usr/lib; do
-            if [ -f "$dir/libpam_misc.so.0" ]; then
-              ln -sf "$dir/libpam_misc.so.0" target/libs/libpam_misc.so
-            fi
-            if [ -f "$dir/libpam.so.0" ]; then
-              ln -sf "$dir/libpam.so.0" target/libs/libpam.so
-            fi
-          done
+          apt-get install -y pkg-config libssl-dev libssh2-1-dev libsqlite3-dev zlib1g-dev libbz2-dev cmake clang build-essential
 
       - name: Compile CommanderDog on Debian 12 Bookworm
-        env:
-          CARGO_BUILD_JOBS: 2
-          CARGO_INCREMENTAL: 0
-          RUST_BACKTRACE: full
         run: |
-          export LIBRARY_PATH="$PWD/target/libs:${LIBRARY_PATH:-}"
-          export RUSTFLAGS="-L native=$PWD/target/libs -C codegen-units=1"
-          cargo build --release --verbose --features pam
+          cargo build --release --no-default-features
 
       - name: Upload compiled Debian Bookworm binary
         uses: actions/upload-artifact@v4
