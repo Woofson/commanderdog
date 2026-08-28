@@ -27,9 +27,8 @@ RUN apk add --no-cache \
     g++ \
     git
 
-COPY Cargo.toml Cargo.lock build.rs config.toml ./
-COPY src ./src
-COPY frontend ./frontend
+# Copy entire codebase and metadata
+COPY . .
 
 ENV RUSTFLAGS="-C target-feature=-crt-static"
 ENV LIBSSH2_SYS_USE_PKG_CONFIG=1
