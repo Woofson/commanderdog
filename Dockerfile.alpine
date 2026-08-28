@@ -31,9 +31,9 @@ COPY Cargo.toml Cargo.lock build.rs config.toml ./
 COPY src ./src
 COPY frontend ./frontend
 
+ENV RUSTFLAGS="-C target-feature=-crt-static"
 ENV LIBSSH2_SYS_USE_PKG_CONFIG=1
 ENV OPENSSL_NO_VENDOR=1
-ENV PKG_CONFIG_ALL_DYNAMIC=1
 ENV RUST_BACKTRACE=1
 
 # Compile release binary on Alpine
