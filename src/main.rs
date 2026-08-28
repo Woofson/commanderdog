@@ -75,6 +75,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                     i += 1;
                 }
             }
+            "--no-decorations" | "--frameless" => {
+                config.ui.window_decorations = false;
+            }
+            "--decorations" => {
+                config.ui.window_decorations = true;
+            }
             "--version" | "-v" => {
                 println!("CommanderDog v{}", env!("CARGO_PKG_VERSION"));
                 return Ok(());
@@ -86,11 +92,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 println!("    commanderdog [OPTIONS]");
                 println!();
                 println!("OPTIONS:");
-                println!("    -s, --standalone    Run in standalone desktop mode (auto-authenticates as local user, opens browser)");
+                println!("    -s, --standalone    Run in standalone desktop mode (auto-authenticates as local user, opens browser/window)");
                 println!("    -o, --open          Automatically open CommanderDog in default web browser / webview");
                 println!("    -p, --port <PORT>   Override web server port (default: 8080 or conf.d setting)");
                 println!("        --host <HOST>   Override web server bind host (default: 0.0.0.0 or 127.0.0.1)");
                 println!("        --no-auth       Disable login authentication and run with local permissions");
+                println!("        --no-decorations Launch without window titlebar/frame (ideal for Hyprland/tiling WMs)");
+                println!("        --frameless     Alias for --no-decorations");
+                println!("        --decorations   Force enable window titlebar and borders");
                 println!("    -v, --version       Print version information");
                 println!("    -h, --help          Print this help message");
                 return Ok(());
@@ -156,8 +165,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
         #[cfg(feature = "gui")]
         {
-            info!("Launching CommanderDog native desktop window: {}", open_url);
-            run_native_gui(&open_url, "CommanderDog")?;
+            let dec_status = if config.ui.window_decorations { "enabled" } else { "disabled (borderless/tiling mode)" };
+            info!("Launching CommanderDog native desktop window (decorations: {}): {}", dec_status, open_url);
+            run_native_gui(&open_url, "CommanderDog", config.ui.window_decorations)?;
             return Ok(());
         }
         #[cfg(not(feature = "gui"))]
@@ -185,7 +195,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 }
 
 #[cfg(feature = "gui")]
-fn run_native_gui(url: &str, title: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+fn run_native_gui(url: &str, title: &str, decorations: bool) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     use tao::dpi::LogicalSize;
     use tao::event::{Event, WindowEvent};
     use tao::event_loop::{ControlFlow, EventLoop};
@@ -203,6 +213,7 @@ fn run_native_gui(url: &str, title: &str) -> Result<(), Box<dyn std::error::Erro
         .with_inner_size(LogicalSize::new(1366.0, 840.0))
         .with_min_inner_size(LogicalSize::new(680.0, 480.0))
         .with_resizable(true)
+        .with_decorations(decorations)
         .build(&event_loop)?;
 
     let builder = WebViewBuilder::new().with_url(url);

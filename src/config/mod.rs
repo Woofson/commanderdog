@@ -333,6 +333,8 @@ pub struct UiConfig {
     pub show_hidden_files: bool,
     #[serde(default = "default_view_mode")]
     pub default_view_mode: String, // "details", "compact", "grid"
+    #[serde(default = "default_true")]
+    pub window_decorations: bool, // Tiled WM / Hyprland toggle (decorations on/off)
 }
 
 impl Default for UiConfig {
@@ -342,6 +344,7 @@ impl Default for UiConfig {
             default_layout: default_layout_name(),
             show_hidden_files: true,
             default_view_mode: default_view_mode(),
+            window_decorations: true,
         }
     }
 }

@@ -5297,6 +5297,12 @@ function openSettingsModal() {
     ringSel.value = localStorage.getItem('cd_ring_style') || 'subtle';
   }
 
+  const decCheckbox = document.getElementById('setting-window-decorations');
+  if (decCheckbox) {
+    const saved = localStorage.getItem('cd_window_decorations');
+    decCheckbox.checked = saved !== null ? (saved === 'true') : (App.config?.ui?.window_decorations !== false);
+  }
+
   showModal('settings-modal');
 }
 
@@ -6715,6 +6721,14 @@ function toggleFKeyBar(show) {
   App.showFKeyBar = show;
   localStorage.setItem('cd_show_fkeys', show);
   applyFKeyBarState();
+}
+
+function toggleWindowDecorations(show) {
+  App.windowDecorations = show;
+  localStorage.setItem('cd_window_decorations', show);
+  const cb = document.getElementById('setting-window-decorations');
+  if (cb) cb.checked = show;
+  showToast(show ? 'Window titlebar & frame enabled (restart to apply)' : 'Window decorations disabled (Borderless/Tiling mode for Hyprland)', 'info');
 }
 
 function applyFKeyBarState() {

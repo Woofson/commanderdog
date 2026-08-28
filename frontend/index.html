@@ -607,6 +607,15 @@
           </div>
 
           <div class="form-group">
+            <label>Native Window Frame & Decorations (Hyprland / Tiling WMs):</label>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <input type="checkbox" id="setting-window-decorations" checked onchange="toggleWindowDecorations(this.checked)">
+              <span>Show native OS window decorations (title bar & borders)</span>
+            </div>
+            <div class="form-hint">Toggle off for seamless borderless/frameless integration in tiling window managers (Hyprland, Sway, i3). Can also be controlled via <code>conf.d/50-ui.toml</code> or <code>commanderdog --no-decorations</code>.</div>
+          </div>
+
+          <div class="form-group">
             <label>Interface & File Manager Text Size:</label>
             <div class="slider-container">
               <input type="range" min="10" max="18" value="13" class="range-slider" id="setting-font-size-slider" oninput="handleFontSizeChange(this.value)">
@@ -2341,7 +2350,7 @@
           <div style="font-size: 18px; font-weight: 800; color: var(--accent); letter-spacing: 0.5px;">CommanderDog</div>
           <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 10px;">Multi-Tab Web Commander - By Woofson</div>
           <div style="display: flex; justify-content: center; gap: 6px; flex-wrap: wrap;">
-            <span class="badge" style="background: rgba(245, 158, 11, 0.2); color: var(--accent); border: 1px solid rgba(245, 158, 11, 0.4); font-weight: 700;">v0.3.5 (Desktop & Web)</span>
+            <span class="badge" style="background: rgba(245, 158, 11, 0.2); color: var(--accent); border: 1px solid rgba(245, 158, 11, 0.4); font-weight: 700;">v0.3.6 (Desktop & Web)</span>
             <span class="badge" style="background: rgba(56, 189, 248, 0.15); color: var(--info); border: 1px solid rgba(56, 189, 248, 0.3);">Rust + Axum + Tokio</span>
             <span class="badge" style="background: rgba(34, 197, 94, 0.15); color: var(--success); border: 1px solid rgba(34, 197, 94, 0.3);">MIT Open Source</span>
           </div>
