@@ -132,6 +132,21 @@ function initPanes() {
   loadPaneCustomNames();
 }
 
+function applyUserHomeToPanes() {
+  const home = (App.user && App.user.home_dir && App.user.home_dir.trim() !== '') ? App.user.home_dir : null;
+  if (home && home !== '/') {
+    App.panes.forEach((pane, idx) => {
+      const saved = localStorage.getItem(`cd_pane_path_${idx}`);
+      if (!saved || saved === '/' || pane.path === '/') {
+        pane.path = home;
+        pane.history = [home];
+        pane.historyIdx = 0;
+        localStorage.setItem(`cd_pane_path_${idx}`, home);
+      }
+    });
+  }
+}
+
 async function checkAuthAndLoad() {
   try {
     const sysResp = await fetch('/api/system/status');
@@ -149,6 +164,7 @@ async function checkAuthAndLoad() {
           await loadSystemUsersGroups();
           await loadAdminSecuritySettings();
           await loadAllFileTags();
+          applyUserHomeToPanes();
           renderAllPanes();
           return;
         }
@@ -178,6 +194,7 @@ async function checkAuthAndLoad() {
           return;
         }
 
+        applyUserHomeToPanes();
         renderAllPanes();
         return;
       }
@@ -508,6 +525,11 @@ function togglePaneDotfiles(paneIndex) {
 }
 
 async function loadPaneDirectory(paneIndex, targetPath, pushHistory = true, selectItemName = null) {
+  if (targetPath === '~' || (typeof targetPath === 'string' && targetPath.startsWith('~/'))) {
+    const userHome = (App.user && App.user.home_dir && App.user.home_dir !== '/') ? App.user.home_dir : '/';
+    targetPath = targetPath === '~' ? userHome : (userHome.endsWith('/') ? userHome : userHome + '/') + targetPath.substring(2);
+  }
+
   const pane = App.panes[paneIndex];
   pane.path = targetPath;
   if (!selectItemName) {

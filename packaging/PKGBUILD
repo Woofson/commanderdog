@@ -1,24 +1,36 @@
 # Maintainer: Bolt J Woofson <bolt@boop.no>
 pkgname=commanderdog
-pkgver=0.3.0
+pkgver=0.3.1
 pkgrel=1
-pkgdesc="Multi-Tab Web Commander - By Woofson"
+pkgdesc="Multi-Tab Web & Desktop File Commander - By Woofson"
 arch=('x86_64' 'aarch64')
 url="https://github.com/Woofson/commanderdog"
 license=('MIT')
 depends=('glibc' 'sqlite' 'libssh2' 'openssl' 'ca-certificates')
-makedepends=('cargo' 'rust')
-source=("$pkgname-$pkgver.tar.gz::https://github.com/Woofson/commanderdog/archive/refs/tags/v$pkgver.tar.gz")
-sha256sums=('SKIP')
+makedepends=('cargo' 'rust' 'pkgconf')
+options=('!lto')
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('573431f1f894b2f5208173a46788345db1ca75cc4a71d8fac6ed96a6934979a2')
+
+prepare() {
+    cd "$pkgname-$pkgver"
+    export RUSTUP_TOOLCHAIN=stable
+    cargo fetch --locked --target "$(rustc -vV | sed -n 's/host: //p')"
+}
 
 build() {
     cd "$pkgname-$pkgver"
-    cargo build --release --locked
+    export RUSTUP_TOOLCHAIN=stable
+    export CARGO_TARGET_DIR=target
+    export LIBSSH2_SYS_USE_PKG_CONFIG=1
+    export LIBSQLITE3_SYS_USE_PKG_CONFIG=1
+    export RUSTFLAGS="-C link-arg=-Wl,--no-as-needed"
+    cargo build --release --frozen
 }
 
 package() {
     cd "$pkgname-$pkgver"
-    install -Dm755 "target/release/commanderdog" "$pkgdir/usr/local/bin/commanderdog"
+    install -Dm755 "target/release/commanderdog" "$pkgdir/usr/bin/commanderdog"
     install -Dm644 "commanderdog.service" "$pkgdir/usr/lib/systemd/system/commanderdog.service"
     install -Dm644 "commanderdog.desktop" "$pkgdir/usr/share/applications/commanderdog.desktop"
     

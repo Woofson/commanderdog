@@ -56,8 +56,22 @@ impl LocalFs {
         s
     }
 
+    pub fn resolve_local_path(p: &str) -> PathBuf {
+        if p == "~" {
+            dirs::home_dir().unwrap_or_else(|| PathBuf::from("~"))
+        } else if let Some(stripped) = p.strip_prefix("~/") {
+            if let Some(home) = dirs::home_dir() {
+                home.join(stripped)
+            } else {
+                PathBuf::from(p)
+            }
+        } else {
+            PathBuf::from(p)
+        }
+    }
+
     pub fn list_dir(path_str: &str, show_hidden: bool) -> Result<DirectoryListing, std::io::Error> {
-        let path = Path::new(path_str);
+        let path = Self::resolve_local_path(path_str);
         if !path.exists() {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::NotFound,
@@ -171,7 +185,7 @@ impl LocalFs {
 
     /// Recursively flattens directory tree into a branch view
     pub fn list_branch_view(path_str: &str, show_hidden: bool, max_depth: Option<usize>) -> Result<DirectoryListing, std::io::Error> {
-        let path = Path::new(path_str);
+        let path = Self::resolve_local_path(path_str);
         if !path.exists() {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::NotFound,
@@ -291,40 +305,40 @@ impl LocalFs {
     }
 
     pub fn chmod_entry(path_str: &str, mode: u32, recursive: bool) -> Result<(), std::io::Error> {
-        let p = Path::new(path_str);
+        let p = Self::resolve_local_path(path_str);
         if !p.exists() {
             return Err(std::io::Error::new(std::io::ErrorKind::NotFound, "Path not found"));
         }
 
         if recursive && p.is_dir() {
-            for entry in walkdir::WalkDir::new(p).into_iter().filter_map(|e| e.ok()) {
+            for entry in walkdir::WalkDir::new(&p).into_iter().filter_map(|e| e.ok()) {
                 fs::set_permissions(entry.path(), fs::Permissions::from_mode(mode))?;
             }
             Ok(())
         } else {
-            fs::set_permissions(p, fs::Permissions::from_mode(mode))
+            fs::set_permissions(&p, fs::Permissions::from_mode(mode))
         }
     }
 
     pub fn chown_entry(path_str: &str, uid: Option<u32>, gid: Option<u32>, recursive: bool) -> Result<(), std::io::Error> {
         use std::os::unix::fs::chown;
-        let p = Path::new(path_str);
+        let p = Self::resolve_local_path(path_str);
         if !p.exists() {
             return Err(std::io::Error::new(std::io::ErrorKind::NotFound, "Path not found"));
         }
 
         if recursive && p.is_dir() {
-            for entry in walkdir::WalkDir::new(p).into_iter().filter_map(|e| e.ok()) {
+            for entry in walkdir::WalkDir::new(&p).into_iter().filter_map(|e| e.ok()) {
                 chown(entry.path(), uid, gid)?;
             }
             Ok(())
         } else {
-            chown(p, uid, gid)
+            chown(&p, uid, gid)
         }
     }
 
     pub fn read_file(path_str: &str, max_bytes: usize) -> Result<FileContentResponse, std::io::Error> {
-        let path = Path::new(path_str);
+        let path = Self::resolve_local_path(path_str);
         if !path.exists() {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::NotFound,
@@ -332,12 +346,12 @@ impl LocalFs {
             ));
         }
 
-        let metadata = fs::metadata(path)?;
+        let metadata = fs::metadata(&path)?;
         let size = metadata.len();
         let name = path.file_name().unwrap_or_default().to_string_lossy().to_string();
-        let mime_type = mime_guess::from_path(path).first_or_octet_stream().to_string();
+        let mime_type = mime_guess::from_path(&path).first_or_octet_stream().to_string();
 
-        let mut file = File::open(path)?;
+        let mut file = File::open(&path)?;
         let mut buffer = Vec::new();
         let bytes_to_read = if max_bytes > 0 {
             std::cmp::min(size as usize, max_bytes)
@@ -375,7 +389,7 @@ impl LocalFs {
     }
 
     pub fn write_file(path_str: &str, content: &[u8], atomic: bool) -> Result<(), std::io::Error> {
-        let target_path = Path::new(path_str);
+        let target_path = Self::resolve_local_path(path_str);
 
         if let Some(parent) = target_path.parent() {
             fs::create_dir_all(parent)?;
@@ -388,9 +402,9 @@ impl LocalFs {
                 file.write_all(content)?;
                 file.sync_all()?;
             }
-            fs::rename(&temp_path, target_path)?;
+            fs::rename(&temp_path, &target_path)?;
         } else {
-            let mut file = File::create(target_path)?;
+            let mut file = File::create(&target_path)?;
             file.write_all(content)?;
             file.sync_all()?;
         }
@@ -399,11 +413,14 @@ impl LocalFs {
     }
 
     pub fn create_dir(path_str: &str) -> Result<(), std::io::Error> {
-        fs::create_dir_all(path_str)
+        let p = Self::resolve_local_path(path_str);
+        fs::create_dir_all(&p)
     }
 
     pub fn rename_entry(from_str: &str, to_str: &str) -> Result<(), std::io::Error> {
-        fs::rename(from_str, to_str)
+        let from_p = Self::resolve_local_path(from_str);
+        let to_p = Self::resolve_local_path(to_str);
+        fs::rename(&from_p, &to_p)
     }
 
     pub fn delete_entry(
@@ -411,7 +428,7 @@ impl LocalFs {
         use_trash: bool,
         custom_trash: Option<&str>,
     ) -> Result<(), std::io::Error> {
-        let path = Path::new(path_str);
+        let path = Self::resolve_local_path(path_str);
         if !path.exists() {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::NotFound,

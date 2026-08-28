@@ -1,6 +1,6 @@
 # Maintainer: Bolt J Woofson <bolt@boop.no>
 pkgname=commanderdog-bin
-pkgver=0.3.0
+pkgver=0.3.1
 pkgrel=1
 pkgdesc="Multi-Tab Web Commander - By Woofson (Pre-compiled standalone binary)"
 arch=('x86_64')
@@ -14,7 +14,7 @@ sha256sums=('SKIP')
 
 package() {
     cd "$srcdir/commanderdog-v${pkgver}-linux-${arch}"
-    install -Dm755 "commanderdog" "$pkgdir/usr/local/bin/commanderdog"
+    install -Dm755 "commanderdog" "$pkgdir/usr/bin/commanderdog"
     install -Dm644 "commanderdog.service" "$pkgdir/usr/lib/systemd/system/commanderdog.service"
     
     install -d "$pkgdir/etc/commanderdog/conf.d"

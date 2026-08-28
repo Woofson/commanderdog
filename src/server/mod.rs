@@ -1272,11 +1272,28 @@ async fn handle_set_tags(
     Ok(Json(serde_json::json!({ "success": true, "count": count })))
 }
 
+pub fn expand_tilde(path_str: &str) -> String {
+    if path_str == "~" {
+        dirs::home_dir()
+            .map(|h| h.to_string_lossy().to_string())
+            .unwrap_or_else(|| "~".to_string())
+    } else if let Some(stripped) = path_str.strip_prefix("~/") {
+        if let Some(home) = dirs::home_dir() {
+            home.join(stripped).to_string_lossy().to_string()
+        } else {
+            path_str.to_string()
+        }
+    } else {
+        path_str.to_string()
+    }
+}
+
 async fn handle_list_dir(
     State(state): State<AppState>,
     Query(query): Query<ListQuery>,
 ) -> Result<Json<DirectoryListing>, (StatusCode, String)> {
-    let target_path = query.path.unwrap_or_else(|| state.config.server.root_path.clone());
+    let raw_path = query.path.unwrap_or_else(|| state.config.server.root_path.clone());
+    let target_path = expand_tilde(&raw_path);
     let show_hidden = query.show_hidden.unwrap_or(state.config.ui.show_hidden_files);
 
     if target_path.starts_with("archive://") {
