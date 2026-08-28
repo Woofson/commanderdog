@@ -25,15 +25,16 @@ jobs:
         run: |
           apt-get update
           apt-get install -y pkg-config libssl-dev libssh2-1-dev libsqlite3-dev libpam0g-dev zlib1g-dev libbz2-dev cmake clang build-essential
+          mkdir -p /usr/lib/x86_64-linux-gnu /lib/x86_64-linux-gnu
+          for f in $(find /lib /usr/lib -name "libpam*.so*" 2>/dev/null); do
+            base=$(basename "$f" | sed -E 's/\.so\..*/.so/')
+            ln -sf "$f" "/usr/lib/x86_64-linux-gnu/$base" 2>/dev/null || true
+            ln -sf "$f" "/usr/lib/$base" 2>/dev/null || true
+          done
 
       - name: Compile CommanderDog on Debian 12 Bookworm
         run: |
-          mkdir -p target/libs
-          if [ -f "/lib/x86_64-linux-gnu/libpam.so.0" ]; then
-            ln -sf /lib/x86_64-linux-gnu/libpam.so.0 target/libs/libpam.so
-            ln -sf /lib/x86_64-linux-gnu/libpam_misc.so.0 target/libs/libpam_misc.so
-          fi
-          cargo build --release --features pam
+          cargo build --release --verbose --features pam
 
       - name: Upload compiled Debian Bookworm binary
         uses: actions/upload-artifact@v4
