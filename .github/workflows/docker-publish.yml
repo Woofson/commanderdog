@@ -36,9 +36,13 @@ jobs:
           done
 
       - name: Compile CommanderDog on Debian 12 Bookworm
+        env:
+          CARGO_BUILD_JOBS: 2
+          CARGO_INCREMENTAL: 0
+          RUST_BACKTRACE: full
         run: |
           export LIBRARY_PATH="$PWD/target/libs:${LIBRARY_PATH:-}"
-          export RUSTFLAGS="-L native=$PWD/target/libs"
+          export RUSTFLAGS="-L native=$PWD/target/libs -C codegen-units=1"
           cargo build --release --verbose --features pam
 
       - name: Upload compiled Debian Bookworm binary
