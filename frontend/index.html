@@ -34,11 +34,9 @@
 
     <!-- Right-Aligned Tools & Controls (Desktop & Mobile) -->
     <div class="header-actions header-actions-right">
-      <!-- 1. Refresh All Button (Desktop Only) -->
-      <button class="btn btn-icon desktop-only" id="btn-refresh-all" onclick="refreshAllPanes()" title="Refresh All Panels"><i data-lucide="rotate-cw"></i></button>
-
-      <!-- Separator -->
-      <div class="header-sep desktop-only"></div>
+      <!-- 1. Refresh All Button (Desktop Only, Toggleable via Settings) -->
+      <button class="btn btn-icon desktop-only" id="btn-refresh-all" style="display: none;" onclick="refreshAllPanes()" title="Refresh All Panels"><i data-lucide="rotate-cw"></i></button>
+      <div class="header-sep desktop-only" id="sep-refresh-all" style="display: none;"></div>
 
       <!-- 2. Layout Switcher (Desktop Only) -->
       <div class="layout-btn-group desktop-only">
@@ -131,9 +129,9 @@
               <i data-lucide="lock"></i>
               <span>Lock</span>
             </button>
-            <button type="button" class="profile-action-btn btn-danger-action" onclick="logout()" title="Log Out">
-              <i data-lucide="log-out"></i>
-              <span>Log Out</span>
+            <button type="button" class="profile-action-btn btn-danger-action" id="btn-profile-logout" onclick="handleLogoutOrExit()" title="Log Out">
+              <i data-lucide="log-out" id="icon-profile-logout"></i>
+              <span id="label-profile-logout">Log Out</span>
             </button>
           </div>
         </div>
@@ -585,6 +583,7 @@
               <label style="font-weight: normal;"><input type="checkbox" id="setting-dblclick-up" checked> <b>Double-Click Navigation:</b> Double-click in empty panel space jumps up to parent directory</label>
               <label style="font-weight: normal;"><input type="checkbox" id="setting-show-parent-dir" checked> <b>Parent Directory ("..") Row:</b> Show ".." parent entry at the top of file tables</label>
               <label style="font-weight: normal;"><input type="checkbox" id="setting-auto-open-tasks" checked> <b>Floating Transfer Window:</b> Automatically open floating transfer manager on background jobs</label>
+              <label style="font-weight: normal;"><input type="checkbox" id="setting-show-global-refresh" onchange="toggleGlobalRefreshButton(this.checked)"> <b>Global Header Refresh:</b> Show global "Refresh All" button in top header bar (off by default)</label>
             </div>
           </div>
 
@@ -613,7 +612,7 @@
               <input type="checkbox" id="setting-window-decorations" checked onchange="toggleWindowDecorations(this.checked)">
               <span>Show native OS window decorations (title bar & borders)</span>
             </div>
-            <div class="form-hint">Toggle off for seamless borderless/frameless integration in tiling window managers (Hyprland, Sway, i3). Can also be controlled via <code>conf.d/50-ui.toml</code> or <code>commanderdog --no-decorations</code>.</div>
+            <div class="form-hint">Toggle off for seamless borderless/frameless integration in tiling window managers (Hyprland, Sway, i3). Can also be controlled via <code>~/.config/commanderdog/config.toml</code> or <code>commanderdog --no-decorations</code>.</div>
           </div>
 
           <div class="form-group">
@@ -804,7 +803,7 @@
                 <span><b>Start Minimized:</b> Launch directly to system tray on system boot / autostart</span>
               </label>
             </div>
-            <div class="form-hint">Can also be configured via <code>conf.d/60-desktop.toml</code> or <code>~/.config/commanderdog/config.toml</code>.</div>
+            <div class="form-hint">Can also be configured via <code>~/.config/commanderdog/config.toml</code>.</div>
           </div>
 
           <div class="form-group">
@@ -900,7 +899,7 @@
         <button class="settings-tab-btn" onclick="switchAdminTab('admin-tab-storage')"><i data-lucide="server"></i> Remote Storage & Mounts</button>
         <button class="settings-tab-btn" onclick="switchAdminTab('admin-tab-syncthing')"><i data-lucide="repeat"></i> Syncthing Global</button>
         <button class="settings-tab-btn" onclick="switchAdminTab('admin-tab-security')"><i data-lucide="shield-check"></i> Paranoid & Security</button>
-        <button class="settings-tab-btn" onclick="switchAdminTab('admin-tab-confd')"><i data-lucide="folder-cog"></i> Server conf.d Engine</button>
+        <button class="settings-tab-btn" onclick="switchAdminTab('admin-tab-config')"><i data-lucide="file-cog"></i> Server config.toml</button>
       </div>
 
       <div class="modal-body" style="padding: 0; overflow-y: auto;">
@@ -1071,13 +1070,38 @@
           </div>
         </div>
 
-        <!-- Admin Tab 5: Server conf.d Engine -->
-        <div class="settings-tab-content" id="admin-tab-confd" style="padding: 16px;">
-          <div style="font-weight: 700; margin-bottom: 4px;">📜 Server conf.d Cascade Engine</div>
-          <p style="color: var(--text-muted); font-size: 11px; margin-bottom: 12px;">
-            CommanderDog scans <code>./conf.d/*.toml</code>, <code>~/.config/commanderdog/conf.d/*.toml</code>, and <code>/etc/commanderdog/conf.d/*.toml</code> and deep-merges them in alphabetical/numerical sorting order.
-          </p>
-          <div id="confd-files-list"></div>
+        <!-- Admin Tab 5: Master config.toml Editor -->
+        <div class="settings-tab-content" id="admin-tab-config" style="padding: 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 10px;">
+            <div>
+              <div style="font-weight: 700; font-size: 13px; display: flex; align-items: center; gap: 8px;">
+                <span>📜 Master Configuration (<code>config.toml</code>)</span>
+                <span class="user-role-badge" id="admin-config-path-badge" style="background: rgba(245, 158, 11, 0.2); color: var(--accent);">~/.config/commanderdog/config.toml</span>
+              </div>
+              <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">
+                Directly view and edit server settings, layouts, keybinds, and defaults in TOML format.
+              </div>
+            </div>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+              <button class="btn btn-sm" onclick="loadMasterConfigEditor()" title="Discard unsaved changes and fetch fresh config from disk">
+                <i data-lucide="rotate-cw"></i> Discard / Fetch
+              </button>
+              <button class="btn btn-sm" onclick="triggerServerReload()" title="Reload settings into running server memory">
+                <i data-lucide="refresh-cw"></i> Reload Config
+              </button>
+              <button class="btn btn-sm btn-danger-action" onclick="triggerServerRestart()" title="Restart CommanderDog server process">
+                <i data-lucide="power"></i> Restart Server
+              </button>
+              <button class="btn btn-sm btn-accent" onclick="saveMasterConfigFile()" id="btn-save-master-config">
+                <i data-lucide="save"></i> Save config.toml
+              </button>
+            </div>
+          </div>
+
+          <div style="position: relative;">
+            <textarea id="admin-config-editor-textarea" spellcheck="false" style="width: 100%; height: 420px; font-family: var(--font-mono); font-size: 12px; background: var(--bg-dark); color: var(--text-main); border: 1px solid var(--border); border-radius: 6px; padding: 12px; line-height: 1.5; resize: vertical; box-sizing: border-box;"></textarea>
+          </div>
+          <div id="admin-config-status" style="margin-top: 8px; font-size: 12px; font-family: var(--font-mono); display: none;"></div>
         </div>
       </div>
 
@@ -2437,7 +2461,7 @@
           <div style="font-size: 18px; font-weight: 800; color: var(--accent); letter-spacing: 0.5px;">CommanderDog</div>
           <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 10px;">Multi-Tab Web Commander - By Woofson</div>
           <div style="display: flex; justify-content: center; gap: 6px; flex-wrap: wrap;">
-            <span class="badge" style="background: rgba(245, 158, 11, 0.2); color: var(--accent); border: 1px solid rgba(245, 158, 11, 0.4); font-weight: 700;">v0.3.8 (Desktop & Web)</span>
+            <span class="badge" style="background: rgba(245, 158, 11, 0.2); color: var(--accent); border: 1px solid rgba(245, 158, 11, 0.4); font-weight: 700;">v0.4.0 (Desktop & Web)</span>
             <span class="badge" style="background: rgba(56, 189, 248, 0.15); color: var(--info); border: 1px solid rgba(56, 189, 248, 0.3);">Rust + Axum + Tokio</span>
             <span class="badge" style="background: rgba(34, 197, 94, 0.15); color: var(--success); border: 1px solid rgba(34, 197, 94, 0.3);">MIT Open Source</span>
           </div>

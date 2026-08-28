@@ -421,7 +421,7 @@ dependencies = [
 
 [[package]]
 name = "commanderdog"
-version = "0.3.8"
+version = "0.4.0"
 dependencies = [
  "argon2",
  "async-trait",
@@ -437,6 +437,7 @@ dependencies = [
  "hex",
  "hmac",
  "jsonwebtoken",
+ "libc",
  "mime_guess",
  "open",
  "pam-auth",

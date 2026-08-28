@@ -21,14 +21,14 @@ Run CommanderDog directly with a single command:
 docker run -d \
   --name commanderdog \
   --restart unless-stopped \
-  -p 8080:8080 \
+  -p 3140:3140 \
   -v commanderdog_data:/data \
   -v /home:/mnt/home:rw \
   -v /mnt:/mnt/storage:rw \
   ghcr.io/woofson/commanderdog:latest
 ```
 
-Open `http://<SERVER_IP>:8080` in your browser:
+Open `http://<SERVER_IP>:3140` in your browser:
 - **Default Username**: `admin`
 - **Default Password**: `commanderdog` *(Change immediately in Settings > Security!)*
 
@@ -54,7 +54,7 @@ services:
     volumes:
       # Data & Configuration persistence
       - ./data:/data
-      - ./conf.d:/etc/commanderdog/conf.d:ro
+      - ./config.toml:/etc/commanderdog/config.toml:ro
       
       # Host Storage / Shares (Adjust to your host paths)
       - /home:/mnt/home:rw
@@ -95,7 +95,7 @@ docker compose up -d --force-recreate
 2. Name the stack: `commanderdog`.
 3. Select **Web editor** and paste the contents of [`portainer-stack.yaml`](file:///home/bolt/projects/commanderdog/portainer-stack.yaml):
 4. Click **Deploy the stack**.
-5. Access CommanderDog on port `8080`.
+5. Access CommanderDog on port `3140`.
 
 ---
 
@@ -104,14 +104,14 @@ docker compose up -d --force-recreate
 ### Caddy
 ```caddy
 commanderdog.example.com {
-    reverse_proxy commanderdog:8080
+    reverse_proxy commanderdog:3140
 }
 ```
 
 ### Nginx Proxy Manager / Nginx
 ```nginx
 location / {
-    proxy_pass http://127.0.0.1:8080;
+    proxy_pass http://127.0.0.1:3140;
     proxy_http_version 1.1;
     proxy_set_header Upgrade $http_upgrade;
     proxy_set_header Connection "upgrade";

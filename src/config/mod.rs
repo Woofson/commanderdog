@@ -80,7 +80,7 @@ impl Default for ServerConfig {
 }
 
 fn default_host() -> String { "0.0.0.0".to_string() }
-fn default_port() -> u16 { 8080 }
+fn default_port() -> u16 { 3140 }
 fn default_root_path() -> String { "/".to_string() }
 fn default_upload_max_mb() -> usize { 10240 } // 10 GB
 fn default_true() -> bool { true }
@@ -338,6 +338,8 @@ pub struct UiConfig {
     pub default_view_mode: String, // "details", "compact", "grid"
     #[serde(default = "default_true")]
     pub window_decorations: bool, // Tiled WM / Hyprland toggle (decorations on/off)
+    #[serde(default = "default_false")]
+    pub show_global_refresh: bool, // Global header refresh button toggle
 }
 
 impl Default for UiConfig {
@@ -348,6 +350,7 @@ impl Default for UiConfig {
             show_hidden_files: true,
             default_view_mode: default_view_mode(),
             window_decorations: true,
+            show_global_refresh: false,
         }
     }
 }
@@ -483,81 +486,49 @@ fn default_bookmarks() -> Vec<BookmarkConfig> {
 pub struct ConfigManager;
 
 impl ConfigManager {
-    /// Loads configuration by scanning hierarchical config files, conf.d directories, and external theme folders:
-    /// 1. Built-in defaults
-    /// 2. /etc/commanderdog/config.toml & /etc/commanderdog/conf.d/*.toml
-    /// 3. ./config.toml & ./conf.d/*.toml
-    /// 4. ~/.config/commanderdog/config.toml & ~/.config/commanderdog/conf.d/*.toml (highest priority)
-    /// 5. External themes from ~/.config/commanderdog/themes/*.toml & /etc/commanderdog/themes/*.toml
+    /// Loads configuration with sub-millisecond fast-path resolution:
+    /// 1. User config: ~/.config/commanderdog/config.toml (or $XDG_CONFIG_HOME/commanderdog/config.toml)
+    /// 2. Working dir config: ./config.toml
+    /// 3. System-wide config: /etc/commanderdog/config.toml
+    /// 4. Embedded fallback defaults: AppConfig::default()
+    ///
+    /// Also scans external theme directories (~/.config/commanderdog/themes/*.toml).
     pub fn load_all() -> AppConfig {
-        let mut final_toml_val = toml::to_string(&AppConfig::default())
-            .unwrap_or_default()
-            .parse::<toml::Table>()
-            .unwrap_or_default();
-
-        // 1. Gather config files in strict precedence order
-        let mut config_files = Vec::new();
-
-        // System-level
-        let sys_config = PathBuf::from("/etc/commanderdog/config.toml");
-        if sys_config.is_file() {
-            config_files.push(sys_config);
-        }
-        let sys_confd = PathBuf::from("/etc/commanderdog/conf.d");
-        Self::collect_toml_files_sorted(&sys_confd, &mut config_files);
-
-        // Local working directory
-        let local_config = PathBuf::from("./config.toml");
-        if local_config.is_file() {
-            config_files.push(local_config);
-        }
-        let local_confd = PathBuf::from("./conf.d");
-        Self::collect_toml_files_sorted(&local_confd, &mut config_files);
-
-        // User XDG / Home directory (~/.config/commanderdog)
+        // Ensure user config and themes directory exists
         if let Some(user_config_dir) = dirs::config_dir().map(|d| d.join("commanderdog")) {
-            let user_config = user_config_dir.join("config.toml");
-            if user_config.is_file() {
-                config_files.push(user_config);
-            }
-            let user_confd = user_config_dir.join("conf.d");
-            Self::collect_toml_files_sorted(&user_confd, &mut config_files);
-
-            // Ensure ~/.config/commanderdog/themes directory exists
-            let user_themes_dir = user_config_dir.join("themes");
-            let _ = fs::create_dir_all(&user_themes_dir);
+            let _ = fs::create_dir_all(user_config_dir.join("themes"));
         }
 
-        info!("ConfigManager found {} config/snippet files to merge", config_files.len());
+        // Fast-path candidate paths in strict priority order
+        let candidate_paths = vec![
+            dirs::config_dir().map(|d| d.join("commanderdog").join("config.toml")),
+            Some(PathBuf::from("./config.toml")),
+            Some(PathBuf::from("/etc/commanderdog/config.toml")),
+        ];
 
-        for file_path in config_files {
-            info!("Merging configuration file: {}", file_path.display());
-            match fs::read_to_string(&file_path) {
-                Ok(content) => {
-                    match content.parse::<toml::Table>() {
-                        Ok(table) => {
-                            Self::deep_merge_tables(&mut final_toml_val, table);
+        let mut config = AppConfig::default();
+
+        for candidate in candidate_paths.into_iter().flatten() {
+            if candidate.is_file() {
+                info!("Loading master configuration: {}", candidate.display());
+                match fs::read_to_string(&candidate) {
+                    Ok(content) => match toml::from_str::<AppConfig>(&content) {
+                        Ok(parsed) => {
+                            config = parsed;
+                            break; // Stop immediately on first matching priority config
                         }
                         Err(e) => {
-                            warn!("Failed to parse TOML from {}: {}", file_path.display(), e);
+                            warn!("Failed to parse config {}: {}, falling back to defaults", candidate.display(), e);
                         }
+                    },
+                    Err(e) => {
+                        warn!("Failed to read config {}: {}", candidate.display(), e);
                     }
-                }
-                Err(e) => {
-                    warn!("Failed to read {}: {}", file_path.display(), e);
                 }
             }
         }
 
-        let mut config: AppConfig = match toml::from_str::<AppConfig>(&final_toml_val.to_string()) {
-            Ok(cfg) => cfg,
-            Err(e) => {
-                warn!("Error decoding merged configuration: {}, falling back to defaults", e);
-                AppConfig::default()
-            }
-        };
-
-        // 2. Discover and load external themes from themes/ directories
+        // Discover and load external themes from themes/ directories
         Self::load_external_themes(&mut config);
 
         config
@@ -677,23 +648,6 @@ impl ConfigManager {
             themes.push(new_theme);
         }
     }
-
-    fn deep_merge_tables(base: &mut toml::Table, overlay: toml::Table) {
-        for (key, value) in overlay {
-            match value {
-                toml::Value::Table(overlay_subtable) => {
-                    if let Some(toml::Value::Table(base_subtable)) = base.get_mut(&key) {
-                        Self::deep_merge_tables(base_subtable, overlay_subtable);
-                    } else {
-                        base.insert(key, toml::Value::Table(overlay_subtable));
-                    }
-                }
-                _ => {
-                    base.insert(key, value);
-                }
-            }
-        }
-    }
 }
 
 #[cfg(test)]
@@ -748,28 +702,29 @@ mod tests {
     }
 
     #[test]
-    fn test_deep_merge_tables() {
-        let mut base_toml: toml::Table = r##"
-            [themes]
-            default_theme = "amber-charcoal"
-            [ui]
-            show_hidden_files = true
-        "##.parse().unwrap();
+    fn test_master_config_parsing() {
+        let sample_toml = r##"
+            [server]
+            host = "127.0.0.1"
+            port = 9090
 
-        let overlay_toml: toml::Table = r##"
-            [themes]
-            default_theme = "catppuccin-mocha"
             [ui]
             window_decorations = false
-        "##.parse().unwrap();
+            show_global_refresh = false
 
-        ConfigManager::deep_merge_tables(&mut base_toml, overlay_toml);
+            [desktop]
+            minimize_to_tray = true
+            global_summon_hotkey = "Super+C"
 
-        let themes_tbl = base_toml.get("themes").unwrap().as_table().unwrap();
-        assert_eq!(themes_tbl.get("default_theme").unwrap().as_str().unwrap(), "catppuccin-mocha");
+            [themes]
+            default_theme = "catppuccin-mocha"
+        "##;
 
-        let ui_tbl = base_toml.get("ui").unwrap().as_table().unwrap();
-        assert_eq!(ui_tbl.get("show_hidden_files").unwrap().as_bool().unwrap(), true);
-        assert_eq!(ui_tbl.get("window_decorations").unwrap().as_bool().unwrap(), false);
+        let config: AppConfig = toml::from_str(sample_toml).unwrap();
+        assert_eq!(config.server.port, 9090);
+        assert_eq!(config.ui.window_decorations, false);
+        assert_eq!(config.ui.show_global_refresh, false);
+        assert_eq!(config.desktop.global_summon_hotkey, "Super+C");
+        assert_eq!(config.themes.default_theme, "catppuccin-mocha");
     }
 }

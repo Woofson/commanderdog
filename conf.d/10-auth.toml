@@ -1,7 +1,0 @@
-# CommanderDog Authentication Configuration
-[auth]
-mode = "mixed"              # Options: "mixed", "builtin", "pam", "none"
-pam_service = "login"
-allow_guest = false
-default_admin_user = "admin"
-default_admin_pass = "commanderdog"

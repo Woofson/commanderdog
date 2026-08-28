@@ -70,14 +70,34 @@ echo "🚀 CommanderDog Automated Release: v${CURRENT_VERSION} -> v${TARGET_VERS
 echo "======================================================"
 
 # ------------------------------------------------------------------------------
-# 1. CLEANUP TEMPORARY FILES
+# 1. CLEANUP TEMPORARY FILES & SCRATCH ARTIFACTS
 # ------------------------------------------------------------------------------
-echo "🧹 Cleaning up temporary logs, artifacts, and build caches..."
-rm -f parucommanderdog*.txt *.log *.tmp
+echo "🧹 Cleaning up temporary logs, scratch files, and build caches..."
+rm -f *.log *.tmp *.dump *.dmp parucommanderdog*.txt cd*.txt cdmousepointer*.txt commanderdog*.txt *.db *.db-journal *.sqlite*
 rm -rf /tmp/aur-* /tmp/deb-pkg /tmp/apk-pkg /tmp/commanderdog-*
 
 # ------------------------------------------------------------------------------
-# 2. VERSION BUMP ACROSS CONFIGS
+# 2. PRE-FLIGHT SENSITIVE DATA & CREDENTIALS CHECK
+# ------------------------------------------------------------------------------
+echo "🛡️ Running pre-flight sensitive information audit..."
+LEAK_DETECTED=false
+
+# Check for sensitive file patterns staged or present in tracked workspace
+SENSITIVE_FILES=$(git ls-files | grep -E '\.(pem|key|p12|pfx|token|secret|credentials|env)$|id_rsa|id_ed25519|\.db$|\.sqlite' || true)
+if [ -n "${SENSITIVE_FILES}" ]; then
+    echo "❌ SECURITY ALERT: Sensitive files found in git tree:"
+    echo "${SENSITIVE_FILES}"
+    LEAK_DETECTED=true
+fi
+
+if [ "${LEAK_DETECTED}" = true ]; then
+    echo "🚫 Release aborted: Remove sensitive files before releasing."
+    exit 1
+fi
+echo "✅ Security check passed: No private keys, credentials, or databases found."
+
+# ------------------------------------------------------------------------------
+# 3. VERSION BUMP ACROSS CONFIGS
 # ------------------------------------------------------------------------------
 echo "📝 Updating version to ${TARGET_VERSION} across all project files..."
 
@@ -118,7 +138,7 @@ if [ -f "packaging/APKBUILD" ]; then
 fi
 
 # ------------------------------------------------------------------------------
-# 3. BUILD RELEASE PACKAGES
+# 4. BUILD RELEASE PACKAGES
 # ------------------------------------------------------------------------------
 echo "📦 Compiling and building distribution packages..."
 bash "${SCRIPT_DIR}/build-packages.sh"
@@ -131,7 +151,7 @@ if [ -n "${BIN_SHA256}" ] && [ -f "packaging/commanderdog-bin.PKGBUILD" ]; then
 fi
 
 # ------------------------------------------------------------------------------
-# 4. GIT COMMIT, TAG & PUSH TO GITHUB
+# 5. GIT COMMIT, TAG & PUSH TO GITHUB
 # ------------------------------------------------------------------------------
 echo "🐙 Committing, tagging, and pushing v${TARGET_VERSION} to GitHub..."
 git add -A

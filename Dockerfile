@@ -16,7 +16,7 @@ RUN apt-get update && apt-get install -y \
 COPY Cargo.toml Cargo.lock ./
 COPY src ./src
 COPY frontend ./frontend
-COPY conf.d ./conf.d
+COPY config.toml ./config.toml
 
 RUN cargo build --release
 
@@ -42,18 +42,18 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# Copy release binary and default conf.d
+# Copy release binary and default config.toml
 COPY --from=builder /usr/src/commanderdog/target/release/commanderdog /usr/local/bin/commanderdog
-COPY --from=builder /usr/src/commanderdog/conf.d /etc/commanderdog/conf.d
+COPY --from=builder /usr/src/commanderdog/config.toml /etc/commanderdog/config.toml
 
 # Setup storage directory
 RUN mkdir -p /data
 
-EXPOSE 8080
+EXPOSE 3140
 
 ENV RUST_LOG=commanderdog=info,tower_http=info
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:8080/api/config || exit 1
+  CMD curl -f http://localhost:3140/api/system/status || exit 1
 
 ENTRYPOINT ["/usr/local/bin/commanderdog"]

@@ -1,1 +1,0 @@
-Gdk-Message: 17:43:29.902: Unable to load pointer from the cursor theme

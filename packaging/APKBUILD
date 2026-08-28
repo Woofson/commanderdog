@@ -1,7 +1,7 @@
 # Contributor: Bolt J Woofson <bolt@boop.no>
 # Maintainer: Bolt J Woofson <bolt@boop.no>
 pkgname=commanderdog
-pkgver=0.3.8
+pkgver=0.4.0
 pkgrel=0
 pkgdesc="Multi-Tab Web Commander - By Woofson"
 url="https://github.com/Woofson/commanderdog"
@@ -23,8 +23,7 @@ check() {
 
 package() {
     install -Dm755 target/release/commanderdog "$pkgdir"/usr/local/bin/commanderdog
-    install -d "$pkgdir"/etc/commanderdog/conf.d
-    install -m644 conf.d/*.toml "$pkgdir"/etc/commanderdog/conf.d/
+    install -Dm644 config.toml "$pkgdir"/etc/commanderdog/config.toml
     install -Dm644 LICENSE "$pkgdir"/usr/share/licenses/$pkgname/LICENSE
     install -Dm644 README.md "$pkgdir"/usr/share/doc/$pkgname/README.md
 }

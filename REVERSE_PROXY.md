@@ -17,11 +17,11 @@ Tailscale provides encrypted peer-to-peer WireGuard connections and automatic TL
 ### Option A: Tailscale Serve (Private to Tailnet with Automatic HTTPS)
 Serve CommanderDog securely to devices on your private Tailscale network with a signed Let's Encrypt HTTPS certificate:
 ```bash
-# Run CommanderDog in the background on port 8080
-commanderdog --config /etc/commanderdog/commanderdog.toml &
+# Run CommanderDog in the background on port 3140
+commanderdog &
 
 # Expose to your Tailnet over HTTPS
-tailscale serve --bg 8080
+tailscale serve --bg 3140
 ```
 Your CommanderDog instance is now available at:
 `https://<node-name>.<tailnet-name>.ts.net`
@@ -29,12 +29,12 @@ Your CommanderDog instance is now available at:
 ### Option B: Tailscale Funnel (Public Internet Access with HTTPS)
 Expose CommanderDog to the public Internet with full TLS and WebSocket proxying:
 ```bash
-tailscale funnel --bg 8080
+tailscale funnel --bg 3140
 ```
 
 ### Option C: Direct Tailscale IP Access
 If you prefer direct IP connections over your Tailnet:
-`http://100.x.y.z:8080`
+`http://100.x.y.z:3140`
 
 ---
 
@@ -43,11 +43,11 @@ If you prefer direct IP connections over your Tailnet:
 NetBird provides fast peer-to-peer overlay networking over WireGuard.
 
 ### Direct Access
-CommanderDog listens on `0.0.0.0:8080` by default. Once your host is joined to NetBird, access CommanderDog directly from any peer machine:
-`http://100.x.y.z:8080`
+CommanderDog listens on `0.0.0.0:3140` by default. Once your host is joined to NetBird, access CommanderDog directly from any peer machine:
+`http://100.x.y.z:3140`
 
 ### With NetBird Routing Peer
-If you have configured a NetBird Routing Peer with domain resolution (e.g. `commander.netbird.internal`), simply point your reverse proxy (Caddy/Nginx) to `localhost:8080`.
+If you have configured a NetBird Routing Peer with domain resolution (e.g. `commander.netbird.internal`), simply point your reverse proxy (Caddy/Nginx) to `localhost:3140`.
 
 ---
 
@@ -58,7 +58,7 @@ Caddy provides **automatic HTTPS certificates**, HTTP/2, HTTP/3, and built-in We
 ### `/etc/caddy/Caddyfile`
 ```caddyfile
 commanderdog.yourdomain.com {
-    reverse_proxy localhost:8080
+    reverse_proxy localhost:3140
 }
 ```
 
@@ -100,7 +100,7 @@ server {
     client_max_body_size 10240M;
 
     location / {
-        proxy_pass http://127.0.0.1:8080;
+        proxy_pass http://127.0.0.1:3140;
         proxy_http_version 1.1;
 
         # WebSocket Support (Required for Terminal)
@@ -136,7 +136,7 @@ In the Nginx Proxy Manager Web UI:
    - Domain Names: `files.yourdomain.com`
    - Scheme: `http`
    - Forward Hostname / IP: `127.0.0.1` (or container IP)
-   - Forward Port: `8080`
+   - Forward Port: `3140`
    - Check: **Cache Assets**: OFF
    - Check: **Block Common Exploits**: ON
    - Check: **Websockets Support**: **ON** ⚠️ *(Crucial for Terminal)*
@@ -173,7 +173,7 @@ services:
       - "traefik.http.routers.commanderdog.rule=Host(`files.yourdomain.com`)"
       - "traefik.http.routers.commanderdog.entrypoints=websecure"
       - "traefik.http.routers.commanderdog.tls.certresolver=letsencrypt"
-      - "traefik.http.services.commanderdog.loadbalancer.server.port=8080"
+      - "traefik.http.services.commanderdog.loadbalancer.server.port=3140"
       - "traefik.http.middlewares.cd-buffering.buffering.maxRequestBodyBytes=10485760000"
       - "traefik.http.routers.commanderdog.middlewares=cd-buffering"
 ```
@@ -189,7 +189,7 @@ credentials-file: /root/.cloudflared/<TUNNEL_ID>.json
 
 ingress:
   - hostname: files.yourdomain.com
-    service: http://localhost:8080
+    service: http://localhost:3140
     originRequest:
       noTLSVerify: true
   - service: http_status:404
@@ -219,11 +219,11 @@ sudo a2enmod proxy proxy_http proxy_wstunnel ssl
     RewriteEngine on
     RewriteCond %{HTTP:Upgrade} websocket [NC]
     RewriteCond %{HTTP:Connection} upgrade [NC]
-    RewriteRule ^/?(.*) "ws://127.0.0.1:8080/$1" [P,L]
+    RewriteRule ^/?(.*) "ws://127.0.0.1:3140/$1" [P,L]
 
     # HTTP Proxy
-    ProxyPass / http://127.0.0.1:8080/
-    ProxyPassReverse / http://127.0.0.1:8080/
+    ProxyPass / http://127.0.0.1:3140/
+    ProxyPassReverse / http://127.0.0.1:3140/
 
     # Allow 10GB Uploads
     LimitRequestBody 10737418240

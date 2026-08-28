@@ -23,7 +23,7 @@ curl -fsSL https://raw.githubusercontent.com/Woofson/commanderdog/main/scripts/l
 ```
 
 Once installed, CommanderDog is running and enabled on boot:
-- **URL**: `http://<CONTAINER_IP>:8080`
+- **URL**: `http://<CONTAINER_IP>:3140`
 - **Default Credentials**: `admin` / `commanderdog` (Change after first login!)
 
 ---
@@ -61,8 +61,8 @@ cd commanderdog-v0.2.14-linux-x86_64
 install -m 755 commanderdog /usr/local/bin/commanderdog
 
 # 3. Setup configuration hierarchy
-mkdir -p /etc/commanderdog/conf.d /data
-cp -r conf.d/* /etc/commanderdog/conf.d/
+mkdir -p /etc/commanderdog /data
+cp config.toml /etc/commanderdog/config.toml
 
 # 4. Install systemd service
 cp commanderdog.service /etc/systemd/system/commanderdog.service
@@ -135,7 +135,7 @@ server {
     client_max_body_size 10G;
 
     location / {
-        proxy_pass http://192.168.1.150:8080;
+        proxy_pass http://192.168.1.150:3140;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -154,7 +154,7 @@ server {
 
 ```caddy
 files.lan.local {
-    reverse_proxy 192.168.1.150:8080
+    reverse_proxy 192.168.1.150:3140
 }
 ```
 
@@ -163,7 +163,7 @@ files.lan.local {
 ## 👥 Multi-User Management in LXC
 
 ### Linux System Users (PAM Mode)
-If PAM authentication is enabled in `/etc/commanderdog/conf.d/10-auth.toml`, any Linux user created in the container can log in directly:
+If PAM authentication is enabled in `/etc/commanderdog/config.toml`, any Linux user created in the container can log in directly:
 
 ```bash
 # Add Linux system user

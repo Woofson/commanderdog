@@ -1,7 +1,7 @@
 pub mod terminal;
 
 use crate::auth::{AuthManager, GlobalMount, User};
-use crate::config::AppConfig;
+use crate::config::{AppConfig, ConfigManager};
 use crate::tools::diff::compare_files_text;
 use crate::tools::paranoid::ParanoidEngine;
 use crate::tools::tasks::{TaskInfo, TaskManager};
@@ -50,6 +50,8 @@ pub fn create_router(state: AppState) -> Router {
     Router::new()
         // System & Platform Status
         .route("/api/system/status", get(handle_system_status))
+        .route("/api/system/exit", post(handle_system_exit))
+        .route("/api/system/restart", post(handle_system_restart))
         // Auth & Security API
         .route("/api/auth/login", post(handle_login))
         .route("/api/auth/logout", post(handle_logout))
@@ -132,7 +134,8 @@ pub fn create_router(state: AppState) -> Router {
         // System & Config Information
         .route("/api/config", get(handle_get_config))
         .route("/api/system/users-groups", get(handle_get_system_users_groups))
-        .route("/api/system/confd-files", get(handle_get_confd_files))
+        .route("/api/system/config-file", get(handle_get_config_file).post(handle_save_config_file))
+        .route("/api/system/reload-config", post(handle_reload_config))
         // Embedded Frontend Fallback
         .fallback(handle_static_asset)
         .layer(DefaultBodyLimit::max(state.config.server.upload_max_size_mb * 1024 * 1024))
@@ -226,6 +229,31 @@ fn extract_claims_or_local(
 
 async fn handle_logout() -> Json<serde_json::Value> {
     Json(serde_json::json!({ "success": true, "message": "Logged out" }))
+}
+
+async fn handle_system_exit(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    if !state.config.server.standalone {
+        let claims = extract_claims_or_local(&state, &headers)?;
+        if claims.role != "admin" && claims.role != "Admin" {
+            return Err((
+                StatusCode::FORBIDDEN,
+                "Only administrators or standalone desktop sessions can terminate the process".to_string(),
+            ));
+        }
+    }
+
+    tokio::spawn(async {
+        tokio::time::sleep(tokio::time::Duration::from_millis(150)).await;
+        std::process::exit(0);
+    });
+
+    Ok(Json(serde_json::json!({
+        "success": true,
+        "message": "CommanderDog is exiting cleanly"
+    })))
 }
 
 async fn handle_get_me(
@@ -2381,42 +2409,148 @@ async fn handle_get_system_users_groups() -> Json<SystemUsersGroups> {
 }
 
 #[derive(Serialize)]
-struct ConfdFileInfo {
+struct ConfigFileResponse {
     path: String,
-    filename: String,
+    content: String,
+    is_writable: bool,
+}
+
+#[derive(Deserialize)]
+struct SaveConfigFileRequest {
     content: String,
 }
 
-async fn handle_get_confd_files() -> Json<Vec<ConfdFileInfo>> {
-    let search_dirs = vec![
-        PathBuf::from("/etc/commanderdog/conf.d"),
-        dirs::config_dir().map(|d| d.join("commanderdog").join("conf.d")).unwrap_or_default(),
-        PathBuf::from("./conf.d"),
+fn resolve_active_config_path() -> PathBuf {
+    let candidate_paths = vec![
+        dirs::config_dir().map(|d| d.join("commanderdog").join("config.toml")),
+        Some(PathBuf::from("./config.toml")),
+        Some(PathBuf::from("/etc/commanderdog/config.toml")),
     ];
 
-    let mut result = Vec::new();
-
-    for dir in search_dirs {
-        if dir.exists() && dir.is_dir() {
-            if let Ok(entries) = fs::read_dir(&dir) {
-                for entry in entries.filter_map(|e| e.ok()) {
-                    let p = entry.path();
-                    if p.extension().map_or(false, |ext| ext == "toml") {
-                        if let Ok(content) = fs::read_to_string(&p) {
-                            result.push(ConfdFileInfo {
-                                path: p.to_string_lossy().to_string(),
-                                filename: p.file_name().unwrap_or_default().to_string_lossy().to_string(),
-                                content,
-                            });
-                        }
-                    }
-                }
-            }
+    for candidate in candidate_paths.into_iter().flatten() {
+        if candidate.is_file() {
+            return candidate;
         }
     }
 
-    result.sort_by(|a, b| a.filename.cmp(&b.filename));
-    Json(result)
+    if let Some(user_config) = dirs::config_dir().map(|d| d.join("commanderdog").join("config.toml")) {
+        user_config
+    } else {
+        PathBuf::from("./config.toml")
+    }
+}
+
+async fn handle_get_config_file(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<Json<ConfigFileResponse>, (StatusCode, String)> {
+    if !state.config.server.standalone {
+        let claims = extract_claims_or_local(&state, &headers)?;
+        if claims.role != "admin" && claims.role != "Admin" {
+            return Err((StatusCode::FORBIDDEN, "Only administrators can view raw configuration".to_string()));
+        }
+    }
+
+    let path = resolve_active_config_path();
+    let content = if path.is_file() {
+        fs::read_to_string(&path).unwrap_or_default()
+    } else {
+        toml::to_string_pretty(&*state.config).unwrap_or_default()
+    };
+
+    let is_writable = if let Some(parent) = path.parent() {
+        parent.exists()
+    } else {
+        true
+    };
+
+    Ok(Json(ConfigFileResponse {
+        path: path.to_string_lossy().to_string(),
+        content,
+        is_writable,
+    }))
+}
+
+async fn handle_save_config_file(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<SaveConfigFileRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    if !state.config.server.standalone {
+        let claims = extract_claims_or_local(&state, &headers)?;
+        if claims.role != "admin" && claims.role != "Admin" {
+            return Err((StatusCode::FORBIDDEN, "Only administrators can modify raw configuration".to_string()));
+        }
+    }
+
+    // 1. Pre-validate TOML syntax before saving to disk
+    if let Err(e) = toml::from_str::<AppConfig>(&payload.content) {
+        return Err((StatusCode::BAD_REQUEST, format!("Invalid TOML syntax: {}", e)));
+    }
+
+    let path = resolve_active_config_path();
+    if let Some(parent) = path.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+
+    fs::write(&path, &payload.content).map_err(|e| {
+        (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to write config file to {}: {}", path.display(), e))
+    })?;
+
+    Ok(Json(serde_json::json!({
+        "success": true,
+        "message": format!("Saved config successfully to {}", path.display()),
+        "path": path.to_string_lossy().to_string()
+    })))
+}
+
+async fn handle_reload_config(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    if !state.config.server.standalone {
+        let claims = extract_claims_or_local(&state, &headers)?;
+        if claims.role != "admin" && claims.role != "Admin" {
+            return Err((StatusCode::FORBIDDEN, "Only administrators can reload configuration".to_string()));
+        }
+    }
+
+    let new_cfg = ConfigManager::load_all();
+    Ok(Json(serde_json::json!({
+        "success": true,
+        "message": "Configuration reloaded into memory",
+        "config": new_cfg
+    })))
+}
+
+async fn handle_system_restart(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    if !state.config.server.standalone {
+        let claims = extract_claims_or_local(&state, &headers)?;
+        if claims.role != "admin" && claims.role != "Admin" {
+            return Err((StatusCode::FORBIDDEN, "Only administrators can restart the server".to_string()));
+        }
+    }
+
+    tokio::spawn(async {
+        tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::CommandExt;
+            if let Ok(exe) = std::env::current_exe() {
+                let args: Vec<String> = std::env::args().skip(1).collect();
+                let _ = std::process::Command::new(exe).args(args).exec();
+            }
+        }
+        std::process::exit(0);
+    });
+
+    Ok(Json(serde_json::json!({
+        "success": true,
+        "message": "CommanderDog server is restarting..."
+    })))
 }
 
 // ---------------- GIT & VERSION CONTROL HANDLERS ----------------

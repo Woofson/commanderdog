@@ -99,7 +99,7 @@ fn main() {
                         }
                     }
                     "browser" => {
-                        let _ = open::that("http://127.0.0.1:8080");
+                        let _ = open::that("http://127.0.0.1:3140");
                     }
                     "quit" => {
                         app.exit(0);

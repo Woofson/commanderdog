@@ -78,8 +78,8 @@
   - 11 built-in themes: **🐕 Woofson Amber (Default)**, **🍂 Gruvbox Dark**, **☕ Catppuccin Mocha**, **🥛 Catppuccin Latte (Light)**, **🌃 Tokyo Night**, **🔥 Monokai Pro**, **☀️ Solarized Dark**, **✨ Ayu Dark**, **❄️ Nord Frost**, **🧛 Dracula Dark**, **💻 Midnight Commander Blue**.
   - **External TOML Themes**: Drop custom `.toml` themes into `~/.config/commanderdog/themes/` or `/etc/commanderdog/themes/`.
   - **Web Custom Theme Creator**: Build, preview, and export custom themes directly within the Web UI.
-- ⚙️ **Hierarchical XDG Configuration**:
-  - Scans and merges settings with user priority: `~/.config/commanderdog/config.toml` $\rightarrow$ `~/.config/commanderdog/conf.d/*.toml` $\rightarrow$ `./conf.d/*.toml` $\rightarrow$ `/etc/commanderdog/`.
+- ⚙️ **Unified Fast-Path XDG Configuration**:
+  - Single master `config.toml` loaded with sub-millisecond speed: `~/.config/commanderdog/config.toml` (or `/etc/commanderdog/config.toml`). Zero `conf.d` directory fragmentation.
 - 🪟 **Native Desktop Window & Tiling WM Support**:
   - Standalone native window mode via WebKitGTK / WebView2 (`commanderdog --standalone`).
   - Seamless borderless / frameless mode for tiling window managers (Hyprland, Sway, i3) via `--no-decorations`.
@@ -99,7 +99,7 @@ cargo build --release
 ./target/release/commanderdog
 ```
 
-Open your browser at **http://localhost:8080**  
+Open your browser at **http://localhost:3140**  
 Default credentials:
 - **Username**: `admin`
 - **Password**: `commanderdog`  
@@ -137,17 +137,33 @@ CommanderDog is engineered to run seamlessly behind reverse proxies, mesh VPNs, 
 
 ---
 
-## 📁 conf.d Directory Structure
+## 📁 Configuration File Structure
 
-CommanderDog merges all `.toml` files in the `conf.d` directory in sorting order:
+CommanderDog loads configuration in a single sub-millisecond pass from:
+- **`~/.config/commanderdog/config.toml`** *(Highest priority for personal ricing & dotfiles)*
+- **`/etc/commanderdog/config.toml`** *(System-wide fallback)*
+- **`~/.config/commanderdog/themes/*.toml`** *(Modular custom theme drops)*
 
-```
-conf.d/
-├── 00-server.toml      # Host, port, upload limits, roots
-├── 10-auth.toml        # Authentication modes (mixed/builtin/pam)
-├── 20-themes.toml      # Theme palettes and default appearance
-├── 30-actions.toml     # Paranoid settings & context menu script actions
-└── 40-syncthing.toml   # Syncthing continuous synchronization engine
+```toml
+# ~/.config/commanderdog/config.toml
+[server]
+host = "0.0.0.0"
+port = 3140
+
+[ui]
+default_pane_count = 2
+default_layout = "dual-vertical" # single, dual-vertical, dual-horizontal, triple, quad
+show_hidden_files = true
+window_decorations = true        # Set false for borderless Hyprland integration
+show_global_refresh = false      # Minimal header
+
+[desktop]
+minimize_to_tray = true          # Minimize to tray on close
+enable_tray = true               # System tray icon
+global_summon_hotkey = "Super+C" # System-wide summon keybind
+
+[themes]
+default_theme = "amber-charcoal" # Active theme ID or custom theme from themes/
 ```
 
 ---
@@ -167,7 +183,7 @@ conf.d/
 | **`F7`** | Create New Folder |
 | **`F8` / `Delete`** | Delete / Move to Trash |
 | **`F9` / `Ctrl+D`** | Folder & File Comparison (Diff) |
-| **`F10`** | Settings Hub (General, Paranoid, Palette, Bookmarks, Syncthing, conf.d) |
+| **`F10`** | Settings Hub (General, Desktop, Palette, Bookmarks, Keys) |
 | **`Ctrl+C` / `Ctrl+X` / `Ctrl+V`** | Copy, Cut, and Paste files across panels |
 | **`Ctrl+\``** | Toggle Slide-Up Native Web Terminal (PTY) |
 | **`Alt+1` .. `Alt+4`** | Jump to Pane 1, 2, 3, or 4 |

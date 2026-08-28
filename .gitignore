@@ -1,16 +1,91 @@
+# ==============================================================================
+# CommanderDog Git Ignore & Sensitive Information Filter
+# ==============================================================================
+
+# --- Build Targets & Distribution Packages ---
 /target
 src-tauri/target
-**/*.rs.bk
+/dist
+/build
+/pkg
+/src/
+*.deb
+*.apk
+*.tar.gz
+*.tar.xz
+*.tar.zst
+*.pkg.tar.zst
+
+# --- Local Databases & Data Stores ---
 *.db
 *.db-journal
-*.log
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+commanderdog.db*
+session.db*
+
+# --- Credentials, Keys & Secrets (CRITICAL) ---
 .env
+.env.*
+*.env
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+*.pub
+id_rsa*
+id_ed25519*
+id_ecdsa*
+id_dsa*
+*.token
+*.secret
+*.credentials
+credentials.json
+service-account*.json
+*_secret*
+*_token*
+
+# --- Runtime Logs, Dumps & Scratch Diagnostic Files ---
+*.log
+*.log.*
+*.dump
+*.dmp
+*.tmp
+*.temp
+core
+core.*
+parucommanderdog*.txt
+commanderdog*.txt
+cdmousepointer*.txt
+cd*.txt
+*error*.txt
+*debug*.txt
+*output*.txt
+
+# --- Scratch & Cache Directories ---
+scratch/
+tmp/
+.cache/
+.tempmediaStorage/
+
+# --- Editor & OS Temp Files ---
 .DS_Store
-/dist
+Thumbs.db
+*~
+*.swp
+*.swo
+**/*.rs.bk
+*.png.bk
 swappy-*.png
 swappy-*.jpg
 Screenshot_*.jpg
-*.png.bk
 sccs/
 TEST_CHECKLIST.md
 test_checklist.md

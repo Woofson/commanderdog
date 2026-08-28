@@ -109,5 +109,70 @@ pub fn setup_linux_desktop_env() {
         if std::env::var("G_ENABLE_DIAGNOSTIC").is_err() {
             std::env::set_var("G_ENABLE_DIAGNOSTIC", "0");
         }
+
+        // 3. Directly suppress GDK "Unable to load pointer..." log messages via GLib C-FFI
+        silence_gdk_pointer_logs();
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn silence_gdk_pointer_logs() {
+    unsafe {
+        type GLogFunc = unsafe extern "C" fn(
+            log_domain: *const std::ffi::c_char,
+            log_level: i32,
+            message: *const std::ffi::c_char,
+            user_data: *mut std::ffi::c_void,
+        );
+
+        unsafe extern "C" fn filter_gdk_logger(
+            _log_domain: *const std::ffi::c_char,
+            _log_level: i32,
+            message: *const std::ffi::c_char,
+            _user_data: *mut std::ffi::c_void,
+        ) {
+            if !message.is_null() {
+                let msg = std::ffi::CStr::from_ptr(message).to_string_lossy();
+                if msg.contains("cursor theme") || msg.contains("pointer") || msg.contains("Unable to load") {
+                    return; // Silently drop mouse pointer warnings
+                }
+            }
+        }
+
+        // Dynamically load libglib-2.0 to register log handler
+        let glib_libs = ["libglib-2.0.so.0\0", "libglib-2.0.so\0"];
+        for lib_name in &glib_libs {
+            let handle = libc::dlopen(lib_name.as_ptr() as *const _, libc::RTLD_LAZY | libc::RTLD_GLOBAL);
+            if !handle.is_null() {
+                let set_handler_sym = b"g_log_set_handler\0";
+                let func_ptr = libc::dlsym(handle, set_handler_sym.as_ptr() as *const _);
+                if !func_ptr.is_null() {
+                    let g_log_set_handler: unsafe extern "C" fn(
+                        *const std::ffi::c_char,
+                        i32,
+                        GLogFunc,
+                        *mut std::ffi::c_void,
+                    ) -> u32 = std::mem::transmute(func_ptr);
+
+                    // Suppress Gdk and Gdk-Wayland domain messages
+                    let domain_gdk = b"Gdk\0";
+                    g_log_set_handler(domain_gdk.as_ptr() as *const _, 0xFF, filter_gdk_logger, std::ptr::null_mut());
+
+                    let domain_gdk_wayland = b"Gdk-Wayland\0";
+                    g_log_set_handler(domain_gdk_wayland.as_ptr() as *const _, 0xFF, filter_gdk_logger, std::ptr::null_mut());
+                }
+
+                let default_sym = b"g_log_set_default_handler\0";
+                let def_ptr = libc::dlsym(handle, default_sym.as_ptr() as *const _);
+                if !def_ptr.is_null() {
+                    let g_log_set_default_handler: unsafe extern "C" fn(
+                        GLogFunc,
+                        *mut std::ffi::c_void,
+                    ) -> GLogFunc = std::mem::transmute(def_ptr);
+                    g_log_set_default_handler(filter_gdk_logger, std::ptr::null_mut());
+                }
+                break;
+            }
+        }
     }
 }

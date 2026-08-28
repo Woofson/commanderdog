@@ -94,8 +94,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 println!("OPTIONS:");
                 println!("    -s, --standalone    Run in standalone desktop mode (auto-authenticates as local user, opens browser/window)");
                 println!("    -o, --open          Automatically open CommanderDog in default web browser / webview");
-                println!("    -p, --port <PORT>   Override web server port (default: 8080 or conf.d setting)");
-                println!("        --host <HOST>   Override web server bind host (default: 0.0.0.0 or 127.0.0.1)");
+                println!("    -p, --port <PORT>   Override web server port (default: 3140 or config.toml setting)");
+                println!("        --host <HOST>   Override web server bind host (default: 0.0.0.0)");
                 println!("        --no-auth       Disable login authentication and run with local permissions");
                 println!("        --no-decorations Launch without window titlebar/frame (ideal for Hyprland/tiling WMs)");
                 println!("        --frameless     Alias for --no-decorations");

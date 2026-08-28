@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.4.0] — 2026-08-28
+
+### Added
+- **⚡ Unified Fast-Path Configuration (`config.toml`)**:
+  - Replaced legacy multi-file `conf.d/` directory fragmentation with a single, sub-millisecond fast-path master `config.toml`.
+  - Scans `~/.config/commanderdog/config.toml` (or `/etc/commanderdog/config.toml`) in < 0.2ms.
+  - External themes remain modular under `~/.config/commanderdog/themes/*.toml`.
+- **📜 Master `config.toml` Admin Panel Control Hub**:
+  - Full in-browser TOML editor under Admin Control Panel.
+  - Live pre-save syntax validation against `AppConfig` to prevent saving corrupt configurations.
+  - Hot-reload server configuration into memory (`POST /api/system/reload-config`).
+  - Clean server process restart (`POST /api/system/restart`).
+- **🌐 Standardized Network Defaults**:
+  - Changed default bind host to `0.0.0.0` (all interfaces) and standard port to `3140`.
+- **🚪 Standalone Desktop Exit Button**:
+  - In standalone desktop mode, the user profile button switches dynamically to an **Exit** button (`power` icon) calling `/api/system/exit` for clean process shutdown.
+- **🖱️ Complete GDK Wayland Mouse Pointer Log Silencer**:
+  - Implemented dynamic C-FFI GLib log filtering (`g_log_set_handler` / `g_log_set_default_handler`) to suppress GDK cursor loading warnings on Wayland/Hyprland.
+- **🔄 Toggleable Global Header Refresh**:
+  - Global "Refresh All" header button is now hidden by default for a clean, minimal header and can be toggled on/off in Settings (<kbd>F10</kbd>).
+
+---
+
 ## [v0.3.6] — 2026-08-28
 
 ### Added

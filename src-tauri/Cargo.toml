@@ -1,6 +1,6 @@
 [package]
 name = "commanderdog-desktop"
-version = "0.3.8"
+version = "0.4.0"
 description = "CommanderDog Native Desktop App - Multi-Tab Web Commander"
 authors = ["Bolt J Woofson <bolt@boop.no>"]
 edition = "2021"

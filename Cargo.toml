@@ -1,6 +1,6 @@
 [package]
 name = "commanderdog"
-version = "0.3.8"
+version = "0.4.0"
 edition = "2021"
 authors = ["Bolt J Woofson <bolt@boop.no>"]
 description = "Multi-Tab Web Commander - By Woofson"
@@ -21,6 +21,7 @@ crc32fast = "1.4"
 futures-util = "0.3"
 portable-pty = "0.8"
 dirs = "5.0"
+libc = "0.2"
 axum = { version = "0.7", features = ["ws", "multipart"] }
 tokio = { version = "1", features = ["full"] }
 tower-http = { version = "0.5", features = ["cors", "trace"] }
@@ -77,10 +78,7 @@ depends = "$auto, ca-certificates, libsqlite3-0, libssh2-1, tar, bzip2, p7zip-fu
 assets = [
     ["target/release/commanderdog", "usr/local/bin/commanderdog", "755"],
     ["commanderdog.service", "lib/systemd/system/commanderdog.service", "644"],
-    ["conf.d/00-server.toml", "etc/commanderdog/conf.d/00-server.toml", "644"],
-    ["conf.d/10-auth.toml", "etc/commanderdog/conf.d/10-auth.toml", "644"],
-    ["conf.d/20-themes.toml", "etc/commanderdog/conf.d/20-themes.toml", "644"],
-    ["conf.d/30-actions.toml", "etc/commanderdog/conf.d/30-actions.toml", "644"],
+    ["config.toml", "etc/commanderdog/config.toml", "644"],
     ["assets/commanderdog.png", "usr/share/pixmaps/commanderdog.png", "644"],
     ["README.md", "usr/share/doc/commanderdog/README.md", "644"],
 ]

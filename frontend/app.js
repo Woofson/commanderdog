@@ -237,10 +237,29 @@ async function loadConfig() {
       const savedTheme = localStorage.getItem('cd_theme');
       const activeTheme = savedTheme || App.config?.themes?.default_theme || 'amber-charcoal';
       applyTheme(activeTheme);
+
+      // Configure Global Refresh button visibility (off by default)
+      updateGlobalRefreshButtonVisibility();
     }
   } catch (e) {
     console.error('Config fetch failed:', e);
   }
+}
+
+function updateGlobalRefreshButtonVisibility() {
+  const saved = localStorage.getItem('cd_show_global_refresh');
+  const show = saved !== null ? (saved === 'true') : (App.config?.ui?.show_global_refresh === true);
+
+  const btn = document.getElementById('btn-refresh-all');
+  const sep = document.getElementById('sep-refresh-all');
+  if (btn) btn.style.display = show ? 'inline-flex' : 'none';
+  if (sep) sep.style.display = show ? 'block' : 'none';
+}
+
+function toggleGlobalRefreshButton(enabled) {
+  localStorage.setItem('cd_show_global_refresh', enabled);
+  updateGlobalRefreshButtonVisibility();
+  showToast(enabled ? 'Global Header Refresh button enabled' : 'Global Header Refresh button hidden', 'info');
 }
 
 function toggleCustomThemeCreator() {
@@ -1379,7 +1398,7 @@ function switchAdminTab(tabId) {
 
   if (tabId === 'admin-tab-users') loadUsersTable();
   if (tabId === 'admin-tab-storage') loadAdminGlobalMounts();
-  if (tabId === 'admin-tab-confd') loadConfdInspector();
+  if (tabId === 'admin-tab-config') loadMasterConfigEditor();
   if (tabId === 'admin-tab-security') loadAdminSecuritySettings();
 }
 
@@ -1564,29 +1583,127 @@ async function deleteUserAccount(username) {
   }
 }
 
-async function loadConfdInspector() {
-  const container = document.getElementById('confd-files-list');
-  container.innerHTML = '<div>Scanning conf.d directory files...</div>';
+async function loadMasterConfigEditor() {
+  const textarea = document.getElementById('admin-config-editor-textarea');
+  const pathBadge = document.getElementById('admin-config-path-badge');
+  const statusEl = document.getElementById('admin-config-status');
+
+  if (textarea) textarea.value = '# Loading configuration file...';
+  if (statusEl) statusEl.style.display = 'none';
 
   try {
-    const resp = await fetch('/api/system/confd-files', {
-      headers: { 'Authorization': `Bearer ${App.token}` }
+    const resp = await fetch('/api/system/config-file', {
+      headers: { 'Authorization': `Bearer ${App.token || localStorage.getItem('cd_token') || ''}` }
     });
     if (resp.ok) {
-      const files = await resp.json();
-      container.innerHTML = files.map(f => `
-        <div style="background: var(--bg-dark); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 12px; overflow: hidden;">
-          <div style="background: var(--bg-header); padding: 6px 12px; font-family: var(--font-mono); font-size: 11px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between;">
-            <span>📄 ${f.filename}</span>
-            <span style="color: var(--text-dim);">${f.path}</span>
-          </div>
-          <pre style="padding: 10px; font-size: 11px; font-family: var(--font-mono); color: var(--text-main); margin: 0;">${escapeHtml(f.content)}</pre>
-        </div>
-      `).join('');
+      const data = await resp.json();
+      if (textarea) textarea.value = data.content;
+      if (pathBadge) pathBadge.textContent = data.path;
+      if (!data.is_writable && statusEl) {
+        statusEl.style.display = 'block';
+        statusEl.style.color = 'var(--accent)';
+        statusEl.textContent = '⚠️ Config file directory is read-only. Changes cannot be saved directly.';
+      }
+    } else {
+      const err = await resp.text();
+      if (textarea) textarea.value = `# Error loading config: ${err}`;
     }
   } catch (e) {
-    console.error(e);
+    if (textarea) textarea.value = `# Network error fetching config: ${e}`;
   }
+}
+
+async function saveMasterConfigFile() {
+  const textarea = document.getElementById('admin-config-editor-textarea');
+  const statusEl = document.getElementById('admin-config-status');
+  const saveBtn = document.getElementById('btn-save-master-config');
+  if (!textarea) return;
+
+  const content = textarea.value;
+  if (saveBtn) saveBtn.disabled = true;
+  if (statusEl) {
+    statusEl.style.display = 'block';
+    statusEl.style.color = 'var(--text-muted)';
+    statusEl.textContent = 'Validating and saving configuration...';
+  }
+
+  try {
+    const resp = await fetch('/api/system/config-file', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${App.token || localStorage.getItem('cd_token') || ''}`
+      },
+      body: JSON.stringify({ content })
+    });
+
+    if (resp.ok) {
+      const data = await resp.json();
+      showToast('Master config.toml saved successfully!', 'success');
+      if (statusEl) {
+        statusEl.style.color = 'var(--success, #10b981)';
+        statusEl.textContent = `✓ ${data.message}`;
+      }
+    } else {
+      const err = await resp.text();
+      showToast('Failed to save config.toml', 'error');
+      if (statusEl) {
+        statusEl.style.color = 'var(--danger, #ef4444)';
+        statusEl.textContent = `✗ ${err}`;
+      }
+    }
+  } catch (e) {
+    showToast(`Error saving config: ${e}`, 'error');
+    if (statusEl) {
+      statusEl.style.color = 'var(--danger, #ef4444)';
+      statusEl.textContent = `✗ Error: ${e}`;
+    }
+  } finally {
+    if (saveBtn) saveBtn.disabled = false;
+  }
+}
+
+async function triggerServerReload() {
+  showToast('Reloading configuration into memory...', 'info');
+  try {
+    const resp = await fetch('/api/system/reload-config', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${App.token || localStorage.getItem('cd_token') || ''}`
+      }
+    });
+
+    if (resp.ok) {
+      await loadConfig();
+      showToast('✓ Configuration successfully reloaded into running server memory!', 'success');
+    } else {
+      const err = await resp.text();
+      showToast(`✗ Failed to reload config: ${err}`, 'error');
+    }
+  } catch (e) {
+    showToast(`Error reloading configuration: ${e}`, 'error');
+  }
+}
+
+async function triggerServerRestart() {
+  const confirmed = confirm('Are you sure you want to restart the CommanderDog server process? Active connections will momentarily reconnect.');
+  if (!confirmed) return;
+
+  showToast('Restarting CommanderDog server...', 'info');
+  try {
+    await fetch('/api/system/restart', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${App.token || localStorage.getItem('cd_token') || ''}`
+      }
+    });
+  } catch (e) {}
+
+  setTimeout(() => {
+    location.reload();
+  }, 1500);
 }
 
 function showAddUserPrompt() {
@@ -3798,6 +3915,23 @@ function updateHeaderProfile(user) {
   if (mobileAdminItem) {
     mobileAdminItem.style.display = isAdmin ? 'flex' : 'none';
   }
+
+  // Update Logout vs Exit button for standalone desktop mode
+  const isStandalone = App.config?.server?.standalone || window.__TAURI__ !== undefined;
+  const logoutBtn = document.getElementById('btn-profile-logout');
+  const logoutIcon = document.getElementById('icon-profile-logout');
+  const logoutLabel = document.getElementById('label-profile-logout');
+
+  if (logoutLabel) {
+    logoutLabel.textContent = isStandalone ? 'Exit' : 'Log Out';
+  }
+  if (logoutBtn) {
+    logoutBtn.title = isStandalone ? 'Exit / Quit CommanderDog' : 'Log Out';
+  }
+  if (logoutIcon) {
+    logoutIcon.setAttribute('data-lucide', isStandalone ? 'power' : 'log-out');
+    if (window.lucide) lucide.createIcons();
+  }
 }
 
 function toggleToolsMenu(e) {
@@ -5491,6 +5625,12 @@ function openSettingsModal() {
   const hotkeyInput = document.getElementById('setting-global-hotkey');
   if (hotkeyInput && App.config?.desktop?.global_summon_hotkey) {
     hotkeyInput.value = App.config.desktop.global_summon_hotkey;
+  }
+
+  const globalRefreshCheckbox = document.getElementById('setting-show-global-refresh');
+  if (globalRefreshCheckbox) {
+    const saved = localStorage.getItem('cd_show_global_refresh');
+    globalRefreshCheckbox.checked = saved !== null ? (saved === 'true') : (App.config?.ui?.show_global_refresh === true);
   }
 
   showModal('settings-modal');
@@ -10535,6 +10675,45 @@ function toggleParanoidMode() {
 
 function refreshAllPanes() {
   for (let i = 0; i < getVisiblePaneCount(); i++) refreshPane(i);
+}
+
+function handleLogoutOrExit() {
+  const isStandalone = App.config?.server?.standalone || window.__TAURI__ !== undefined;
+  if (isStandalone) {
+    confirmExitCommanderDog();
+  } else {
+    logout();
+  }
+}
+
+async function confirmExitCommanderDog() {
+  const confirmed = confirm("Are you sure you want to quit CommanderDog?");
+  if (!confirmed) return;
+
+  try {
+    showToast("Exiting CommanderDog...", "info");
+    await fetch('/api/system/exit', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('cd_token') || ''}`
+      }
+    });
+  } catch (e) {}
+
+  if (window.__TAURI__?.process?.exit) {
+    try {
+      window.__TAURI__.process.exit(0);
+    } catch (e) {}
+  } else {
+    window.close();
+    document.body.innerHTML = `
+      <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: var(--bg-dark, #0b0f14); color: var(--text-main, #e1e7ec); font-family: sans-serif; text-align: center; padding: 20px;">
+        <h2 style="color: var(--accent, #f59e0b); margin-bottom: 8px;">🐕 CommanderDog Closed</h2>
+        <p style="color: var(--text-muted, #7a889b); font-size: 13px;">The application process has been terminated. You can safely close this window.</p>
+      </div>
+    `;
+  }
 }
 
 function logout() {

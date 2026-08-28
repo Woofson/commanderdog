@@ -27,12 +27,12 @@ apt-get install -y -qq \
 
 # 2. Setup directory hierarchy
 echo "📁 Configuring /etc/commanderdog and /data..."
-mkdir -p /etc/commanderdog/conf.d /data /var/log/commanderdog
+mkdir -p /etc/commanderdog /data /var/log/commanderdog
 
 # 3. Copy binary and configs
 if [ -f "./target/release/commanderdog" ]; then
     cp ./target/release/commanderdog /usr/local/bin/commanderdog
-    cp -r ./conf.d/* /etc/commanderdog/conf.d/
+    cp ./config.toml /etc/commanderdog/config.toml
     if [ -f "./commanderdog.service" ]; then
         cp ./commanderdog.service /etc/systemd/system/commanderdog.service
     fi
@@ -46,5 +46,5 @@ if command -v systemctl >/dev/null 2>&1; then
     systemctl daemon-reload
     systemctl enable --now commanderdog.service
     echo "✅ CommanderDog is running and enabled on boot!"
-    echo "🌐 Access via: http://$(hostname -I | awk '{print $1}'):8080"
+    echo "🌐 Access via: http://$(hostname -I | awk '{print $1}'):3140"
 fi

@@ -1,0 +1,196 @@
+# ==============================================================================
+# 🐕 CommanderDog Master Configuration File
+# Location: ~/.config/commanderdog/config.toml (or /etc/commanderdog/config.toml)
+# ==============================================================================
+
+# --- Core Server Settings ---
+[server]
+host = "0.0.0.0"                 # "0.0.0.0" to listen on all network interfaces, "127.0.0.1" for local-only
+port = 3140                      # CommanderDog standard default port
+root_path = "/"                  # Root filesystem path
+upload_max_size_mb = 10240       # Max file upload size in MB (10 GB)
+enable_auth = true               # Enable authentication (automatically disabled in --standalone mode)
+session_duration_hours = 72      # JWT session expiry duration in hours
+database_path = "commanderdog.db"# SQLite local metadata and session database
+
+# --- Authentication & Access Control ---
+[auth]
+mode = "mixed"                   # Options: "mixed" (PAM + Built-in), "builtin", "pam", "none"
+pam_service = "login"            # Linux PAM service name
+allow_guest = false              # Allow anonymous guest access
+default_admin_user = "admin"     # Initial admin username
+default_admin_pass = "commanderdog" # Initial admin password
+
+# --- User Interface & Panels ---
+[ui]
+default_pane_count = 2           # Default number of visible panes on startup (1 to 4)
+default_layout = "dual-vertical" # Options: "single", "dual-vertical", "dual-horizontal", "triple", "quad"
+show_hidden_files = true         # Show hidden files and dotfiles (e.g. .bashrc, .git)
+default_view_mode = "details"    # Options: "details", "compact", "grid"
+window_decorations = true        # Set to false for seamless borderless/frameless mode in Hyprland / tiling WMs
+show_global_refresh = false      # Minimal header (off by default; individual panes have dedicated refresh controls)
+
+# --- Standalone Desktop Window & System Tray ---
+[desktop]
+minimize_to_tray = true          # Minimize window to system tray when closed instead of terminating
+enable_tray = true               # Enable system tray icon
+global_summon_hotkey = "Super+C" # System-wide shortcut to summon/focus CommanderDog (e.g. "Super+C", "Ctrl+Alt+Space")
+start_minimized = false          # Launch directly to system tray on system boot / autostart
+
+# --- Color Themes & Aesthetics ---
+[themes]
+default_theme = "amber-charcoal" # Active theme ID (Built-in theme or custom theme from ~/.config/commanderdog/themes/)
+
+[[themes.themes]]
+id = "amber-charcoal"
+name = "Woofson Amber (Default)"
+bg_dark = "#121214"
+bg_panel = "#18181b"
+bg_active = "#27272a"
+accent = "#f59e0b"
+accent_hover = "#fbbf24"
+text_main = "#f4f4f5"
+text_muted = "#a1a1aa"
+border = "#3f3f46"
+
+[[themes.themes]]
+id = "gruvbox"
+name = "Gruvbox Dark"
+bg_dark = "#1d2021"
+bg_panel = "#282828"
+bg_active = "#3c3836"
+accent = "#fabd2f"
+accent_hover = "#fe8019"
+text_main = "#ebdbb2"
+text_muted = "#a89984"
+border = "#504945"
+
+[[themes.themes]]
+id = "catppuccin-mocha"
+name = "Catppuccin Mocha"
+bg_dark = "#181825"
+bg_panel = "#1e1e2e"
+bg_active = "#313244"
+accent = "#cba6f7"
+accent_hover = "#f5c2e7"
+text_main = "#cdd6f4"
+text_muted = "#a6adc8"
+border = "#45475a"
+
+[[themes.themes]]
+id = "catppuccin-latte"
+name = "Catppuccin Latte (Light)"
+bg_dark = "#dce0e8"
+bg_panel = "#eff1f5"
+bg_active = "#e6e9ef"
+accent = "#8839ef"
+accent_hover = "#1e66f5"
+text_main = "#4c4f69"
+text_muted = "#6c6f85"
+border = "#bcc0cc"
+
+[[themes.themes]]
+id = "tokyo-night"
+name = "Tokyo Night"
+bg_dark = "#1a1b26"
+bg_panel = "#24283b"
+bg_active = "#2f354d"
+accent = "#7aa2f7"
+accent_hover = "#bb9af7"
+text_main = "#c0caf5"
+text_muted = "#565f89"
+border = "#414868"
+
+[[themes.themes]]
+id = "nord"
+name = "Nord Frost"
+bg_dark = "#2e3440"
+bg_panel = "#3b4252"
+bg_active = "#434c5e"
+accent = "#88c0d0"
+accent_hover = "#81a1c1"
+text_main = "#eceff4"
+text_muted = "#d8dee9"
+border = "#4c566a"
+
+[[themes.themes]]
+id = "dracula"
+name = "Dracula Dark"
+bg_dark = "#21222c"
+bg_panel = "#282a36"
+bg_active = "#44475a"
+accent = "#bd93f9"
+accent_hover = "#ff79c6"
+text_main = "#f8f8f2"
+text_muted = "#6272a4"
+border = "#44475a"
+
+# --- Paranoid File Integrity & Safety ---
+[paranoid]
+enabled = true                   # Pre-flight collision checks and integrity verification
+checksum_algorithm = "sha256"    # "sha256", "crc32"
+verify_after_transfer = true     # Verify bit-for-bit checksums after copy/move
+atomic_writes = true             # Write to temp file first before renaming
+trash_enabled = true             # Move to system trash instead of permanent delete
+confirm_delete = true            # Prompt before deleting files
+confirm_overwrite = true         # Prompt before overwriting existing files
+
+# --- Syncthing P2P Integration ---
+[syncthing]
+enabled = true
+url = "http://127.0.0.1:8384"
+api_key = ""                     # Leave blank to auto-discover from ~/.config/syncthing/config.xml
+
+# --- Context Menu Custom Script Actions ---
+[[custom_actions]]
+id = "sha256-calc"
+label = "Calculate SHA-256 Checksum"
+icon = "shield-check"
+command = "builtin:checksum:sha256"
+applicable_to = "file"
+in_background = false
+
+[[custom_actions]]
+id = "folder-diff"
+label = "Compare with Other Pane (Diff)"
+icon = "columns-2"
+command = "builtin:diff"
+applicable_to = "all"
+in_background = false
+
+[[custom_actions]]
+id = "compress-zip"
+label = "Compress to .zip"
+icon = "archive"
+command = "builtin:archive:zip"
+applicable_to = "all"
+in_background = true
+
+[[custom_actions]]
+id = "compress-targz"
+label = "Compress to .tar.gz"
+icon = "archive"
+command = "builtin:archive:targz"
+applicable_to = "all"
+in_background = true
+
+[[custom_actions]]
+id = "extract-here"
+label = "Extract Archive Here"
+icon = "unarchive"
+command = "builtin:archive:extract"
+applicable_to = "archive"
+in_background = true
+
+# --- Default Bookmarks & Favorite Paths ---
+[[bookmarks]]
+id = "home"
+name = "Home Directory"
+protocol = "local"
+path = "~"
+
+[[bookmarks]]
+id = "root"
+name = "Root Filesystem"
+protocol = "local"
+path = "/"
