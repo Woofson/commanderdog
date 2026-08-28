@@ -3,15 +3,20 @@ FROM rust:1.85-alpine3.20 AS builder
 
 WORKDIR /usr/src/commanderdog
 
-# Install Alpine native build dependencies
+# Install Alpine native build dependencies and static libraries
 RUN apk add --no-cache \
     musl-dev \
     pkgconfig \
     openssl-dev \
+    openssl-libs-static \
     libssh2-dev \
+    libssh2-static \
     sqlite-dev \
+    sqlite-static \
     zlib-dev \
+    zlib-static \
     bzip2-dev \
+    bzip2-static \
     linux-headers \
     utmps-dev \
     perl \
