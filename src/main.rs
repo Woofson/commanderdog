@@ -14,7 +14,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    setup_linux_desktop_env();
+    commanderdog::setup_linux_desktop_env();
 
     tracing_subscriber::registry()
         .with(
@@ -237,18 +237,4 @@ fn run_native_gui(url: &str, title: &str, decorations: bool) -> Result<(), Box<d
             *control_flow = ControlFlow::Exit;
         }
     });
-}
-
-fn setup_linux_desktop_env() {
-    #[cfg(target_os = "linux")]
-    {
-        // Fix WebKitGTK Error 71 (Protocol error) on Wayland compositors (Hyprland, Sway, KDE, GNOME)
-        // Disabling DMA-BUF renderer avoids Wayland wl_surface protocol errors
-        if std::env::var("WEBKIT_DISABLE_DMABUF_RENDERER").is_err() {
-            std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
-        }
-        if std::env::var("__NV_DISABLE_EXPLICIT_SYNC").is_err() {
-            std::env::set_var("__NV_DISABLE_EXPLICIT_SYNC", "1");
-        }
-    }
 }

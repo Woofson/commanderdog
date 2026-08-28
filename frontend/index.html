@@ -550,6 +550,7 @@
       <div class="settings-tabs">
         <button class="settings-tab-btn active" onclick="switchSettingsTab('tab-general')"><i data-lucide="sliders"></i> General</button>
         <button class="settings-tab-btn" onclick="switchSettingsTab('tab-palette')"><i data-lucide="palette"></i> Themes & Palette</button>
+        <button class="settings-tab-btn" onclick="switchSettingsTab('tab-desktop')"><i data-lucide="monitor"></i> Desktop & Tray</button>
         <button class="settings-tab-btn" onclick="switchSettingsTab('tab-bookmarks')"><i data-lucide="bookmark"></i> Bookmarks</button>
         <button class="settings-tab-btn" onclick="switchSettingsTab('tab-keys')"><i data-lucide="keyboard"></i> Keybindings</button>
       </div>
@@ -786,7 +787,46 @@
           </div>
         </div>
 
-        <!-- Tab 3: Bookmarks & Favorites -->
+        <!-- Tab 3: Desktop & System Tray -->
+        <div class="settings-tab-content" id="tab-desktop">
+          <h4 style="color: var(--accent); margin-bottom: 8px;">🖥️ Standalone Desktop Window & System Tray</h4>
+          <p style="color: var(--text-muted); font-size: 11px; margin-bottom: 12px;">Configure native window behavior, system tray integration, and global hotkeys for Linux (Hyprland, X11, Wayland), macOS, and Windows.</p>
+
+          <div class="form-group">
+            <label>System Tray & Minimization:</label>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              <label style="font-weight: normal; display: flex; align-items: center; gap: 8px;">
+                <input type="checkbox" id="setting-minimize-tray" checked onchange="toggleMinimizeToTray(this.checked)">
+                <span><b>Minimize to System Tray on Close:</b> Closing the window keeps CommanderDog running in the background tray</span>
+              </label>
+              <label style="font-weight: normal; display: flex; align-items: center; gap: 8px;">
+                <input type="checkbox" id="setting-start-minimized" onchange="toggleStartMinimized(this.checked)">
+                <span><b>Start Minimized:</b> Launch directly to system tray on system boot / autostart</span>
+              </label>
+            </div>
+            <div class="form-hint">Can also be configured via <code>conf.d/60-desktop.toml</code> or <code>~/.config/commanderdog/config.toml</code>.</div>
+          </div>
+
+          <div class="form-group">
+            <label>Global Summon / Toggle Hotkey:</label>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <input type="text" id="setting-global-hotkey" class="pane-quick-filter" style="width: 220px; padding: 6px;" value="Super+C" readonly>
+              <span class="user-role-badge" style="background: rgba(245, 158, 11, 0.2); color: var(--accent);">Default: Super+C</span>
+            </div>
+            <div class="form-hint">Pressing this keybind anywhere in your operating system brings CommanderDog to the foreground instantly.</div>
+          </div>
+
+          <div class="form-group">
+            <label>Tiling Window Managers (Hyprland / Sway / i3):</label>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <input type="checkbox" id="setting-desktop-decorations" checked onchange="toggleWindowDecorations(this.checked)">
+              <span><b>Native Window Frame & Decorations:</b> Show OS titlebar and system border</span>
+            </div>
+            <div class="form-hint">Uncheck for a clean frameless window that tiles seamlessly without header waste in Hyprland. Launch with <code>commanderdog --no-decorations</code>.</div>
+          </div>
+        </div>
+
+        <!-- Tab 4: Bookmarks & Favorites -->
         <div class="settings-tab-content" id="tab-bookmarks">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
             <span style="font-weight: 600;">Saved Bookmarks & Favorite Paths</span>
@@ -2397,7 +2437,7 @@
           <div style="font-size: 18px; font-weight: 800; color: var(--accent); letter-spacing: 0.5px;">CommanderDog</div>
           <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 10px;">Multi-Tab Web Commander - By Woofson</div>
           <div style="display: flex; justify-content: center; gap: 6px; flex-wrap: wrap;">
-            <span class="badge" style="background: rgba(245, 158, 11, 0.2); color: var(--accent); border: 1px solid rgba(245, 158, 11, 0.4); font-weight: 700;">v0.3.7 (Desktop & Web)</span>
+            <span class="badge" style="background: rgba(245, 158, 11, 0.2); color: var(--accent); border: 1px solid rgba(245, 158, 11, 0.4); font-weight: 700;">v0.3.8 (Desktop & Web)</span>
             <span class="badge" style="background: rgba(56, 189, 248, 0.15); color: var(--info); border: 1px solid rgba(56, 189, 248, 0.3);">Rust + Axum + Tokio</span>
             <span class="badge" style="background: rgba(34, 197, 94, 0.15); color: var(--success); border: 1px solid rgba(34, 197, 94, 0.3);">MIT Open Source</span>
           </div>

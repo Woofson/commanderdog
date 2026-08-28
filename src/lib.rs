@@ -60,3 +60,54 @@ pub async fn start_background_server(mut config: AppConfig) -> Result<u16, Box<d
 
     Ok(bound_port)
 }
+
+/// Configures Linux desktop and Wayland/Hyprland environment variables before GTK/WebKit initializes
+pub fn setup_linux_desktop_env() {
+    #[cfg(target_os = "linux")]
+    {
+        // 1. Fix WebKitGTK Error 71 (Protocol error) on Wayland compositors (Hyprland, Sway, KDE, GNOME)
+        // Disabling DMA-BUF renderer avoids Wayland wl_surface protocol errors
+        if std::env::var("WEBKIT_DISABLE_DMABUF_RENDERER").is_err() {
+            std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+        }
+        if std::env::var("__NV_DISABLE_EXPLICIT_SYNC").is_err() {
+            std::env::set_var("__NV_DISABLE_EXPLICIT_SYNC", "1");
+        }
+
+        // 2. Fix GDK "Unable to load pointer from the cursor theme" spam on Hyprland / Wayland
+        if std::env::var("XCURSOR_PATH").is_err() {
+            let home = std::env::var("HOME").unwrap_or_else(|_| "/home/bolt".to_string());
+            let paths = format!("{}/.local/share/icons:{}/.icons:/usr/share/icons:/usr/local/share/icons:/usr/share/pixmaps", home, home);
+            std::env::set_var("XCURSOR_PATH", paths);
+        }
+
+        if std::env::var("XCURSOR_THEME").is_err() {
+            if let Ok(hypr_theme) = std::env::var("HYPRCURSOR_THEME") {
+                if !hypr_theme.is_empty() {
+                    std::env::set_var("XCURSOR_THEME", &hypr_theme);
+                } else {
+                    std::env::set_var("XCURSOR_THEME", "Adwaita");
+                }
+            } else {
+                std::env::set_var("XCURSOR_THEME", "Adwaita");
+            }
+        }
+
+        if std::env::var("XCURSOR_SIZE").is_err() {
+            if let Ok(hypr_size) = std::env::var("HYPRCURSOR_SIZE") {
+                if !hypr_size.is_empty() {
+                    std::env::set_var("XCURSOR_SIZE", &hypr_size);
+                } else {
+                    std::env::set_var("XCURSOR_SIZE", "24");
+                }
+            } else {
+                std::env::set_var("XCURSOR_SIZE", "24");
+            }
+        }
+
+        // Disable verbose GLib/GDK diagnostic noise
+        if std::env::var("G_ENABLE_DIAGNOSTIC").is_err() {
+            std::env::set_var("G_ENABLE_DIAGNOSTIC", "0");
+        }
+    }
+}

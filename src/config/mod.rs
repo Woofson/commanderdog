@@ -16,6 +16,8 @@ pub struct AppConfig {
     #[serde(default)]
     pub ui: UiConfig,
     #[serde(default)]
+    pub desktop: DesktopConfig,
+    #[serde(default)]
     pub custom_actions: Vec<CustomAction>,
     #[serde(default)]
     pub bookmarks: Vec<BookmarkConfig>,
@@ -31,6 +33,7 @@ impl Default for AppConfig {
             themes: ThemeConfig::default(),
             paranoid: ParanoidConfig::default(),
             ui: UiConfig::default(),
+            desktop: DesktopConfig::default(),
             custom_actions: default_custom_actions(),
             bookmarks: default_bookmarks(),
             syncthing: crate::tools::syncthing::SyncthingConfig::default(),
@@ -352,6 +355,31 @@ impl Default for UiConfig {
 fn default_pane_count() -> usize { 2 }
 fn default_layout_name() -> String { "dual-vertical".to_string() }
 fn default_view_mode() -> String { "details".to_string() }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DesktopConfig {
+    #[serde(default = "default_true")]
+    pub minimize_to_tray: bool,
+    #[serde(default = "default_true")]
+    pub enable_tray: bool,
+    #[serde(default = "default_summon_hotkey")]
+    pub global_summon_hotkey: String, // "Super+C", "Ctrl+Alt+Space", etc.
+    #[serde(default = "default_false")]
+    pub start_minimized: bool,
+}
+
+impl Default for DesktopConfig {
+    fn default() -> Self {
+        Self {
+            minimize_to_tray: true,
+            enable_tray: true,
+            global_summon_hotkey: default_summon_hotkey(),
+            start_minimized: false,
+        }
+    }
+}
+
+fn default_summon_hotkey() -> String { "Super+C".to_string() }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CustomAction {

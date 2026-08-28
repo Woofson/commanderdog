@@ -5470,7 +5470,40 @@ function openSettingsModal() {
     decCheckbox.checked = saved !== null ? (saved === 'true') : (App.config?.ui?.window_decorations !== false);
   }
 
+  const decDesktopCheckbox = document.getElementById('setting-desktop-decorations');
+  if (decDesktopCheckbox) {
+    const saved = localStorage.getItem('cd_window_decorations');
+    decDesktopCheckbox.checked = saved !== null ? (saved === 'true') : (App.config?.ui?.window_decorations !== false);
+  }
+
+  const minTrayCheckbox = document.getElementById('setting-minimize-tray');
+  if (minTrayCheckbox) {
+    const saved = localStorage.getItem('cd_minimize_tray');
+    minTrayCheckbox.checked = saved !== null ? (saved === 'true') : (App.config?.desktop?.minimize_to_tray !== false);
+  }
+
+  const startMinCheckbox = document.getElementById('setting-start-minimized');
+  if (startMinCheckbox) {
+    const saved = localStorage.getItem('cd_start_minimized');
+    startMinCheckbox.checked = saved !== null ? (saved === 'true') : (App.config?.desktop?.start_minimized === true);
+  }
+
+  const hotkeyInput = document.getElementById('setting-global-hotkey');
+  if (hotkeyInput && App.config?.desktop?.global_summon_hotkey) {
+    hotkeyInput.value = App.config.desktop.global_summon_hotkey;
+  }
+
   showModal('settings-modal');
+}
+
+function toggleMinimizeToTray(enabled) {
+  localStorage.setItem('cd_minimize_tray', enabled);
+  showToast(enabled ? 'Minimize to System Tray enabled' : 'Minimize to System Tray disabled', 'info');
+}
+
+function toggleStartMinimized(enabled) {
+  localStorage.setItem('cd_start_minimized', enabled);
+  showToast(enabled ? 'Start minimized in tray enabled' : 'Start minimized disabled', 'info');
 }
 
 function triggerView() {
