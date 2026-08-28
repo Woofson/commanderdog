@@ -1,10 +1,18 @@
 [package]
 name = "commanderdog"
-version = "0.3.1"
+version = "0.3.2"
 edition = "2021"
 authors = ["Bolt J Woofson <bolt@boop.no>"]
 description = "Multi-Tab Web Commander - By Woofson"
 license = "MIT"
+
+[lib]
+name = "commanderdog"
+path = "src/lib.rs"
+
+[[bin]]
+name = "commanderdog"
+path = "src/main.rs"
 
 [dependencies]
 open = "5.3"
@@ -45,10 +53,13 @@ base64 = "0.22"
 hmac = "0.12"
 pam-auth = { version = "0.5", optional = true }
 regex = "1.11"
+wry = { version = "0.47", optional = true }
+tao = { version = "0.30", optional = true }
 
 [features]
 default = ["pam"]
 pam = ["dep:pam-auth"]
+gui = ["dep:wry", "dep:tao"]
 
 [package.metadata.deb]
 maintainer = "Bolt J Woofson <bolt@boop.no>"

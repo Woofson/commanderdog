@@ -1,25 +1,14 @@
 {
   "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/main/crates/tauri-cli/schema.json",
   "productName": "CommanderDog",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "identifier": "no.boop.commanderdog",
   "build": {
     "frontendDist": "../frontend"
   },
   "app": {
     "withGlobalTauri": true,
-    "windows": [
-      {
-        "title": "CommanderDog - Multi-Tab File Commander",
-        "width": 1280,
-        "height": 800,
-        "minWidth": 640,
-        "minHeight": 440,
-        "resizable": true,
-        "fullscreen": false,
-        "decorations": true
-      }
-    ],
+    "windows": [],
     "security": {
       "csp": null
     }

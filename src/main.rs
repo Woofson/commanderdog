@@ -36,10 +36,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     // Parse CLI Arguments
     let args: Vec<String> = std::env::args().collect();
+    let mut is_server_mode = false;
     let mut auto_open = false;
     let mut i = 1;
     while i < args.len() {
         match args[i].as_str() {
+            "--server" | "--headless" => {
+                is_server_mode = true;
+                config.server.standalone = false;
+            }
             "--standalone" | "-s" => {
                 config.server.standalone = true;
                 config.server.enable_auth = false;
@@ -128,21 +133,83 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     info!("Default Theme: '{}'", config.themes.default_theme);
     info!("Paranoid File Verification: {}", if config.paranoid.enabled { "ENABLED" } else { "DISABLED" });
 
-    if auto_open {
-        let open_url = if config.server.host == "0.0.0.0" {
-            format!("http://127.0.0.1:{}", config.server.port)
-        } else {
-            format!("http://{}", addr)
-        };
+    let listener = tokio::net::TcpListener::bind(addr).await?;
+    let bound_addr = listener.local_addr()?;
+    let open_url = format!("http://127.0.0.1:{}", bound_addr.port());
+    let is_standalone = config.server.standalone;
+
+    #[cfg(feature = "gui")]
+    let has_display = std::env::var("DISPLAY").is_ok() || std::env::var("WAYLAND_DISPLAY").is_ok();
+    #[cfg(not(feature = "gui"))]
+    let has_display = false;
+
+    let should_launch_gui = !is_server_mode && (is_standalone || has_display);
+
+    if should_launch_gui && has_display {
         tokio::spawn(async move {
-            tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
-            info!("Opening CommanderDog in desktop browser: {}", open_url);
-            let _ = open::that(&open_url);
+            if let Err(e) = axum::serve(listener, app).await {
+                tracing::error!("CommanderDog server error: {}", e);
+            }
         });
+
+        #[cfg(feature = "gui")]
+        {
+            info!("Launching CommanderDog native desktop window: {}", open_url);
+            run_native_gui(&open_url, "CommanderDog")?;
+            return Ok(());
+        }
+        #[cfg(not(feature = "gui"))]
+        {
+            info!("Native GUI feature not compiled in. Opening via browser launcher: {}", open_url);
+            let u = open_url.clone();
+            tokio::spawn(async move {
+                let _ = open::that(&u);
+            });
+        }
+    } else {
+        if auto_open {
+            let u = open_url.clone();
+            tokio::spawn(async move {
+                tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
+                info!("Opening CommanderDog in browser: {}", u);
+                let _ = open::that(&u);
+            });
+        }
+
+        axum::serve(listener, app).await?;
     }
 
-    let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(listener, app).await?;
-
     Ok(())
+}
+
+#[cfg(feature = "gui")]
+fn run_native_gui(url: &str, title: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    use tao::dpi::LogicalSize;
+    use tao::event::{Event, WindowEvent};
+    use tao::event_loop::{ControlFlow, EventLoop};
+    use tao::window::WindowBuilder;
+    use wry::WebViewBuilder;
+
+    let event_loop = EventLoop::new();
+    let window = WindowBuilder::new()
+        .with_title(title)
+        .with_inner_size(LogicalSize::new(1366.0, 840.0))
+        .with_min_inner_size(LogicalSize::new(680.0, 480.0))
+        .with_resizable(true)
+        .build(&event_loop)?;
+
+    let _webview = WebViewBuilder::new(&window)
+        .with_url(url)?
+        .build()?;
+
+    event_loop.run(move |event, _, control_flow| {
+        *control_flow = ControlFlow::Wait;
+        if let Event::WindowEvent {
+            event: WindowEvent::CloseRequested,
+            ..
+        } = event
+        {
+            *control_flow = ControlFlow::Exit;
+        }
+    });
 }
