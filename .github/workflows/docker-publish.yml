@@ -13,11 +13,50 @@ permissions:
   packages: write
 
 jobs:
-  build-and-push:
+  build-debian:
+    runs-on: ubuntu-latest
+    container:
+      image: rust:1.85-bookworm
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Debian 12 Bookworm build dependencies
+        run: |
+          apt-get update
+          apt-get install -y pkg-config libssl-dev libssh2-1-dev libsqlite3-dev libpam0g-dev zlib1g-dev libbz2-dev cmake clang build-essential
+
+      - name: Compile CommanderDog on Debian 12 Bookworm
+        run: |
+          mkdir -p target/libs
+          if [ -f "/lib/x86_64-linux-gnu/libpam.so.0" ]; then
+            ln -sf /lib/x86_64-linux-gnu/libpam.so.0 target/libs/libpam.so
+            ln -sf /lib/x86_64-linux-gnu/libpam_misc.so.0 target/libs/libpam_misc.so
+          fi
+          cargo build --release --features pam
+
+      - name: Upload compiled Debian Bookworm binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: commanderdog-debian-binary
+          path: target/release/commanderdog
+          retention-days: 1
+
+  package-and-push:
+    needs: build-debian
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Download compiled Debian Bookworm binary
+        uses: actions/download-artifact@v4
+        with:
+          name: commanderdog-debian-binary
+          path: target/release/
+
+      - name: Ensure binary permissions
+        run: chmod +x target/release/commanderdog
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -40,7 +79,7 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
 
-      - name: Build and push Docker image
+      - name: Build and push minimal Debian Bookworm Docker image
         uses: docker/build-push-action@v6
         with:
           context: .

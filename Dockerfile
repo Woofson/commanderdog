@@ -1,33 +1,4 @@
-# Stage 1: Build CommanderDog binary on Debian Bookworm
-FROM rust:1.85-bookworm AS builder
-
-WORKDIR /usr/src/commanderdog
-
-# Install build dependencies (openssl, libssh2, sqlite, pam, zlib, bz2, cmake, pkg-config)
-RUN apt-get update && apt-get install -y \
-    pkg-config \
-    libssl-dev \
-    libssh2-1-dev \
-    libsqlite3-dev \
-    libpam0g-dev \
-    zlib1g-dev \
-    libbz2-dev \
-    cmake \
-    clang \
-    build-essential \
-    && rm -rf /var/lib/apt/lists/* \
-    && mkdir -p /usr/lib/x86_64-linux-gnu \
-    && (ln -sf /lib/x86_64-linux-gnu/libpam.so.0 /usr/lib/x86_64-linux-gnu/libpam.so || true) \
-    && (ln -sf /lib/x86_64-linux-gnu/libpam_misc.so.0 /usr/lib/x86_64-linux-gnu/libpam_misc.so || true)
-
-COPY Cargo.toml Cargo.lock build.rs config.toml ./
-COPY src ./src
-COPY frontend ./frontend
-
-# Build release binary on Debian Bookworm
-RUN cargo build --release --features pam
-
-# Stage 2: Minimal runtime image on Debian Bookworm Slim
+# CommanderDog — Official Minimal Container Image (Debian 12 Bookworm Slim)
 FROM debian:bookworm-slim
 
 RUN apt-get update && apt-get install -y \
@@ -51,9 +22,9 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# Copy release binary and master config.toml from builder stage
-COPY --from=builder /usr/src/commanderdog/target/release/commanderdog /usr/local/bin/commanderdog
-COPY --from=builder /usr/src/commanderdog/config.toml /etc/commanderdog/config.toml
+# Copy compiled Debian Bookworm binary and config.toml
+COPY target/release/commanderdog /usr/local/bin/commanderdog
+COPY config.toml /etc/commanderdog/config.toml
 
 # Setup storage and runtime directories
 RUN mkdir -p /data /mnt
