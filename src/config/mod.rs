@@ -50,6 +50,8 @@ pub struct ServerConfig {
     pub upload_max_size_mb: usize,
     #[serde(default = "default_true")]
     pub enable_auth: bool,
+    #[serde(default)]
+    pub standalone: bool,
     #[serde(default = "default_jwt_secret")]
     pub jwt_secret: String,
     #[serde(default = "default_session_hours")]
@@ -66,6 +68,7 @@ impl Default for ServerConfig {
             root_path: default_root_path(),
             upload_max_size_mb: default_upload_max_mb(),
             enable_auth: true,
+            standalone: false,
             jwt_secret: default_jwt_secret(),
             session_duration_hours: default_session_hours(),
             database_path: default_db_path(),

@@ -1,12 +1,13 @@
 [package]
 name = "commanderdog"
-version = "0.2.14"
+version = "0.3.0"
 edition = "2021"
 authors = ["Bolt J Woofson <bolt@boop.no>"]
 description = "Multi-Tab Web Commander - By Woofson"
 license = "MIT"
 
 [dependencies]
+open = "5.3"
 filetime = "0.2"
 crc32fast = "1.4"
 futures-util = "0.3"

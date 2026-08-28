@@ -48,6 +48,8 @@ pub fn create_router(state: AppState) -> Router {
         .allow_headers(Any);
 
     Router::new()
+        // System & Platform Status
+        .route("/api/system/status", get(handle_system_status))
         // Auth & Security API
         .route("/api/auth/login", post(handle_login))
         .route("/api/auth/logout", post(handle_logout))
@@ -172,6 +174,56 @@ async fn handle_login(
     }
 }
 
+#[derive(Serialize)]
+pub struct SystemStatusResponse {
+    pub version: String,
+    pub standalone: bool,
+    pub auth_enabled: bool,
+    pub current_user: String,
+    pub home_dir: String,
+}
+
+async fn handle_system_status(State(state): State<AppState>) -> Json<SystemStatusResponse> {
+    let current_user = std::env::var("USER").unwrap_or_else(|_| "user".to_string());
+    let home_dir = dirs::home_dir()
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_else(|| "/".to_string());
+    Json(SystemStatusResponse {
+        version: env!("CARGO_PKG_VERSION").to_string(),
+        standalone: state.config.server.standalone || !state.config.server.enable_auth,
+        auth_enabled: state.config.server.enable_auth && !state.config.server.standalone,
+        current_user,
+        home_dir,
+    })
+}
+
+#[allow(dead_code)]
+fn extract_claims_or_local(
+    state: &AppState,
+    headers: &HeaderMap,
+) -> Result<crate::auth::Claims, (StatusCode, String)> {
+    if !state.config.server.enable_auth || state.config.server.standalone {
+        let current_user = std::env::var("USER").unwrap_or_else(|_| "user".to_string());
+        let home_dir = dirs::home_dir()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_else(|| "/".to_string());
+        return Ok(crate::auth::Claims {
+            sub: current_user,
+            role: "admin".to_string(),
+            home_dir,
+            is_pam: false,
+            exp: 9999999999,
+        });
+    }
+
+    let auth_header = headers.get(header::AUTHORIZATION).and_then(|v| v.to_str().ok());
+    if let Some(token_str) = auth_header.and_then(|h| h.strip_prefix("Bearer ")) {
+        state.auth.verify_token(token_str).map_err(|e| (StatusCode::UNAUTHORIZED, e.to_string()))
+    } else {
+        Err((StatusCode::UNAUTHORIZED, "Missing authorization token".to_string()))
+    }
+}
+
 async fn handle_logout() -> Json<serde_json::Value> {
     Json(serde_json::json!({ "success": true, "message": "Logged out" }))
 }
@@ -180,6 +232,25 @@ async fn handle_get_me(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<Json<User>, (StatusCode, String)> {
+    if !state.config.server.enable_auth || state.config.server.standalone {
+        let current_user = std::env::var("USER").unwrap_or_else(|_| "user".to_string());
+        let home_dir = dirs::home_dir()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_else(|| "/".to_string());
+        return Ok(Json(User {
+            id: 1,
+            username: current_user.clone(),
+            nickname: Some(current_user),
+            email: None,
+            avatar_url: None,
+            role: "admin".to_string(),
+            home_dir,
+            is_pam: false,
+            is_disabled: false,
+            allowed_services: "[\"*\"]".to_string(),
+        }));
+    }
+
     let auth_header = headers.get(header::AUTHORIZATION).and_then(|v| v.to_str().ok());
     if let Some(token_str) = auth_header.and_then(|h| h.strip_prefix("Bearer ")) {
         match state.auth.verify_token(token_str) {

@@ -133,6 +133,31 @@ function initPanes() {
 }
 
 async function checkAuthAndLoad() {
+  try {
+    const sysResp = await fetch('/api/system/status');
+    if (sysResp.ok) {
+      const sysData = await sysResp.json();
+      App.isStandalone = sysData.standalone;
+      if (sysData.standalone || !sysData.auth_enabled) {
+        // Standalone desktop mode: auto-load local user without login prompt!
+        const meResp = await fetch('/api/auth/me');
+        if (meResp.ok) {
+          App.user = await meResp.json();
+          updateHeaderProfile(App.user);
+          hideModal('login-modal');
+          await loadConfig();
+          await loadSystemUsersGroups();
+          await loadAdminSecuritySettings();
+          await loadAllFileTags();
+          renderAllPanes();
+          return;
+        }
+      }
+    }
+  } catch (e) {
+    // Proceed to standard token check
+  }
+
   if (App.token) {
     try {
       const resp = await fetch('/api/auth/me', {
