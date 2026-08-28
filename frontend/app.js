@@ -1829,7 +1829,12 @@ async function openEditorWithFile(filePath) {
   const existingTab = editorTabs.find(t => t.path === filePath);
   if (existingTab) {
     switchActiveEditorTab(existingTab.id, 'left');
-    openFloatingEditor();
+    const dockedIdx = App.panes.findIndex(p => p.dockedTool === 'editor');
+    if (dockedIdx !== -1) {
+      renderDockedPaneTool(dockedIdx);
+    } else {
+      openFloatingEditor();
+    }
     return;
   }
 
@@ -1848,7 +1853,13 @@ async function openEditorWithFile(filePath) {
         viewModeSelect.value = isMd ? 'split-markdown' : 'single-editor';
         handleEditorViewModeChange(viewModeSelect.value);
       }
-      openFloatingEditor();
+
+      const dockedIdx = App.panes.findIndex(p => p.dockedTool === 'editor');
+      if (dockedIdx !== -1) {
+        renderDockedPaneTool(dockedIdx);
+      } else {
+        openFloatingEditor();
+      }
     } else {
       showToast('Failed to read file: ' + await resp.text(), 'error');
     }
@@ -11174,29 +11185,40 @@ function dockToolToPane(toolName, paneIndex) {
   if (!pane) return;
 
   pane.dockedTool = toolName;
-  const contentEl = document.getElementById(`pane-content-${paneIndex}`);
-  if (!contentEl) return;
 
-  // Close/hide floating windows or modals
+  // 1. Editor: hide floating editor window & pill
   if (toolName === 'editor') {
     const win = document.getElementById('floating-editor-window');
     if (win) win.style.display = 'none';
     const pill = document.getElementById('editor-pill');
     if (pill) pill.style.display = 'none';
-  } else if (toolName === 'terminal') {
+    if (editorTabs.length === 0) {
+      createNewEditorTab('', 'Untitled-1', null, false, []);
+    }
+  }
+  // 2. Terminal: close the bottom slide-up drawer completely!
+  else if (toolName === 'terminal') {
     const drawer = document.getElementById('terminal-drawer');
-    if (drawer) drawer.classList.remove('open');
-  } else if (toolName === 'calculator') {
+    if (drawer) {
+      drawer.classList.remove('active');
+      drawer.classList.remove('fullscreen');
+    }
+    termOpen = false;
+  }
+  // 3. Calculator: hide floating calculator & pill
+  else if (toolName === 'calculator') {
     const win = document.getElementById('floating-calculator-window');
     if (win) win.style.display = 'none';
     const pill = document.getElementById('calc-pill');
     if (pill) pill.style.display = 'none';
-  } else if (toolName === 'git') {
+  }
+  // 4. Git: close git modal
+  else if (toolName === 'git') {
     closeModal('git-modal');
   }
 
   renderDockedPaneTool(paneIndex);
-  showToast(`Docked ${toolName.toUpperCase()} into Pane ${paneIndex + 1}. You can continue file browsing in other panes!`, 'info');
+  showToast(`Docked ${toolName.toUpperCase()} into Pane ${paneIndex + 1}`, 'info');
 }
 
 function undockToolFromPane(paneIndex) {
@@ -11206,23 +11228,51 @@ function undockToolFromPane(paneIndex) {
   const tool = pane.dockedTool;
   pane.dockedTool = null;
 
+  // If terminal was docked, return #terminal-output back to the bottom drawer!
+  if (tool === 'terminal') {
+    const drawer = document.getElementById('terminal-drawer');
+    const termOutput = document.getElementById('terminal-output');
+    if (drawer && termOutput && !drawer.contains(termOutput)) {
+      drawer.appendChild(termOutput);
+    }
+  }
+
+  // Restore the normal file table in this pane!
+  loadPaneDirectory(paneIndex, pane.path);
+
+  // Pop open the floating tool!
   if (tool === 'editor') {
-    openPowerEditor();
+    openFloatingEditor();
+    renderEditorTabs();
+    const activeTab = getActiveEditorTab('left');
+    if (activeTab) {
+      const textarea = document.getElementById('editor-text-left');
+      if (textarea) textarea.value = activeTab.content || '';
+      handleEditorInput('left');
+    }
   } else if (tool === 'terminal') {
     toggleTerminal(true);
   } else if (tool === 'calculator') {
     openFloatingCalculator();
   } else if (tool === 'git') {
-    openGitManager(paneIndex);
+    openGitManager(paneIndex, pane.path);
   }
-
-  renderAllPanes();
 }
 
 function closeDockedTool(paneIndex) {
   const pane = App.panes[paneIndex];
   if (!pane) return;
+  const tool = pane.dockedTool;
   pane.dockedTool = null;
+
+  if (tool === 'terminal') {
+    const drawer = document.getElementById('terminal-drawer');
+    const termOutput = document.getElementById('terminal-output');
+    if (drawer && termOutput && !drawer.contains(termOutput)) {
+      drawer.appendChild(termOutput);
+    }
+  }
+
   loadPaneDirectory(paneIndex, pane.path);
 }
 
@@ -11233,9 +11283,9 @@ function renderDockedPaneTool(paneIndex) {
 
   const tool = pane.dockedTool;
   const toolTitles = {
-    'editor': '💻 Power Code Editor',
+    'editor': '💻 Code Editor',
     'terminal': '📟 Terminal Console',
-    'calculator': '🧮 Byte Calculator',
+    'calculator': '🧮 Calculator',
     'git': '🌲 Git Manager'
   };
 
@@ -11251,51 +11301,78 @@ function renderDockedPaneTool(paneIndex) {
           <button class="btn btn-xs btn-icon btn-danger" onclick="closeDockedTool(${paneIndex})" title="Close Docked Tool"><i data-lucide="x" style="width:11px; height:11px;"></i></button>
         </div>
       </div>
-      <div id="docked-tool-mount-${paneIndex}" style="flex: 1; overflow: hidden; display: flex; flex-direction: column;">
+      <div id="docked-tool-mount-${paneIndex}" style="flex: 1; overflow: hidden; display: flex; flex-direction: column; height: calc(100% - 30px); width: 100%;">
         <!-- Tool-specific mount -->
       </div>
     </div>
   `;
 
   const mount = document.getElementById(`docked-tool-mount-${paneIndex}`);
+  if (!mount) return;
 
+  // 1. DOCKED CODE EDITOR
   if (tool === 'editor') {
+    const activeTab = getActiveEditorTab('left');
     mount.innerHTML = `
       <div style="padding: 6px 10px; background: var(--bg-dark); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; font-size: 11px;">
-        <div style="display: flex; gap: 4px;">
-          <button class="btn btn-xs btn-accent" onclick="saveActiveEditorTab()"><i data-lucide="save" style="width:11px; height:11px;"></i> Save</button>
-          <button class="btn btn-xs" onclick="createNewEditorTab()"><i data-lucide="plus" style="width:11px; height:11px;"></i> New</button>
+        <div style="display: flex; gap: 4px; align-items: center;">
+          <button class="btn btn-xs btn-accent" onclick="saveDockedEditorTab(${paneIndex})"><i data-lucide="save" style="width:11px; height:11px;"></i> Save</button>
+          <button class="btn btn-xs" onclick="createNewDockedEditorTab(${paneIndex})"><i data-lucide="plus" style="width:11px; height:11px;"></i> New</button>
         </div>
-        <div style="font-size: 11px; color: var(--text-dim);" id="docked-editor-file-label">Editing in Pane ${paneIndex + 1}</div>
+        <div style="font-size: 11px; color: var(--text-dim); max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" id="docked-editor-file-label-${paneIndex}">
+          ${escapeHtml(activeTab ? activeTab.filename : 'Untitled')}
+        </div>
       </div>
-      <div class="editor-tab-strip" style="background: var(--bg-panel); border-bottom: 1px solid var(--border);">
-        <div class="editor-tabs-scroll" id="docked-editor-tabs-${paneIndex}"></div>
+      <div class="editor-tab-strip" style="background: var(--bg-panel); border-bottom: 1px solid var(--border); overflow-x: auto; display: flex; align-items: center; padding: 2px 6px;">
+        <div class="editor-tabs-scroll" id="docked-editor-tabs-${paneIndex}" style="display: flex; gap: 4px; padding: 2px 0;"></div>
       </div>
-      <div style="flex: 1; position: relative;">
-        <textarea id="docked-editor-textarea-${paneIndex}" class="editor-textarea" style="width: 100%; height: 100%; resize: none; background: #181a1f; color: #f8fafc; font-family: var(--font-mono); font-size: 12px; padding: 10px; border: none; outline: none;" oninput="syncDockedEditorInput(${paneIndex}, this.value)"></textarea>
+      <div style="flex: 1; position: relative; display: flex; overflow: hidden; height: 100%;">
+        <textarea id="docked-editor-textarea-${paneIndex}" class="editor-textarea" style="width: 100%; height: 100%; resize: none; background: #181a1f; color: #f8fafc; font-family: var(--font-mono); font-size: 12px; line-height: 1.4; padding: 10px; border: none; outline: none; white-space: pre;" oninput="syncDockedEditorInput(${paneIndex}, this.value)"></textarea>
       </div>
     `;
-    const tab = editorTabs[activeEditorTabIndex];
-    if (tab) {
-      const textarea = document.getElementById(`docked-editor-textarea-${paneIndex}`);
-      if (textarea) textarea.value = tab.content || '';
-      const lbl = document.getElementById('docked-editor-file-label');
-      if (lbl) lbl.textContent = tab.filename;
+
+    renderDockedEditorTabs(paneIndex);
+    const textarea = document.getElementById(`docked-editor-textarea-${paneIndex}`);
+    if (textarea && activeTab) {
+      textarea.value = activeTab.content || '';
     }
-  } else if (tool === 'terminal') {
+  }
+  // 2. DOCKED TERMINAL CONSOLE (REAL XTERM.JS PTY)
+  else if (tool === 'terminal') {
     mount.innerHTML = `
-      <div style="flex: 1; background: #0c0d10; color: #38bdf8; font-family: var(--font-mono); font-size: 12px; padding: 10px; overflow-y: auto;" id="docked-term-output-${paneIndex}">
-        <div>CommanderDog PTY Terminal (Pane ${paneIndex + 1})</div>
-        <div style="color: var(--text-dim); margin-bottom: 8px;">Type command and press Enter:</div>
-        <div style="display: flex; align-items: center; gap: 6px;">
-          <span style="color: var(--accent); font-weight: 700;">$</span>
-          <input type="text" id="docked-term-input-${paneIndex}" class="pane-quick-filter" style="flex: 1; background: transparent; border: none; color: #fff;" placeholder="command..." onkeydown="handleDockedTermKey(event, ${paneIndex})" />
-        </div>
-      </div>
+      <div id="docked-term-host-${paneIndex}" style="flex: 1; width: 100%; height: 100%; position: relative; overflow: hidden; background: #090a0d;"></div>
     `;
-  } else if (tool === 'calculator') {
+
+    const host = document.getElementById(`docked-term-host-${paneIndex}`);
+    const termOutput = document.getElementById('terminal-output');
+    if (host && termOutput) {
+      host.appendChild(termOutput);
+      termOutput.style.width = '100%';
+      termOutput.style.height = '100%';
+      termOutput.style.display = 'block';
+    }
+
+    initTerminalUI();
+
+    const cwd = (pane && !pane.path.includes('://')) ? pane.path : '/';
+    if (!termWs || termWs.readyState !== WebSocket.OPEN) {
+      connectTerminal(cwd);
+    }
+
+    setTimeout(() => {
+      if (termFitAddon) termFitAddon.fit();
+      if (termInstance) {
+        termInstance.focus();
+        if (termWs && termWs.readyState === WebSocket.OPEN) {
+          termWs.send(JSON.stringify({ cols: termInstance.cols, rows: termInstance.rows, resize: true }));
+        }
+      }
+    }, 100);
+  }
+  // 3. DOCKED CALCULATOR
+  else if (tool === 'calculator') {
     mount.innerHTML = `
-      <div style="padding: 12px; display: flex; flex-direction: column; height: 100%; gap: 10px; background: var(--bg-panel);">
+      <div style="padding: 12px; display: flex; flex-direction: column; height: 100%; gap: 10px; background: var(--bg-panel); overflow-y: auto;">
         <div class="calc-display-panel">
           <div class="calc-expression-line" id="docked-calc-expr">&nbsp;</div>
           <div class="calc-result-row">
@@ -11326,7 +11403,9 @@ function renderDockedPaneTool(paneIndex) {
         </div>
       </div>
     `;
-  } else if (tool === 'git') {
+  }
+  // 4. DOCKED GIT MANAGER
+  else if (tool === 'git') {
     mount.innerHTML = `
       <div style="padding: 10px; display: flex; flex-direction: column; height: 100%; gap: 8px;">
         <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -11342,31 +11421,81 @@ function renderDockedPaneTool(paneIndex) {
   if (window.lucide) lucide.createIcons({ root: contentEl });
 }
 
-function syncDockedEditorInput(paneIndex, val) {
-  const tab = editorTabs[activeEditorTabIndex];
-  if (tab) {
-    tab.content = val;
-    tab.isDirty = true;
+function renderDockedEditorTabs(paneIndex) {
+  const container = document.getElementById(`docked-editor-tabs-${paneIndex}`);
+  if (!container) return;
+
+  container.innerHTML = editorTabs.map(tab => {
+    const isActive = tab.id === activeTabIdLeft;
+    const isDirty = tab.isDirty;
+    const icon = getFileIconForExtension(tab.path || tab.filename);
+
+    return `
+      <div class="editor-tab ${isActive ? 'active' : ''}" style="padding: 3px 8px; font-size: 11px; display: flex; align-items: center; gap: 4px; cursor: pointer;" onclick="switchDockedEditorTab('${tab.id}', ${paneIndex})">
+        <i data-lucide="${icon}" style="width: 12px; height: 12px;"></i>
+        <span style="max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(tab.filename)}</span>
+        ${isDirty ? '<span style="color:var(--accent); font-weight:bold;">●</span>' : ''}
+        <span style="cursor: pointer; opacity: 0.7; margin-left: 2px;" onclick="event.stopPropagation(); closeDockedEditorTab('${tab.id}', ${paneIndex})"><i data-lucide="x" style="width: 10px; height: 10px;"></i></span>
+      </div>
+    `;
+  }).join('');
+
+  if (window.lucide) lucide.createIcons({ root: container });
+}
+
+function switchDockedEditorTab(tabId, paneIndex) {
+  const tab = getEditorTabById(tabId);
+  if (!tab) return;
+
+  const prevTab = getActiveEditorTab('left');
+  const textarea = document.getElementById(`docked-editor-textarea-${paneIndex}`);
+  if (prevTab && textarea) {
+    prevTab.content = textarea.value;
+  }
+
+  activeTabIdLeft = tabId;
+  if (textarea) {
+    textarea.value = tab.content || '';
+  }
+
+  const lbl = document.getElementById(`docked-editor-file-label-${paneIndex}`);
+  if (lbl) lbl.textContent = tab.filename;
+
+  renderDockedEditorTabs(paneIndex);
+}
+
+function createNewDockedEditorTab(paneIndex) {
+  const newTab = createNewEditorTab('', null, null, false, []);
+  switchDockedEditorTab(newTab.id, paneIndex);
+}
+
+function closeDockedEditorTab(tabId, paneIndex) {
+  closeEditorTab(tabId);
+  if (editorTabs.length === 0) {
+    createNewEditorTab('', 'Untitled-1', null, false, []);
+  }
+  const currentTab = getActiveEditorTab('left');
+  if (currentTab) {
+    switchDockedEditorTab(currentTab.id, paneIndex);
   }
 }
 
-function handleDockedTermKey(e, paneIndex) {
-  if (e.key === 'Enter') {
-    const input = document.getElementById(`docked-term-input-${paneIndex}`);
-    const out = document.getElementById(`docked-term-output-${paneIndex}`);
-    const cmd = input?.value?.trim();
-    if (!cmd) return;
-    if (input) input.value = '';
+function saveDockedEditorTab(paneIndex) {
+  const tab = getActiveEditorTab('left');
+  const textarea = document.getElementById(`docked-editor-textarea-${paneIndex}`);
+  if (tab && textarea) {
+    tab.content = textarea.value;
+  }
+  saveActiveEditorTab();
+  renderDockedEditorTabs(paneIndex);
+}
 
-    const line = document.createElement('div');
-    line.style.marginTop = '4px';
-    line.innerHTML = `<span style="color:var(--accent); font-weight:700;">$</span> ${escapeHtml(cmd)}`;
-    out.insertBefore(line, input.parentElement);
-
-    // Send through WebSocket terminal or run action
-    if (termWs && termWs.readyState === WebSocket.OPEN) {
-      termWs.send(cmd + '\n');
-    }
+function syncDockedEditorInput(paneIndex, val) {
+  const tab = getActiveEditorTab('left');
+  if (tab) {
+    tab.content = val;
+    tab.isDirty = true;
+    renderDockedEditorTabs(paneIndex);
   }
 }
 
