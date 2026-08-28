@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tracing::{info, warn};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -451,47 +451,59 @@ fn default_bookmarks() -> Vec<BookmarkConfig> {
     ]
 }
 
-/// conf.d Directory Reader & Hierarchical Merger
+/// Config & External Theme Manager
 pub struct ConfigManager;
 
 impl ConfigManager {
-    /// Loads configuration by scanning multiple potential conf.d directories:
+    /// Loads configuration by scanning hierarchical config files, conf.d directories, and external theme folders:
     /// 1. Built-in defaults
-    /// 2. /etc/commanderdog/conf.d/*.toml
-    /// 3. ~/.config/commanderdog/conf.d/*.toml
-    /// 4. ./conf.d/*.toml (current working directory)
+    /// 2. /etc/commanderdog/config.toml & /etc/commanderdog/conf.d/*.toml
+    /// 3. ./config.toml & ./conf.d/*.toml
+    /// 4. ~/.config/commanderdog/config.toml & ~/.config/commanderdog/conf.d/*.toml (highest priority)
+    /// 5. External themes from ~/.config/commanderdog/themes/*.toml & /etc/commanderdog/themes/*.toml
     pub fn load_all() -> AppConfig {
         let mut final_toml_val = toml::to_string(&AppConfig::default())
             .unwrap_or_default()
             .parse::<toml::Table>()
             .unwrap_or_default();
 
-        let search_dirs = vec![
-            PathBuf::from("/etc/commanderdog/conf.d"),
-            dirs::config_dir().map(|d| d.join("commanderdog").join("conf.d")).unwrap_or_default(),
-            PathBuf::from("./conf.d"),
-        ];
+        // 1. Gather config files in strict precedence order
+        let mut config_files = Vec::new();
 
-        let mut discovered_files = Vec::new();
+        // System-level
+        let sys_config = PathBuf::from("/etc/commanderdog/config.toml");
+        if sys_config.is_file() {
+            config_files.push(sys_config);
+        }
+        let sys_confd = PathBuf::from("/etc/commanderdog/conf.d");
+        Self::collect_toml_files_sorted(&sys_confd, &mut config_files);
 
-        for dir in search_dirs {
-            if dir.exists() && dir.is_dir() {
-                if let Ok(entries) = fs::read_dir(&dir) {
-                    let mut dir_files: Vec<PathBuf> = entries
-                        .filter_map(|e| e.ok())
-                        .map(|e| e.path())
-                        .filter(|p| p.extension().map_or(false, |ext| ext == "toml"))
-                        .collect();
-                    dir_files.sort();
-                    discovered_files.extend(dir_files);
-                }
+        // Local working directory
+        let local_config = PathBuf::from("./config.toml");
+        if local_config.is_file() {
+            config_files.push(local_config);
+        }
+        let local_confd = PathBuf::from("./conf.d");
+        Self::collect_toml_files_sorted(&local_confd, &mut config_files);
+
+        // User XDG / Home directory (~/.config/commanderdog)
+        if let Some(user_config_dir) = dirs::config_dir().map(|d| d.join("commanderdog")) {
+            let user_config = user_config_dir.join("config.toml");
+            if user_config.is_file() {
+                config_files.push(user_config);
             }
+            let user_confd = user_config_dir.join("conf.d");
+            Self::collect_toml_files_sorted(&user_confd, &mut config_files);
+
+            // Ensure ~/.config/commanderdog/themes directory exists
+            let user_themes_dir = user_config_dir.join("themes");
+            let _ = fs::create_dir_all(&user_themes_dir);
         }
 
-        info!("ConfigManager found {} conf.d snippet files to merge", discovered_files.len());
+        info!("ConfigManager found {} config/snippet files to merge", config_files.len());
 
-        for file_path in discovered_files {
-            info!("Merging conf.d snippet: {}", file_path.display());
+        for file_path in config_files {
+            info!("Merging configuration file: {}", file_path.display());
             match fs::read_to_string(&file_path) {
                 Ok(content) => {
                     match content.parse::<toml::Table>() {
@@ -509,12 +521,132 @@ impl ConfigManager {
             }
         }
 
-        match toml::from_str::<AppConfig>(&final_toml_val.to_string()) {
-            Ok(config) => config,
+        let mut config: AppConfig = match toml::from_str::<AppConfig>(&final_toml_val.to_string()) {
+            Ok(cfg) => cfg,
             Err(e) => {
                 warn!("Error decoding merged configuration: {}, falling back to defaults", e);
                 AppConfig::default()
             }
+        };
+
+        // 2. Discover and load external themes from themes/ directories
+        Self::load_external_themes(&mut config);
+
+        config
+    }
+
+    fn collect_toml_files_sorted(dir: &Path, files: &mut Vec<PathBuf>) {
+        if dir.exists() && dir.is_dir() {
+            if let Ok(entries) = fs::read_dir(dir) {
+                let mut dir_files: Vec<PathBuf> = entries
+                    .filter_map(|e| e.ok())
+                    .map(|e| e.path())
+                    .filter(|p| p.extension().map_or(false, |ext| ext == "toml"))
+                    .collect();
+                dir_files.sort();
+                files.extend(dir_files);
+            }
+        }
+    }
+
+    /// Scans external theme directories and loads theme definitions
+    fn load_external_themes(config: &mut AppConfig) {
+        let theme_dirs = vec![
+            PathBuf::from("/etc/commanderdog/themes"),
+            PathBuf::from("./themes"),
+            dirs::config_dir().map(|d| d.join("commanderdog").join("themes")).unwrap_or_default(),
+        ];
+
+        let mut theme_files = Vec::new();
+        for dir in theme_dirs {
+            Self::collect_toml_files_sorted(&dir, &mut theme_files);
+        }
+
+        for file_path in theme_files {
+            info!("Loading external theme definition: {}", file_path.display());
+            if let Ok(content) = fs::read_to_string(&file_path) {
+                let stem = file_path.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| "custom".to_string());
+                Self::parse_and_insert_themes(config, &content, &stem);
+            }
+        }
+    }
+
+    fn parse_and_insert_themes(config: &mut AppConfig, content: &str, file_stem: &str) {
+        // Try parsing as multi-theme array struct: [[themes]] or [themes] themes = [...]
+        #[derive(Deserialize)]
+        struct MultiThemeContainer {
+            themes: Option<Vec<ThemeDefinition>>,
+            theme: Option<ThemeDefinition>,
+        }
+
+        if let Ok(container) = toml::from_str::<MultiThemeContainer>(content) {
+            if let Some(list) = container.themes {
+                for t in list {
+                    Self::upsert_theme(&mut config.themes.themes, t);
+                }
+                return;
+            }
+            if let Some(t) = container.theme {
+                Self::upsert_theme(&mut config.themes.themes, t);
+                return;
+            }
+        }
+
+        // Try parsing directly as a single flat ThemeDefinition:
+        // id = "...", name = "...", bg_dark = "...", ...
+        #[derive(Deserialize)]
+        struct FlatTheme {
+            id: Option<String>,
+            name: Option<String>,
+            bg_dark: String,
+            bg_panel: String,
+            bg_active: String,
+            accent: String,
+            accent_hover: Option<String>,
+            text_main: String,
+            text_muted: String,
+            border: String,
+        }
+
+        if let Ok(flat) = toml::from_str::<FlatTheme>(content) {
+            let id = flat.id.unwrap_or_else(|| file_stem.to_string());
+            let name = flat.name.unwrap_or_else(|| {
+                file_stem
+                    .split(['-', '_'])
+                    .map(|w| {
+                        let mut c = w.chars();
+                        match c.next() {
+                            None => String::new(),
+                            Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
+                        }
+                    })
+                    .collect::<Vec<String>>()
+                    .join(" ")
+            });
+            let accent = flat.accent.clone();
+            let accent_hover = flat.accent_hover.unwrap_or(accent);
+
+            let theme = ThemeDefinition {
+                id,
+                name,
+                bg_dark: flat.bg_dark,
+                bg_panel: flat.bg_panel,
+                bg_active: flat.bg_active,
+                accent: flat.accent,
+                accent_hover,
+                text_main: flat.text_main,
+                text_muted: flat.text_muted,
+                border: flat.border,
+            };
+            Self::upsert_theme(&mut config.themes.themes, theme);
+        }
+    }
+
+    fn upsert_theme(themes: &mut Vec<ThemeDefinition>, new_theme: ThemeDefinition) {
+        if let Some(existing) = themes.iter_mut().find(|t| t.id == new_theme.id) {
+            *existing = new_theme;
+        } else {
+            themes.push(new_theme);
         }
     }
 
@@ -533,5 +665,83 @@ impl ConfigManager {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_external_theme_flat_parsing() {
+        let mut config = AppConfig::default();
+        let sample_toml = r##"
+            id = "hyprland-cyan"
+            name = "Hyprland Cyan"
+            bg_dark = "#0b0f14"
+            bg_panel = "#111822"
+            bg_active = "#1b2533"
+            accent = "#00e5ff"
+            accent_hover = "#33ebff"
+            text_main = "#e1e7ec"
+            text_muted = "#7a889b"
+            border = "#00e5ff"
+        "##;
+
+        ConfigManager::parse_and_insert_themes(&mut config, sample_toml, "hyprland-cyan");
+        let theme = config.themes.themes.iter().find(|t| t.id == "hyprland-cyan");
+        assert!(theme.is_some());
+        let t = theme.unwrap();
+        assert_eq!(t.name, "Hyprland Cyan");
+        assert_eq!(t.accent, "#00e5ff");
+    }
+
+    #[test]
+    fn test_external_theme_multi_parsing() {
+        let mut config = AppConfig::default();
+        let sample_toml = r##"
+            [[themes]]
+            id = "custom-one"
+            name = "Custom One"
+            bg_dark = "#101010"
+            bg_panel = "#202020"
+            bg_active = "#303030"
+            accent = "#ff0055"
+            accent_hover = "#ff3377"
+            text_main = "#ffffff"
+            text_muted = "#888888"
+            border = "#444444"
+        "##;
+
+        ConfigManager::parse_and_insert_themes(&mut config, sample_toml, "themes");
+        let theme = config.themes.themes.iter().find(|t| t.id == "custom-one");
+        assert!(theme.is_some());
+        assert_eq!(theme.unwrap().accent, "#ff0055");
+    }
+
+    #[test]
+    fn test_deep_merge_tables() {
+        let mut base_toml: toml::Table = r##"
+            [themes]
+            default_theme = "amber-charcoal"
+            [ui]
+            show_hidden_files = true
+        "##.parse().unwrap();
+
+        let overlay_toml: toml::Table = r##"
+            [themes]
+            default_theme = "catppuccin-mocha"
+            [ui]
+            window_decorations = false
+        "##.parse().unwrap();
+
+        ConfigManager::deep_merge_tables(&mut base_toml, overlay_toml);
+
+        let themes_tbl = base_toml.get("themes").unwrap().as_table().unwrap();
+        assert_eq!(themes_tbl.get("default_theme").unwrap().as_str().unwrap(), "catppuccin-mocha");
+
+        let ui_tbl = base_toml.get("ui").unwrap().as_table().unwrap();
+        assert_eq!(ui_tbl.get("show_hidden_files").unwrap().as_bool().unwrap(), true);
+        assert_eq!(ui_tbl.get("window_decorations").unwrap().as_bool().unwrap(), false);
     }
 }

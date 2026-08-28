@@ -216,9 +216,155 @@ async function loadConfig() {
       App.config = await res.json();
       App.paranoidMode = App.config.paranoid.enabled;
       updateParanoidBadge();
+
+      // Merge client-side custom themes saved in browser localStorage
+      try {
+        const localCustoms = JSON.parse(localStorage.getItem('cd_custom_themes') || '[]');
+        if (Array.isArray(localCustoms) && localCustoms.length > 0) {
+          if (!App.config.themes) App.config.themes = { themes: [] };
+          if (!Array.isArray(App.config.themes.themes)) App.config.themes.themes = [];
+          localCustoms.forEach(lt => {
+            const idx = App.config.themes.themes.findIndex(t => t.id === lt.id);
+            if (idx >= 0) App.config.themes.themes[idx] = lt;
+            else App.config.themes.themes.push(lt);
+          });
+        }
+      } catch (e) {}
+
+      populateThemeSelectors();
+
+      // Apply theme: localStorage preference or config.toml default_theme
+      const savedTheme = localStorage.getItem('cd_theme');
+      const activeTheme = savedTheme || App.config?.themes?.default_theme || 'amber-charcoal';
+      applyTheme(activeTheme);
     }
   } catch (e) {
     console.error('Config fetch failed:', e);
+  }
+}
+
+function toggleCustomThemeCreator() {
+  const el = document.getElementById('custom-theme-creator');
+  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+function saveCustomBrowserTheme() {
+  const nameInput = document.getElementById('custom-theme-name');
+  const name = nameInput?.value.trim() || 'Custom Theme';
+  const id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'custom-' + Date.now();
+  const accent = document.getElementById('custom-theme-accent')?.value || '#00e5ff';
+  const bg_dark = document.getElementById('custom-theme-bg-dark')?.value || '#0b0f14';
+  const bg_panel = document.getElementById('custom-theme-bg-panel')?.value || '#111822';
+  const bg_active = bg_panel;
+  const border = accent;
+  const text_main = '#f4f4f5';
+  const text_muted = '#a1a1aa';
+
+  const newTheme = {
+    id,
+    name,
+    bg_dark,
+    bg_panel,
+    bg_active,
+    accent,
+    accent_hover: accent,
+    text_main,
+    text_muted,
+    border
+  };
+
+  if (!App.config) App.config = {};
+  if (!App.config.themes) App.config.themes = { themes: [] };
+  if (!Array.isArray(App.config.themes.themes)) App.config.themes.themes = [];
+
+  const existingIdx = App.config.themes.themes.findIndex(t => t.id === id);
+  if (existingIdx >= 0) App.config.themes.themes[existingIdx] = newTheme;
+  else App.config.themes.themes.push(newTheme);
+
+  let localCustoms = [];
+  try {
+    localCustoms = JSON.parse(localStorage.getItem('cd_custom_themes') || '[]');
+  } catch (e) {}
+  localCustoms = localCustoms.filter(t => t.id !== id);
+  localCustoms.push(newTheme);
+  localStorage.setItem('cd_custom_themes', JSON.stringify(localCustoms));
+
+  populateThemeSelectors();
+  applyTheme(id);
+  toggleCustomThemeCreator();
+  showToast(`Custom theme "${name}" created and applied!`, 'success');
+}
+
+function exportCustomThemeToml() {
+  const name = document.getElementById('custom-theme-name')?.value.trim() || 'Custom Theme';
+  const id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'custom';
+  const accent = document.getElementById('custom-theme-accent')?.value || '#00e5ff';
+  const bg_dark = document.getElementById('custom-theme-bg-dark')?.value || '#0b0f14';
+  const bg_panel = document.getElementById('custom-theme-bg-panel')?.value || '#111822';
+
+  const toml = `# CommanderDog Theme Definition
+id = "${id}"
+name = "${name}"
+bg_dark = "${bg_dark}"
+bg_panel = "${bg_panel}"
+bg_active = "${bg_panel}"
+accent = "${accent}"
+accent_hover = "${accent}"
+text_main = "#f4f4f5"
+text_muted = "#a1a1aa"
+border = "${accent}"
+`;
+
+  const blob = new Blob([toml], { type: 'text/plain' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${id}.toml`;
+  a.click();
+  showToast(`Exported ${id}.toml! You can drop this into ~/.config/commanderdog/themes/`, 'info');
+}
+
+function populateThemeSelectors() {
+  if (!App.config?.themes?.themes || !Array.isArray(App.config.themes.themes)) return;
+  const selectors = [
+    document.getElementById('settings-theme-selector'),
+    document.getElementById('theme-selector')
+  ];
+
+  const curVal = localStorage.getItem('cd_theme') || App.config?.themes?.default_theme || 'amber-charcoal';
+
+  selectors.forEach(sel => {
+    if (!sel) return;
+    sel.innerHTML = '';
+    App.config.themes.themes.forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = t.id;
+      opt.textContent = t.name;
+      sel.appendChild(opt);
+    });
+    sel.value = curVal;
+  });
+
+  // Populate visual theme swatch cards
+  const grid = document.getElementById('theme-swatch-grid');
+  if (grid) {
+    grid.innerHTML = '';
+    App.config.themes.themes.forEach(t => {
+      const card = document.createElement('div');
+      card.className = `theme-swatch-card ${t.id === curVal ? 'active' : ''}`;
+      card.id = `theme-card-${t.id}`;
+      card.onclick = () => applyTheme(t.id);
+
+      card.innerHTML = `
+        <div class="theme-swatch-preview">
+          <span class="theme-swatch-dot" style="background: ${t.bg_dark};" title="Background: ${t.bg_dark}"></span>
+          <span class="theme-swatch-dot" style="background: ${t.bg_panel};" title="Panel: ${t.bg_panel}"></span>
+          <span class="theme-swatch-dot" style="background: ${t.accent};" title="Accent: ${t.accent}"></span>
+          <span class="theme-swatch-dot" style="background: ${t.text_main};" title="Text: ${t.text_main}"></span>
+        </div>
+        <div class="theme-swatch-name">${escapeHtml(t.name)}</div>
+      `;
+      grid.appendChild(card);
+    });
   }
 }
 
@@ -5078,6 +5224,27 @@ function applyTheme(themeId) {
   if (selSettings) selSettings.value = themeId;
 
   const root = document.documentElement;
+
+  // Update active state on visual swatch cards
+  document.querySelectorAll('.theme-swatch-card').forEach(card => {
+    if (card.id === `theme-card-${themeId}`) card.classList.add('active');
+    else card.classList.remove('active');
+  });
+
+  // 1. Check dynamic themes loaded from App.config.themes.themes (built-in + ~/.config/commanderdog/themes/)
+  const customTheme = App.config?.themes?.themes?.find(t => t.id === themeId);
+  if (customTheme) {
+    root.style.setProperty('--bg-dark', customTheme.bg_dark);
+    root.style.setProperty('--bg-panel', customTheme.bg_panel);
+    root.style.setProperty('--bg-header', customTheme.bg_active || customTheme.bg_panel);
+    root.style.setProperty('--bg-active', customTheme.bg_active);
+    root.style.setProperty('--border', customTheme.border);
+    root.style.setProperty('--accent', customTheme.accent);
+    root.style.setProperty('--accent-hover', customTheme.accent_hover || customTheme.accent);
+    root.style.setProperty('--text-main', customTheme.text_main);
+    root.style.setProperty('--text-muted', customTheme.text_muted);
+    return;
+  }
 
   if (themeId === 'gruvbox') {
     root.style.setProperty('--bg-dark', '#1d2021');
@@ -10587,7 +10754,7 @@ function buildSpotlightItems() {
   const q = spotlightQuery.toLowerCase();
   let pool = [];
 
-  // 1. Static Actions
+  // 1. Static Actions & Dynamic Themes
   if (spotlightCurrentCat === 'all' || spotlightCurrentCat === 'actions') {
     pool.push(...SPOTLIGHT_STATIC_ACTIONS.map(a => ({
       title: a.title,
@@ -10597,6 +10764,19 @@ function buildSpotlightItems() {
       badge: 'Action',
       handler: a.action
     })));
+
+    if (App.config?.themes?.themes && Array.isArray(App.config.themes.themes)) {
+      App.config.themes.themes.forEach(t => {
+        pool.push({
+          title: `Theme: ${t.name}`,
+          sub: `Switch visual color palette to ${t.name}`,
+          icon: 'palette',
+          cat: 'action',
+          badge: 'Theme',
+          handler: () => applyTheme(t.id)
+        });
+      });
+    }
   }
 
   // 2. Standard & Open Paths

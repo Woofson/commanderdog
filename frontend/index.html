@@ -652,6 +652,53 @@
             </select>
           </div>
 
+          <div class="form-group">
+            <label>Visual Theme Swatches (Click to Apply):</label>
+            <div id="theme-swatch-grid" class="theme-swatch-grid">
+              <!-- Dynamically populated -->
+            </div>
+            <div class="form-hint">Supports built-in themes and custom external themes from <code>~/.config/commanderdog/themes/</code>.</div>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 16px; margin-bottom: 8px;">
+            <h4 style="color: var(--accent); margin: 0; font-size: 13px;">✨ Web Custom Theme Creator & Importer</h4>
+            <button class="btn btn-sm" onclick="toggleCustomThemeCreator()" style="padding: 4px 8px; font-size: 11px;"><i data-lucide="plus"></i> New Theme</button>
+          </div>
+          <div id="custom-theme-creator" style="display: none; background: var(--bg-active); border: 1px solid var(--border); border-radius: 6px; padding: 12px; margin-bottom: 16px;">
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 10px;">
+              <div>
+                <label style="font-size: 11px; display: block; margin-bottom: 4px;">Theme Name:</label>
+                <input type="text" id="custom-theme-name" class="pane-quick-filter" style="width: 100%; padding: 6px;" placeholder="e.g. Cyber Sunset">
+              </div>
+              <div>
+                <label style="font-size: 11px; display: block; margin-bottom: 4px;">Accent Highlight:</label>
+                <div style="display: flex; gap: 6px; align-items: center;">
+                  <input type="color" id="custom-theme-accent" value="#00e5ff" style="width: 38px; height: 30px; border: 1px solid var(--border); background: transparent; cursor: pointer; border-radius: 4px;" oninput="document.getElementById('custom-theme-accent-txt').value = this.value">
+                  <input type="text" id="custom-theme-accent-txt" class="pane-quick-filter" value="#00e5ff" style="width: 100%; padding: 6px;" oninput="document.getElementById('custom-theme-accent').value = this.value">
+                </div>
+              </div>
+              <div>
+                <label style="font-size: 11px; display: block; margin-bottom: 4px;">Dark Background:</label>
+                <div style="display: flex; gap: 6px; align-items: center;">
+                  <input type="color" id="custom-theme-bg-dark" value="#0b0f14" style="width: 38px; height: 30px; border: 1px solid var(--border); background: transparent; cursor: pointer; border-radius: 4px;" oninput="document.getElementById('custom-theme-bg-dark-txt').value = this.value">
+                  <input type="text" id="custom-theme-bg-dark-txt" class="pane-quick-filter" value="#0b0f14" style="width: 100%; padding: 6px;" oninput="document.getElementById('custom-theme-bg-dark').value = this.value">
+                </div>
+              </div>
+              <div>
+                <label style="font-size: 11px; display: block; margin-bottom: 4px;">Panel Background:</label>
+                <div style="display: flex; gap: 6px; align-items: center;">
+                  <input type="color" id="custom-theme-bg-panel" value="#111822" style="width: 38px; height: 30px; border: 1px solid var(--border); background: transparent; cursor: pointer; border-radius: 4px;" oninput="document.getElementById('custom-theme-bg-panel-txt').value = this.value">
+                  <input type="text" id="custom-theme-bg-panel-txt" class="pane-quick-filter" value="#111822" style="width: 100%; padding: 6px;" oninput="document.getElementById('custom-theme-bg-panel').value = this.value">
+                </div>
+              </div>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <button class="btn btn-accent btn-sm" onclick="saveCustomBrowserTheme()"><i data-lucide="check"></i> Save & Apply</button>
+              <button class="btn btn-sm" onclick="exportCustomThemeToml()"><i data-lucide="download"></i> Export TOML</button>
+              <button class="btn btn-sm" onclick="toggleCustomThemeCreator()">Cancel</button>
+            </div>
+          </div>
+
           <h4 style="color: var(--accent); margin-top: 16px; margin-bottom: 8px;">🖼️ Panel Border & Focus Ring Customization</h4>
           <p style="color: var(--text-muted); font-size: 11px; margin-bottom: 12px;">Fine-tune panel border thickness and active focus highlight intensity.</p>
           <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 16px;">
@@ -2350,7 +2397,7 @@
           <div style="font-size: 18px; font-weight: 800; color: var(--accent); letter-spacing: 0.5px;">CommanderDog</div>
           <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 10px;">Multi-Tab Web Commander - By Woofson</div>
           <div style="display: flex; justify-content: center; gap: 6px; flex-wrap: wrap;">
-            <span class="badge" style="background: rgba(245, 158, 11, 0.2); color: var(--accent); border: 1px solid rgba(245, 158, 11, 0.4); font-weight: 700;">v0.3.6 (Desktop & Web)</span>
+            <span class="badge" style="background: rgba(245, 158, 11, 0.2); color: var(--accent); border: 1px solid rgba(245, 158, 11, 0.4); font-weight: 700;">v0.3.7 (Desktop & Web)</span>
             <span class="badge" style="background: rgba(56, 189, 248, 0.15); color: var(--info); border: 1px solid rgba(56, 189, 248, 0.3);">Rust + Axum + Tokio</span>
             <span class="badge" style="background: rgba(34, 197, 94, 0.15); color: var(--success); border: 1px solid rgba(34, 197, 94, 0.3);">MIT Open Source</span>
           </div>

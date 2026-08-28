@@ -74,11 +74,16 @@
   - Fast Folder Comparison (size & mtime mismatches, missing items).
   - Selected files only diff and full deep cryptographic hash comparison.
   - Side-by-side text diff with line-by-line additions, deletions, and inline token highlighting.
-- 🎨 **11 Themes Suite**:
-  - **🐕 Woofson Amber (Default)**, **🍂 Gruvbox Dark**, **☕ Catppuccin Mocha**, **🥛 Catppuccin Latte (Light)**, **🌃 Tokyo Night**, **🔥 Monokai Pro**, **☀️ Solarized Dark**, **✨ Ayu Dark**, **❄️ Nord Frost**, **🧛 Dracula Dark**, **💻 Midnight Commander Blue**.
-- ⚙️ **conf.d Configuration Architecture**:
-  - Scans and merges snippets hierarchically from `/etc/commanderdog/conf.d/*.toml`, `~/.config/commanderdog/conf.d/*.toml`, and `./conf.d/*.toml`.
-- 🐳 **Docker, Proxmox & LXC Ready**: Standalone single binary with embedded web frontend, Debian `.deb` packages, and full Proxmox deployment guide (`LXC.md`).
+- 🎨 **Extensible Theme Engine & Palette Customizer**:
+  - 11 built-in themes: **🐕 Woofson Amber (Default)**, **🍂 Gruvbox Dark**, **☕ Catppuccin Mocha**, **🥛 Catppuccin Latte (Light)**, **🌃 Tokyo Night**, **🔥 Monokai Pro**, **☀️ Solarized Dark**, **✨ Ayu Dark**, **❄️ Nord Frost**, **🧛 Dracula Dark**, **💻 Midnight Commander Blue**.
+  - **External TOML Themes**: Drop custom `.toml` themes into `~/.config/commanderdog/themes/` or `/etc/commanderdog/themes/`.
+  - **Web Custom Theme Creator**: Build, preview, and export custom themes directly within the Web UI.
+- ⚙️ **Hierarchical XDG Configuration**:
+  - Scans and merges settings with user priority: `~/.config/commanderdog/config.toml` $\rightarrow$ `~/.config/commanderdog/conf.d/*.toml` $\rightarrow$ `./conf.d/*.toml` $\rightarrow$ `/etc/commanderdog/`.
+- 🪟 **Native Desktop Window & Tiling WM Support**:
+  - Standalone native window mode via WebKitGTK / WebView2 (`commanderdog --standalone`).
+  - Seamless borderless / frameless mode for tiling window managers (Hyprland, Sway, i3) via `--no-decorations`.
+- 🐳 **Docker, Proxmox & LXC Ready**: Standalone single binary with embedded web frontend, Arch AUR packages (`commanderdog`, `commanderdog-bin`), Debian `.deb`, Alpine `.apk`, and Proxmox deployment guide (`LXC.md`).
 
 ---
 
