@@ -198,9 +198,9 @@ fn run_native_gui(url: &str, title: &str) -> Result<(), Box<dyn std::error::Erro
         .with_resizable(true)
         .build(&event_loop)?;
 
-    let _webview = WebViewBuilder::new(&window)
-        .with_url(url)?
-        .build()?;
+    let _webview = WebViewBuilder::new()
+        .with_url(url)
+        .build(&window)?;
 
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;

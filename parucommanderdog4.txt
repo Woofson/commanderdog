@@ -1,0 +1,35 @@
+   Compiling tao v0.30.8
+error[E0061]: this function takes 0 arguments but 1 argument was supplied
+   --> src/main.rs:201:20
+    |
+201 |     let _webview = WebViewBuilder::new(&window)
+    |                    ^^^^^^^^^^^^^^^^^^^ ------- unexpected argument of type `&Window`
+    |
+note: associated function defined here
+   --> /home/bolt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wry-0.47.2/src/lib.rs:584:10
+    |
+584 |   pub fn new() -> Self {
+    |          ^^^
+help: remove the extra argument
+    |
+201 -     let _webview = WebViewBuilder::new(&window)
+201 +     let _webview = WebViewBuilder::new()
+    |
+
+error[E0277]: the `?` operator can only be applied to values that implement `Try`
+   --> src/main.rs:201:20
+    |
+201 |       let _webview = WebViewBuilder::new(&window)
+    |  ____________________^
+202 | |         .with_url(url)?
+    | |_______________________^ the `?` operator cannot be applied to type `WebViewBuilder<'_>`
+    |
+    = help: the nightly-only, unstable trait `Try` is not implemented for `WebViewBuilder<'_>`
+
+Some errors have detailed explanations: E0061, E0277.
+For more information about an error, try `rustc --explain E0061`.
+error: could not compile `commanderdog` (bin "commanderdog") due to 2 previous errors
+==> ERROR: A failure occurred in build().
+    Aborting...
+error: failed to build 'commanderdog-0.3.2-1': 
+error: packages failed to build: commanderdog-0.3.2-1

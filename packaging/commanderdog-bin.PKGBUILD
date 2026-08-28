@@ -1,6 +1,6 @@
 # Maintainer: Bolt J Woofson <bolt@boop.no>
 pkgname=commanderdog-bin
-pkgver=0.3.2
+pkgver=0.3.3
 pkgrel=1
 pkgdesc="Multi-Tab Web Commander - By Woofson (Pre-compiled standalone binary)"
 arch=('x86_64')
