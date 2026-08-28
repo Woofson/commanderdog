@@ -68,9 +68,10 @@ This roadmap outlines completed capabilities, active architectural enhancements,
 ```mermaid
 graph TD
     A["v0.4.1 (Live: Storage Roots, Sandboxing, Multi-Arch Docker)"] --> B["1. Transparent Encrypted Vaults (AES-256-GCM)"]
-    B --> C["2. Folder Automation Watchers & Webhooks"]
-    C --> D["3. Global System Tray & Summon Hotkey (Super+C)"]
-    D --> E["4. Enterprise OIDC SSO & ONLYOFFICE / Collabora WOPI"]
+    B --> C["2. 🪟 Windows Native Build & Release (MSI, Portable .zip, Winget)"]
+    C --> D["3. Folder Automation Watchers & Webhooks"]
+    D --> E["4. Global System Tray & Summon Hotkey (Super+C)"]
+    E --> F["5. Enterprise OIDC SSO & ONLYOFFICE / Collabora WOPI"]
 ```
 
 ### 🔒 Milestone 1: Transparent Encrypted Vaults (AES-256-GCM / Argon2id)
@@ -80,7 +81,21 @@ graph TD
 
 ---
 
-### ⚙️ Milestone 2: Folder Automation Watchers & Webhooks
+### 🪟 Milestone 2: Windows Native Build & Release Pipeline
+- **Native Standalone Windows Binary (`commanderdog.exe`)**:
+  - Direct Rust + Microsoft WebView2 integration (Edge Chromium engine) providing a lightweight standalone desktop experience without Electron overhead.
+- **Windows Packaging & Installers**:
+  - **Setup Installer (`.msi` / `.exe`)**: 1-click Windows installer with Desktop & Start Menu shortcuts and optional "Open in CommanderDog" Shell context menu integration.
+  - **Portable `.zip` Archive**: Zero-install standalone portable distribution for USB drives and portable toolkits.
+  - **Winget & Scoop Manifests**: Package distribution via `winget install Woofson.CommanderDog` and Scoop bucket.
+- **Windows Filesystem & UNC Path Engine**:
+  - First-class support for Windows drive letters (`C:\`, `D:\`, `Z:\`), system user profiles (`%USERPROFILE%`), and Windows SMB UNC shares (`\\server\share`).
+- **Automated Windows CI/CD Release Matrix**:
+  - GitHub Actions automated build job targeting `x86_64-pc-windows-msvc` and `x86_64-pc-windows-gnu` attaching release artifacts to GitHub Releases.
+
+---
+
+### ⚙️ Milestone 3: Folder Automation Watchers & Webhooks
 - **Real-Time Directory Watchers**: Inotify / notify-rs backend tracking specified directories.
 - **Rule Engine**:
   - Automatically convert incoming images/media using ConvertX.
@@ -90,14 +105,14 @@ graph TD
 
 ---
 
-### 🔔 Milestone 3: Global System Tray & Desktop Integration
+### 🔔 Milestone 4: Global System Tray & Desktop Integration
 - **System Tray Icon**: Minimize to tray with quick status, active background transfer count, and 1-click toggle.
 - **Global Summon Hotkey**: Summon CommanderDog anywhere on your system via configurable global shortcut (<kbd>Super+C</kbd> or <kbd>Ctrl+Alt+Space</kbd>).
 - **Native OS Drag-and-Drop**: Drag files directly between CommanderDog and native desktop file managers (Dolphin, Nautilus, Thunar, Windows Explorer, macOS Finder).
 
 ---
 
-### 🌐 Milestone 4: Enterprise OIDC SSO & Collaborative Office (WOPI)
+### 🌐 Milestone 5: Enterprise OIDC SSO & Collaborative Office (WOPI)
 - **OpenID Connect (OIDC)**: Seamless login via Authentik, Authelia, Keycloak, Okta, and Google Workspace alongside Linux PAM.
 - **Collaborative Office (WOPI)**: In-browser live editing for `.docx`, `.xlsx`, `.pptx`, `.odt`, `.ods` via ONLYOFFICE and Collabora Online integration.
 
@@ -113,5 +128,6 @@ graph TD
 | **`v0.4.0`** | Multi-Part File Splitter & Combiner, Integrated Git Client, Auto-$HOME Startup | **Released** |
 | **`v0.4.1`** | **Configurable Storage Roots, Filesystem Sandboxing, Per-User Root RBAC, Multi-Arch Alpine/Debian GHCR** | **Released (Current)** |
 | **`v0.4.5`** | **Transparent Encrypted Vaults (AES-256-GCM)** & In-Memory Decryption | *Next Up* |
+| **`v0.4.8`** | **🪟 Windows Native Build & Release (MSI, Portable ZIP, Winget, WebView2)** | *In Development* |
 | **`v0.5.0`** | **Folder Automation Watchers & Webhook Rules** | *Planned* |
 | **`v0.6.0`** | **System Tray, Global Summon Hotkey, Enterprise OIDC SSO & ONLYOFFICE WOPI** | *Planned* |
