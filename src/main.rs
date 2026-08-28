@@ -190,6 +190,11 @@ fn run_native_gui(url: &str, title: &str) -> Result<(), Box<dyn std::error::Erro
     use tao::window::WindowBuilder;
     use wry::WebViewBuilder;
 
+    #[cfg(target_os = "linux")]
+    use tao::platform::unix::WindowExtUnix;
+    #[cfg(target_os = "linux")]
+    use wry::WebViewBuilderExtUnix;
+
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
         .with_title(title)
@@ -198,9 +203,16 @@ fn run_native_gui(url: &str, title: &str) -> Result<(), Box<dyn std::error::Erro
         .with_resizable(true)
         .build(&event_loop)?;
 
-    let _webview = WebViewBuilder::new()
-        .with_url(url)
-        .build(&window)?;
+    let builder = WebViewBuilder::new().with_url(url);
+
+    #[cfg(target_os = "linux")]
+    let _webview = {
+        let vbox = window.default_vbox().ok_or("Failed to obtain GTK default vbox for Wayland/X11")?;
+        builder.build_gtk(vbox)?
+    };
+
+    #[cfg(not(target_os = "linux"))]
+    let _webview = builder.build(&window)?;
 
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
