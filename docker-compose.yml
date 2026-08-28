@@ -1,11 +1,6 @@
-version: '3.8'
-
 services:
   commanderdog:
     image: ghcr.io/woofson/commanderdog:latest
-    build:
-      context: .
-      dockerfile: Dockerfile
     container_name: commanderdog
     restart: unless-stopped
     ports:
@@ -15,9 +10,8 @@ services:
       - CD_PORT=3140
       - CD_BIND=0.0.0.0
     volumes:
-      # Data & Configuration persistence
+      # Data & Configuration persistence (database, runtime state, custom configs)
       - ./data:/data
-      - ./config.toml:/etc/commanderdog/config.toml:ro
       
       # Host Storage / Shares (Mount host directories to manage)
       - /home:/mnt/home:rw

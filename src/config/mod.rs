@@ -502,6 +502,7 @@ impl ConfigManager {
         // Fast-path candidate paths in strict priority order
         let candidate_paths = vec![
             dirs::config_dir().map(|d| d.join("commanderdog").join("config.toml")),
+            Some(PathBuf::from("/data/config.toml")),
             Some(PathBuf::from("./config.toml")),
             Some(PathBuf::from("/etc/commanderdog/config.toml")),
         ];
