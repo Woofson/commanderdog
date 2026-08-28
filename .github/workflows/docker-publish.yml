@@ -80,5 +80,6 @@ jobs:
 
       - name: Build and push Alpine container
         run: |
-          docker build --progress=plain -t ghcr.io/${{ github.repository }}:alpine -f Dockerfile.alpine .
-          docker push ghcr.io/${{ github.repository }}:alpine
+          IMAGE_NAME=$(echo "ghcr.io/${{ github.repository }}:alpine" | tr '[:upper:]' '[:lower:]')
+          docker build --progress=plain -t "$IMAGE_NAME" -f Dockerfile.alpine .
+          docker push "$IMAGE_NAME"
