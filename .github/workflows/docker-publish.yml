@@ -82,8 +82,6 @@ jobs:
           targets: x86_64-unknown-linux-musl
 
       - name: Compile CommanderDog for Alpine (musl)
-        env:
-          LIBSSH2_SYS_USE_PKG_CONFIG: 0
         run: |
           cargo build --release --target x86_64-unknown-linux-musl --no-default-features
 
