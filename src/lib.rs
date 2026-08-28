@@ -75,75 +75,145 @@ pub fn setup_linux_desktop_env() {
         }
 
         // 2. Fix GDK "Unable to load pointer from the cursor theme" spam on Hyprland / Wayland
+        let home = std::env::var("HOME").unwrap_or_else(|_| "/home/bolt".to_string());
         if std::env::var("XCURSOR_PATH").is_err() {
-            let home = std::env::var("HOME").unwrap_or_else(|_| "/home/bolt".to_string());
             let paths = format!("{}/.local/share/icons:{}/.icons:/usr/share/icons:/usr/local/share/icons:/usr/share/pixmaps", home, home);
             std::env::set_var("XCURSOR_PATH", paths);
         }
 
-        if std::env::var("XCURSOR_THEME").is_err() {
-            if let Ok(hypr_theme) = std::env::var("HYPRCURSOR_THEME") {
-                if !hypr_theme.is_empty() {
-                    std::env::set_var("XCURSOR_THEME", &hypr_theme);
-                } else {
-                    std::env::set_var("XCURSOR_THEME", "Adwaita");
-                }
-            } else {
-                std::env::set_var("XCURSOR_THEME", "Adwaita");
-            }
+        // Verify if XCURSOR_THEME has a valid cursors directory, otherwise fallback to Adwaita or default
+        let current_theme = std::env::var("XCURSOR_THEME").unwrap_or_default();
+        let is_valid = !current_theme.is_empty() && (
+            std::path::Path::new(&format!("/usr/share/icons/{}/cursors", current_theme)).exists()
+            || std::path::Path::new(&format!("{}/.local/share/icons/{}/cursors", home, current_theme)).exists()
+            || std::path::Path::new(&format!("{}/.icons/{}/cursors", home, current_theme)).exists()
+        );
+
+        if !is_valid {
+            let candidate_themes = ["Adwaita", "default", "breeze_cursors", "mate", "HighContrast"];
+            let fallback = candidate_themes.iter().find(|t| {
+                std::path::Path::new(&format!("/usr/share/icons/{}/cursors", t)).exists()
+            }).unwrap_or(&"Adwaita");
+            std::env::set_var("XCURSOR_THEME", fallback);
         }
 
         if std::env::var("XCURSOR_SIZE").is_err() {
-            if let Ok(hypr_size) = std::env::var("HYPRCURSOR_SIZE") {
-                if !hypr_size.is_empty() {
-                    std::env::set_var("XCURSOR_SIZE", &hypr_size);
-                } else {
-                    std::env::set_var("XCURSOR_SIZE", "24");
+            std::env::set_var("XCURSOR_SIZE", "24");
+        }
+
+        // Disable verbose GLib/GDK/WebKit diagnostic noise in child processes
+        std::env::set_var("G_ENABLE_DIAGNOSTIC", "0");
+        std::env::set_var("G_MESSAGES_DEBUG", "");
+
+        // 3. Directly suppress GDK "Unable to load pointer..." log messages via GLib C-FFI (Structured + Classic)
+        silence_gdk_pointer_logs();
+    }
+}
+
+#[cfg(target_os = "linux")]
+#[repr(C)]
+struct GLogField {
+    key: *const std::ffi::c_char,
+    value: *const std::ffi::c_void,
+    length: isize,
+}
+
+#[cfg(target_os = "linux")]
+type GLogWriterFunc = unsafe extern "C" fn(
+    log_level: i32,
+    fields: *const GLogField,
+    n_fields: usize,
+    user_data: *mut std::ffi::c_void,
+) -> i32;
+
+#[cfg(target_os = "linux")]
+type GLogFunc = unsafe extern "C" fn(
+    log_domain: *const std::ffi::c_char,
+    log_level: i32,
+    message: *const std::ffi::c_char,
+    user_data: *mut std::ffi::c_void,
+);
+
+#[cfg(target_os = "linux")]
+static mut DEFAULT_LOG_WRITER: Option<GLogWriterFunc> = None;
+
+#[cfg(target_os = "linux")]
+unsafe extern "C" fn structured_log_filter(
+    log_level: i32,
+    fields: *const GLogField,
+    n_fields: usize,
+    user_data: *mut std::ffi::c_void,
+) -> i32 {
+    if !fields.is_null() && n_fields > 0 {
+        let slice = std::slice::from_raw_parts(fields, n_fields);
+        for field in slice {
+            if !field.key.is_null() && !field.value.is_null() {
+                let key = std::ffi::CStr::from_ptr(field.key).to_bytes();
+                if key == b"MESSAGE" {
+                    let msg = if field.length < 0 {
+                        std::ffi::CStr::from_ptr(field.value as *const std::ffi::c_char).to_string_lossy()
+                    } else {
+                        let bytes = std::slice::from_raw_parts(field.value as *const u8, field.length as usize);
+                        String::from_utf8_lossy(bytes)
+                    };
+                    if msg.contains("cursor") || msg.contains("pointer") || msg.contains("Unable to load") {
+                        return 1; // 1 = G_LOG_WRITER_HANDLED (Silently drop)
+                    }
                 }
-            } else {
-                std::env::set_var("XCURSOR_SIZE", "24");
             }
         }
+    }
 
-        // Disable verbose GLib/GDK diagnostic noise
-        if std::env::var("G_ENABLE_DIAGNOSTIC").is_err() {
-            std::env::set_var("G_ENABLE_DIAGNOSTIC", "0");
+    if let Some(def_writer) = DEFAULT_LOG_WRITER {
+        def_writer(log_level, fields, n_fields, user_data)
+    } else {
+        1
+    }
+}
+
+#[cfg(target_os = "linux")]
+unsafe extern "C" fn classic_log_filter(
+    _log_domain: *const std::ffi::c_char,
+    _log_level: i32,
+    message: *const std::ffi::c_char,
+    _user_data: *mut std::ffi::c_void,
+) {
+    if !message.is_null() {
+        let msg = std::ffi::CStr::from_ptr(message).to_string_lossy();
+        if msg.contains("cursor") || msg.contains("pointer") || msg.contains("Unable to load") {
+            return; // Silently drop
         }
-
-        // 3. Directly suppress GDK "Unable to load pointer..." log messages via GLib C-FFI
-        silence_gdk_pointer_logs();
+        eprintln!("{}", msg);
     }
 }
 
 #[cfg(target_os = "linux")]
 fn silence_gdk_pointer_logs() {
     unsafe {
-        type GLogFunc = unsafe extern "C" fn(
-            log_domain: *const std::ffi::c_char,
-            log_level: i32,
-            message: *const std::ffi::c_char,
-            user_data: *mut std::ffi::c_void,
-        );
-
-        unsafe extern "C" fn filter_gdk_logger(
-            _log_domain: *const std::ffi::c_char,
-            _log_level: i32,
-            message: *const std::ffi::c_char,
-            _user_data: *mut std::ffi::c_void,
-        ) {
-            if !message.is_null() {
-                let msg = std::ffi::CStr::from_ptr(message).to_string_lossy();
-                if msg.contains("cursor theme") || msg.contains("pointer") || msg.contains("Unable to load") {
-                    return; // Silently drop mouse pointer warnings
-                }
-            }
-        }
-
-        // Dynamically load libglib-2.0 to register log handler
+        // Dynamically load libglib-2.0 to register log handlers
         let glib_libs = ["libglib-2.0.so.0\0", "libglib-2.0.so\0"];
         for lib_name in &glib_libs {
             let handle = libc::dlopen(lib_name.as_ptr() as *const _, libc::RTLD_LAZY | libc::RTLD_GLOBAL);
             if !handle.is_null() {
+                // 1. Hook Structured Logging (GLib 2.50+ default used by WebKit & GDK)
+                let def_writer_sym = b"g_log_writer_default\0";
+                let def_writer_ptr = libc::dlsym(handle, def_writer_sym.as_ptr() as *const _);
+                if !def_writer_ptr.is_null() {
+                    DEFAULT_LOG_WRITER = Some(std::mem::transmute(def_writer_ptr));
+                }
+
+                let set_writer_sym = b"g_log_set_writer_func\0";
+                let set_writer_ptr = libc::dlsym(handle, set_writer_sym.as_ptr() as *const _);
+                if !set_writer_ptr.is_null() {
+                    let g_log_set_writer_func: unsafe extern "C" fn(
+                        GLogWriterFunc,
+                        *mut std::ffi::c_void,
+                        Option<unsafe extern "C" fn(*mut std::ffi::c_void)>,
+                    ) = std::mem::transmute(set_writer_ptr);
+                    g_log_set_writer_func(structured_log_filter, std::ptr::null_mut(), None);
+                }
+
+                // 2. Hook Classic Logging
                 let set_handler_sym = b"g_log_set_handler\0";
                 let func_ptr = libc::dlsym(handle, set_handler_sym.as_ptr() as *const _);
                 if !func_ptr.is_null() {
@@ -154,12 +224,9 @@ fn silence_gdk_pointer_logs() {
                         *mut std::ffi::c_void,
                     ) -> u32 = std::mem::transmute(func_ptr);
 
-                    // Suppress Gdk and Gdk-Wayland domain messages
-                    let domain_gdk = b"Gdk\0";
-                    g_log_set_handler(domain_gdk.as_ptr() as *const _, 0xFF, filter_gdk_logger, std::ptr::null_mut());
-
-                    let domain_gdk_wayland = b"Gdk-Wayland\0";
-                    g_log_set_handler(domain_gdk_wayland.as_ptr() as *const _, 0xFF, filter_gdk_logger, std::ptr::null_mut());
+                    for dom in [b"Gdk\0".as_ptr(), b"Gdk-Wayland\0".as_ptr(), b"Gtk\0".as_ptr(), b"WebKit\0".as_ptr()] {
+                        g_log_set_handler(dom as *const _, 0xFF, classic_log_filter, std::ptr::null_mut());
+                    }
                 }
 
                 let default_sym = b"g_log_set_default_handler\0";
@@ -169,7 +236,7 @@ fn silence_gdk_pointer_logs() {
                         GLogFunc,
                         *mut std::ffi::c_void,
                     ) -> GLogFunc = std::mem::transmute(def_ptr);
-                    g_log_set_default_handler(filter_gdk_logger, std::ptr::null_mut());
+                    g_log_set_default_handler(classic_log_filter, std::ptr::null_mut());
                 }
                 break;
             }

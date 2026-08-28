@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.4.1] — 2026-08-28
+
+### Fixed
+- **🖱️ GDK Wayland Mouse Pointer Log Silencing (Structured GLib Logging)**:
+  - Fixed GDK cursor log spam under Wayland/Hyprland by hooking modern GLib structured logging (`g_log_set_writer_func`).
+  - Added smart XCursor theme resolution: auto-detects valid system cursor themes with existing `cursors/` directories, preventing invalid hyprcursor theme mismatches in GDK.
+- **🚪 Standalone Desktop Exit Button Rendering**:
+  - Fixed standalone desktop mode Exit button reactivity so the header profile dropdown reliably swaps "Log Out" for "Exit" (`power` icon) on startup and config load.
+
+---
+
 ## [v0.4.0] — 2026-08-28
 
 ### Added

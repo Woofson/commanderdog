@@ -240,6 +240,9 @@ async function loadConfig() {
 
       // Configure Global Refresh button visibility (off by default)
       updateGlobalRefreshButtonVisibility();
+
+      // Configure Logout vs Exit button
+      updateLogoutOrExitButton();
     }
   } catch (e) {
     console.error('Config fetch failed:', e);
@@ -3917,19 +3920,20 @@ function updateHeaderProfile(user) {
   }
 
   // Update Logout vs Exit button for standalone desktop mode
-  const isStandalone = App.config?.server?.standalone || window.__TAURI__ !== undefined;
-  const logoutBtn = document.getElementById('btn-profile-logout');
-  const logoutIcon = document.getElementById('icon-profile-logout');
-  const logoutLabel = document.getElementById('label-profile-logout');
+  updateLogoutOrExitButton();
+}
 
-  if (logoutLabel) {
-    logoutLabel.textContent = isStandalone ? 'Exit' : 'Log Out';
-  }
+function updateLogoutOrExitButton() {
+  const isStandalone = App.isStandalone === true || App.config?.server?.standalone === true || window.__TAURI__ !== undefined;
+  const logoutBtn = document.getElementById('btn-profile-logout');
   if (logoutBtn) {
-    logoutBtn.title = isStandalone ? 'Exit / Quit CommanderDog' : 'Log Out';
-  }
-  if (logoutIcon) {
-    logoutIcon.setAttribute('data-lucide', isStandalone ? 'power' : 'log-out');
+    if (isStandalone) {
+      logoutBtn.title = 'Exit / Quit CommanderDog';
+      logoutBtn.innerHTML = '<i data-lucide="power" style="width: 14px; height: 14px;"></i> <span id="label-profile-logout">Exit</span>';
+    } else {
+      logoutBtn.title = 'Log Out';
+      logoutBtn.innerHTML = '<i data-lucide="log-out" style="width: 14px; height: 14px;"></i> <span id="label-profile-logout">Log Out</span>';
+    }
     if (window.lucide) lucide.createIcons();
   }
 }
