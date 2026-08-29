@@ -60,11 +60,16 @@ This roadmap outlines completed capabilities, active architectural enhancements,
 - [x] **Tiling WM Borderless Mode**:
   - `--no-decorations` / `--frameless` CLI flags and `window_decorations = false` config option for Hyprland/Sway.
 
-### 🖥️ Native Standalone Windowing & Wayland/Hyprland (`v0.3.2` — `v0.3.5`)
-- [x] **True Standalone Native Desktop Window (`commanderdog --standalone`)**:
-  - WebKitGTK (Linux), WebView2 (Windows), WKWebView (macOS) with tiny ~25–35 MB RAM footprint.
-- [x] **Wayland & Hyprland Explicit Sync Compatibility**:
-  - Resolved `wl_surface` protocol errors (GDK Error 71) on Wayland compositors.
+### 🖥️ Tauri v2 Standalone Desktop App & System Tray (`src-tauri`)
+- [x] **Tauri v2 Native Desktop Architecture**:
+  - Embedded Axum background server on ephemeral localhost with native Webview window (`src-tauri`).
+- [x] **Global System Tray with Interactive Menu**:
+  - Custom system tray icon (`TrayIconBuilder`) with "Show", "Hide", "Open in Web Browser", and "Quit".
+  - Left-click toggle to show, unminimize, focus, or hide the window.
+- [x] **Minimize to Tray on Close**:
+  - `minimize_to_tray` window event interception preventing termination and keeping the app running silently in the background tray.
+- [x] **Tiling WM Borderless Integration**:
+  - `window_decorations` config control for seamless Hyprland, Sway, and i3 tiling.
 
 ### 🪟 In-Pane Docking & Power Tools (`v0.3.0` — `v0.3.1`)
 - [x] **In-Pane Tool Docking (`⇲ Dock / ⇱ Float`)**:
@@ -86,11 +91,10 @@ This roadmap outlines completed capabilities, active architectural enhancements,
 
 ```mermaid
 graph TD
-    A["v0.5.0 (Live: Zero-Leakage Credentials, Leftmost Pane Customizer, Modern Navbar)"] --> B["1. Transparent Encrypted Vaults (AES-256-GCM)"]
+    A["v0.5.0 (Live: Zero-Leakage Credentials, Leftmost Pane Customizer, Modern Navbar, Tauri Tray)"] --> B["1. Transparent Encrypted Vaults (AES-256-GCM)"]
     B --> C["2. 🪟 Windows Native Build & Release (MSI, Portable .zip, Winget)"]
     C --> D["3. Folder Automation Watchers & Webhooks"]
-    D --> E["4. Global System Tray & Summon Hotkey (Super+C)"]
-    E --> F["5. Enterprise OIDC SSO & ONLYOFFICE / Collabora WOPI"]
+    D --> E["4. Enterprise OIDC SSO & ONLYOFFICE / Collabora WOPI"]
 ```
 
 ### 🔒 Milestone 1: Transparent Encrypted Vaults (AES-256-GCM / Argon2id)
@@ -124,14 +128,7 @@ graph TD
 
 ---
 
-### 🔔 Milestone 4: Global System Tray & Desktop Integration
-- **System Tray Icon**: Minimize to tray with quick status, active background transfer count, and 1-click toggle.
-- **Global Summon Hotkey**: Summon CommanderDog anywhere on your system via configurable global shortcut (<kbd>Super+C</kbd> or <kbd>Ctrl+Alt+Space</kbd>).
-- **Native OS Drag-and-Drop**: Drag files directly between CommanderDog and native desktop file managers (Dolphin, Nautilus, Thunar, Windows Explorer, macOS Finder).
-
----
-
-### 🌐 Milestone 5: Enterprise OIDC SSO & Collaborative Office (WOPI)
+### 🌐 Milestone 4: Enterprise OIDC SSO & Collaborative Office (WOPI)
 - **OpenID Connect (OIDC)**: Seamless login via Authentik, Authelia, Keycloak, Okta, and Google Workspace alongside Linux PAM.
 - **Collaborative Office (WOPI)**: In-browser live editing for `.docx`, `.xlsx`, `.pptx`, `.odt`, `.ods` via ONLYOFFICE and Collabora Online integration.
 
@@ -147,8 +144,8 @@ graph TD
 | **`v0.4.0`** | Multi-Part File Splitter & Combiner, Integrated Git Client, Auto-$HOME Startup | **Released** |
 | **`v0.4.1`** | Configurable Storage Roots, Filesystem Sandboxing, Per-User Root RBAC, Multi-Arch Alpine/Debian GHCR | **Released** |
 | **`v0.4.2`** | Multi-Tier SSH/SFTP Auth, Dynamic PAM Zero-Dependency Engine, SFTP $HOME Resolution | **Released** |
-| **`v0.5.0`** | **Zero-Leakage In-Memory Credentials, Leftmost Unified Pane Customizer, Modern Navbar & 1-Click Disconnect** | **Released (Current)** |
+| **`v0.5.0`** | **Zero-Leakage In-Memory Credentials, Leftmost Unified Pane Customizer, Modern Navbar & 1-Click Disconnect, Tauri Tray** | **Released (Current)** |
 | **`v0.5.5`** | **Transparent Encrypted Vaults (AES-256-GCM)** & In-Memory Decryption | *Next Up* |
 | **`v0.6.0`** | **🪟 Windows Native Build & Release (MSI, Portable ZIP, Winget, WebView2)** | *In Development* |
 | **`v0.6.5`** | **Folder Automation Watchers & Webhook Rules** | *Planned* |
-| **`v0.7.0`** | **System Tray, Global Summon Hotkey, Enterprise OIDC SSO & ONLYOFFICE WOPI** | *Planned* |
+| **`v0.7.0`** | **Enterprise OIDC SSO, Collaborative Office (WOPI) & Automation Engine** | *Planned* |
