@@ -7153,6 +7153,8 @@ let targetRemotePaneIndex = 0;
 async function openRemoteModal(paneIndex, asGlobalAdmin = false) {
   targetRemotePaneIndex = paneIndex;
   document.getElementById('remote-test-status').style.display = 'none';
+  const pathIn = document.getElementById('remote-path');
+  if (pathIn) pathIn.value = '';
 
   const isAdmin = App.user?.role === 'admin';
   const globalSection = document.getElementById('remote-global-mount-section');
@@ -7221,7 +7223,8 @@ async function saveGlobalRemoteMount() {
   if (proto === 'sftp') {
     if (!host) { showToast('Please specify host', 'warning'); return; }
     const userAuth = user ? (pass ? `${encodeURIComponent(user)}:${encodeURIComponent(pass)}@` : `${encodeURIComponent(user)}@`) : '';
-    target_uri = `sftp://${userAuth}${host}:${port}${path.startsWith('/') ? path : '/' + path}`;
+    const cleanPath = path && path !== '~' ? (path.startsWith('/') ? path : '/' + path) : '';
+    target_uri = `sftp://${userAuth}${host}:${port}${cleanPath}`;
   } else if (proto === 'smb') {
     const share = document.getElementById('remote-smb-share')?.value || '';
     const domain = document.getElementById('remote-smb-domain')?.value || '';
@@ -7584,7 +7587,8 @@ function connectRemoteToActivePane() {
   if (proto === 'sftp') {
     if (!host) { showToast('Please specify a server host / URL', 'warning'); return; }
     const userAuth = user ? (pass ? `${encodeURIComponent(user)}:${encodeURIComponent(pass)}@` : `${encodeURIComponent(user)}@`) : '';
-    remoteUrl = `sftp://${userAuth}${host}:${port}${path.startsWith('/') ? path : '/' + path}`;
+    const cleanPath = path && path !== '~' ? (path.startsWith('/') ? path : '/' + path) : '';
+    remoteUrl = `sftp://${userAuth}${host}:${port}${cleanPath}`;
   } else if (proto === 'smb') {
     const share = document.getElementById('remote-smb-share')?.value || '';
     const domain = document.getElementById('remote-smb-domain')?.value || '';

@@ -123,11 +123,32 @@ impl SftpClient {
         Ok(sess)
     }
 
+    pub fn resolve_remote_path(sftp: &ssh2::Sftp, raw_path: &str) -> String {
+        let clean = raw_path.trim();
+        if clean.is_empty() || clean == "." || clean == "~" {
+            if let Ok(real) = sftp.realpath(Path::new(".")) {
+                return real.to_string_lossy().to_string();
+            }
+            "/".to_string()
+        } else if clean.starts_with("~/") {
+            let sub = clean.trim_start_matches("~/");
+            if let Ok(real) = sftp.realpath(Path::new(".")) {
+                let home_str = real.to_string_lossy().to_string();
+                format!("{}/{}", home_str.trim_end_matches('/'), sub)
+            } else {
+                format!("/{}", sub)
+            }
+        } else {
+            clean.to_string()
+        }
+    }
+
     pub fn list_dir(params: &SftpParams) -> Result<DirectoryListing, std::io::Error> {
         let sess = Self::connect(params)?;
         let sftp = sess.sftp().map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("SFTP subsystem initialization failed: {}", e)))?;
 
-        let path = if params.remote_path.is_empty() { "/" } else { &params.remote_path };
+        let resolved_path = Self::resolve_remote_path(&sftp, &params.remote_path);
+        let path = if resolved_path.is_empty() { "/" } else { &resolved_path };
         let entries_raw = sftp.readdir(Path::new(path))
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("Failed to read SFTP directory '{}': {}", path, e)))?;
 
@@ -246,8 +267,9 @@ impl SftpClient {
         };
         let sess = Self::connect(&params)?;
         let sftp = sess.sftp().map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("SFTP subsystem error: {}", e)))?;
-        let mut file = sftp.open(Path::new(remote_path))
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("SFTP open error for '{}': {}", remote_path, e)))?;
+        let resolved = Self::resolve_remote_path(&sftp, remote_path);
+        let mut file = sftp.open(Path::new(&resolved))
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("SFTP open error for '{}': {}", resolved, e)))?;
 
         let mut buffer = Vec::new();
         if max_bytes > 0 {
@@ -263,10 +285,11 @@ impl SftpClient {
     pub fn write_file(params: &SftpParams, data: &[u8]) -> Result<(), std::io::Error> {
         let sess = Self::connect(params)?;
         let sftp = sess.sftp().map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("SFTP subsystem error: {}", e)))?;
-        let mut file = sftp.create(Path::new(&params.remote_path))
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("SFTP create file error for '{}': {}", params.remote_path, e)))?;
+        let resolved = Self::resolve_remote_path(&sftp, &params.remote_path);
+        let mut file = sftp.create(Path::new(&resolved))
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("SFTP create file error for '{}': {}", resolved, e)))?;
         file.write_all(data)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("SFTP write error for '{}': {}", params.remote_path, e)))?;
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("SFTP write error for '{}': {}", resolved, e)))?;
         Ok(())
     }
 
@@ -294,7 +317,7 @@ impl SftpClient {
         let (host_port, remote_path) = if let Some(slash) = host_and_path.find('/') {
             (&host_and_path[..slash], &host_and_path[slash..])
         } else {
-            (host_and_path, "/")
+            (host_and_path, "")
         };
 
         let (host, port) = if let Some(colon) = host_port.rfind(':') {
@@ -305,7 +328,7 @@ impl SftpClient {
             (host_port.to_string(), 22)
         };
 
-        let final_path = if remote_path.is_empty() { "/".to_string() } else { remote_path.to_string() };
+        let final_path = remote_path.to_string();
 
         Ok(SftpParams {
             host,
@@ -321,8 +344,9 @@ impl SftpClient {
         let sess = Self::connect(params)
             .map_err(|e| format!("SFTP connect error: {}", e))?;
         let sftp = sess.sftp().map_err(|e| format!("SFTP session error: {}", e))?;
-        let mut remote_file = sftp.open(Path::new(&params.remote_path))
-            .map_err(|e| format!("SFTP open error for {}: {}", params.remote_path, e))?;
+        let resolved = Self::resolve_remote_path(&sftp, &params.remote_path);
+        let mut remote_file = sftp.open(Path::new(&resolved))
+            .map_err(|e| format!("SFTP open error for {}: {}", resolved, e))?;
         let mut local_file = std::fs::File::create(local_dest)
             .map_err(|e| format!("Failed to create local file {}: {}", local_dest.display(), e))?;
         std::io::copy(&mut remote_file, &mut local_file)
@@ -334,8 +358,9 @@ impl SftpClient {
         let sess = Self::connect(params)
             .map_err(|e| format!("SFTP connect error: {}", e))?;
         let sftp = sess.sftp().map_err(|e| format!("SFTP session error: {}", e))?;
-        let mut remote_file = sftp.create(Path::new(&params.remote_path))
-            .map_err(|e| format!("SFTP create remote file error for {}: {}", params.remote_path, e))?;
+        let resolved = Self::resolve_remote_path(&sftp, &params.remote_path);
+        let mut remote_file = sftp.create(Path::new(&resolved))
+            .map_err(|e| format!("SFTP create remote file error for {}: {}", resolved, e))?;
         let mut local_file = std::fs::File::open(local_src)
             .map_err(|e| format!("Failed to open local source {}: {}", local_src.display(), e))?;
         std::io::copy(&mut local_file, &mut remote_file)
@@ -347,7 +372,8 @@ impl SftpClient {
         let sess = Self::connect(params)
             .map_err(|e| format!("SFTP connect error: {}", e))?;
         let sftp = sess.sftp().map_err(|e| format!("SFTP session error: {}", e))?;
-        sftp.mkdir(Path::new(&params.remote_path), 0o755)
+        let resolved = Self::resolve_remote_path(&sftp, &params.remote_path);
+        sftp.mkdir(Path::new(&resolved), 0o755)
             .map_err(|e| format!("SFTP mkdir error: {}", e))?;
         Ok(())
     }
@@ -356,7 +382,9 @@ impl SftpClient {
         let sess = Self::connect(params)
             .map_err(|e| format!("SFTP connect error: {}", e))?;
         let sftp = sess.sftp().map_err(|e| format!("SFTP session error: {}", e))?;
-        sftp.rename(Path::new(&params.remote_path), Path::new(new_remote_path), None)
+        let resolved_from = Self::resolve_remote_path(&sftp, &params.remote_path);
+        let resolved_to = Self::resolve_remote_path(&sftp, new_remote_path);
+        sftp.rename(Path::new(&resolved_from), Path::new(&resolved_to), None)
             .map_err(|e| format!("SFTP rename error: {}", e))?;
         Ok(())
     }
@@ -365,11 +393,12 @@ impl SftpClient {
         let sess = Self::connect(params)
             .map_err(|e| format!("SFTP connect error: {}", e))?;
         let sftp = sess.sftp().map_err(|e| format!("SFTP session error: {}", e))?;
+        let resolved = Self::resolve_remote_path(&sftp, &params.remote_path);
         if is_dir {
-            sftp.rmdir(Path::new(&params.remote_path))
+            sftp.rmdir(Path::new(&resolved))
                 .map_err(|e| format!("SFTP rmdir error: {}", e))?;
         } else {
-            sftp.unlink(Path::new(&params.remote_path))
+            sftp.unlink(Path::new(&resolved))
                 .map_err(|e| format!("SFTP unlink error: {}", e))?;
         }
         Ok(())
