@@ -86,7 +86,7 @@ This roadmap outlines completed capabilities, active architectural enhancements,
 
 ```mermaid
 graph TD
-    A["v0.4.1 (Live: Storage Roots, Sandboxing, Multi-Arch Docker)"] --> B["1. Transparent Encrypted Vaults (AES-256-GCM)"]
+    A["v0.5.0 (Live: Zero-Leakage Credentials, Leftmost Pane Customizer, Modern Navbar)"] --> B["1. Transparent Encrypted Vaults (AES-256-GCM)"]
     B --> C["2. 🪟 Windows Native Build & Release (MSI, Portable .zip, Winget)"]
     C --> D["3. Folder Automation Watchers & Webhooks"]
     D --> E["4. Global System Tray & Summon Hotkey (Super+C)"]
@@ -145,8 +145,10 @@ graph TD
 | **`v0.3.5`** | Wayland Native Windowing, GDK Error 71 Fix, AUR Automated Sync | **Released** |
 | **`v0.3.6`** | XDG Fast-Path Config, External TOML Themes, Web Theme Creator, Tiling WM Frameless | **Released** |
 | **`v0.4.0`** | Multi-Part File Splitter & Combiner, Integrated Git Client, Auto-$HOME Startup | **Released** |
-| **`v0.4.1`** | **Configurable Storage Roots, Filesystem Sandboxing, Per-User Root RBAC, Multi-Arch Alpine/Debian GHCR** | **Released (Current)** |
-| **`v0.4.5`** | **Transparent Encrypted Vaults (AES-256-GCM)** & In-Memory Decryption | *Next Up* |
-| **`v0.4.8`** | **🪟 Windows Native Build & Release (MSI, Portable ZIP, Winget, WebView2)** | *In Development* |
-| **`v0.5.0`** | **Folder Automation Watchers & Webhook Rules** | *Planned* |
-| **`v0.6.0`** | **System Tray, Global Summon Hotkey, Enterprise OIDC SSO & ONLYOFFICE WOPI** | *Planned* |
+| **`v0.4.1`** | Configurable Storage Roots, Filesystem Sandboxing, Per-User Root RBAC, Multi-Arch Alpine/Debian GHCR | **Released** |
+| **`v0.4.2`** | Multi-Tier SSH/SFTP Auth, Dynamic PAM Zero-Dependency Engine, SFTP $HOME Resolution | **Released** |
+| **`v0.5.0`** | **Zero-Leakage In-Memory Credentials, Leftmost Unified Pane Customizer, Modern Navbar & 1-Click Disconnect** | **Released (Current)** |
+| **`v0.5.5`** | **Transparent Encrypted Vaults (AES-256-GCM)** & In-Memory Decryption | *Next Up* |
+| **`v0.6.0`** | **🪟 Windows Native Build & Release (MSI, Portable ZIP, Winget, WebView2)** | *In Development* |
+| **`v0.6.5`** | **Folder Automation Watchers & Webhook Rules** | *Planned* |
+| **`v0.7.0`** | **System Tray, Global Summon Hotkey, Enterprise OIDC SSO & ONLYOFFICE WOPI** | *Planned* |

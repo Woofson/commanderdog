@@ -4152,6 +4152,10 @@ document.addEventListener('click', (e) => {
 
 function openAboutModal() {
   document.getElementById('profile-dropdown-menu')?.classList.remove('active');
+  const verBadge = document.getElementById('about-version-badge');
+  if (verBadge && App.systemStatus && App.systemStatus.version) {
+    verBadge.textContent = `v${App.systemStatus.version} (Desktop & Web)`;
+  }
   showModal('about-modal');
 }
 
