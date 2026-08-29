@@ -85,26 +85,42 @@ function savePaneCustomNames() {
 function promptRenamePane(index) {
   const pane = App.panes[index];
   if (!pane) return;
-  const currentName = pane.customName || `Pane ${index + 1}`;
-  const newName = prompt(`Enter custom name for Pane ${index + 1} (leave empty to reset):`, currentName === `Pane ${index + 1}` ? '' : currentName);
+  const currentName = pane.customName || `${index + 1}`;
+  const newName = prompt(`Enter custom name for Pane ${index + 1} (leave empty for default "${index + 1}"):`, pane.customName || '');
   if (newName !== null) {
     pane.customName = newName.trim() || null;
     savePaneCustomNames();
     updatePaneTitles();
-    showToast(pane.customName ? `Pane ${index + 1} renamed to "${pane.customName}"` : `Pane ${index + 1} name reset`, 'info');
+    showToast(pane.customName ? `Pane ${index + 1} renamed to "${pane.customName}"` : `Pane ${index + 1} name reset to "${index + 1}"`, 'info');
   }
 }
 
 function updatePaneTitles() {
+  const colors = getPaneColors();
+  const colorHexes = {
+    'default': 'rgba(255,255,255,0.2)',
+    'amber': '#f59e0b',
+    'emerald': '#10b981',
+    'sky': '#38bdf8',
+    'purple': '#c084fc',
+    'rose': '#f43f5e',
+    'indigo': '#6366f1',
+    'teal': '#14b8a6',
+    'orange': '#f97316'
+  };
+
   App.panes.forEach((pane, pIdx) => {
-    const displayName = pane.customName || `Pane ${pIdx + 1}`;
+    const displayName = pane.customName || `${pIdx + 1}`;
+    const color = colors[pIdx] || 'default';
+    const activeHex = colorHexes[color] || color;
+
     document.querySelectorAll(`.mobile-pane-tab[data-pane-idx="${pIdx}"]`).forEach(tab => {
-      tab.innerHTML = `<img src="assets/folder-closed.png" style="width:13px; height:13px; vertical-align:middle; margin-right:4px;"> ${escapeHtml(displayName)}`;
-      tab.title = `${escapeHtml(displayName)} (Double-click or right-click to rename)`;
+      tab.innerHTML = `<span style="display:inline-block; width:7px; height:7px; border-radius:50%; background:${activeHex}; margin-right:4px;"></span> ${escapeHtml(displayName)}`;
+      tab.title = `Pane ${pIdx + 1}: ${escapeHtml(displayName)} (Tap to Switch / Customize Rename & Color)`;
     });
-    const titleBadge = document.getElementById(`pane-title-badge-${pIdx}`);
-    if (titleBadge) {
-      titleBadge.textContent = displayName;
+    const badgeText = document.getElementById(`pane-badge-text-${pIdx}`);
+    if (badgeText) {
+      badgeText.textContent = displayName;
     }
   });
 }
@@ -437,6 +453,18 @@ function createPaneElement(pane, index) {
 
   const visibleCount = getVisiblePaneCount();
   const colors = getPaneColors();
+  const colorHexes = {
+    'default': 'rgba(255,255,255,0.2)',
+    'amber': '#f59e0b',
+    'emerald': '#10b981',
+    'sky': '#38bdf8',
+    'purple': '#c084fc',
+    'rose': '#f43f5e',
+    'indigo': '#6366f1',
+    'teal': '#14b8a6',
+    'orange': '#f97316'
+  };
+
   let mobileTabs = '';
   if (visibleCount > 1) {
     mobileTabs = `
@@ -446,10 +474,15 @@ function createPaneElement(pane, index) {
           const isCustom = color.startsWith('#') || color.startsWith('rgb');
           const colorClass = (!isCustom && color !== 'default') ? `pane-tab-color-${color}` : (isCustom ? 'pane-tab-color-custom' : '');
           const customStyle = isCustom ? `style="border-color:${color}; color:${color}; --pane-custom-border:${color};"` : '';
-          const tabName = App.panes[pIdx]?.customName || `Pane ${pIdx + 1}`;
+          const activeHex = colorHexes[color] || color;
+          const tabName = App.panes[pIdx]?.customName || `${pIdx + 1}`;
           return `
-            <button class="mobile-pane-tab ${colorClass} ${pIdx === index ? 'active' : ''}" ${customStyle} data-pane-idx="${pIdx}" onclick="event.stopPropagation(); setActivePane(${pIdx})" ondblclick="event.stopPropagation(); promptRenamePane(${pIdx})" oncontextmenu="event.preventDefault(); event.stopPropagation(); promptRenamePane(${pIdx})" title="${escapeHtml(tabName)} (Double-click or right-click to rename)">
-              <img src="assets/folder-closed.png" style="width:13px; height:13px; vertical-align:middle; margin-right:4px;"> ${escapeHtml(tabName)}
+            <button class="mobile-pane-tab ${colorClass} ${pIdx === index ? 'active' : ''}" ${customStyle} data-pane-idx="${pIdx}"
+                    onclick="event.stopPropagation(); if (${pIdx} === ${index}) { openPaneSettingsMenu(event, ${pIdx}); } else { setActivePane(${pIdx}); }"
+                    oncontextmenu="event.preventDefault(); event.stopPropagation(); openPaneSettingsMenu(event, ${pIdx})"
+                    ondblclick="event.stopPropagation(); openPaneSettingsMenu(event, ${pIdx})"
+                    title="Pane ${pIdx + 1}: ${escapeHtml(tabName)} (Tap to Switch / Long-press or click for Rename & Color)">
+              <span style="display:inline-block; width:7px; height:7px; border-radius:50%; background:${activeHex}; margin-right:4px;"></span> ${escapeHtml(tabName)}
             </button>
           `;
         }).join('')}
@@ -457,7 +490,9 @@ function createPaneElement(pane, index) {
     `;
   }
 
-  const paneTitle = pane.customName || `Pane ${index + 1}`;
+  const paneTitle = pane.customName || `${index + 1}`;
+  const currentColor = colors[index] || 'default';
+  const activeHex = colorHexes[currentColor] || currentColor;
 
   if (pane.dockedTool) {
     const tool = pane.dockedTool;
@@ -471,9 +506,15 @@ function createPaneElement(pane, index) {
     el.innerHTML = `
       ${mobileTabs}
       <div class="pane-header">
+        <button class="pane-badge-btn" id="pane-badge-btn-${index}"
+                onclick="event.stopPropagation(); openPaneSettingsMenu(event, ${index})"
+                oncontextmenu="event.preventDefault(); event.stopPropagation(); openPaneSettingsMenu(event, ${index})"
+                title="Pane ${index + 1}: ${escapeHtml(paneTitle)} (Click for Renaming, Color & Border Settings)">
+          <span class="pane-badge-indicator" id="pane-badge-indicator-${index}" style="background:${activeHex};"></span>
+          <span class="pane-badge-text" id="pane-badge-text-${index}">${escapeHtml(paneTitle)}</span>
+        </button>
         <div style="display: flex; align-items: center; gap: 8px; flex: 1;">
           <span style="font-weight: 700; font-size: 12px; color: var(--accent);">${toolTitles[tool] || 'Docked Tool'}</span>
-          <span class="badge" style="font-size: 9px;">DOCKED PANE ${index + 1}</span>
         </div>
         <div style="display: flex; align-items: center; gap: 4px;">
           <button class="btn btn-xs btn-outline" onclick="event.stopPropagation(); undockToolFromPane(${index})" title="Undock to Floating Window"><i data-lucide="external-link" style="width:11px; height:11px;"></i> Float</button>
@@ -490,6 +531,15 @@ function createPaneElement(pane, index) {
   el.innerHTML = `
     ${mobileTabs}
     <div class="pane-header">
+      <!-- Leftmost Unified Pane Number & Settings Badge Button (Desktop, Laptop, Tablet, Foldable) -->
+      <button class="pane-badge-btn" id="pane-badge-btn-${index}"
+              onclick="event.stopPropagation(); openPaneSettingsMenu(event, ${index})"
+              oncontextmenu="event.preventDefault(); event.stopPropagation(); openPaneSettingsMenu(event, ${index})"
+              title="Pane ${index + 1}: ${escapeHtml(paneTitle)} (Click for Renaming, Color & Border Settings)">
+        <span class="pane-badge-indicator" id="pane-badge-indicator-${index}" style="background:${activeHex};"></span>
+        <span class="pane-badge-text" id="pane-badge-text-${index}">${escapeHtml(paneTitle)}</span>
+      </button>
+
       <div class="pane-nav-btns">
         <button onclick="navPaneHistory(${index}, -1)" title="Back"><i data-lucide="arrow-left"></i></button>
         <button onclick="navPaneHistory(${index}, 1)" title="Forward"><i data-lucide="arrow-right"></i></button>
@@ -509,18 +559,6 @@ function createPaneElement(pane, index) {
         <button class="btn btn-icon" id="btn-favorites-${index}" onclick="openPaneFavoritesMenu(event, ${index})" oncontextmenu="event.preventDefault(); openBookmarksManager();" title="Favorites & Bookmarks (Left-click: Quick Jump, Right-click: Manage)">
           <i data-lucide="star" style="color: var(--accent);"></i>
         </button>
-      </div>
-
-      <!-- Pane Border Identification Color Selector & Label (Desktop) -->
-      <div class="pane-color-wrapper desktop-header-tool">
-        <button class="btn btn-icon pane-idx-badge" id="pane-idx-badge-${index}" onclick="event.stopPropagation(); cyclePaneColor(${index})" oncontextmenu="event.preventDefault(); event.stopPropagation(); openPaneColorPicker(event, ${index})" title="Pane ${index + 1} Identification Color (Left-click: Cycle, Right-click: Palette & Color Picker)">
-          <i data-lucide="palette"></i>
-        </button>
-      </div>
-
-      <!-- Pane Custom Label Badge (Desktop) -->
-      <div class="pane-title-badge-wrapper desktop-header-tool">
-        <span class="pane-title-badge" id="pane-title-badge-${index}" onclick="event.stopPropagation(); promptRenamePane(${index})" oncontextmenu="event.preventDefault(); event.stopPropagation(); promptRenamePane(${index})" title="Pane Label (Click or right-click to Rename)">${escapeHtml(paneTitle)}</span>
       </div>
 
       <!-- Foldable & Touch Cross-Pane Transfer Button (Desktop) -->
@@ -6632,16 +6670,22 @@ function openPaneToolsMenu(e, paneIndex) {
   setTimeout(() => document.addEventListener('click', closeHandler), 10);
 }
 
-function openPaneColorPicker(e, paneIndex) {
+function openPaneSettingsMenu(e, paneIndex) {
   if (e) {
     e.preventDefault();
     e.stopPropagation();
   }
+  document.getElementById('pane-settings-popup')?.remove();
   document.getElementById('pane-color-popup')?.remove();
+  document.getElementById('pane-tools-popup')?.remove();
   document.getElementById('pane-favorites-popup')?.remove();
 
+  const pane = App.panes[paneIndex];
+  const currentName = pane?.customName || `${paneIndex + 1}`;
   const colors = getPaneColors();
   const currentColor = colors[paneIndex] || 'default';
+  const curBorderWidth = localStorage.getItem('cd_border_width') || '1px';
+  const curRingStyle = localStorage.getItem('cd_ring_style') || 'subtle';
 
   const presets = [
     { id: 'default', name: 'Default', hex: 'rgba(255,255,255,0.2)' },
@@ -6659,56 +6703,98 @@ function openPaneColorPicker(e, paneIndex) {
   const currentHexVal = isCustomHex ? currentColor : '#f59e0b';
 
   const popup = document.createElement('div');
-  popup.id = 'pane-color-popup';
-  popup.className = 'pane-color-dropdown active';
+  popup.id = 'pane-settings-popup';
+  popup.className = 'pane-settings-dropdown active';
 
   popup.innerHTML = `
     <div style="padding: 8px 12px; font-weight: 700; font-size: 11px; color: var(--accent); background: var(--bg-dark); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
-      <span style="display: flex; align-items: center; gap: 6px;"><i data-lucide="palette" style="width: 13px; height: 13px;"></i> Pane ${paneIndex + 1} Color Palette</span>
-      <span style="font-size: 11px; color: var(--text-dim); cursor: pointer;" onclick="document.getElementById('pane-color-popup')?.remove();">✕</span>
+      <span style="display: flex; align-items: center; gap: 6px;">
+        <i data-lucide="sliders" style="width: 13px; height: 13px;"></i>
+        Pane ${paneIndex + 1} Settings
+      </span>
+      <span style="font-size: 11px; color: var(--text-dim); cursor: pointer;" onclick="document.getElementById('pane-settings-popup')?.remove();">✕</span>
     </div>
     
-    <div style="padding: 10px 12px;">
-      <div style="font-size: 10px; color: var(--text-muted); font-weight: 700; text-transform: uppercase; margin-bottom: 8px;">Preset Swatches</div>
-      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 12px;">
-        ${presets.map(p => {
-          const isSelected = currentColor === p.id;
-          return `
-            <button type="button" class="color-swatch-btn ${isSelected ? 'active' : ''}" 
-                    style="display: flex; align-items: center; gap: 6px; padding: 5px 6px; background: var(--bg-panel); border: 1px solid ${isSelected ? 'var(--accent)' : 'var(--border)'}; border-radius: 4px; cursor: pointer; color: var(--text-main); font-size: 10px; width: 100%; text-align: left;"
-                    onclick="setPaneColorPref(${paneIndex}, '${p.id}'); document.getElementById('pane-color-popup')?.remove();">
-              <span style="display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: ${p.hex}; border: 1px solid rgba(255,255,255,0.25); flex-shrink: 0;"></span>
-              <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; ${isSelected ? 'font-weight: 700; color: var(--accent);' : ''}">${p.name}</span>
-            </button>
-          `;
-        }).join('')}
+    <div style="padding: 10px 12px; max-height: 440px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px;">
+      <!-- 1. Renaming -->
+      <div>
+        <div style="font-size: 10px; color: var(--text-muted); font-weight: 700; text-transform: uppercase; margin-bottom: 6px;">Pane Name / Label</div>
+        <div style="display: flex; gap: 6px;">
+          <input type="text" id="pane-setting-name-input-${paneIndex}" value="${escapeHtml(currentName)}" placeholder="${paneIndex + 1}" style="flex: 1; height: 26px; padding: 0 8px; font-size: 11px; background: var(--bg-dark); border: 1px solid var(--border); border-radius: 4px; color: var(--text-main);" onkeydown="if(event.key==='Enter'){ applyPaneRenameFromInput(${paneIndex}); }">
+          <button type="button" class="btn btn-sm btn-accent" style="height: 26px; padding: 0 8px; font-size: 10px;" onclick="applyPaneRenameFromInput(${paneIndex})">Save</button>
+          <button type="button" class="btn btn-sm btn-outline" style="height: 26px; padding: 0 6px; font-size: 10px;" title="Reset to default ${paneIndex + 1}" onclick="resetPaneName(${paneIndex})">Reset</button>
+        </div>
       </div>
 
+      <!-- 2. Border & Header Color Palette -->
       <div style="border-top: 1px solid var(--border); padding-top: 10px;">
-        <div style="font-size: 10px; color: var(--text-muted); font-weight: 700; text-transform: uppercase; margin-bottom: 6px;">Custom Color Picker</div>
+        <div style="font-size: 10px; color: var(--text-muted); font-weight: 700; text-transform: uppercase; margin-bottom: 6px; display: flex; justify-content: space-between;">
+          <span>Border & Header Color</span>
+          <span style="color: var(--accent); cursor: pointer; text-transform: none; font-weight: 600;" onclick="cyclePaneColor(${paneIndex}); openPaneSettingsMenu(null, ${paneIndex});">Cycle ↻</span>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-bottom: 8px;">
+          ${presets.map(p => {
+            const isSelected = currentColor === p.id;
+            return `
+              <button type="button" class="color-swatch-btn ${isSelected ? 'active' : ''}" 
+                      style="display: flex; align-items: center; gap: 5px; padding: 4px 6px; background: var(--bg-panel); border: 1px solid ${isSelected ? 'var(--accent)' : 'var(--border)'}; border-radius: 4px; cursor: pointer; color: var(--text-main); font-size: 10px; width: 100%; text-align: left;"
+                      onclick="setPaneColorPref(${paneIndex}, '${p.id}'); openPaneSettingsMenu(null, ${paneIndex});">
+                <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: ${p.hex}; border: 1px solid rgba(255,255,255,0.25); flex-shrink: 0;"></span>
+                <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; ${isSelected ? 'font-weight: 700; color: var(--accent);' : ''}">${p.name}</span>
+              </button>
+            `;
+          }).join('')}
+        </div>
+
         <div style="display: flex; align-items: center; gap: 6px;">
-          <input type="color" id="pane-hex-picker-${paneIndex}" value="${currentHexVal}" style="width: 32px; height: 26px; border: 1px solid var(--border); border-radius: 4px; padding: 0; background: transparent; cursor: pointer;" oninput="document.getElementById('pane-hex-text-${paneIndex}').value = this.value; setPaneColorPref(${paneIndex}, this.value);">
+          <input type="color" id="pane-hex-picker-${paneIndex}" value="${currentHexVal}" style="width: 28px; height: 26px; border: 1px solid var(--border); border-radius: 4px; padding: 0; background: transparent; cursor: pointer;" oninput="document.getElementById('pane-hex-text-${paneIndex}').value = this.value; setPaneColorPref(${paneIndex}, this.value);">
           <input type="text" id="pane-hex-text-${paneIndex}" value="${isCustomHex ? currentColor : ''}" placeholder="#RRGGBB" style="flex: 1; height: 26px; padding: 0 6px; font-family: var(--font-mono); font-size: 11px; background: var(--bg-dark); border: 1px solid var(--border); border-radius: 4px; color: var(--text-main);" onchange="if(this.value){ document.getElementById('pane-hex-picker-${paneIndex}').value = this.value; setPaneColorPref(${paneIndex}, this.value); }">
-          <button type="button" class="btn btn-sm btn-accent" style="height: 26px; padding: 0 8px; font-size: 10px;" onclick="const val = document.getElementById('pane-hex-text-${paneIndex}').value; if(val){ setPaneColorPref(${paneIndex}, val); document.getElementById('pane-color-popup')?.remove(); }">Apply</button>
+          <button type="button" class="btn btn-sm btn-accent" style="height: 26px; padding: 0 8px; font-size: 10px;" onclick="const val = document.getElementById('pane-hex-text-${paneIndex}').value; if(val){ setPaneColorPref(${paneIndex}, val); openPaneSettingsMenu(null, ${paneIndex}); }">Apply</button>
+        </div>
+      </div>
+
+      <!-- 3. Global Border Width & Ring Settings -->
+      <div style="border-top: 1px solid var(--border); padding-top: 10px;">
+        <div style="font-size: 10px; color: var(--text-muted); font-weight: 700; text-transform: uppercase; margin-bottom: 6px;">Border Width</div>
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-bottom: 8px;">
+          ${['1px', '2px', '3px', '4px'].map(bw => `
+            <button type="button" class="btn btn-xs ${curBorderWidth === bw ? 'btn-accent' : 'btn-outline'}" style="padding: 2px 4px; font-size: 10px;" onclick="applyBorderSettings('${bw}', null); openPaneSettingsMenu(null, ${paneIndex});">${bw}</button>
+          `).join('')}
+        </div>
+
+        <div style="font-size: 10px; color: var(--text-muted); font-weight: 700; text-transform: uppercase; margin-bottom: 6px;">Active Ring Style</div>
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px;">
+          ${[['subtle', 'Subtle'], ['bold', 'Bold'], ['glow', 'Glow'], ['none', 'None']].map(([rKey, rName]) => `
+            <button type="button" class="btn btn-xs ${curRingStyle === rKey ? 'btn-accent' : 'btn-outline'}" style="padding: 2px 4px; font-size: 9.5px;" onclick="applyBorderSettings(null, '${rKey}'); openPaneSettingsMenu(null, ${paneIndex});">${rName}</button>
+          `).join('')}
         </div>
       </div>
     </div>
   `;
 
-  const wrapper = document.querySelector(`#pane-${paneIndex} .pane-color-wrapper`);
-  if (wrapper) {
-    wrapper.appendChild(popup);
-  } else {
-    document.body.appendChild(popup);
+  const btn = document.getElementById(`pane-badge-btn-${paneIndex}`);
+  if (btn) {
+    const rect = btn.getBoundingClientRect();
     popup.style.position = 'fixed';
-    popup.style.left = `${e.clientX}px`;
-    popup.style.top = `${e.clientY}px`;
+    popup.style.top = `${rect.bottom + 4}px`;
+    popup.style.left = `${Math.max(10, Math.min(rect.left, window.innerWidth - 300))}px`;
+  } else if (e && e.target) {
+    const rect = e.target.getBoundingClientRect();
+    popup.style.position = 'fixed';
+    popup.style.top = `${rect.bottom + 4}px`;
+    popup.style.left = `${Math.max(10, Math.min(rect.left, window.innerWidth - 300))}px`;
   }
 
+  document.body.appendChild(popup);
   if (window.lucide) lucide.createIcons();
 
+  const inputEl = document.getElementById(`pane-setting-name-input-${paneIndex}`);
+  if (inputEl) {
+    setTimeout(() => { inputEl.focus(); inputEl.select(); }, 50);
+  }
+
   const closeHandler = (evt) => {
-    if (!popup.contains(evt.target) && !evt.target.closest(`#pane-idx-badge-${paneIndex}`)) {
+    if (!popup.contains(evt.target) && !btn?.contains(evt.target) && !evt.target.closest(`.mobile-pane-tab[data-pane-idx="${paneIndex}"]`)) {
       popup.remove();
       document.removeEventListener('click', closeHandler);
       document.removeEventListener('contextmenu', closeHandler);
@@ -6720,11 +6806,51 @@ function openPaneColorPicker(e, paneIndex) {
   }, 10);
 }
 
+function applyPaneRenameFromInput(paneIndex) {
+  const input = document.getElementById(`pane-setting-name-input-${paneIndex}`);
+  if (!input) return;
+  const newName = input.value.trim();
+  const pane = App.panes[paneIndex];
+  if (!pane) return;
+  pane.customName = newName && newName !== `${paneIndex + 1}` ? newName : null;
+  savePaneCustomNames();
+  updatePaneTitles();
+  document.getElementById('pane-settings-popup')?.remove();
+  showToast(pane.customName ? `Pane ${paneIndex + 1} renamed to "${pane.customName}"` : `Pane ${paneIndex + 1} name reset to default`, 'info');
+}
+
+function resetPaneName(paneIndex) {
+  const pane = App.panes[paneIndex];
+  if (!pane) return;
+  pane.customName = null;
+  savePaneCustomNames();
+  updatePaneTitles();
+  document.getElementById('pane-settings-popup')?.remove();
+  showToast(`Pane ${paneIndex + 1} name reset to "${paneIndex + 1}"`, 'info');
+}
+
+function openPaneColorPicker(e, paneIndex) {
+  openPaneSettingsMenu(e, paneIndex);
+}
+
 function applyPaneColors() {
   const colors = getPaneColors();
+  const colorHexes = {
+    'default': 'rgba(255,255,255,0.2)',
+    'amber': '#f59e0b',
+    'emerald': '#10b981',
+    'sky': '#38bdf8',
+    'purple': '#c084fc',
+    'rose': '#f43f5e',
+    'indigo': '#6366f1',
+    'teal': '#14b8a6',
+    'orange': '#f97316'
+  };
+
   for (let i = 0; i < 4; i++) {
     const paneEl = document.getElementById(`pane-${i}`);
     const color = colors[i] || 'default';
+    const activeHex = colorHexes[color] || color;
     const isCustomHex = color.startsWith('#') || color.startsWith('rgb');
 
     if (paneEl) {
@@ -6743,18 +6869,26 @@ function applyPaneColors() {
       }
     }
 
-    const colorBtn = document.getElementById(`pane-idx-badge-${i}`);
-    if (colorBtn) {
-      colorBtn.title = `Pane ${i + 1} Color: ${color.toUpperCase()} (Left-click: Cycle, Right-click: Palette & Color Picker)`;
-      const icon = colorBtn.querySelector('i, svg');
+    const badgeBtn = document.getElementById(`pane-badge-btn-${i}`);
+    const badgeInd = document.getElementById(`pane-badge-indicator-${i}`);
+    if (badgeInd) {
+      badgeInd.style.background = activeHex;
+    }
+    if (badgeBtn) {
+      PANE_COLOR_PALETTE.forEach(c => {
+        if (c !== 'default') badgeBtn.classList.remove(`pane-color-${c}`);
+      });
       if (isCustomHex) {
-        colorBtn.style.borderColor = color;
-        colorBtn.style.background = `${color}25`;
-        if (icon) icon.style.color = color;
+        badgeBtn.style.borderColor = color;
+        badgeBtn.style.color = color;
+        badgeBtn.classList.add('pane-color-custom');
       } else {
-        colorBtn.style.borderColor = '';
-        colorBtn.style.background = '';
-        if (icon) icon.style.color = '';
+        badgeBtn.style.borderColor = '';
+        badgeBtn.style.color = '';
+        badgeBtn.classList.remove('pane-color-custom');
+        if (color !== 'default') {
+          badgeBtn.classList.add(`pane-color-${color}`);
+        }
       }
     }
 
@@ -6776,6 +6910,10 @@ function applyPaneColors() {
         if (color !== 'default') {
           tab.classList.add(`pane-tab-color-${color}`);
         }
+      }
+      const dot = tab.querySelector('span');
+      if (dot) {
+        dot.style.background = activeHex;
       }
     });
 
