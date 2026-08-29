@@ -804,6 +804,25 @@ function renderPaneBreadcrumbs(paneIndex, pathStr) {
   if (pathStr.startsWith('archive://')) {
     const raw = pathStr.replace('archive://', '');
     const [arch, sub] = raw.split('#');
+
+    const closeArchIconBtn = document.createElement('button');
+    closeArchIconBtn.className = 'btn btn-xs pane-disconnect-chip';
+    closeArchIconBtn.style.marginRight = '4px';
+    closeArchIconBtn.style.padding = '2px 6px';
+    closeArchIconBtn.style.borderRadius = '4px';
+    closeArchIconBtn.style.background = 'rgba(239, 68, 68, 0.15)';
+    closeArchIconBtn.style.border = '1px solid rgba(239, 68, 68, 0.4)';
+    closeArchIconBtn.style.color = 'var(--danger, #ef4444)';
+    closeArchIconBtn.style.display = 'inline-flex';
+    closeArchIconBtn.style.alignItems = 'center';
+    closeArchIconBtn.style.justifyContent = 'center';
+    closeArchIconBtn.style.cursor = 'pointer';
+    closeArchIconBtn.style.flexShrink = '0';
+    closeArchIconBtn.title = 'Close archive and return to parent folder';
+    closeArchIconBtn.innerHTML = '<i data-lucide="x" style="width:11px; height:11px;"></i>';
+    closeArchIconBtn.onclick = (e) => { e.stopPropagation(); disconnectPaneRemote(paneIndex); };
+    container.appendChild(closeArchIconBtn);
+
     const rootCrumb = document.createElement('span');
     rootCrumb.className = 'crumb';
     rootCrumb.textContent = '📦 ' + (arch.split('/').pop() || 'archive');
@@ -828,18 +847,7 @@ function renderPaneBreadcrumbs(paneIndex, pathStr) {
         container.appendChild(c);
       });
     }
-    const closeArchBtn = document.createElement('button');
-    closeArchBtn.className = 'btn btn-xs btn-outline';
-    closeArchBtn.style.marginLeft = 'auto';
-    closeArchBtn.style.padding = '1px 6px';
-    closeArchBtn.style.fontSize = '10px';
-    closeArchBtn.style.display = 'inline-flex';
-    closeArchBtn.style.alignItems = 'center';
-    closeArchBtn.style.gap = '3px';
-    closeArchBtn.innerHTML = '<i data-lucide="x" style="width:10px; height:10px;"></i> Close Archive';
-    closeArchBtn.title = 'Close archive and return to parent folder';
-    closeArchBtn.onclick = (e) => { e.stopPropagation(); disconnectPaneRemote(paneIndex); };
-    container.appendChild(closeArchBtn);
+
     if (window.lucide) lucide.createIcons();
     return;
   }
@@ -879,6 +887,28 @@ function renderPaneBreadcrumbs(paneIndex, pathStr) {
       }
     }
 
+    // Always visible at the very front of the breadcrumb line: 🔌 Unplug / Disconnect icon
+    const disIconBtn = document.createElement('button');
+    disIconBtn.className = 'btn btn-xs pane-disconnect-chip';
+    disIconBtn.style.marginRight = '4px';
+    disIconBtn.style.padding = '2px 6px';
+    disIconBtn.style.borderRadius = '4px';
+    disIconBtn.style.background = 'rgba(239, 68, 68, 0.15)';
+    disIconBtn.style.border = '1px solid rgba(239, 68, 68, 0.4)';
+    disIconBtn.style.color = 'var(--danger, #ef4444)';
+    disIconBtn.style.display = 'inline-flex';
+    disIconBtn.style.alignItems = 'center';
+    disIconBtn.style.justifyContent = 'center';
+    disIconBtn.style.cursor = 'pointer';
+    disIconBtn.style.flexShrink = '0';
+    disIconBtn.title = `Disconnect from ${proto.toUpperCase()} server (${displayBase}) and return to local storage`;
+    disIconBtn.innerHTML = '<i data-lucide="unplug" style="width:12px; height:12px;"></i>';
+    disIconBtn.onclick = (e) => {
+      e.stopPropagation();
+      disconnectPaneRemote(paneIndex);
+    };
+    container.appendChild(disIconBtn);
+
     const protoIcon = proto === 'smb' ? '🪟 ' : (proto === 'sftp' ? '🔒 ' : (proto === 'nfs' ? '📁 ' : (proto === 'webdav' ? '🌐 ' : '☁️ ')));
     const rootCrumb = document.createElement('span');
     rootCrumb.className = 'crumb';
@@ -905,21 +935,6 @@ function renderPaneBreadcrumbs(paneIndex, pathStr) {
         container.appendChild(c);
       });
     }
-
-    const disBtn = document.createElement('button');
-    disBtn.className = 'btn btn-xs btn-outline';
-    disBtn.style.marginLeft = 'auto';
-    disBtn.style.padding = '1px 7px';
-    disBtn.style.fontSize = '10px';
-    disBtn.style.display = 'inline-flex';
-    disBtn.style.alignItems = 'center';
-    disBtn.style.gap = '4px';
-    disBtn.style.borderColor = 'rgba(239, 68, 68, 0.4)';
-    disBtn.style.color = 'var(--danger, #ef4444)';
-    disBtn.innerHTML = '<i data-lucide="log-out" style="width:11px; height:11px;"></i> Disconnect';
-    disBtn.title = `Disconnect from ${proto.toUpperCase()} server and return to local storage`;
-    disBtn.onclick = (e) => { e.stopPropagation(); disconnectPaneRemote(paneIndex); };
-    container.appendChild(disBtn);
 
     if (window.lucide) lucide.createIcons();
     return;
