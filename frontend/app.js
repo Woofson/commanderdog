@@ -7220,7 +7220,8 @@ async function saveGlobalRemoteMount() {
   let target_uri = '';
   if (proto === 'sftp') {
     if (!host) { showToast('Please specify host', 'warning'); return; }
-    target_uri = `sftp://${user ? `${user}@` : ''}${host}:${port}${path.startsWith('/') ? path : '/' + path}`;
+    const userAuth = user ? (pass ? `${encodeURIComponent(user)}:${encodeURIComponent(pass)}@` : `${encodeURIComponent(user)}@`) : '';
+    target_uri = `sftp://${userAuth}${host}:${port}${path.startsWith('/') ? path : '/' + path}`;
   } else if (proto === 'smb') {
     const share = document.getElementById('remote-smb-share')?.value || '';
     const domain = document.getElementById('remote-smb-domain')?.value || '';
@@ -7246,8 +7247,9 @@ async function saveGlobalRemoteMount() {
     target_uri = `s3://${bucket}${path.startsWith('/') ? path : '/' + path}`;
   } else if (proto === 'hetzner-box') {
     const hMode = document.getElementById('hetzner-mode')?.value || 'sftp';
+    const userAuth = user ? (pass ? `${encodeURIComponent(user)}:${encodeURIComponent(pass)}@` : `${encodeURIComponent(user)}@`) : '';
     if (hMode === 'sftp') {
-      target_uri = `sftp://${user}@${host}:${port}${path.startsWith('/') ? path : '/' + path}`;
+      target_uri = `sftp://${userAuth}${host}:${port}${path.startsWith('/') ? path : '/' + path}`;
     } else {
       target_uri = `webdav://${host.replace(/^https?:\/\//, '')}${path.startsWith('/') ? path : '/' + path}`;
     }
@@ -7581,7 +7583,8 @@ function connectRemoteToActivePane() {
   let remoteUrl = '';
   if (proto === 'sftp') {
     if (!host) { showToast('Please specify a server host / URL', 'warning'); return; }
-    remoteUrl = `sftp://${user}@${host}:${port}${path.startsWith('/') ? path : '/' + path}`;
+    const userAuth = user ? (pass ? `${encodeURIComponent(user)}:${encodeURIComponent(pass)}@` : `${encodeURIComponent(user)}@`) : '';
+    remoteUrl = `sftp://${userAuth}${host}:${port}${path.startsWith('/') ? path : '/' + path}`;
   } else if (proto === 'smb') {
     const share = document.getElementById('remote-smb-share')?.value || '';
     const domain = document.getElementById('remote-smb-domain')?.value || '';
@@ -7601,8 +7604,9 @@ function connectRemoteToActivePane() {
     remoteUrl = `nfs://${host}${portSuffix}${cleanExport}${sub}`;
   } else if (proto === 'hetzner-box') {
     const hMode = document.getElementById('hetzner-mode')?.value || 'sftp';
+    const userAuth = user ? (pass ? `${encodeURIComponent(user)}:${encodeURIComponent(pass)}@` : `${encodeURIComponent(user)}@`) : '';
     if (hMode === 'sftp') {
-      remoteUrl = `sftp://${user}@${host}:${port}${path.startsWith('/') ? path : '/' + path}`;
+      remoteUrl = `sftp://${userAuth}${host}:${port}${path.startsWith('/') ? path : '/' + path}`;
     } else {
       remoteUrl = `webdav://${host.replace(/^https?:\/\//, '')}${path.startsWith('/') ? path : '/' + path}`;
     }

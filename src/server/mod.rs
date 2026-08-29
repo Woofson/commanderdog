@@ -1495,19 +1495,9 @@ async fn handle_list_dir(
             .map(Json)
             .map_err(|e| (StatusCode::BAD_REQUEST, format!("Failed to list archive: {}", e)))
     } else if target_path.starts_with("sftp://") {
-        let clean = target_path.strip_prefix("sftp://").unwrap();
-        // format: user@host:port/path
-        let parts: Vec<&str> = clean.splitn(2, '@').collect();
-        let username = if parts.len() > 1 { parts[0] } else { query.user.as_deref().unwrap_or("root") };
-        let host_rest = if parts.len() > 1 { parts[1] } else { parts[0] };
-
-        let host_parts: Vec<&str> = host_rest.splitn(2, '/').collect();
-        let host_port: Vec<&str> = host_parts[0].split(':').collect();
-        let host = host_port[0];
-        let port = if host_port.len() > 1 { host_port[1].parse::<u16>().unwrap_or(22) } else { 22 };
-        let remote_path = if host_parts.len() > 1 { format!("/{}", host_parts[1]) } else { "/".to_string() };
-
-        SftpClient::list_dir(host, port, username, query.pass.as_deref(), &remote_path)
+        let params = SftpClient::parse_uri(&target_path, query.user.as_deref(), query.pass.as_deref())
+            .map_err(|e| (StatusCode::BAD_REQUEST, format!("Invalid SFTP URI: {}", e)))?;
+        SftpClient::list_dir(&params)
             .map(Json)
             .map_err(|e| (StatusCode::BAD_REQUEST, format!("SFTP list failed: {}", e)))
     } else if target_path.starts_with("webdav://") || target_path.starts_with("http://") || target_path.starts_with("https://") {
@@ -1596,6 +1586,28 @@ async fn handle_read_file(
         crate::vfs::smb::SmbClient::read_file(&params)
             .map(Json)
             .map_err(|e| (StatusCode::BAD_REQUEST, format!("Failed to read SMB file: {}", e)))
+    } else if target_path.starts_with("sftp://") {
+        let params = SftpClient::parse_uri(&target_path, None, None)
+            .map_err(|e| (StatusCode::BAD_REQUEST, format!("Invalid SFTP URI: {}", e)))?;
+        let bytes = SftpClient::download_file(&params.host, params.port, &params.user, params.password.as_deref(), &params.remote_path, max_b)
+            .map_err(|e| (StatusCode::BAD_REQUEST, format!("Failed to read SFTP file: {}", e)))?;
+        let mime = mime_guess::from_path(&params.remote_path).first_or_octet_stream().to_string();
+        let is_text = mime.starts_with("text/") || mime.contains("json") || mime.contains("javascript") || mime.contains("xml") || mime.contains("yaml") || mime.contains("toml");
+        use base64::Engine;
+        let content = if is_text {
+            String::from_utf8(bytes.clone()).unwrap_or_else(|_| base64::engine::general_purpose::STANDARD.encode(&bytes))
+        } else {
+            base64::engine::general_purpose::STANDARD.encode(&bytes)
+        };
+        let file_name = params.remote_path.rsplit('/').next().unwrap_or(&params.remote_path).to_string();
+        Ok(Json(crate::vfs::FileContentResponse {
+            path: target_path,
+            name: file_name,
+            content,
+            size: bytes.len() as u64,
+            mime_type: mime,
+            is_binary: !is_text,
+        }))
     } else {
         LocalFs::read_file(&target_path, max_b)
             .map(Json)
@@ -1623,6 +1635,12 @@ async fn handle_write_file(
         crate::vfs::smb::SmbClient::write_file(&params, payload.content.as_bytes())
             .map(|_| Json(serde_json::json!({ "success": true, "path": target_path })))
             .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to save SMB file: {}", e)))
+    } else if target_path.starts_with("sftp://") {
+        let params = SftpClient::parse_uri(&target_path, None, None)
+            .map_err(|e| (StatusCode::BAD_REQUEST, format!("Invalid SFTP URI: {}", e)))?;
+        SftpClient::write_file(&params, payload.content.as_bytes())
+            .map(|_| Json(serde_json::json!({ "success": true, "path": target_path })))
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to save SFTP file: {}", e)))
     } else {
         let atomic = payload.atomic.unwrap_or(state.config.paranoid.atomic_writes);
         LocalFs::write_file(&target_path, payload.content.as_bytes(), atomic)
@@ -2077,7 +2095,15 @@ async fn handle_test_remote(
         "sftp" => {
             let port = payload.port.unwrap_or(22);
             let user = payload.user.unwrap_or_else(|| "root".to_string());
-            match SftpClient::list_dir(&payload.host, port, &user, payload.pass.as_deref(), "/") {
+            let params = crate::vfs::sftp::SftpParams {
+                host: payload.host,
+                port,
+                user,
+                password: payload.pass.filter(|p| !p.trim().is_empty()),
+                key_path: None,
+                remote_path: "/".to_string(),
+            };
+            match SftpClient::list_dir(&params) {
                 Ok(listing) => Ok(Json(serde_json::json!({
                     "success": true,
                     "message": format!("Connected successfully to SFTP server (found {} items)", listing.entries.len()),
@@ -2254,6 +2280,27 @@ async fn handle_upload(
                     state.tasks.fail_task(&task_id, &err_msg).await;
                     return Err((StatusCode::INTERNAL_SERVER_ERROR, err_msg));
                 }
+            } else if dest_dir.starts_with("sftp://") {
+                let params = match SftpClient::parse_uri(&dest_dir, None, None) {
+                    Ok(mut p) => {
+                        p.remote_path = if p.remote_path.is_empty() || p.remote_path == "/" {
+                            format!("/{}", file_name)
+                        } else {
+                            format!("{}/{}", p.remote_path.trim_end_matches('/'), file_name)
+                        };
+                        p
+                    }
+                    Err(e) => {
+                        let err_msg = format!("Invalid SFTP destination: {}", e);
+                        state.tasks.fail_task(&task_id, &err_msg).await;
+                        return Err((StatusCode::BAD_REQUEST, err_msg));
+                    }
+                };
+                if let Err(e) = SftpClient::write_file(&params, &data) {
+                    let err_msg = format!("Failed to write SFTP upload: {}", e);
+                    state.tasks.fail_task(&task_id, &err_msg).await;
+                    return Err((StatusCode::INTERNAL_SERVER_ERROR, err_msg));
+                }
             } else {
                 let target_path = Path::new(&dest_dir).join(&file_name);
                 if let Err(e) = LocalFs::write_file(&target_path.to_string_lossy(), &data, true) {
@@ -2284,6 +2331,29 @@ async fn handle_download(
         let file_bytes = crate::vfs::smb::SmbClient::read_bytes(&params)
             .map_err(|e| (StatusCode::BAD_REQUEST, format!("Failed to download SMB file: {}", e)))?;
         let file_name = params.subpath.rsplit('/').next().unwrap_or(&params.subpath).to_string();
+        let mime = mime_guess::from_path(&file_name).first_or_octet_stream().to_string();
+        let is_inline = query.get("inline").map(|v| v == "true" || v == "1").unwrap_or(false);
+
+        let disposition = if is_inline {
+            format!("inline; filename=\"{}\"", file_name)
+        } else {
+            format!("attachment; filename=\"{}\"", file_name)
+        };
+
+        let response = Response::builder()
+            .header(header::CONTENT_TYPE, mime)
+            .header(header::CONTENT_DISPOSITION, disposition)
+            .header(header::ACCEPT_RANGES, "bytes")
+            .body(Body::from(file_bytes))
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Response build error: {}", e)))?;
+
+        return Ok(response);
+    } else if path_str.starts_with("sftp://") {
+        let params = SftpClient::parse_uri(&path_str, None, None)
+            .map_err(|e| (StatusCode::BAD_REQUEST, format!("Invalid SFTP URI: {}", e)))?;
+        let file_bytes = SftpClient::download_file(&params.host, params.port, &params.user, params.password.as_deref(), &params.remote_path, 0)
+            .map_err(|e| (StatusCode::BAD_REQUEST, format!("Failed to download SFTP file: {}", e)))?;
+        let file_name = params.remote_path.rsplit('/').next().unwrap_or(&params.remote_path).to_string();
         let mime = mime_guess::from_path(&file_name).first_or_octet_stream().to_string();
         let is_inline = query.get("inline").map(|v| v == "true" || v == "1").unwrap_or(false);
 

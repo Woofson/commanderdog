@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.4.2] - 2026-08-29
+
+### 🔒 Fixed & Enhanced — SSH/SFTP Client & Multi-Tier Authentication
+- **Multi-Tier SSH Authentication Engine**:
+  - Fixed `"no auth socket"` / agent connection errors by isolating SSH-Agent queries to only occur when an agent is actually reachable and responsive.
+  - Implemented multi-tier authentication cascade:
+    1. **Password Authentication**: Standard password verification.
+    2. **Keyboard-Interactive Fallback**: Automatic keyboard-interactive prompt handler for servers requiring interactive challenge-response or 2FA.
+    3. **Explicit & User SSH Keys**: Automatic discovery of user identity keys (`~/.ssh/id_ed25519`, `~/.ssh/id_rsa`, `~/.ssh/id_ecdsa`, `~/.ssh/id_dsa`).
+    4. **SSH Agent Discovery**: Graceful connection to `SSH_AUTH_SOCK` identities without failing hard if the socket is absent.
+- **Robust SFTP URI Encoding & Credential Handling**:
+  - Implemented standard percent-encoding and decoding for usernames and passwords containing special characters (e.g. `@`, `:`, `/`, `%`).
+  - Fixed SFTP credential propagation in Frontend modals (`openRemoteModal`, `saveNewGlobalMount`, and `connectRemoteToActivePane`).
+- **Complete SFTP VFS Operations**:
+  - Added direct SFTP support to `handle_read_file`, `handle_write_file`, `handle_download`, `handle_upload`, and remote connection tester (`handle_test_remote`).
+
+---
+
 ## [0.4.1] - 2026-08-28
 
 ### 🛡️ Added — Configurable Storage Roots & Sandboxed User RBAC
