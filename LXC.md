@@ -37,7 +37,7 @@ If you built or downloaded the `.deb` release package:
 apt-get update && apt-get install -y ca-certificates libsqlite3-0 libssh2-1 tar bzip2 p7zip-full
 
 # 2. Install CommanderDog
-dpkg -i commanderdog_0.2.14_amd64.deb
+dpkg -i commanderdog_0.5.0_amd64.deb # or dpkg -i commanderdog_*_amd64.deb
 
 # 3. Enable and Start Systemd Service
 systemctl daemon-reload

@@ -10,11 +10,20 @@
 ## ✨ Features
 
 - 🗂️ **Dynamic 1-to-4 Toggleable Panes**: Switch seamlessly between Single, Dual-Vertical, Dual-Horizontal, Triple, and 2x2 Quad layouts (`Alt+1`–`4`).
-- ⚡ **Orthodox Commander Keybindings**: Full keyboard control (`Tab` switch pane, `F1` Help, `F2` Rename, `F3` Quick View, `F4` Dual-Pane Editor, `F5` Copy, `F6` Move, `F7` Mkdir, `F8` Delete/Trash, `Ctrl+D` Diff, `Insert`/`Space` multi-select, `Shift+F6` Bulk Rename, `Ctrl+C`/`X`/`V` Clipboard).
+- 🎨 **Leftmost Unified Pane Customization (`[ 🟡 1 ]`, `[ 🟢 2 ]`, ...)**:
+  - Clean non-redundant pane identifiers (`1`, `2`, `3`, `4`) placed at the far left of each toolbar.
+  - 1-Click popover: In-place renaming, 9 color swatches + custom hex color picker, border width (`1px`–`4px`), and active ring styles.
+- ⚡ **Orthodox Commander Keybindings**: Full keyboard control (`Tab` switch pane, `F1` Help, `F2` Rename, `F3` Quick View, `F4` Dual-Pane Editor, `F5` Copy, `F6` Move, `F7` Mkdir, `F8` Delete/Trash, `F9`/`Ctrl+D` Diff, `F10` Settings, `Insert`/`Space` multi-select, `Shift+F6` Bulk Rename, `Ctrl+C`/`X`/`V` Clipboard, `Ctrl+K` Spotlight).
 - 🖱️ **Enhanced Mouse & Touch Controls**:
-  - **Double-Click Empty Space Navigation**: Double-click anywhere on empty panel space to jump up one directory level (toggleable in Settings).
+  - **Double-Click Empty Space Navigation**: Double-click anywhere on empty panel space to jump up one directory level.
   - **Empty-Space Context Menu**: Right-click blank space to create new files/folders, paste clipboard items, open terminal, or analyze disk usage.
-  - **Mobile Touch Engine**: 450ms haptic long-press for context menu and horizontal swipe gestures to switch active panels on mobile.
+  - **Mobile Touch Engine**: 450ms haptic long-press for context menu, swipe gestures, and auto-dismissing app dropdowns.
+- 🛡️ **Filesystem Sandboxing & Storage Roots (`[storage]`)**:
+  - Confine users and admins to explicit storage roots (`[[storage.roots]]`) and personal `$HOME` folders with `allow_entire_system = false`.
+  - Granular per-user allowed roots list and read-only volume protection.
+- 🔒 **Zero-Leakage In-Memory Credential Security**:
+  - Volatile in-memory authentication router (`resolveAuthUri`) prevents passwords from ever being stored in `localStorage`, URL history, search inputs, or DOM attributes.
+  - Automated URI sanitization across all displays, toasts, and backend endpoints.
 - ⚡ **DeltaCopy / RoboCopy / TeraCopy Engine**:
   - **Delta Skip**: Automatically skips identical unchanged files (size & modification timestamp match) for high-speed incremental transfers.
   - **TeraCopy Checksum**: Optional bit-for-bit CRC32 / SHA-256 integrity verification post-transfer.
@@ -35,19 +44,19 @@
   - **Extension Management**: Batch normalize extensions.
   - **Conflict Prevention**: Real-time side-by-side preview with collision warning.
 - 💻 **Slide-Up Native Web Terminal (PTY)**:
-  - Toggle with `Ctrl+\`` or the `Terminal` button.
+  - Toggle with `Ctrl+\`` or from the Tools menu.
   - Native Linux pseudo-terminal running `bash`/`sh` over WebSockets, starting in the active pane's current directory.
 - 🌐 **Protocols & Cloud Object Storage Manager**:
-  - **Local Linux Filesystem**
+  - **Local Linux Filesystem** (with Zero-Dependency Dynamic PAM login)
+  - **SFTP / SSH**: Remote server support with automatic `$HOME` resolution and 1-click disconnect
   - **🪟 Samba / Windows Shares (SMB / CIFS)**: Port 445 / 139 with domain & guest authentication (`smb://`)
   - **🐧 NFS (Network File System)**: NFSv3 / NFSv4 automated export mounting & discovery (`nfs://`)
-  - **SFTP / SSH** remote servers (Port 22 / 23)
   - **📦 Hetzner Storage Box**: Dedicated fast preset (SFTP port 23 & WebDAV HTTPS)
   - **WebDAV**: Nextcloud, ownCloud, Synology, Apache/Nginx
   - **☁️ S3 Cloud Object Storage**: AWS S3, MinIO, Cloudflare R2, Backblaze B2, Hetzner S3 (SigV4 signing)
   - **🛡️ Proton Drive**: End-to-end encrypted (E2EE) storage via Proton CLI & FUSE bridges
   - **🔄 Syncthing**: Live background sync dashboard, peer throughput, in-sync progress, and scan triggers
-  - **Virtual Archives**: Open `.zip`, `.tar.gz`, `.tar.bz2`, `.tar.xz`, `.7z` directly as virtual directories.
+  - **Virtual Archives**: Open `.zip`, `.tar.gz`, `.tar.bz2`, `.tar.xz`, `.7z` directly as virtual directories with 1-click close.
 - 🔒 **Visual Unix Permissions & Ownership Manager**:
   - 3x3 interactive `chmod` matrix (Read, Write, Execute for Owner, Group, Others) with live octal calculation.
   - 1-Click presets (`0644`, `0755`, `0600`, `0700`, `0777`).
@@ -59,7 +68,7 @@
   - Atomic writes & safe XDG Trash bin recovery.
 - 👑 **Dedicated Administrator Control Panel & Granular RBAC**:
   - Full separation between regular **User Settings & Themes (`F10`)** and the **👑 Admin Control Panel**.
-  - Multi-user RBAC table: assign roles (`Admin`, `Standard User`, `Read-Only`), customize home directories, and grant/revoke individual protocol privileges (`Local`, `SMB/CIFS`, `NFS`, `S3`, `SFTP`, `WebDAV`, `Terminal`, `Syncthing`, `ConvertX`).
+  - Multi-user RBAC table: assign roles (`Admin`, `Standard User`, `Read-Only`), customize home directories, and grant/revoke individual protocol privileges (`Local`, `SMB/CIFS`, `NFS`, `S3`, `SFTP`, `WebDAV`, `Terminal`, `Syncthing`, `ConvertX`) and allowed storage roots.
   - Seamless auto-synchronization of Linux PAM system users (`/etc/passwd`, `/etc/group` with `sudo`/`wheel` admin resolution).
 - 🌐 **Global Network Mounts & Auto-Discovery in Favorites**:
   - Administrators can mount global shares (Samba/CIFS, NFS, S3, SFTP, WebDAV) and assign access permissions to specific users or `All Users (*)`.
@@ -83,7 +92,7 @@
 - 🪟 **Native Desktop Window & Tiling WM Support**:
   - Standalone native window mode via WebKitGTK / WebView2 (`commanderdog --standalone`).
   - Seamless borderless / frameless mode for tiling window managers (Hyprland, Sway, i3) via `--no-decorations`.
-- 🐳 **Docker, Proxmox & LXC Ready**: Standalone single binary with embedded web frontend, Arch AUR packages (`commanderdog`, `commanderdog-bin`), Debian `.deb`, Alpine `.apk`, and Proxmox deployment guide (`LXC.md`).
+- 🐳 **Docker, Proxmox & LXC Ready**: Standalone single binary with embedded web frontend, Arch AUR package (`commanderdog`), Docker images on GHCR (`ghcr.io/woofson/commanderdog`), Debian `.deb`, Alpine `.apk`, and Proxmox deployment guide (`LXC.md`).
 
 ---
 
@@ -107,19 +116,36 @@ Default credentials:
 
 ---
 
-## 📦 Native Packages & LXC Deployment
+## 📦 Native Packages & AUR
 
-- **Debian / Ubuntu**: Install pre-built `dist/commanderdog_0.2.4_amd64.deb` (`sudo dpkg -i commanderdog_*.deb`).
-- **Arch Linux**: `packaging/PKGBUILD` included for `makepkg -si`.
-- **Alpine Linux**: `packaging/APKBUILD` included.
+- **Arch Linux / CachyOS (AUR)**:
+  ```bash
+  yay -S commanderdog
+  # or
+  paru -S commanderdog
+  ```
+- **Debian / Ubuntu**: Install pre-built `.deb` (`sudo dpkg -i commanderdog_*.deb`).
 - **Proxmox VE / Linux LXC**: See the complete [LXC.md](file:///home/bolt/projects/commanderdog/LXC.md) guide or run `scripts/lxc-install.sh`.
 
 ---
 
 ## 🐳 Docker Setup
 
+### Docker Run (Quickest)
 ```bash
-docker compose up -d --build
+docker run -d \
+  --name commanderdog \
+  -p 3140:3140 \
+  -v ./data:/data \
+  -v /home:/mnt/home:rw \
+  -v /mnt/storage:/mnt/storage:rw \
+  --restart unless-stopped \
+  ghcr.io/woofson/commanderdog:latest
+```
+
+### Docker Compose
+```bash
+docker compose up -d
 ```
 
 ---
@@ -149,6 +175,15 @@ CommanderDog loads configuration in a single sub-millisecond pass from:
 [server]
 host = "0.0.0.0"
 port = 3140
+
+[storage]
+allow_entire_system = false # Sandboxes users to allowed storage roots + $HOME
+
+[[storage.roots]]
+id = "storage"
+name = "Mass Storage"
+path = "/mnt/storage"
+read_only = false
 
 [ui]
 default_pane_count = 2

@@ -28,6 +28,8 @@ docker run -d \
   ghcr.io/woofson/commanderdog:latest
 ```
 
+> 💡 **Tip**: For ultra-minimal environments, you can use the Alpine musl-based image: `ghcr.io/woofson/commanderdog:alpine`.
+
 Open `http://<SERVER_IP>:3140` in your browser:
 - **Default Username**: `admin`
 - **Default Password**: `commanderdog` *(Change immediately in Settings > Security!)*

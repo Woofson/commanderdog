@@ -1,13 +1,32 @@
 # 🗺️ CommanderDog Product Roadmap
 
 > **Slogan**: *Multi-Tab File Commander for Web & Native Desktop — By Woofson*  
-> **Current Version**: `v0.4.1 (Desktop, Web & Docker Multi-Arch)`
+> **Current Version**: `v0.5.0 (Security, UI Modernization & Streamlined UX)`
 
 This roadmap outlines completed capabilities, active architectural enhancements, and future milestones for CommanderDog, combining orthodox two-pane file commander power tools (Total Commander, Double Commander, Krusader, Directory Opus) with modern responsive web and native standalone desktop architecture.
 
 ---
 
-## 🚀 1. Completed Milestones (v0.1.0 — v0.4.1)
+## 🚀 1. Completed Milestones (v0.1.0 — v0.5.0)
+
+### 🔒 Security, UI Modernization & Streamlined UX (`v0.5.0`)
+- [x] **Zero-Leakage Credential Security & URI Sanitization**:
+  - Backend and frontend sanitization across SFTP/SMB listings, Deep Search, Spotlight, Disk Usage, and toasts.
+  - Ephemeral in-memory auth routing (`resolveAuthUri`) keeping passwords out of the DOM, history, and localStorage.
+- [x] **Leftmost Unified Pane Customization**:
+  - Streamlined `[ 🟡 1 ]` button on pane headers with 1-click popover: Renaming, 9-preset color swatches + hex picker, and border styling.
+- [x] **Streamlined Top Navbar & App Launcher**:
+  - Modern `layout-grid` app launcher icon; Settings unified into the User Profile menu and <kbd>F10</kbd>.
+- [x] **Touch & Click Dropdown Auto-Dismiss**:
+  - Opening tools automatically closes dropdowns cleanly on mobile, tablet, and desktop.
+- [x] **1-Click Remote Disconnect & Close Archive**:
+  - Instant `[ 🔌 ]` Unplug and `[ ✕ ]` Close Archive chips at index 0 on breadcrumbs.
+
+### 🔒 Multi-Tier SSH/SFTP & Zero-Dependency PAM (`v0.4.2`)
+- [x] **Multi-Tier SSH/SFTP Authentication**:
+  - Password, Keyboard-Interactive, User Keys (`~/.ssh/id_*`), and SSH-Agent cascade with remote home `$HOME` resolution.
+- [x] **Runtime Dynamic PAM Loading**:
+  - Runtime dynamic `dlopen("libpam.so.0")` eliminating compile-time linker dependencies across Arch, CachyOS, Debian, Ubuntu, and Fedora.
 
 ### 🛡️ Storage Roots, Sandboxing & Multi-Arch Containers (`v0.4.1`)
 - [x] **Configurable Storage Roots (`[[storage.roots]]`)**:
