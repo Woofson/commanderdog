@@ -60,6 +60,7 @@ tao = { version = "0.30", optional = true }
 [features]
 default = []
 gui = ["dep:wry", "dep:tao"]
+pam = []
 
 [package.metadata.deb]
 maintainer = "Bolt J Woofson <bolt@boop.no>"
