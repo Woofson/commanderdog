@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.5.0] - 2026-08-29
+
+### 🔒 Security, UI Modernization & Streamlined UX Release
+- **Comprehensive Credential Leakage Elimination & URI Sanitization**:
+  - Audited and secured all frontend components and backend endpoints against credential exposure.
+  - Sftp/Smb VFS backends (`src/vfs/sftp.rs`, `src/vfs/mod.rs`) strictly serialize clean `sftp://user@host:port/path` into `FileEntry` and `DirectoryListing` without embedded passwords.
+  - Deep File Search, Spotlight, Disk Usage, File Operations, and Breadcrumbs automatically sanitize all displayed paths.
+  - Ephemeral in-memory authentication router (`resolveAuthUri`) transparently handles session credentials over the wire while keeping DOM and storage 100% credential-free.
+- **Leftmost Unified Pane Button & Customization Popover**:
+  - Replaced scattered palette icons and rename badges with a single, leftmost `[ 🟡 1 ]` button on each pane header across Desktop, Laptop, Tablet, Foldable, and Mobile.
+  - Integrated 1-click customization popover: Rename label, 9-preset color swatches + custom hex color picker, border width (`1px`–`4px`), and active ring style.
+  - Streamlined default pane naming to clean, non-redundant numbers (`1`, `2`, `3`, `4`).
+- **Streamlined Top Navbar & App Launcher**:
+  - Swapped Tools menu icon with modern **`layout-grid`** app launcher grid icon.
+  - Moved Settings into the User Profile main menu and preserved quick-access global shortcuts (<kbd>F10</kbd> / F-key bar).
+  - Cleaned redundant Lock and Terminal buttons from the top bar.
+- **Touch & Click Dropdown Auto-Dismiss**:
+  - Launching tools (EditorDog, Calculator, Terminal, Git, Sync, Search) from menus immediately dismisses the parent dropdown.
+- **1-Click Remote Disconnect & Close Archive**:
+  - Added instant `[ 🔌 ]` Unplug and `[ ✕ ]` Close Archive chips directly in breadcrumbs at index 0 for mobile, tablet, and desktop.
+- **SFTP Remote `$HOME` Resolution**:
+  - Empty path or `~` now opens the remote user's home folder directly using `sftp.realpath(".")`.
+
+---
+
 ## [0.4.2] - 2026-08-29
 
 ### 🔒 Fixed & Enhanced — SSH/SFTP Client & Multi-Tier Authentication
