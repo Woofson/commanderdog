@@ -828,6 +828,19 @@ function renderPaneBreadcrumbs(paneIndex, pathStr) {
         container.appendChild(c);
       });
     }
+    const closeArchBtn = document.createElement('button');
+    closeArchBtn.className = 'btn btn-xs btn-outline';
+    closeArchBtn.style.marginLeft = 'auto';
+    closeArchBtn.style.padding = '1px 6px';
+    closeArchBtn.style.fontSize = '10px';
+    closeArchBtn.style.display = 'inline-flex';
+    closeArchBtn.style.alignItems = 'center';
+    closeArchBtn.style.gap = '3px';
+    closeArchBtn.innerHTML = '<i data-lucide="x" style="width:10px; height:10px;"></i> Close Archive';
+    closeArchBtn.title = 'Close archive and return to parent folder';
+    closeArchBtn.onclick = (e) => { e.stopPropagation(); disconnectPaneRemote(paneIndex); };
+    container.appendChild(closeArchBtn);
+    if (window.lucide) lucide.createIcons();
     return;
   }
 
@@ -892,6 +905,23 @@ function renderPaneBreadcrumbs(paneIndex, pathStr) {
         container.appendChild(c);
       });
     }
+
+    const disBtn = document.createElement('button');
+    disBtn.className = 'btn btn-xs btn-outline';
+    disBtn.style.marginLeft = 'auto';
+    disBtn.style.padding = '1px 7px';
+    disBtn.style.fontSize = '10px';
+    disBtn.style.display = 'inline-flex';
+    disBtn.style.alignItems = 'center';
+    disBtn.style.gap = '4px';
+    disBtn.style.borderColor = 'rgba(239, 68, 68, 0.4)';
+    disBtn.style.color = 'var(--danger, #ef4444)';
+    disBtn.innerHTML = '<i data-lucide="log-out" style="width:11px; height:11px;"></i> Disconnect';
+    disBtn.title = `Disconnect from ${proto.toUpperCase()} server and return to local storage`;
+    disBtn.onclick = (e) => { e.stopPropagation(); disconnectPaneRemote(paneIndex); };
+    container.appendChild(disBtn);
+
+    if (window.lucide) lucide.createIcons();
     return;
   }
 
@@ -4190,6 +4220,17 @@ async function openPaneFavoritesMenu(e, paneIndex) {
       <span style="font-size: 10px; color: var(--text-dim); cursor: pointer;" onclick="openBookmarksManager()">Manage ⚙️</span>
     </div>
     <div style="padding: 4px 0; max-height: 380px; overflow-y: auto;">
+      ${curPanePath.includes('://') ? `
+        <div class="dropdown-item" onclick="document.getElementById('pane-favorites-popup')?.remove(); disconnectPaneRemote(${paneIndex});" style="color: var(--danger, #ef4444); background: rgba(239,68,68,0.08);">
+          <i data-lucide="log-out" style="color: var(--danger, #ef4444);"></i>
+          <div>
+            <div style="font-weight: 700;">🔌 Disconnect Remote Connection</div>
+            <div style="font-size: 10px; color: var(--text-dim); font-family: var(--font-mono);">${escapeHtml(sanitizeCredentials(curPanePath))}</div>
+          </div>
+        </div>
+        <div class="context-sep" style="margin: 4px 0;"></div>
+      ` : ''}
+
       ${storageRoots.length > 0 ? `
         <div style="padding: 4px 12px; font-size: 10px; color: var(--accent); font-weight: 700; text-transform: uppercase;">Authorized Storage Roots</div>
         ${storageRoots.map(r => `
@@ -4565,6 +4606,7 @@ function showEmptySpaceContextMenu(x, y, paneIndex) {
     <div class="context-item" onclick="openSyncModal()"><i data-lucide="refresh-cw" style="width: 14px;"></i> Two-Way Directory Sync...</div>
     <div class="context-item" onclick="openDiskUsageModal('${escapeHtml(pane.path)}')"><i data-lucide="pie-chart" style="width: 14px; color: var(--accent);"></i> Disk Usage & Treemap Analyzer...</div>
     <div class="context-item" onclick="openRemoteModal(${paneIndex})"><i data-lucide="network" style="width: 14px;"></i> Mount Remote Storage Here...</div>
+    ${pane.path.includes('://') ? `<div class="context-item" onclick="disconnectPaneRemote(${paneIndex})" style="color: var(--danger, #ef4444);"><i data-lucide="log-out" style="width: 14px; color: var(--danger, #ef4444);"></i> Disconnect Remote Storage</div>` : ''}
     <div class="context-item" onclick="addCurrentPaneToQuickDest()"><i data-lucide="bookmark-plus" style="width: 14px;"></i> Bookmark Current Path</div>
     <div class="context-sep"></div>
     <div class="context-item" onclick="triggerDirPermissions(${paneIndex})"><i data-lucide="lock" style="width: 14px;"></i> Directory Permissions & Ownership</div>
@@ -6531,6 +6573,12 @@ function openPaneToolsMenu(e, paneIndex) {
       </div>
 
       <div class="dropdown-sep" style="height: 1px; background: var(--border); margin: 4px 0;"></div>
+      ${App.panes[paneIndex]?.path?.includes('://') ? `
+        <div class="dropdown-item" onclick="disconnectPaneRemote(${paneIndex}); document.getElementById('pane-tools-popup')?.remove();" style="color: var(--danger, #ef4444); background: rgba(239,68,68,0.08);">
+          <i data-lucide="log-out" style="color: var(--danger, #ef4444);"></i> Disconnect Remote Connection
+        </div>
+        <div class="dropdown-sep" style="height: 1px; background: var(--border); margin: 4px 0;"></div>
+      ` : ''}
       <div class="dropdown-item" onclick="openRemoteModal(${paneIndex}); document.getElementById('pane-tools-popup')?.remove();">
         <i data-lucide="network" style="color: #a855f7;"></i> Connect Remote Storage (SFTP/SMB/WebDAV)...
       </div>
@@ -7625,6 +7673,36 @@ function connectRemoteToActivePane() {
   }
   closeModal('remote-modal');
   loadPaneDirectory(targetRemotePaneIndex, remoteUrl);
+}
+
+function disconnectPaneRemote(paneIndex) {
+  const pane = App.panes[paneIndex];
+  if (!pane) return;
+  const currentPath = pane.path || pane.currentPath || '';
+
+  if (currentPath.startsWith('archive://')) {
+    const raw = currentPath.replace('archive://', '');
+    const [arch] = raw.split('#');
+    const parentDir = arch.substring(0, arch.lastIndexOf('/')) || '/';
+    loadPaneDirectory(paneIndex, parentDir);
+    showToast(`📦 Closed archive. Returned to ${parentDir}`, 'info');
+    return;
+  }
+
+  // Purge cached session credentials for this host / remote URI
+  if (App.sessionCredentials) {
+    const cleanCurrent = sanitizeCredentials(currentPath);
+    for (const key in App.sessionCredentials) {
+      if (currentPath.includes(key) || key.includes(cleanCurrent) || currentPath.startsWith(key)) {
+        delete App.sessionCredentials[key];
+      }
+    }
+  }
+
+  const targetLocal = App.user?.home_dir || '/';
+  loadPaneDirectory(paneIndex, targetLocal);
+  const protoName = (currentPath.split('://')[0] || 'Remote').toUpperCase();
+  showToast(`🔌 Disconnected from ${protoName} server. Returned to ${targetLocal}`, 'info');
 }
 
 // ---------------- INTEGRATED TERMINAL (PTY & WEBSOCKET) ----------------
