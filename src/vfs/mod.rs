@@ -7,6 +7,7 @@ pub mod s3;
 pub mod sftp;
 pub mod smb;
 pub mod transfer;
+pub mod vault;
 pub mod webdav;
 
 use serde::{Deserialize, Serialize};

@@ -39,6 +39,7 @@ pub struct AppState {
     pub auth: Arc<AuthManager>,
     pub tasks: Arc<TaskManager>,
     pub tags: Arc<crate::tools::tags::TagManager>,
+    pub vaults: Arc<crate::vfs::vault::VaultManager>,
 }
 
 pub fn create_router(state: AppState) -> Router {
@@ -61,6 +62,11 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/auth/profile", post(handle_update_profile))
         .route("/api/auth/users", get(handle_list_users).post(handle_create_user))
         .route("/api/auth/users/:username", delete(handle_delete_user).post(handle_update_user_rbac))
+        // Transparent Encrypted Vaults API
+        .route("/api/vault/create", post(handle_create_vault))
+        .route("/api/vault/unlock", post(handle_unlock_vault))
+        .route("/api/vault/lock", post(handle_lock_vault))
+        .route("/api/vault/status", get(handle_vault_status))
         // Global Network Mounts, Storage Roots & Bookmarks API
         .route("/api/storage/roots", get(handle_get_storage_roots))
         .route("/api/mounts/accessible", get(handle_list_accessible_mounts))
@@ -716,6 +722,76 @@ async fn handle_unlock_session(
     } else {
         Err((StatusCode::UNAUTHORIZED, "Missing authorization token".to_string()))
     }
+}
+
+// ---------------- TRANSPARENT ENCRYPTED VAULT HANDLERS ----------------
+
+#[derive(Deserialize)]
+struct CreateVaultRequest {
+    path: String,
+    password: String,
+}
+
+async fn handle_create_vault(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<CreateVaultRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let valid_path = validate_path_access(&state, &headers, &payload.path, true)?;
+    let p = Path::new(&valid_path);
+    crate::vfs::vault::VaultManager::create_vault(p, &payload.password)
+        .map(|_| Json(serde_json::json!({ "success": true, "path": valid_path })))
+        .map_err(|e| (StatusCode::BAD_REQUEST, e))
+}
+
+#[derive(Deserialize)]
+struct UnlockVaultRequest {
+    path: String,
+    password: String,
+    auto_lock_secs: Option<u64>,
+}
+
+async fn handle_unlock_vault(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<UnlockVaultRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let valid_path = validate_path_access(&state, &headers, &payload.path, false)?;
+    let p = Path::new(&valid_path);
+    let auto_lock = payload.auto_lock_secs.unwrap_or(900);
+    state.vaults.unlock_vault(p, &payload.password, auto_lock)
+        .map(|norm_path| Json(serde_json::json!({ "success": true, "path": norm_path })))
+        .map_err(|e| (StatusCode::UNAUTHORIZED, e))
+}
+
+#[derive(Deserialize)]
+struct LockVaultRequest {
+    path: String,
+}
+
+async fn handle_lock_vault(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<LockVaultRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let valid_path = validate_path_access(&state, &headers, &payload.path, false)?;
+    state.vaults.lock_vault(&valid_path);
+    Ok(Json(serde_json::json!({ "success": true, "path": valid_path })))
+}
+
+#[derive(Deserialize)]
+struct VaultStatusQuery {
+    path: String,
+}
+
+async fn handle_vault_status(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<VaultStatusQuery>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let valid_path = validate_path_access(&state, &headers, &query.path, false)?;
+    let is_unlocked = state.vaults.is_unlocked(&valid_path);
+    Ok(Json(serde_json::json!({ "unlocked": is_unlocked, "path": valid_path })))
 }
 
 async fn handle_list_bookmarks(
@@ -1486,7 +1562,16 @@ async fn handle_list_dir(
     let target_path = validate_path_access(&state, &headers, &raw_path, false)?;
     let show_hidden = query.show_hidden.unwrap_or(state.config.ui.show_hidden_files);
 
-    if target_path.starts_with("archive://") {
+    if target_path.starts_with("vault://") {
+        let rest = target_path.strip_prefix("vault://").unwrap();
+        let (vault_file, subpath) = match rest.split_once('#') {
+            Some((v, s)) => (v, s),
+            None => (rest, ""),
+        };
+        state.vaults.list_vault_contents(vault_file, subpath)
+            .map(Json)
+            .map_err(|e| (StatusCode::BAD_REQUEST, e))
+    } else if target_path.starts_with("archive://") {
         let rest = target_path.strip_prefix("archive://").unwrap();
         let parts: Vec<&str> = rest.split('#').collect();
         let archive_file = parts[0];
@@ -1572,7 +1657,16 @@ async fn handle_read_file(
     let target_path = validate_path_access(&state, &headers, &query.path, false)?;
     let max_b = query.max_bytes.unwrap_or(10_000_000);
 
-    if target_path.starts_with("archive://") {
+    if target_path.starts_with("vault://") {
+        let rest = target_path.strip_prefix("vault://").unwrap();
+        let (vault_file, subpath) = match rest.split_once('#') {
+            Some((v, s)) => (v, s),
+            None => (rest, ""),
+        };
+        state.vaults.read_vault_file(vault_file, subpath)
+            .map(Json)
+            .map_err(|e| (StatusCode::BAD_REQUEST, e))
+    } else if target_path.starts_with("archive://") {
         let rest = target_path.strip_prefix("archive://").unwrap();
         let parts: Vec<&str> = rest.split('#').collect();
         let archive_file = parts[0];
@@ -1629,7 +1723,16 @@ async fn handle_write_file(
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let target_path = validate_path_access(&state, &headers, &payload.path, true)?;
 
-    if target_path.starts_with("smb://") {
+    if target_path.starts_with("vault://") {
+        let rest = target_path.strip_prefix("vault://").unwrap();
+        let (vault_file, subpath) = match rest.split_once('#') {
+            Some((v, s)) => (v, s),
+            None => (rest, ""),
+        };
+        state.vaults.write_vault_file(vault_file, subpath, payload.content.as_bytes())
+            .map(|_| Json(serde_json::json!({ "success": true, "path": target_path })))
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))
+    } else if target_path.starts_with("smb://") {
         let params = crate::vfs::smb::SmbClient::parse_uri(&target_path, None, None)
             .map_err(|e| (StatusCode::BAD_REQUEST, format!("Invalid SMB URI: {}", e)))?;
         crate::vfs::smb::SmbClient::write_file(&params, payload.content.as_bytes())
@@ -1661,7 +1764,16 @@ async fn handle_mkdir(
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let target_path = validate_path_access(&state, &headers, &payload.path, true)?;
 
-    if target_path.starts_with("smb://") {
+    if target_path.starts_with("vault://") {
+        let rest = target_path.strip_prefix("vault://").unwrap();
+        let (vault_file, subpath) = match rest.split_once('#') {
+            Some((v, s)) => (v, s),
+            None => (rest, ""),
+        };
+        state.vaults.mkdir_vault(vault_file, subpath)
+            .map(|_| Json(serde_json::json!({ "success": true, "path": target_path })))
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))
+    } else if target_path.starts_with("smb://") {
         let params = crate::vfs::smb::SmbClient::parse_uri(&target_path, None, None)
             .map_err(|e| (StatusCode::BAD_REQUEST, format!("Invalid SMB URI: {}", e)))?;
         crate::vfs::smb::SmbClient::mkdir(&params)
@@ -1820,7 +1932,17 @@ async fn handle_delete(
             }
         };
 
-        if valid_path.starts_with("smb://") {
+        if valid_path.starts_with("vault://") {
+            let rest = valid_path.strip_prefix("vault://").unwrap();
+            let (vault_file, subpath) = match rest.split_once('#') {
+                Some((v, s)) => (v, s),
+                None => (rest, ""),
+            };
+            match state.vaults.delete_vault_file(vault_file, subpath) {
+                Ok(_) => deleted.push(path.clone()),
+                Err(e) => errors.push(format!("{}: {}", path, e)),
+            }
+        } else if valid_path.starts_with("smb://") {
             match crate::vfs::smb::SmbClient::parse_uri(&valid_path, None, None) {
                 Ok(params) => {
                     match crate::vfs::smb::SmbClient::delete(&params, false) {
@@ -2325,7 +2447,42 @@ async fn handle_download(
     let raw_path = query.get("path").ok_or((StatusCode::BAD_REQUEST, "Missing path param".to_string()))?;
     let path_str = validate_path_access(&state, &headers, raw_path, false)?;
 
-    if path_str.starts_with("smb://") {
+    if path_str.starts_with("vault://") {
+        let rest = path_str.strip_prefix("vault://").unwrap();
+        let (vault_file, subpath) = match rest.split_once('#') {
+            Some((v, s)) => (v, s),
+            None => (rest, ""),
+        };
+        let file_res = state.vaults.read_vault_file(vault_file, subpath)
+            .map_err(|e| (StatusCode::BAD_REQUEST, e))?;
+
+        use base64::Engine;
+        let file_bytes = if file_res.is_binary && file_res.content.starts_with("data:application/octet-stream;base64,") {
+            let b64 = file_res.content.strip_prefix("data:application/octet-stream;base64,").unwrap();
+            base64::engine::general_purpose::STANDARD.decode(b64).unwrap_or_default()
+        } else {
+            file_res.content.into_bytes()
+        };
+
+        let file_name = file_res.name;
+        let mime = file_res.mime_type;
+        let is_inline = query.get("inline").map(|v| v == "true" || v == "1").unwrap_or(false);
+
+        let disposition = if is_inline {
+            format!("inline; filename=\"{}\"", file_name)
+        } else {
+            format!("attachment; filename=\"{}\"", file_name)
+        };
+
+        let response = Response::builder()
+            .header(header::CONTENT_TYPE, mime)
+            .header(header::CONTENT_DISPOSITION, disposition)
+            .header(header::ACCEPT_RANGES, "bytes")
+            .body(Body::from(file_bytes))
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Response build error: {}", e)))?;
+
+        return Ok(response);
+    } else if path_str.starts_with("smb://") {
         let params = crate::vfs::smb::SmbClient::parse_uri(&path_str, None, None)
             .map_err(|e| (StatusCode::BAD_REQUEST, format!("Invalid SMB URI: {}", e)))?;
         let file_bytes = crate::vfs::smb::SmbClient::read_bytes(&params)

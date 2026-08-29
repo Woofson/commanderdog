@@ -2445,7 +2445,7 @@
           <div style="font-size: 18px; font-weight: 800; color: var(--accent); letter-spacing: 0.5px;">CommanderDog</div>
           <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 10px;">Multi-Tab Web Commander - By Woofson</div>
           <div style="display: flex; justify-content: center; gap: 6px; flex-wrap: wrap;">
-            <span id="about-version-badge" class="badge" style="background: rgba(245, 158, 11, 0.2); color: var(--accent); border: 1px solid rgba(245, 158, 11, 0.4); font-weight: 700;">v0.5.0 (Desktop & Web)</span>
+            <span id="about-version-badge" class="badge" style="background: rgba(245, 158, 11, 0.2); color: var(--accent); border: 1px solid rgba(245, 158, 11, 0.4); font-weight: 700;">v0.5.5 (Desktop & Web)</span>
             <span class="badge" style="background: rgba(56, 189, 248, 0.15); color: var(--info); border: 1px solid rgba(56, 189, 248, 0.3);">Rust + Axum + Tokio</span>
             <span class="badge" style="background: rgba(34, 197, 94, 0.15); color: var(--success); border: 1px solid rgba(34, 197, 94, 0.3);">MIT Open Source</span>
           </div>
@@ -3199,6 +3199,89 @@
       <div class="modal-footer">
         <button class="btn" onclick="closeModal('file-combiner-modal')">Cancel</button>
         <button class="btn btn-accent" id="btn-run-combine" onclick="executeFileCombine()"><i data-lucide="merge"></i> Join & Verify</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Transparent Encrypted Vault Creation Modal -->
+  <div class="modal-overlay" id="create-vault-modal" style="z-index: 2060;">
+    <div class="modal-box" style="width: 520px; max-width: calc(100vw - 32px);">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <i data-lucide="shield-check" style="color: var(--accent); width: 18px; height: 18px;"></i>
+          <span style="font-weight: 700; font-size: 14px;">Create Transparent Encrypted Vault</span>
+        </div>
+        <button class="btn btn-icon" onclick="closeModal('create-vault-modal')"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body" style="padding: 16px; display: flex; flex-direction: column; gap: 12px;">
+        <div style="padding: 10px; background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.25); border-radius: 4px; font-size: 11px; line-height: 1.5; color: var(--text-main);">
+          🔒 <strong>AES-256-GCM + Argon2id Authenticated Encryption</strong><br>
+          Vaults are password-protected encrypted containers. Files decrypt on-the-fly in RAM without ever touching the disk in plaintext.
+        </div>
+        <div class="form-group">
+          <label>Vault Filename / Location:</label>
+          <input type="text" id="create-vault-path" class="pane-quick-filter" style="width: 100%; font-family: var(--font-mono); font-size: 11px;" placeholder="/home/bolt/Documents/Personal_Vault.cdvault" />
+        </div>
+        <div class="form-group">
+          <label>Master Password:</label>
+          <div style="position: relative;">
+            <input type="password" id="create-vault-pass" class="pane-quick-filter" style="width: 100%; padding-right: 32px;" placeholder="Choose a strong passphrase" onkeyup="if(event.key==='Enter') executeCreateVault()" />
+            <button type="button" class="btn btn-icon" style="position: absolute; right: 4px; top: 50%; transform: translateY(-50%); padding: 2px 6px; font-size: 11px;" onclick="togglePassVisibility('create-vault-pass')"><i data-lucide="eye" style="width: 13px;"></i></button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Confirm Master Password:</label>
+          <div style="position: relative;">
+            <input type="password" id="create-vault-pass-confirm" class="pane-quick-filter" style="width: 100%; padding-right: 32px;" placeholder="Confirm passphrase" onkeyup="if(event.key==='Enter') executeCreateVault()" />
+            <button type="button" class="btn btn-icon" style="position: absolute; right: 4px; top: 50%; transform: translateY(-50%); padding: 2px 6px; font-size: 11px;" onclick="togglePassVisibility('create-vault-pass-confirm')"><i data-lucide="eye" style="width: 13px;"></i></button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="closeModal('create-vault-modal')">Cancel</button>
+        <button class="btn btn-accent" id="btn-confirm-create-vault" onclick="executeCreateVault()"><i data-lucide="lock"></i> Create Encrypted Vault</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Transparent Encrypted Vault Unlock Modal -->
+  <div class="modal-overlay" id="unlock-vault-modal" style="z-index: 2060;">
+    <div class="modal-box" style="width: 480px; max-width: calc(100vw - 32px);">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <i data-lucide="lock" style="color: var(--accent); width: 18px; height: 18px;"></i>
+          <span style="font-weight: 700; font-size: 14px;">Unlock Encrypted Vault</span>
+        </div>
+        <button class="btn btn-icon" onclick="closeModal('unlock-vault-modal')"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body" style="padding: 16px; display: flex; flex-direction: column; gap: 12px;">
+        <div class="form-group">
+          <label>Vault Path:</label>
+          <input type="text" id="unlock-vault-path" class="pane-quick-filter" style="width: 100%; font-family: var(--font-mono); font-size: 11px;" readonly />
+        </div>
+        <div class="form-group">
+          <label>Master Password:</label>
+          <div style="position: relative;">
+            <input type="password" id="unlock-vault-pass" class="pane-quick-filter" style="width: 100%; padding-right: 32px;" placeholder="Enter vault master password" onkeyup="if(event.key==='Enter') executeUnlockVault()" />
+            <button type="button" class="btn btn-icon" style="position: absolute; right: 4px; top: 50%; transform: translateY(-50%); padding: 2px 6px; font-size: 11px;" onclick="togglePassVisibility('unlock-vault-pass')"><i data-lucide="eye" style="width: 13px;"></i></button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Auto-Lock Timer:</label>
+          <select id="unlock-vault-autolock" class="pane-quick-filter" style="width: 100%;">
+            <option value="300">5 Minutes Inactivity</option>
+            <option value="900" selected>15 Minutes Inactivity (Recommended)</option>
+            <option value="1800">30 Minutes Inactivity</option>
+            <option value="3600">1 Hour Inactivity</option>
+            <option value="14400">4 Hours Inactivity</option>
+            <option value="0">Until Session Ends / Manual Lock</option>
+          </select>
+        </div>
+        <div id="unlock-vault-err" style="display: none; padding: 8px 10px; background: rgba(239, 68, 68, 0.15); border: 1px solid var(--danger); border-radius: 4px; color: var(--danger); font-size: 11px;"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="closeModal('unlock-vault-modal')">Cancel</button>
+        <button class="btn btn-accent" id="btn-confirm-unlock-vault" onclick="executeUnlockVault()"><i data-lucide="key"></i> Unlock Vault</button>
       </div>
     </div>
   </div>

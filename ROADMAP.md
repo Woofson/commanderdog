@@ -144,8 +144,8 @@ graph TD
 | **`v0.4.0`** | Multi-Part File Splitter & Combiner, Integrated Git Client, Auto-$HOME Startup | **Released** |
 | **`v0.4.1`** | Configurable Storage Roots, Filesystem Sandboxing, Per-User Root RBAC, Multi-Arch Alpine/Debian GHCR | **Released** |
 | **`v0.4.2`** | Multi-Tier SSH/SFTP Auth, Dynamic PAM Zero-Dependency Engine, SFTP $HOME Resolution | **Released** |
-| **`v0.5.0`** | **Zero-Leakage In-Memory Credentials, Leftmost Unified Pane Customizer, Modern Navbar & 1-Click Disconnect, Tauri Tray** | **Released (Current)** |
-| **`v0.5.5`** | **Transparent Encrypted Vaults (AES-256-GCM)** & In-Memory Decryption | *Next Up* |
-| **`v0.6.0`** | **🪟 Windows Native Build & Release (MSI, Portable ZIP, Winget, WebView2)** | *In Development* |
+| **`v0.5.0`** | **Zero-Leakage In-Memory Credentials, Leftmost Unified Pane Customizer, Modern Navbar & 1-Click Disconnect, Tauri Tray** | **Released** |
+| **`v0.5.5`** | **Transparent Encrypted Vaults (AES-256-GCM / Argon2id), Cross-Mount Deletion Engine** | **Released (Current)** |
+| **`v0.6.0`** | **🪟 Windows Native Build & Release (MSI, Portable ZIP, Winget, WebView2)** | *Next Up* |
 | **`v0.6.5`** | **Folder Automation Watchers & Webhook Rules** | *Planned* |
 | **`v0.7.0`** | **Enterprise OIDC SSO, Collaborative Office (WOPI) & Automation Engine** | *Planned* |

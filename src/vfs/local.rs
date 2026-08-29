@@ -429,7 +429,7 @@ impl LocalFs {
         custom_trash: Option<&str>,
     ) -> Result<(), std::io::Error> {
         let path = Self::resolve_local_path(path_str);
-        if !path.exists() {
+        if !path.exists() && !path.is_symlink() {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::NotFound,
                 format!("Target not found: {}", path_str),
@@ -445,20 +445,141 @@ impl LocalFs {
                 PathBuf::from("/tmp/commanderdog_trash")
             };
 
-            fs::create_dir_all(&trash_base)?;
+            let _ = fs::create_dir_all(&trash_base);
             let file_name = path.file_name().unwrap_or_default();
             let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");
             let trash_target = trash_base.join(format!("{}_{}", timestamp, file_name.to_string_lossy()));
 
-            fs::rename(path, &trash_target)?;
-            info!("Moved {} to trash: {}", path_str, trash_target.display());
-            Ok(())
-        } else {
-            if path.is_dir() {
-                fs::remove_dir_all(path)
-            } else {
-                fs::remove_file(path)
+            // Attempt fast atomic rename first
+            match fs::rename(&path, &trash_target) {
+                Ok(_) => {
+                    info!("Moved {} to trash: {}", path_str, trash_target.display());
+                    return Ok(());
+                }
+                Err(e) => {
+                    // If cross-device move or permission error moving across mounts occurs, try cross-device copy+delete
+                    info!("Direct rename to trash failed ({}), attempting cross-device move for {}", e, path_str);
+                    if let Ok(()) = Self::move_entry_recursive(&path, &trash_target) {
+                        info!("Moved {} to trash via cross-device copy: {}", path_str, trash_target.display());
+                        return Ok(());
+                    }
+                    // If trashing is impossible on this mount/subsystem, fall through to direct deletion
+                    info!("Moving to trash failed for {}, falling back to direct permanent removal", path_str);
+                }
             }
+        }
+
+        Self::force_remove_entry(&path)
+    }
+
+    /// Recursively moves an entry across filesystems (copy + delete source)
+    fn move_entry_recursive(src: &Path, dst: &Path) -> Result<(), std::io::Error> {
+        if src.is_dir() {
+            fs::create_dir_all(dst)?;
+            for entry in fs::read_dir(src)? {
+                let entry = entry?;
+                let file_name = entry.file_name();
+                Self::move_entry_recursive(&src.join(&file_name), &dst.join(&file_name))?;
+            }
+            let _ = fs::remove_dir(src);
+        } else {
+            if let Some(parent) = dst.parent() {
+                let _ = fs::create_dir_all(parent);
+            }
+            fs::copy(src, dst)?;
+            let _ = fs::remove_file(src);
+        }
+        Ok(())
+    }
+
+    /// Forcefully remove a file, symlink, or directory (with permission adjustment & CLI fallback)
+    pub fn force_remove_entry(path: &Path) -> Result<(), std::io::Error> {
+        // Handle symlinks (including broken symlinks)
+        if path.is_symlink() {
+            return fs::remove_file(path).or_else(|_| {
+                #[cfg(unix)]
+                {
+                    std::fs::remove_dir(path)
+                }
+                #[cfg(not(unix))]
+                {
+                    Err(std::io::Error::new(std::io::ErrorKind::Other, "Failed to remove symlink"))
+                }
+            });
+        }
+
+        if path.is_dir() {
+            if let Ok(()) = fs::remove_dir_all(path) {
+                return Ok(());
+            }
+
+            // Adjust permissions on read-only inner items and retry
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let _ = fs::set_permissions(path, fs::Permissions::from_mode(0o777));
+                for entry in walkdir::WalkDir::new(path).into_iter().filter_map(|e| e.ok()) {
+                    let _ = fs::set_permissions(entry.path(), fs::Permissions::from_mode(0o777));
+                }
+            }
+
+            if let Ok(()) = fs::remove_dir_all(path) {
+                return Ok(());
+            }
+
+            // Fallback to system /bin/rm -rf command (matches terminal behavior for root/subsystems)
+            #[cfg(unix)]
+            {
+                let output = std::process::Command::new("rm")
+                    .args(["-rf", "--"])
+                    .arg(path)
+                    .output();
+
+                if let Ok(out) = output {
+                    if out.status.success() && !path.exists() {
+                        return Ok(());
+                    }
+                    let err_msg = String::from_utf8_lossy(&out.stderr);
+                    if !err_msg.is_empty() {
+                        return Err(std::io::Error::new(
+                            std::io::ErrorKind::PermissionDenied,
+                            format!("Cannot delete '{}': {}", path.display(), err_msg.trim()),
+                        ));
+                    }
+                }
+            }
+
+            fs::remove_dir_all(path)
+        } else {
+            if let Ok(()) = fs::remove_file(path) {
+                return Ok(());
+            }
+
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let _ = fs::set_permissions(path, fs::Permissions::from_mode(0o666));
+            }
+
+            if let Ok(()) = fs::remove_file(path) {
+                return Ok(());
+            }
+
+            #[cfg(unix)]
+            {
+                let output = std::process::Command::new("rm")
+                    .args(["-f", "--"])
+                    .arg(path)
+                    .output();
+
+                if let Ok(out) = output {
+                    if out.status.success() && !path.exists() {
+                        return Ok(());
+                    }
+                }
+            }
+
+            fs::remove_file(path)
         }
     }
 

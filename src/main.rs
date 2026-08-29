@@ -123,12 +123,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let task_mgr = tools::tasks::TaskManager::new();
     let tag_mgr = tools::tags::TagManager::new(auth_mgr.db())?;
+    let vault_mgr = vfs::vault::VaultManager::new();
 
     let state = AppState {
         config: Arc::new(config.clone()),
         auth: Arc::new(auth_mgr),
         tasks: Arc::new(task_mgr),
         tags: Arc::new(tag_mgr),
+        vaults: Arc::new(vault_mgr),
     };
 
     let app = create_router(state);

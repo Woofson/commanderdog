@@ -845,6 +845,59 @@ function renderPaneBreadcrumbs(paneIndex, pathStr) {
     return;
   }
 
+  if (pathStr.startsWith('vault://')) {
+    const raw = pathStr.replace('vault://', '');
+    const [vaultFile, sub] = raw.split('#');
+
+    const lockVaultBtn = document.createElement('button');
+    lockVaultBtn.className = 'btn btn-xs pane-disconnect-chip';
+    lockVaultBtn.style.marginRight = '4px';
+    lockVaultBtn.style.padding = '2px 6px';
+    lockVaultBtn.style.borderRadius = '4px';
+    lockVaultBtn.style.background = 'rgba(239, 68, 68, 0.15)';
+    lockVaultBtn.style.border = '1px solid rgba(239, 68, 68, 0.4)';
+    lockVaultBtn.style.color = 'var(--danger, #ef4444)';
+    lockVaultBtn.style.display = 'inline-flex';
+    lockVaultBtn.style.alignItems = 'center';
+    lockVaultBtn.style.justifyContent = 'center';
+    lockVaultBtn.style.cursor = 'pointer';
+    lockVaultBtn.style.flexShrink = '0';
+    lockVaultBtn.title = 'Lock vault and purge master key from memory';
+    lockVaultBtn.innerHTML = '<i data-lucide="lock" style="width:11px; height:11px; margin-right: 3px;"></i> Lock';
+    lockVaultBtn.onclick = (e) => { e.stopPropagation(); disconnectPaneRemote(paneIndex); };
+    container.appendChild(lockVaultBtn);
+
+    const rootCrumb = document.createElement('span');
+    rootCrumb.className = 'crumb';
+    rootCrumb.style.color = 'var(--accent)';
+    rootCrumb.style.fontWeight = '700';
+    rootCrumb.textContent = '🔒 ' + (vaultFile.split('/').pop() || 'vault');
+    rootCrumb.onclick = (e) => { e.stopPropagation(); loadPaneDirectory(paneIndex, `vault://${vaultFile}#`); };
+    container.appendChild(rootCrumb);
+
+    if (sub) {
+      const subParts = sub.split('/').filter(Boolean);
+      let buildSub = '';
+      subParts.forEach(part => {
+        const sep = document.createElement('span');
+        sep.className = 'crumb-sep';
+        sep.textContent = '/';
+        container.appendChild(sep);
+
+        buildSub += (buildSub ? '/' : '') + part;
+        const target = `vault://${vaultFile}#${buildSub}`;
+        const c = document.createElement('span');
+        c.className = 'crumb';
+        c.textContent = part;
+        c.onclick = (e) => { e.stopPropagation(); loadPaneDirectory(paneIndex, target); };
+        container.appendChild(c);
+      });
+    }
+
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
+
   if (pathStr.startsWith('archive://')) {
     const raw = pathStr.replace('archive://', '');
     const [arch, sub] = raw.split('#');
@@ -1286,7 +1339,10 @@ function renderPaneTable(paneIndex) {
     } else {
       let iconType = 'text';
       let iconName = 'file-text';
-      if (entry.is_archive) {
+      if (isVaultFile(entry.name)) {
+        iconType = 'vault';
+        iconName = 'shield-check';
+      } else if (entry.is_archive) {
         iconType = 'archive';
         iconName = 'file-archive';
       } else if (isImageExtension(entry.name)) {
@@ -1900,6 +1956,7 @@ function togglePasswordVisibility(inputId) {
     input.type = input.type === 'password' ? 'text' : 'password';
   }
 }
+const togglePassVisibility = togglePasswordVisibility;
 
 // ---------------- TRANSFERS & DRAG-AND-DROP ----------------
 let pendingInterpaneTransfer = null;
@@ -4554,7 +4611,11 @@ function showContextMenu(x, y) {
       </div>
     </div>
 
-    <div class="context-sep"></div>
+    ${App.contextItem && isVaultFile(App.contextItem.name) ? `
+      <div class="context-item" onclick="handleVaultOpen('${escapeHtml(App.contextItem.path)}')"><i data-lucide="key" style="width: 14px; color: var(--accent);"></i> Unlock / Open Vault...</div>
+      <div class="context-item" onclick="disconnectPaneRemote(App.activePaneIndex)"><i data-lucide="lock" style="width: 14px; color: var(--danger);"></i> Lock Vault</div>
+      <div class="context-sep"></div>
+    ` : ''}
     <div class="context-item" onclick="triggerPermissions()"><i data-lucide="lock" style="width: 14px;"></i> Permissions & Ownership</div>
     <div class="context-item" onclick="triggerChecksum()"><i data-lucide="shield-check" style="width: 14px;"></i> Calculate SHA-256 Hash</div>
     <div class="context-item" onclick="triggerArchiveZip()"><i data-lucide="archive" style="width: 14px;"></i> Compress to .zip</div>
@@ -4598,6 +4659,7 @@ function showContextMenu(x, y) {
     menu.style.bottom = 'auto';
     menu.style.width = 'auto';
     menu.style.maxHeight = 'none';
+    menu.style.borderRadius = '6px';
   }
 }
 
@@ -4674,6 +4736,7 @@ function showEmptySpaceContextMenu(x, y, paneIndex) {
     <div class="context-sep"></div>
     <div class="context-item" onclick="triggerMkdir()"><i data-lucide="folder-plus" style="width: 14px;"></i> New Folder... (F7)</div>
     <div class="context-item" onclick="triggerNewFile()"><i data-lucide="file-plus" style="width: 14px;"></i> New Text File...</div>
+    <div class="context-item" onclick="openCreateVaultModal()"><i data-lucide="shield-check" style="width: 14px; color: var(--accent);"></i> Create Encrypted Vault (.cdvault)...</div>
     <div class="context-item ${App.clipboard ? '' : 'disabled'}" onclick="triggerPaste(${paneIndex})" style="${App.clipboard ? '' : 'opacity: 0.5; pointer-events: none;'}">
       <i data-lucide="clipboard-paste" style="width: 14px;"></i> Paste ${clipInfo} (Ctrl+V)
     </div>
@@ -4848,10 +4911,26 @@ function openTerminalInPath(path) {
 }
 
 document.addEventListener('click', (e) => {
-  if (!e.target.closest('#context-menu') && !e.target.closest('#mob-btn-actions')) {
+  const menu = document.getElementById('context-menu');
+  if (!menu || menu.style.display === 'none') return;
+
+  const insideMobActions = e.target.closest('#mob-btn-actions');
+  if (insideMobActions) return;
+
+  const insideMenu = e.target.closest('#context-menu');
+  if (insideMenu) {
+    // If clicked a submenu parent or the color palette row itself (not a dot), keep open for sub-navigation
+    const submenuHeader = e.target.closest('.context-item.has-submenu');
+    const colorPaletteRow = e.target.closest('.context-color-palette-item') && !e.target.closest('.color-dot');
+    if (submenuHeader || colorPaletteRow) {
+      return;
+    }
+    // Any other action or color dot clicked inside context menu -> dismiss menu immediately!
+    hideContextMenu();
+  } else {
     hideContextMenu();
   }
-});
+}, true);
 
 window.addEventListener('popstate', () => {
   hideContextMenu();
@@ -5816,6 +5895,10 @@ function triggerView() {
   const item = App.contextItem || pane.entries[pane.cursorIndex];
   if (!item) return;
 
+  if (isVaultFile(item.name)) {
+    handleVaultOpen(item.path, App.activePaneIndex);
+    return;
+  }
   if (item.is_dir || item.is_archive) {
     loadPaneDirectory(App.activePaneIndex, item.path);
     return;
@@ -7059,6 +7142,7 @@ function sortPane(index, sortBy) {
 }
 
 function showModal(id) {
+  hideContextMenu();
   const el = document.getElementById(id);
   if (el) {
     el.classList.add('active');
@@ -7067,6 +7151,7 @@ function showModal(id) {
     }
   }
 }
+const openModal = showModal;
 
 function hideModal(id) {
   document.getElementById(id)?.classList.remove('active');
@@ -7869,6 +7954,23 @@ function disconnectPaneRemote(paneIndex) {
   const pane = App.panes[paneIndex];
   if (!pane) return;
   const currentPath = pane.path || pane.currentPath || '';
+
+  if (currentPath.startsWith('vault://')) {
+    const raw = currentPath.replace('vault://', '');
+    const [vaultFile] = raw.split('#');
+    const parentDir = vaultFile.substring(0, vaultFile.lastIndexOf('/')) || '/';
+    fetch('/api/vault/lock', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${App.token}`
+      },
+      body: JSON.stringify({ path: vaultFile })
+    }).catch(console.error);
+    loadPaneDirectory(paneIndex, parentDir);
+    showToast(`🔒 Locked vault. Master key purged from RAM.`, 'info');
+    return;
+  }
 
   if (currentPath.startsWith('archive://')) {
     const raw = currentPath.replace('archive://', '');
@@ -9115,8 +9217,177 @@ function isComicBookExtension(filename) {
   return ['cbz', 'cbr', 'epub'].includes(ext);
 }
 
+function isVaultFile(filename) {
+  if (!filename) return false;
+  const lower = filename.toLowerCase();
+  return lower.endsWith('.cdvault') || lower.endsWith('.cdv') || lower.endsWith('.vault');
+}
+
+async function handleVaultOpen(vaultPath, paneIndex = App.activePaneIndex) {
+  try {
+    const res = await fetch(`/api/vault/status?path=${encodeURIComponent(vaultPath)}`, {
+      headers: { 'Authorization': `Bearer ${App.token}` }
+    });
+    const data = await res.json();
+    if (data.unlocked) {
+      loadPaneDirectory(paneIndex, `vault://${vaultPath}#`);
+    } else {
+      openUnlockVaultModal(vaultPath, paneIndex);
+    }
+  } catch (e) {
+    openUnlockVaultModal(vaultPath, paneIndex);
+  }
+}
+
+function openCreateVaultModal(prefillPath = '') {
+  const pane = App.panes[App.activePaneIndex];
+  const basePath = prefillPath || pane?.path || '/';
+  const defaultVaultPath = basePath.endsWith('/') ? `${basePath}My_Encrypted_Vault.cdvault` : `${basePath}/My_Encrypted_Vault.cdvault`;
+  const pathInput = document.getElementById('create-vault-path');
+  if (pathInput) pathInput.value = defaultVaultPath;
+  const passInput = document.getElementById('create-vault-pass');
+  if (passInput) passInput.value = '';
+  const confirmInput = document.getElementById('create-vault-pass-confirm');
+  if (confirmInput) confirmInput.value = '';
+  openModal('create-vault-modal');
+  setTimeout(() => { if (passInput) passInput.focus(); }, 100);
+}
+
+async function executeCreateVault() {
+  const path = document.getElementById('create-vault-path').value.trim();
+  const pass = document.getElementById('create-vault-pass').value;
+  const passConfirm = document.getElementById('create-vault-pass-confirm').value;
+
+  if (!path) {
+    showToast('Please specify a vault file path', 'error');
+    return;
+  }
+  if (!pass) {
+    showToast('Please enter a master password', 'error');
+    return;
+  }
+  if (pass !== passConfirm) {
+    showToast('Master passwords do not match', 'error');
+    return;
+  }
+
+  const btn = document.getElementById('btn-confirm-create-vault');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i data-lucide="loader-2" class="spin"></i> Creating Vault...';
+    if (window.lucide) lucide.createIcons();
+  }
+
+  try {
+    const res = await fetch('/api/vault/create', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${App.token}`
+      },
+      body: JSON.stringify({ path, password: pass })
+    });
+
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(err || 'Failed to create vault');
+    }
+
+    closeModal('create-vault-modal');
+    showToast(`🔒 Encrypted vault created: ${path.split('/').pop()}`, 'success');
+    refreshPane(App.activePaneIndex);
+
+    // Prompt to unlock immediately
+    setTimeout(() => {
+      openUnlockVaultModal(path, App.activePaneIndex);
+    }, 300);
+  } catch (e) {
+    showToast(e.message, 'error');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<i data-lucide="lock"></i> Create Encrypted Vault';
+      if (window.lucide) lucide.createIcons();
+    }
+  }
+}
+
+let currentUnlockingVaultPane = 0;
+
+function openUnlockVaultModal(vaultPath, paneIndex = App.activePaneIndex) {
+  currentUnlockingVaultPane = paneIndex;
+  const pathInput = document.getElementById('unlock-vault-path');
+  if (pathInput) pathInput.value = vaultPath;
+  const passInput = document.getElementById('unlock-vault-pass');
+  if (passInput) passInput.value = '';
+  const errBox = document.getElementById('unlock-vault-err');
+  if (errBox) {
+    errBox.style.display = 'none';
+    errBox.textContent = '';
+  }
+  openModal('unlock-vault-modal');
+  setTimeout(() => { if (passInput) passInput.focus(); }, 100);
+}
+
+async function executeUnlockVault() {
+  const path = document.getElementById('unlock-vault-path').value.trim();
+  const password = document.getElementById('unlock-vault-pass').value;
+  const autoLockSecs = parseInt(document.getElementById('unlock-vault-autolock').value, 10) || 900;
+  const errBox = document.getElementById('unlock-vault-err');
+
+  if (!password) {
+    if (errBox) {
+      errBox.textContent = 'Please enter the master password';
+      errBox.style.display = 'block';
+    }
+    return;
+  }
+
+  const btn = document.getElementById('btn-confirm-unlock-vault');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i data-lucide="loader-2" class="spin"></i> Deriving Key (Argon2id)...';
+    if (window.lucide) lucide.createIcons();
+  }
+
+  try {
+    const res = await fetch('/api/vault/unlock', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${App.token}`
+      },
+      body: JSON.stringify({ path, password, auto_lock_secs: autoLockSecs })
+    });
+
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(err || 'Invalid master password');
+    }
+
+    closeModal('unlock-vault-modal');
+    showToast(`🔓 Vault unlocked. Decrypting transparently in RAM.`, 'success');
+    loadPaneDirectory(currentUnlockingVaultPane, `vault://${path}#`);
+  } catch (e) {
+    if (errBox) {
+      errBox.textContent = e.message;
+      errBox.style.display = 'block';
+    } else {
+      showToast(e.message, 'error');
+    }
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<i data-lucide="key"></i> Unlock Vault';
+      if (window.lucide) lucide.createIcons();
+    }
+  }
+}
+
 function openFileByType(entry, paneIndex) {
-  if (entry.is_dir || entry.is_archive) {
+  if (isVaultFile(entry.name)) {
+    handleVaultOpen(entry.path, paneIndex);
+  } else if (entry.is_dir || entry.is_archive) {
     loadPaneDirectory(paneIndex, entry.path);
   } else if (isPdfExtension(entry.name) || isDocumentExtension(entry.name)) {
     openDocumentViewer(entry.path);
@@ -11209,6 +11480,7 @@ const SPOTLIGHT_STATIC_ACTIONS = [
   { id: 'lock', title: 'Lock Session', sub: 'Lock CommanderDog immediately (Ctrl+Alt+L)', icon: 'lock', cat: 'actions', action: () => lockSession() },
   { id: 'mkdir', title: 'New Folder', sub: 'Create a new directory in active pane (F7)', icon: 'folder-plus', cat: 'actions', action: () => triggerMkdir() },
   { id: 'newfile', title: 'New Text File', sub: 'Create a new empty text document', icon: 'file-plus', cat: 'actions', action: () => triggerNewFile() },
+  { id: 'vault-create', title: 'Create Encrypted Vault', sub: 'Create a password-protected AES-256-GCM encrypted vault (.cdvault)', icon: 'shield-check', cat: 'actions', action: () => openCreateVaultModal() },
   { id: 'compress', title: 'Compress to Archive', sub: 'Create .zip or .tar.gz from selected files', icon: 'archive', cat: 'actions', action: () => triggerCompressModal() },
   { id: 'perms', title: 'Permissions & Ownership', sub: 'Visual Unix chmod & chown editor', icon: 'shield', cat: 'actions', action: () => triggerPermissions() },
   { id: 'theme-amber', title: 'Theme: Amber (Classic Woofson)', sub: 'Switch theme to Amber Gold', icon: 'palette', cat: 'actions', action: () => applyTheme('amber') },

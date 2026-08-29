@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.5.5] - 2026-08-29
+
+### 🔒 Transparent Encrypted Vaults (AES-256-GCM / Argon2id) & Subsystem Deletions
+- **Transparent Encrypted Vaults (`.cdvault` / `.cdv`)**:
+  - Zero-knowledge, self-contained password-protected virtual filesystem containers.
+  - Authenticated encryption powered by **AES-256-GCM** (96-bit random nonce + 128-bit authentication tag per data block).
+  - Password key derivation via **Argon2id** with a 16-byte cryptographically secure salt.
+  - Zero plaintext disk leakage: on-the-fly decryption and streaming directly in volatile RAM buffers.
+  - Auto-lock inactivity timers (5m, 15m, 30m, 1h, 4h, session) with immediate memory purging upon lock.
+  - 1-Click breadcrumb lock chip and full in-memory live editing with **EditorDog**.
+  - Comprehensive documentation in [**`VAULT.md`**](VAULT.md).
+- **Subsystem & Cross-Mount Deletion Engine**:
+  - Implemented cross-device copy+delete fallback for trash operations overcoming Linux `EXDEV` limitations across separate mounts and subsystem partitions.
+  - Added `force_remove_entry` with automatic `0777` permission correction and system `rm -rf --` CLI fallback for root/subsystem mounted folders.
+- **Context Menu UX Hardening**:
+  - Capture-phase global dismiss listener ensuring all context menu action clicks immediately close the menu.
+
+---
+
 ## [0.5.0] - 2026-08-29
 
 ### 🔒 Security, UI Modernization & Streamlined UX Release

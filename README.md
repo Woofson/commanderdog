@@ -21,6 +21,10 @@
 - 🛡️ **Filesystem Sandboxing & Storage Roots (`[storage]`)**:
   - Confine users and admins to explicit storage roots (`[[storage.roots]]`) and personal `$HOME` folders with `allow_entire_system = false`.
   - Granular per-user allowed roots list and read-only volume protection.
+- 🔒 **Transparent Encrypted Vaults (AES-256-GCM / Argon2id)**:
+  - Create self-contained, password-protected virtual filesystem containers (`.cdvault` / `.cdv`).
+  - Decrypts and encrypts files **on-the-fly in volatile RAM** with zero plaintext artifacts touching the disk.
+  - Automatic inactivity lock timers, 1-click breadcrumb lock, and seamless in-memory editing with EditorDog. See [**VAULT.md**](VAULT.md) for full guide.
 - 🔒 **Zero-Leakage In-Memory Credential Security**:
   - Volatile in-memory authentication router (`resolveAuthUri`) prevents passwords from ever being stored in `localStorage`, URL history, search inputs, or DOM attributes.
   - Automated URI sanitization across all displays, toasts, and backend endpoints.
@@ -228,10 +232,13 @@ default_theme = "amber-charcoal" # Active theme ID or custom theme from themes/
 
 ---
 
-## 🗺️ Roadmap & Changelog
+## 📚 Documentation & Manuals
 
-- Check out the full [**CommanderDog Product & Architecture Roadmap**](ROADMAP.md) covering upcoming milestones (Transparent Encrypted Vaults, Folder Automation Watchers, Global System Tray, and Enterprise OIDC SSO).
-- See detailed release history in [**CHANGELOG.md**](CHANGELOG.md).
+- [**Transparent Encrypted Vaults Guide (AES-256-GCM / Argon2id)**](VAULT.md) — Create, unlock, edit, and secure encrypted containers.
+- [**Docker Deployment Guide**](DOCKER.md) — Multi-arch Debian and Alpine container setup.
+- [**LXC / Proxmox Guide**](LXC.md) — Standalone Linux container deployment.
+- [**Product Roadmap**](ROADMAP.md) — Architecture milestones & feature timeline.
+- [**Changelog**](CHANGELOG.md) — Release notes and version history.
 
 ---
 

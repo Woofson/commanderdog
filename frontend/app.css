@@ -540,6 +540,7 @@ body {
 }
 
 .file-icon.archive { color: #f472b6; }
+.file-icon.vault { color: #f59e0b; }
 .file-icon.text { color: #60a5fa; }
 .file-icon.code { color: #34d399; }
 .file-icon.media { color: #a78bfa; }
