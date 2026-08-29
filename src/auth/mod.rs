@@ -9,6 +9,8 @@ use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 use tracing::info;
 
+pub mod pam;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct User {
     pub id: i64,
@@ -422,54 +424,48 @@ impl AuthManager {
 
         // 2. If auth mode is mixed or pam, try PAM authentication
         if self.auth_mode == "pam" || self.auth_mode == "mixed" {
-            #[cfg(feature = "pam")]
-            {
-                let mut services = vec![self.pam_service.as_str()];
-                for fallback in &["common-auth", "sudo", "other", "passwd", "login"] {
-                    if !services.contains(fallback) {
-                        services.push(fallback);
-                    }
+            let mut services = vec![self.pam_service.as_str()];
+            for fallback in &["common-auth", "sudo", "other", "passwd", "login"] {
+                if !services.contains(fallback) {
+                    services.push(fallback);
                 }
+            }
 
-                for svc in services {
-                    if let Some(mut auth) = pam_auth::Authenticator::new(svc) {
-                        auth.set_credentials(username, password);
-                        if auth.authenticate().is_ok() {
-                            let (home_dir, def_role) = get_linux_user_info(username);
-                            
-                            // Check if this PAM user already has a linked DB record
-                            if let Ok(Some(mut existing)) = self.get_user_by_username(username) {
-                                if existing.is_disabled {
-                                    return Err("Account is disabled. Please contact an administrator.".into());
-                                }
-                                existing.is_pam = true;
-                                return Ok(existing);
-                            }
-
-                            // Auto-link new PAM user to DB profile
-                            let conn = self.db.lock().map_err(|_| "DB lock poisoned")?;
-                            let now = Utc::now().to_rfc3339();
-                            let _ = conn.execute(
-                                "INSERT OR IGNORE INTO users (username, password_hash, role, home_dir, allowed_services, allowed_roots, is_pam, is_disabled, created_at) VALUES (?1, 'PAM_MANAGED', ?2, ?3, '[\"*\"]', '[\"*\"]', 1, 0, ?4)",
-                                params![username, def_role, home_dir, now],
-                            );
-                            let id = conn.last_insert_rowid();
-
-                            return Ok(User {
-                                id,
-                                username: username.to_string(),
-                                nickname: Some(username.to_string()),
-                                email: None,
-                                avatar_url: None,
-                                role: def_role,
-                                home_dir,
-                                is_pam: true,
-                                is_disabled: false,
-                                allowed_services: "[\"*\"]".to_string(),
-                                allowed_roots: "[\"*\"]".to_string(),
-                            });
+            for svc in services {
+                if pam::authenticate(svc, username, password).is_ok() {
+                    let (home_dir, def_role) = get_linux_user_info(username);
+                    
+                    // Check if this PAM user already has a linked DB record
+                    if let Ok(Some(mut existing)) = self.get_user_by_username(username) {
+                        if existing.is_disabled {
+                            return Err("Account is disabled. Please contact an administrator.".into());
                         }
+                        existing.is_pam = true;
+                        return Ok(existing);
                     }
+
+                    // Auto-link new PAM user to DB profile
+                    let conn = self.db.lock().map_err(|_| "DB lock poisoned")?;
+                    let now = Utc::now().to_rfc3339();
+                    let _ = conn.execute(
+                        "INSERT OR IGNORE INTO users (username, password_hash, role, home_dir, allowed_services, allowed_roots, is_pam, is_disabled, created_at) VALUES (?1, 'PAM_MANAGED', ?2, ?3, '[\"*\"]', '[\"*\"]', 1, 0, ?4)",
+                        params![username, def_role, home_dir, now],
+                    );
+                    let id = conn.last_insert_rowid();
+
+                    return Ok(User {
+                        id,
+                        username: username.to_string(),
+                        nickname: Some(username.to_string()),
+                        email: None,
+                        avatar_url: None,
+                        role: def_role,
+                        home_dir,
+                        is_pam: true,
+                        is_disabled: false,
+                        allowed_services: "[\"*\"]".to_string(),
+                        allowed_roots: "[\"*\"]".to_string(),
+                    });
                 }
             }
         }

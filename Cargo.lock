@@ -441,7 +441,6 @@ dependencies = [
  "mime_guess",
  "open",
  "openssl",
- "pam-auth",
  "parking_lot",
  "portable-pty",
  "regex",
@@ -2420,26 +2419,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
 
 [[package]]
-name = "pam-auth"
-version = "0.5.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b0f3d250176abab407b7f153e0554e2b8ce4de05119bd8eb76e78652bb5217aa"
-dependencies = [
- "libc",
- "pam-sys",
- "users",
-]
-
-[[package]]
-name = "pam-sys"
-version = "0.5.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cd4858311a097f01a0006ef7d0cd50bca81ec430c949d7bf95cbefd202282434"
-dependencies = [
- "libc",
-]
-
-[[package]]
 name = "pango"
 version = "0.18.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4162,15 +4141,6 @@ dependencies = [
  "idna",
  "percent-encoding",
  "serde",
-]
-
-[[package]]
-name = "users"
-version = "0.5.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e7d8fb16f17ce0e6a18a25ce39f08edb5fbe9a25f3f346c9dca5e6ffc0485cdf"
-dependencies = [
- "libc",
 ]
 
 [[package]]

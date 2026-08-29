@@ -20,6 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Robust SFTP URI Encoding & Credential Handling**:
   - Implemented standard percent-encoding and decoding for usernames and passwords containing special characters (e.g. `@`, `:`, `/`, `%`).
   - Fixed SFTP credential propagation in Frontend modals (`openRemoteModal`, `saveNewGlobalMount`, and `connectRemoteToActivePane`).
+- **Zero-Dependency Runtime Dynamic PAM Engine**:
+  - Replaced legacy `pam-auth` crate and `-lpam_misc` compile-time linking with native runtime dynamic loading (`dlopen("libpam.so.0")`).
+  - Completely eliminates linker errors (`rust-lld: error: unable to find library -lpam_misc` / `-lpam`) across Arch Linux, CachyOS, Debian, Ubuntu, and Fedora.
+  - `cargo run` now builds and runs immediately out-of-the-box on Linux while maintaining seamless local Linux user PAM authentication.
 - **Complete SFTP VFS Operations**:
   - Added direct SFTP support to `handle_read_file`, `handle_write_file`, `handle_download`, `handle_upload`, and remote connection tester (`handle_test_remote`).
 
