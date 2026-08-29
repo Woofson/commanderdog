@@ -187,11 +187,7 @@ impl SftpClient {
                 format!("{}/{}", path.trim_end_matches('/'), name)
             };
 
-            let entry_uri = if let Some(ref pass) = params.password {
-                format!("sftp://{}:{}@{}:{}{}", percent_encode(&params.user), percent_encode(pass), params.host, params.port, full_path)
-            } else {
-                format!("sftp://{}@{}:{}{}", percent_encode(&params.user), params.host, params.port, full_path)
-            };
+            let entry_uri = format!("sftp://{}@{}:{}{}", percent_encode(&params.user), params.host, params.port, full_path);
 
             entries.push(FileEntry {
                 name: name.clone(),
@@ -225,18 +221,10 @@ impl SftpClient {
         let parent_path = Path::new(path).parent().map(|p| {
             let p_str = p.to_string_lossy();
             let final_p = if p_str.is_empty() { "/" } else { &p_str };
-            if let Some(ref pass) = params.password {
-                format!("sftp://{}:{}@{}:{}{}", percent_encode(&params.user), percent_encode(pass), params.host, params.port, final_p)
-            } else {
-                format!("sftp://{}@{}:{}{}", percent_encode(&params.user), params.host, params.port, final_p)
-            }
+            format!("sftp://{}@{}:{}{}", percent_encode(&params.user), params.host, params.port, final_p)
         });
 
-        let current_uri = if let Some(ref pass) = params.password {
-            format!("sftp://{}:{}@{}:{}{}", percent_encode(&params.user), percent_encode(pass), params.host, params.port, path)
-        } else {
-            format!("sftp://{}@{}:{}{}", percent_encode(&params.user), params.host, params.port, path)
-        };
+        let current_uri = format!("sftp://{}@{}:{}{}", percent_encode(&params.user), params.host, params.port, path);
 
         Ok(DirectoryListing {
             current_path: current_uri,

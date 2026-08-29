@@ -66,3 +66,42 @@ pub fn is_archive_file(path_or_name: &str) -> bool {
         || lower.ends_with(".7z")
         || lower.ends_with(".rar")
 }
+
+pub fn sanitize_uri(uri: &str) -> String {
+    if !uri.contains("://") || !uri.contains('@') {
+        return uri.to_string();
+    }
+    if let Some((scheme_userinfo, host_path)) = uri.split_once('@') {
+        if let Some((scheme, userinfo)) = scheme_userinfo.split_once("://") {
+            if let Some((user, _pass)) = userinfo.split_once(':') {
+                return format!("{}://{}@{}", scheme, user, host_path);
+            }
+        }
+    }
+    uri.to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_sanitize_uri() {
+        assert_eq!(
+            sanitize_uri("sftp://bolt:mypassword@192.168.1.100:22/home/bolt"),
+            "sftp://bolt@192.168.1.100:22/home/bolt"
+        );
+        assert_eq!(
+            sanitize_uri("smb://WORKGROUP;admin:Secret123@nas.local:445/data"),
+            "smb://WORKGROUP;admin@nas.local:445/data"
+        );
+        assert_eq!(
+            sanitize_uri("sftp://user@remote.host/dir"),
+            "sftp://user@remote.host/dir"
+        );
+        assert_eq!(
+            sanitize_uri("/local/path/to/file.txt"),
+            "/local/path/to/file.txt"
+        );
+    }
+}

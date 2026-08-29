@@ -55,11 +55,6 @@
         <i data-lucide="search"></i>
       </button>
 
-      <!-- 3. Terminal Button (Desktop Only) -->
-      <button class="btn btn-icon desktop-only" id="btn-toggle-terminal" onclick="toggleTerminal()" title="Terminal Console (`)">
-        <i data-lucide="terminal"></i>
-      </button>
-
       <!-- 4. Task-List Header Button (Desktop & Mobile) -->
       <button class="btn header-task-btn" id="btn-header-tasks" onclick="toggleFloatingTaskManager()" title="Background Tasks & Transfers (Click to toggle)">
         <i data-lucide="activity" id="header-task-icon"></i>
@@ -67,11 +62,10 @@
         <span class="header-task-speed" id="header-task-speed" style="display: none;">0 B/s</span>
       </button>
 
-      <!-- 5. Burger / Tools Dropdown Menu (Universal Mobile Burger & Desktop Tools) -->
+      <!-- 5. Application Tools Suite & Launchpad -->
       <div class="tools-dropdown-wrapper">
-        <button class="btn btn-icon" id="btn-tools-menu" onclick="toggleToolsMenu(event)" title="Tools & Menu">
-          <i data-lucide="wrench" class="desktop-only"></i>
-          <i data-lucide="menu" class="mobile-only"></i>
+        <button class="btn btn-icon" id="btn-tools-menu" onclick="toggleToolsMenu(event)" title="Tools & Utilities (Terminal, Editor, Calculator, Git, Sync, Search)">
+          <i data-lucide="layout-grid"></i>
         </button>
         <div class="tools-dropdown-menu" id="tools-dropdown-menu">
           <div class="dropdown-item" onclick="openSpotlightModal()"><i data-lucide="sparkles" style="color: var(--accent);"></i> Spotlight Quick-Switcher (Ctrl+K)</div>
@@ -89,11 +83,6 @@
           <div class="dropdown-item" onclick="openFloatingTaskManager()"><i data-lucide="list-checks"></i> Background Transfers & Queue</div>
         </div>
       </div>
-
-      <!-- 5.6 Lock Session Button (Desktop Only) -->
-      <button class="btn btn-icon desktop-only" id="btn-header-lock" onclick="lockSession()" title="Lock Session / CommanderDog (Ctrl+Alt+L)">
-        <i data-lucide="lock"></i>
-      </button>
 
       <!-- 6. User Profile & Admin Menu (Compact Avatar on Mobile, Full on Desktop) -->
       <div class="profile-dropdown-wrapper">

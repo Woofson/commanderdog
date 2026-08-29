@@ -33,9 +33,10 @@ pub struct SearchEngine;
 
 impl SearchEngine {
     pub fn search(req: SearchRequest) -> Result<Vec<SearchResultItem>, String> {
+        let sanitized_path = crate::vfs::sanitize_uri(&req.path);
         let root = Path::new(&req.path);
         if !root.exists() {
-            return Err(format!("Search directory does not exist: {}", req.path));
+            return Err(format!("Search directory does not exist: {}", sanitized_path));
         }
 
         let max_results = req.max_results.unwrap_or(300);

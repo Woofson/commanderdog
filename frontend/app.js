@@ -736,35 +736,41 @@ async function loadPaneDirectory(paneIndex, targetPath, pushHistory = true, sele
     targetPath = targetPath === '~' ? userHome : (userHome.endsWith('/') ? userHome : userHome + '/') + targetPath.substring(2);
   }
 
+  const cleanPath = sanitizeCredentials(targetPath);
+  const authUrl = resolveAuthUri(targetPath);
+
   const pane = App.panes[paneIndex];
-  pane.path = targetPath;
+  pane.path = cleanPath;
   if (!selectItemName) {
     pane.selected.clear();
   }
-  localStorage.setItem(`cd_pane_path_${paneIndex}`, targetPath);
+  localStorage.setItem(`cd_pane_path_${paneIndex}`, cleanPath);
 
   if (pushHistory && window.history && history.pushState) {
-    history.pushState({ type: 'dir', paneIndex, path: targetPath }, '', '');
+    history.pushState({ type: 'dir', paneIndex, path: cleanPath }, '', '');
   }
 
   try {
     const flatParam = pane.isBranchView ? '&flat=true' : '';
-    const url = `/api/fs/list?path=${encodeURIComponent(targetPath)}&show_hidden=${pane.showHidden}${flatParam}`;
+    const url = `/api/fs/list?path=${encodeURIComponent(authUrl)}&show_hidden=${pane.showHidden}${flatParam}`;
     const resp = await fetch(url, {
       headers: { 'Authorization': `Bearer ${App.token}` }
     });
 
     if (!resp.ok) {
-      const errText = await resp.text();
+      const errText = sanitizeCredentials(await resp.text());
       showToast(`Failed to load directory: ${errText}`, 'error');
-      console.error(`Failed to load ${targetPath}:`, errText);
+      console.error(`Failed to load ${cleanPath}:`, errText);
       return;
     }
 
     const data = await resp.json();
-    pane.path = data.current_path;
-    pane.parentPath = data.parent_path;
-    pane.entries = data.entries;
+    pane.path = sanitizeCredentials(data.current_path);
+    pane.parentPath = data.parent_path ? sanitizeCredentials(data.parent_path) : null;
+    pane.entries = (data.entries || []).map(e => ({
+      ...e,
+      path: sanitizeCredentials(e.path)
+    }));
     pane.totalSize = data.total_size;
 
     if (selectItemName && pane.entries) {
@@ -2253,6 +2259,7 @@ function createNewEditorTab(initialContent = '', defaultName = null, filePath = 
 }
 
 function openFloatingEditor() {
+  closeToolsMenu();
   const win = document.getElementById('floating-editor-window');
   const pill = document.getElementById('editor-pill');
   if (pill) pill.style.display = 'none';
@@ -2291,7 +2298,8 @@ function maximizeFloatingEditor() {
 }
 
 async function openEditorWithFile(filePath) {
-  const existingTab = editorTabs.find(t => t.path === filePath);
+  const cleanPath = sanitizeCredentials(filePath);
+  const existingTab = editorTabs.find(t => t.path === cleanPath || t.path === filePath);
   if (existingTab) {
     switchActiveEditorTab(existingTab.id, 'left');
     const dockedIdx = App.panes.findIndex(p => p.dockedTool === 'editor');
@@ -2304,15 +2312,16 @@ async function openEditorWithFile(filePath) {
   }
 
   try {
-    const resp = await fetch(`/api/fs/read?path=${encodeURIComponent(filePath)}`, {
+    const authPath = resolveAuthUri(filePath);
+    const resp = await fetch(`/api/fs/read?path=${encodeURIComponent(authPath)}`, {
       headers: { 'Authorization': `Bearer ${App.token}` }
     });
 
     if (resp.ok) {
       const data = await resp.json();
-      createNewEditorTab(data.content, null, filePath, false, []);
+      createNewEditorTab(data.content, null, cleanPath, false, []);
       
-      const isMd = filePath.endsWith('.md') || filePath.endsWith('.markdown');
+      const isMd = cleanPath.endsWith('.md') || cleanPath.endsWith('.markdown');
       const viewModeSelect = document.getElementById('editor-view-mode');
       if (viewModeSelect) {
         viewModeSelect.value = isMd ? 'split-markdown' : 'single-editor';
@@ -2326,10 +2335,10 @@ async function openEditorWithFile(filePath) {
         openFloatingEditor();
       }
     } else {
-      showToast('Failed to read file: ' + await resp.text(), 'error');
+      showToast('Failed to read file: ' + sanitizeCredentials(await resp.text()), 'error');
     }
   } catch (e) {
-    showToast('Read error: ' + e, 'error');
+    showToast('Read error: ' + sanitizeCredentials(String(e)), 'error');
   }
 }
 
@@ -2722,6 +2731,7 @@ let calcHistory = JSON.parse(localStorage.getItem('cd_calc_history') || '[]');
 let calcDragInitialized = false;
 
 function openFloatingCalculator() {
+  closeToolsMenu();
   const win = document.getElementById('floating-calculator-window');
   const pill = document.getElementById('calc-pill');
   if (pill) pill.style.display = 'none';
@@ -3131,15 +3141,16 @@ async function saveActiveEditorTab() {
     const defaultName = tab.filename.startsWith('Untitled') ? 'newfile.txt' : tab.filename;
     const userPath = prompt('Enter full file path to save:', `/home/bolt/${defaultName}`);
     if (!userPath) return;
-    tab.path = userPath;
+    tab.path = sanitizeCredentials(userPath);
     tab.filename = getBasename(userPath);
   }
 
   try {
+    const authPath = resolveAuthUri(tab.path);
     const resp = await fetch('/api/fs/write', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
-      body: JSON.stringify({ path: tab.path, content: tab.content, atomic: true })
+      body: JSON.stringify({ path: authPath, content: tab.content, atomic: true })
     });
 
     if (resp.ok) {
@@ -3150,10 +3161,10 @@ async function saveActiveEditorTab() {
       renderEditorTabs();
       refreshPane(App.activePaneIndex);
     } else {
-      showToast('Save failed: ' + await resp.text(), 'error');
+      showToast('Save failed: ' + sanitizeCredentials(await resp.text()), 'error');
     }
   } catch (e) {
-    showToast('Save error: ' + e, 'error');
+    showToast('Save error: ' + sanitizeCredentials(String(e)), 'error');
   }
 }
 
@@ -4070,12 +4081,22 @@ function toggleToolsMenu(e) {
   if (menu) menu.classList.toggle('active');
 }
 
+function closeToolsMenu() {
+  const menu = document.getElementById('tools-dropdown-menu');
+  if (menu) menu.classList.remove('active');
+}
+
 function toggleProfileMenu(e) {
   e?.stopPropagation();
   const menu = document.getElementById('profile-dropdown-menu');
   const toolsMenu = document.getElementById('tools-dropdown-menu');
   if (toolsMenu) toolsMenu.classList.remove('active');
   if (menu) menu.classList.toggle('active');
+}
+
+function closeProfileMenu() {
+  const menu = document.getElementById('profile-dropdown-menu');
+  if (menu) menu.classList.remove('active');
 }
 
 function toggleEditorActionsDropdown(e) {
@@ -4107,12 +4128,12 @@ function closeImgTransformDropdown() {
   if (menu) menu.style.display = 'none';
 }
 
-// Close dropdowns on outside click
+// Close dropdowns on outside click or on menu item selection (Touch & Click)
 document.addEventListener('click', (e) => {
-  if (!e.target.closest('.tools-dropdown-wrapper')) {
+  if (e.target.closest('#tools-dropdown-menu .dropdown-item') || (!e.target.closest('#btn-tools-menu') && !e.target.closest('#tools-dropdown-menu'))) {
     document.getElementById('tools-dropdown-menu')?.classList.remove('active');
   }
-  if (!e.target.closest('.profile-dropdown-wrapper')) {
+  if (e.target.closest('#profile-dropdown-menu .dropdown-item') || (!e.target.closest('#btn-user-profile') && !e.target.closest('#profile-dropdown-menu'))) {
     document.getElementById('profile-dropdown-menu')?.classList.remove('active');
   }
   if (!e.target.closest('#editor-actions-dropdown-container')) {
@@ -5838,17 +5859,22 @@ function triggerMkdir() {
   document.getElementById('mkdir-input').value = '';
   showModal('mkdir-modal');
   document.getElementById('btn-confirm-mkdir').onclick = async () => {
-    const name = document.getElementById('mkdir-input').value;
+    const name = document.getElementById('mkdir-input').value.trim();
     if (!name) return;
     const pane = App.panes[App.activePaneIndex];
     const newDir = `${pane.path.replace(/\/$/, '')}/${name}`;
-    await fetch('/api/fs/mkdir', {
+    const authDir = resolveAuthUri(newDir);
+    const resp = await fetch('/api/fs/mkdir', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
-      body: JSON.stringify({ path: newDir })
+      body: JSON.stringify({ path: authDir })
     });
     closeModal('mkdir-modal');
-    refreshPane(App.activePaneIndex);
+    if (resp.ok) {
+      refreshPane(App.activePaneIndex);
+    } else {
+      showToast('Failed to create folder: ' + sanitizeCredentials(await resp.text()), 'error');
+    }
   };
 }
 
@@ -5860,16 +5886,22 @@ function triggerRename() {
   document.getElementById('rename-input').value = item.name;
   showModal('rename-modal');
   document.getElementById('btn-confirm-rename').onclick = async () => {
-    const newName = document.getElementById('rename-input').value;
+    const newName = document.getElementById('rename-input').value.trim();
     if (!newName) return;
     const toPath = `${pane.path.replace(/\/$/, '')}/${newName}`;
-    await fetch('/api/fs/rename', {
+    const fromAuth = resolveAuthUri(item.path);
+    const toAuth = resolveAuthUri(toPath);
+    const resp = await fetch('/api/fs/rename', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
-      body: JSON.stringify({ from: item.path, to: toPath })
+      body: JSON.stringify({ from: fromAuth, to: toAuth })
     });
     closeModal('rename-modal');
-    refreshPane(App.activePaneIndex);
+    if (resp.ok) {
+      refreshPane(App.activePaneIndex);
+    } else {
+      showToast('Rename failed: ' + sanitizeCredentials(await resp.text()), 'error');
+    }
   };
 }
 
@@ -5878,7 +5910,7 @@ async function triggerDelete() {
   const paths = pane.selected.size > 0 ? Array.from(pane.selected) : (pane.entries[pane.cursorIndex] ? [pane.entries[pane.cursorIndex].path] : []);
   if (paths.length === 0) return;
 
-  const itemNames = paths.map(p => p.split('/').pop() || p);
+  const itemNames = paths.map(p => sanitizeCredentials(p).split('/').pop() || p);
   const confirmed = await showConfirmDialog({
     title: 'Delete Confirmation',
     subtitle: `Move ${paths.length} item(s) to Trash`,
@@ -5892,19 +5924,20 @@ async function triggerDelete() {
 
   if (confirmed) {
     try {
+      const authPaths = paths.map(p => resolveAuthUri(p));
       const resp = await fetch('/api/fs/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
-        body: JSON.stringify({ paths, use_trash: true })
+        body: JSON.stringify({ paths: authPaths, use_trash: true })
       });
       if (resp.ok) {
         showToast(`Moved ${paths.length} item(s) to Trash`, 'success');
         refreshPane(App.activePaneIndex);
       } else {
-        showToast(`Delete failed: ${await resp.text()}`, 'error');
+        showToast(`Delete failed: ${sanitizeCredentials(await resp.text())}`, 'error');
       }
     } catch (err) {
-      showToast(`Delete error: ${err}`, 'error');
+      showToast(`Delete error: ${sanitizeCredentials(String(err))}`, 'error');
     }
   }
 }
@@ -8615,7 +8648,49 @@ function applyTaskWindowHeight(h) {
 
 function sanitizeCredentials(str) {
   if (!str) return '';
-  return String(str).replace(/(:\/\/[^:@\s/]+):([^@\s/]+)@/g, '$1:***@');
+  return String(str)
+    .replace(/(:\/\/[^:@\s/]+):([^@\s/]+)@/g, '$1@')
+    .replace(/(:\/\/[^/@]+):([^@]+)@/g, '$1@');
+}
+
+function resolveAuthUri(path) {
+  if (!path || typeof path !== 'string') return path;
+  if (!path.includes('://')) return path;
+
+  // If path already contains embedded credentials, return as-is
+  if (path.includes('@')) {
+    const atParts = path.split('@')[0];
+    if (atParts.includes(':') && atParts.split(':').length > 2) {
+      return path;
+    }
+  }
+
+  if (!App.sessionCredentials) return path;
+
+  for (const key in App.sessionCredentials) {
+    const cred = App.sessionCredentials[key];
+    if (!cred || !cred.pass) continue;
+
+    const cleanPath = sanitizeCredentials(path);
+    const cleanKey = sanitizeCredentials(key);
+
+    if (cleanPath.startsWith(cleanKey) || (cred.host && path.includes(cred.host))) {
+      if (path.startsWith('sftp://')) {
+        const raw = path.slice(7);
+        const parts = raw.split('/');
+        const hostPort = parts[0].includes('@') ? parts[0].split('@')[1] : parts[0];
+        const sub = parts.slice(1).join('/');
+        return `sftp://${encodeURIComponent(cred.user)}:${encodeURIComponent(cred.pass)}@${hostPort}/${sub}`;
+      } else if (path.startsWith('smb://')) {
+        const raw = path.slice(6);
+        const parts = raw.split('/');
+        const hostPort = parts[0].includes('@') ? parts[0].split('@')[1] : parts[0];
+        const sub = parts.slice(1).join('/');
+        return `smb://${encodeURIComponent(cred.user)}:${encodeURIComponent(cred.pass)}@${hostPort}/${sub}`;
+      }
+    }
+  }
+  return path;
 }
 
 function copyTextToClipboard(text, successMsg = 'Copied to clipboard!') {
@@ -10269,7 +10344,7 @@ async function executeSync() {
 function openDiskUsageModal(path) {
   const targetPath = path || App.panes[App.activePaneIndex]?.path || '/';
   const pathIn = document.getElementById('du-path-input');
-  if (pathIn) pathIn.value = targetPath;
+  if (pathIn) pathIn.value = sanitizeCredentials(targetPath);
 
   showModal('disk-usage-modal');
   runDiskUsageScan(targetPath);
@@ -10278,7 +10353,8 @@ function openDiskUsageModal(path) {
 async function runDiskUsageScan(path) {
   if (!path) return;
   const pathIn = document.getElementById('du-path-input');
-  if (pathIn) pathIn.value = path;
+  if (pathIn) pathIn.value = sanitizeCredentials(path);
+  const authPath = resolveAuthUri(path);
 
   const totalSpaceEl = document.getElementById('du-total-space');
   const totalFilesEl = document.getElementById('du-total-files');
@@ -10291,12 +10367,12 @@ async function runDiskUsageScan(path) {
   if (window.lucide) lucide.createIcons();
 
   try {
-    const resp = await fetch(`/api/tools/disk-usage?path=${encodeURIComponent(path)}`, {
+    const resp = await fetch(`/api/tools/disk-usage?path=${encodeURIComponent(authPath)}`, {
       headers: { 'Authorization': `Bearer ${App.token}` }
     });
 
     if (!resp.ok) {
-      if (itemsList) itemsList.innerHTML = `<div style="padding: 24px; text-align: center; color: var(--danger);">Scan failed: ${escapeHtml(await resp.text())}</div>`;
+      if (itemsList) itemsList.innerHTML = `<div style="padding: 24px; text-align: center; color: var(--danger);">Scan failed: ${escapeHtml(sanitizeCredentials(await resp.text()))}</div>`;
       return;
     }
 
@@ -10370,7 +10446,8 @@ let lastSearchResults = [];
 
 function openSearchModal() {
   const activePane = App.panes[App.activePaneIndex];
-  document.getElementById('search-root-input').value = activePane.path;
+  const rootInput = document.getElementById('search-root-input');
+  if (rootInput) rootInput.value = sanitizeCredentials(activePane.path);
   const feedBtn = document.getElementById('btn-feed-to-pane');
   if (feedBtn) feedBtn.style.display = lastSearchResults.length > 0 ? 'inline-flex' : 'none';
   showModal('search-modal');
@@ -10378,7 +10455,8 @@ function openSearchModal() {
 }
 
 async function runGlobalSearch() {
-  const path = document.getElementById('search-root-input').value.trim();
+  const rawPath = document.getElementById('search-root-input').value.trim();
+  const path = resolveAuthUri(rawPath);
   const name_pattern = document.getElementById('search-name-pattern').value.trim() || null;
   const content_query = document.getElementById('search-content-query').value.trim() || null;
   const file_type = document.getElementById('search-file-type').value;
@@ -10409,7 +10487,8 @@ async function runGlobalSearch() {
   });
 
   if (!resp.ok) {
-    tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--danger); padding: 20px;">Search failed: ${await resp.text()}</td></tr>`;
+    const errText = sanitizeCredentials(await resp.text());
+    tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--danger); padding: 20px;">Search failed: ${errText}</td></tr>`;
     return;
   }
 
@@ -10429,11 +10508,11 @@ async function runGlobalSearch() {
   tbody.innerHTML = items.map(item => `
     <tr class="file-row">
       <td>
-        <div style="font-weight: 600; font-size: 12px; color: var(--text-main);">${escapeHtml(item.name)}</div>
-        <div style="font-size: 10px; color: var(--text-muted); font-family: var(--font-mono);">${escapeHtml(item.path)}</div>
+        <div style="font-weight: 600; font-size: 12px; color: var(--text-main);">${escapeHtml(sanitizeCredentials(item.name))}</div>
+        <div style="font-size: 10px; color: var(--text-muted); font-family: var(--font-mono);">${escapeHtml(sanitizeCredentials(item.path))}</div>
         ${item.matched_lines && item.matched_lines.length > 0 ? `
           <div style="margin-top: 4px; padding: 4px 6px; background: #090a0d; border-radius: 3px; font-family: var(--font-mono); font-size: 10px; color: var(--accent);">
-            ${item.matched_lines.map(l => escapeHtml(l)).join('<br>')}
+            ${item.matched_lines.map(l => escapeHtml(sanitizeCredentials(l))).join('<br>')}
           </div>
         ` : ''}
       </td>
@@ -11214,12 +11293,15 @@ function handleSpotlightInput(val) {
 function recordRecentHistory(item) {
   if (!item || (!item.path && !item.title)) return;
   try {
+    const cleanPath = sanitizeCredentials(item.path);
+    const cleanTitle = sanitizeCredentials(item.title);
+    const cleanSub = sanitizeCredentials(item.sub || item.path);
     let recents = JSON.parse(localStorage.getItem('cd_spotlight_recents') || '[]');
-    recents = recents.filter(r => r.path !== item.path && r.title !== item.title);
+    recents = recents.filter(r => r.path !== cleanPath && r.title !== cleanTitle);
     recents.unshift({
-      title: item.title,
-      sub: item.sub || item.path,
-      path: item.path,
+      title: cleanTitle,
+      sub: cleanSub,
+      path: cleanPath,
       icon: item.icon || (item.is_dir ? 'folder' : 'file-text'),
       cat: 'recent',
       is_dir: item.is_dir !== false,
@@ -11292,20 +11374,21 @@ function buildSpotlightItems() {
     // Add active open panes
     App.panes.forEach((p, idx) => {
       if (p.path) {
+        const cleanP = sanitizeCredentials(p.path);
         standardPaths.push({
-          title: `Pane ${idx + 1}: ${p.path.split('/').filter(Boolean).pop() || '/'}`,
-          path: p.path,
+          title: `Pane ${idx + 1}: ${cleanP.split('/').filter(Boolean).pop() || '/'}`,
+          path: cleanP,
           icon: 'columns-2',
-          sub: p.path
+          sub: cleanP
         });
       }
     });
 
     standardPaths.forEach(p => {
       pool.push({
-        title: p.title,
-        sub: p.sub,
-        path: p.path,
+        title: sanitizeCredentials(p.title),
+        sub: sanitizeCredentials(p.sub),
+        path: sanitizeCredentials(p.path),
         icon: p.icon,
         cat: 'path',
         badge: 'Folder',
@@ -11319,15 +11402,16 @@ function buildSpotlightItems() {
     // If query looks like an absolute path or URI, offer to jump directly
     if (spotlightQuery.startsWith('/') || spotlightQuery.startsWith('~') || spotlightQuery.startsWith('smb://') || spotlightQuery.startsWith('sftp://')) {
       const targetP = spotlightQuery.startsWith('~') ? spotlightQuery.replace('~', userHome) : spotlightQuery;
+      const cleanTargetP = sanitizeCredentials(targetP);
       pool.unshift({
-        title: `Jump to path: ${targetP}`,
-        sub: `Navigate active pane to ${targetP}`,
+        title: `Jump to path: ${cleanTargetP}`,
+        sub: `Navigate active pane to ${cleanTargetP}`,
         path: targetP,
         icon: 'folder-symlink',
         cat: 'path',
         badge: 'Direct Path',
         handler: () => {
-          recordRecentHistory({ title: `Path: ${targetP}`, path: targetP, is_dir: true, icon: 'folder' });
+          recordRecentHistory({ title: `Path: ${cleanTargetP}`, path: targetP, is_dir: true, icon: 'folder' });
           navigatePane(App.activePaneIndex, targetP);
         }
       });
@@ -11338,15 +11422,17 @@ function buildSpotlightItems() {
   if (spotlightCurrentCat === 'all' || spotlightCurrentCat === 'bookmarks') {
     const bookmarks = getBookmarksLocalCache();
     bookmarks.forEach(b => {
+      const cleanBPath = sanitizeCredentials(b.path);
+      const cleanBName = sanitizeCredentials(b.name || b.path);
       pool.push({
-        title: b.name || b.path,
-        sub: `${b.protocol ? b.protocol.toUpperCase() + ' • ' : ''}${b.path}`,
-        path: b.path,
+        title: cleanBName,
+        sub: `${b.protocol ? b.protocol.toUpperCase() + ' • ' : ''}${cleanBPath}`,
+        path: cleanBPath,
         icon: 'star',
         cat: 'bookmark',
         badge: b.protocol || 'Bookmark',
         handler: () => {
-          recordRecentHistory({ title: b.name || b.path, path: b.path, is_dir: true, icon: 'star' });
+          recordRecentHistory({ title: cleanBName, path: cleanBPath, is_dir: true, icon: 'star' });
           if (b.has_password) {
             openRemoteAuthModal(b.path, b.protocol);
           } else {
@@ -11362,9 +11448,9 @@ function buildSpotlightItems() {
     const recents = getRecentHistory();
     recents.forEach(r => {
       pool.push({
-        title: r.title,
-        sub: r.sub || r.path,
-        path: r.path,
+        title: sanitizeCredentials(r.title),
+        sub: sanitizeCredentials(r.sub || r.path),
+        path: sanitizeCredentials(r.path),
         icon: r.icon || 'history',
         cat: 'recent',
         badge: 'Recent',
