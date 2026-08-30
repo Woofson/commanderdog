@@ -254,11 +254,50 @@ impl VfsTransfer {
             // Local -> Local
             let src_path = Path::new(src);
             let dest_path = Path::new(dest_dir);
+
+            if !src_path.exists() {
+                return Err(format!("Source path not found: {}", src));
+            }
+
+            let file_name = src_path.file_name().unwrap_or_default();
             let target = if dest_path.is_dir() {
-                dest_path.join(src_path.file_name().unwrap_or_default())
+                dest_path.join(file_name)
             } else {
                 dest_path.to_path_buf()
             };
+
+            // Check if source and target are identical
+            if let (Ok(can_src), Ok(can_target)) = (src_path.canonicalize(), target.canonicalize()) {
+                if can_src == can_target {
+                    if is_move {
+                        return Ok(None); // Move onto itself is a no-op
+                    } else {
+                        // Copy onto itself is a no-op
+                        return Ok(None);
+                    }
+                }
+            }
+
+            // Prevent copying directory into itself or its own subdirectories
+            if src_path.is_dir() {
+                if let Ok(can_src) = src_path.canonicalize() {
+                    let dest_check = if target.exists() {
+                        target.canonicalize().unwrap_or_else(|_| target.clone())
+                    } else if let Some(parent) = target.parent() {
+                        parent.canonicalize().map(|p| p.join(file_name)).unwrap_or_else(|_| target.clone())
+                    } else {
+                        target.clone()
+                    };
+
+                    if dest_check == can_src || dest_check.starts_with(&can_src) {
+                        return Err(format!(
+                            "Cannot copy directory '{}' into itself or a subdirectory of itself '{}'",
+                            src,
+                            target.display()
+                        ));
+                    }
+                }
+            }
 
             if is_move {
                 if std::fs::rename(src, &target).is_err() {

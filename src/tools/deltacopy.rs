@@ -100,20 +100,27 @@ impl DeltaCopyEngine {
             } else if src_p.is_dir() {
                 let base_name = src_p.file_name().unwrap();
                 let target_root = dest_path.join(base_name);
-                fs::create_dir_all(&target_root).ok();
+
+                // Prevent copying folder into itself or its own subfolder
+                if let (Ok(can_src), Ok(can_dest)) = (src_p.canonicalize(), dest_path.canonicalize()) {
+                    let can_target = can_dest.join(base_name);
+                    if can_target == can_src || can_target.starts_with(&can_src) {
+                        continue;
+                    }
+                }
 
                 for entry in WalkDir::new(src_p).into_iter().filter_map(|e| e.ok()) {
+                    if entry.path() == src_p {
+                        continue;
+                    }
                     if entry.file_type().is_file() {
-                        let rel = entry.path().strip_prefix(src_p).unwrap();
-                        let target = target_root.join(rel);
-                        if let Ok(meta) = entry.metadata() {
-                            total_bytes += meta.len();
+                        if let Ok(rel) = entry.path().strip_prefix(src_p) {
+                            let target = target_root.join(rel);
+                            if let Ok(meta) = entry.metadata() {
+                                total_bytes += meta.len();
+                            }
+                            file_pairs.push((entry.path().to_path_buf(), target));
                         }
-                        file_pairs.push((entry.path().to_path_buf(), target));
-                    } else if entry.file_type().is_dir() {
-                        let rel = entry.path().strip_prefix(src_p).unwrap();
-                        let target_d = target_root.join(rel);
-                        fs::create_dir_all(&target_d).ok();
                     }
                 }
             }

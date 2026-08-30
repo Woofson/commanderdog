@@ -722,20 +722,83 @@ impl LocalFs {
         let src_path = Path::new(src_str);
         let dest_path = Path::new(dest_str);
 
+        if !src_path.exists() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("Source path not found: {}", src_str),
+            ));
+        }
+
+        // Canonical paths comparison
+        let can_src = src_path.canonicalize()?;
+        let can_dest = if dest_path.exists() {
+            dest_path.canonicalize().ok()
+        } else if let Some(p) = dest_path.parent() {
+            p.canonicalize().ok().map(|can_p| can_p.join(dest_path.file_name().unwrap_or_default()))
+        } else {
+            None
+        };
+
+        if let Some(ref cd) = can_dest {
+            if can_src == *cd {
+                // Source and destination are identical
+                return Ok(());
+            }
+        }
+
         if let Some(parent) = dest_path.parent() {
             fs::create_dir_all(parent)?;
         }
 
         if src_path.is_dir() {
+            // Prevent copying directory into itself or its own subdirectories
+            if let Some(ref cd) = can_dest {
+                if cd == &can_src || cd.starts_with(&can_src) {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::InvalidInput,
+                        format!(
+                            "Cannot copy directory '{}' into itself or a subdirectory of itself '{}'",
+                            src_str, dest_str
+                        ),
+                    ));
+                }
+            }
+
+            // Snapshot existing directory entries before creating any new folders in dest
+            let entries: Vec<walkdir::DirEntry> = walkdir::WalkDir::new(src_path)
+                .into_iter()
+                .filter_entry(|e| {
+                    if let Some(ref cd) = can_dest {
+                        if let Ok(can_e) = e.path().canonicalize() {
+                            if can_e == *cd || can_e.starts_with(cd) {
+                                return false;
+                            }
+                        }
+                    }
+                    true
+                })
+                .filter_map(|e| e.ok())
+                .collect();
+
             fs::create_dir_all(dest_path)?;
-            for entry in walkdir::WalkDir::new(src_path) {
-                let entry = entry.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
-                let rel = entry.path().strip_prefix(src_path).unwrap();
+
+            for entry in entries {
+                let rel = entry.path().strip_prefix(src_path).map_err(|e| {
+                    std::io::Error::new(std::io::ErrorKind::Other, e)
+                })?;
+
+                if rel.as_os_str().is_empty() {
+                    continue;
+                }
+
                 let target = dest_path.join(rel);
 
                 if entry.file_type().is_dir() {
                     fs::create_dir_all(&target)?;
                 } else if entry.file_type().is_file() {
+                    if let Some(p) = target.parent() {
+                        fs::create_dir_all(p)?;
+                    }
                     fs::copy(entry.path(), &target)?;
                     if verify {
                         let hash_src = calculate_sha256(entry.path())?;
@@ -765,5 +828,51 @@ impl LocalFs {
             }
             Ok(())
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    #[test]
+    fn test_copy_file_paranoid_prevents_recursive_loop() {
+        let tmp = tempdir().unwrap();
+        let parent_dir = tmp.path().join("my_folder");
+        fs::create_dir_all(&parent_dir).unwrap();
+        fs::write(parent_dir.join("hello.txt"), "hello world").unwrap();
+
+        // Attempt to copy parent_dir into a subfolder of itself
+        let sub_target = parent_dir.join("subfolder");
+        let res = LocalFs::copy_file_paranoid(
+            &parent_dir.to_string_lossy(),
+            &sub_target.to_string_lossy(),
+            true,
+        );
+
+        assert!(res.is_err(), "Should return error when copying folder into its own subfolder");
+        let err_msg = res.unwrap_err().to_string();
+        assert!(err_msg.contains("Cannot copy directory"), "Error message was: {}", err_msg);
+    }
+
+    #[test]
+    fn test_copy_file_paranoid_success() {
+        let tmp = tempdir().unwrap();
+        let src_dir = tmp.path().join("src_folder");
+        let dest_dir = tmp.path().join("dest_folder");
+        fs::create_dir_all(&src_dir).unwrap();
+        fs::write(src_dir.join("test.txt"), "verifiable data").unwrap();
+
+        let res = LocalFs::copy_file_paranoid(
+            &src_dir.to_string_lossy(),
+            &dest_dir.to_string_lossy(),
+            true,
+        );
+
+        assert!(res.is_ok(), "Copying to sibling directory should succeed");
+        assert!(dest_dir.join("test.txt").exists());
+        let content = fs::read_to_string(dest_dir.join("test.txt")).unwrap();
+        assert_eq!(content, "verifiable data");
     }
 }

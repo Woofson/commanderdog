@@ -2258,7 +2258,26 @@ async function handlePaneDrop(e, targetPaneIndex, subfolderPath) {
   if (rawData) {
     try {
       const { sourcePane, paths } = JSON.parse(rawData);
-      if (sourcePane === targetPaneIndex && !subfolderPath) return;
+      if (!paths || paths.length === 0) return;
+
+      const cleanDest = (destPath || '').replace(/[\\/]+$/, '').toLowerCase();
+
+      for (const p of paths) {
+        const cleanP = (p || '').replace(/[\\/]+$/, '').toLowerCase();
+        if (cleanDest === cleanP) {
+          showToast('Source and destination are identical', 'warning');
+          return;
+        }
+        if (cleanDest.startsWith(cleanP + '/') || cleanDest.startsWith(cleanP + '\\')) {
+          showToast('Cannot transfer a directory into its own subdirectory', 'error');
+          return;
+        }
+      }
+
+      if (sourcePane === targetPaneIndex && !subfolderPath) {
+        showToast('Source and destination are identical', 'warning');
+        return;
+      }
 
       pendingInterpaneTransfer = {
         sourcePane,

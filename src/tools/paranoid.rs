@@ -47,7 +47,13 @@ impl ParanoidEngine {
                     let dest_path = Path::new(dest);
                     if let Some(name) = p.file_name() {
                         let target = dest_path.join(name);
-                        if target.exists() {
+                        if let (Ok(can_p), Ok(can_t)) = (p.canonicalize(), target.canonicalize()) {
+                            if can_p == can_t {
+                                warnings.push(format!("Source and destination are identical: {}", src));
+                            } else if p.is_dir() && can_t.starts_with(&can_p) {
+                                warnings.push(format!("Cannot {} directory into its own subdirectory: {} -> {}", action, src, dest));
+                            }
+                        } else if target.exists() {
                             potential_overwrites.push(target.to_string_lossy().to_string());
                         }
                     }
