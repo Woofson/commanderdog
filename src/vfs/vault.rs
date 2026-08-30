@@ -1,6 +1,8 @@
 use crate::vfs::{DirectoryListing, FileContentResponse, FileEntry};
-use openssl::rand::rand_bytes;
-use openssl::symm::{decrypt_aead, encrypt_aead, Cipher};
+use aes_gcm::{
+    aead::{Aead, KeyInit},
+    Aes256Gcm, Key, Nonce,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs::{self, File};
@@ -74,20 +76,25 @@ impl VaultManager {
 
     /// Encrypt plaintext bytes with AES-256-GCM
     pub fn encrypt_aes_gcm(key: &[u8; KEY_LEN], plaintext: &[u8]) -> Result<(Vec<u8>, [u8; NONCE_LEN], [u8; TAG_LEN]), String> {
-        let mut nonce = [0u8; NONCE_LEN];
-        rand_bytes(&mut nonce).map_err(|e| format!("Random bytes error: {}", e))?;
+        let mut nonce_bytes = [0u8; NONCE_LEN];
+        getrandom::getrandom(&mut nonce_bytes).map_err(|e| format!("Random bytes error: {}", e))?;
 
+        let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
+        let nonce = Nonce::from_slice(&nonce_bytes);
+
+        let ciphertext_with_tag = cipher
+            .encrypt(nonce, plaintext)
+            .map_err(|e| format!("AES-256-GCM encryption failed: {}", e))?;
+
+        if ciphertext_with_tag.len() < TAG_LEN {
+            return Err("Ciphertext shorter than authentication tag".to_string());
+        }
+        let split_idx = ciphertext_with_tag.len() - TAG_LEN;
+        let ciphertext = ciphertext_with_tag[..split_idx].to_vec();
         let mut tag = [0u8; TAG_LEN];
-        let ciphertext = encrypt_aead(
-            Cipher::aes_256_gcm(),
-            key,
-            Some(&nonce),
-            &[], // AAD
-            plaintext,
-            &mut tag,
-        ).map_err(|e| format!("AES-256-GCM encryption failed: {}", e))?;
+        tag.copy_from_slice(&ciphertext_with_tag[split_idx..]);
 
-        Ok((ciphertext, nonce, tag))
+        Ok((ciphertext, nonce_bytes, tag))
     }
 
     /// Decrypt ciphertext bytes with AES-256-GCM
@@ -97,14 +104,18 @@ impl VaultManager {
         tag: &[u8; TAG_LEN],
         ciphertext: &[u8],
     ) -> Result<Vec<u8>, String> {
-        decrypt_aead(
-            Cipher::aes_256_gcm(),
-            key,
-            Some(nonce),
-            &[], // AAD
-            ciphertext,
-            tag,
-        ).map_err(|e| format!("AES-256-GCM decryption / authentication failed (Invalid password or corrupted vault): {}", e))
+        let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
+        let nonce_ref = Nonce::from_slice(nonce);
+
+        let mut ct_with_tag = Vec::with_capacity(ciphertext.len() + TAG_LEN);
+        ct_with_tag.extend_from_slice(ciphertext);
+        ct_with_tag.extend_from_slice(tag);
+
+        let plaintext = cipher
+            .decrypt(nonce_ref, ct_with_tag.as_slice())
+            .map_err(|_| "AES-256-GCM decryption / authentication failed (Invalid password or corrupted vault)".to_string())?;
+
+        Ok(plaintext)
     }
 
     /// Initialize and create a brand new encrypted vault container file
@@ -114,13 +125,13 @@ impl VaultManager {
         }
 
         let mut salt = [0u8; SALT_LEN];
-        rand_bytes(&mut salt).map_err(|e| format!("Failed to generate salt: {}", e))?;
+        getrandom::getrandom(&mut salt).map_err(|e| format!("Failed to generate salt: {}", e))?;
 
         let user_key = Self::derive_key(password, &salt)?;
 
         // Generate random 256-bit Master Key for the vault
         let mut master_key = [0u8; KEY_LEN];
-        rand_bytes(&mut master_key).map_err(|e| format!("Failed to generate master key: {}", e))?;
+        getrandom::getrandom(&mut master_key).map_err(|e| format!("Failed to generate master key: {}", e))?;
 
         // Encrypt the Master Key with user's derived key
         let (enc_master_key, master_nonce, master_tag) = Self::encrypt_aes_gcm(&user_key, &master_key)?;
