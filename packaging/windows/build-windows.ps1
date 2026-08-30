@@ -49,6 +49,7 @@ Copy-Item "$RootDir\LICENSE" "$DistDir\commanderdog\"
 Copy-Item "$RootDir\README.md" "$DistDir\commanderdog\"
 Copy-Item "$RootDir\packaging\windows\register-context-menu.reg" "$DistDir\commanderdog\"
 Copy-Item "$RootDir\packaging\windows\unregister-context-menu.reg" "$DistDir\commanderdog\"
+Copy-Item "$RootDir\assets\commanderdog.ico" "$DistDir\commanderdog\" -ErrorAction SilentlyContinue
 
 $ZipPath = "$DistDir\commanderdog-windows-x86_64-v$Version.zip"
 Compress-Archive -Path "$DistDir\commanderdog\*" -DestinationPath $ZipPath -Force

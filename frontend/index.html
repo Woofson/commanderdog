@@ -47,6 +47,11 @@
         <button class="btn btn-icon" id="layout-4" title="Quad Pane 2x2 (Alt+4)"><i data-lucide="grid-2x2"></i></button>
       </div>
 
+      <!-- Tree Sidebar Toggle Button -->
+      <button class="btn btn-icon desktop-only" id="btn-toggle-tree" onclick="toggleFolderTree()" title="Toggle Folder Tree (Ctrl+T)">
+        <i data-lucide="folder-tree"></i>
+      </button>
+
       <!-- Separator -->
       <div class="header-sep desktop-only"></div>
 
@@ -69,6 +74,7 @@
         </button>
         <div class="tools-dropdown-menu" id="tools-dropdown-menu">
           <div class="dropdown-item" onclick="openSpotlightModal()"><i data-lucide="sparkles" style="color: var(--accent);"></i> Spotlight Quick-Switcher (Ctrl+K)</div>
+          <div class="dropdown-item" onclick="toggleFolderTree()"><i data-lucide="folder-tree" style="color: var(--accent);"></i> Folder Hierarchy Tree (Ctrl+T)</div>
           <div class="dropdown-item" onclick="toggleBranchView()"><i data-lucide="git-branch" style="color: var(--accent);"></i> Flat / Branch View (Ctrl+B)</div>
           <div class="dropdown-item" onclick="openFloatingCalculator()"><i data-lucide="calculator" style="color: var(--accent);"></i> Calculator</div>
           <div class="dropdown-item" onclick="toggleTerminal()"><i data-lucide="terminal"></i> Terminal Console (`)</div>
@@ -125,6 +131,24 @@
 
   <!-- Main Multi-Pane Workspace -->
   <main class="main-workspace">
+    <!-- Collapsible Folder Hierarchy Tree Sidebar -->
+    <aside class="tree-view-sidebar" id="tree-view-sidebar" style="display: none;">
+      <div class="tree-sidebar-header">
+        <div class="tree-sidebar-title">
+          <i data-lucide="folder-tree" style="width: 14px; height: 14px; color: var(--accent);"></i>
+          <span>Folder Tree</span>
+        </div>
+        <div class="tree-sidebar-actions">
+          <button class="btn btn-icon btn-xs" onclick="refreshFolderTree()" title="Refresh Tree"><i data-lucide="refresh-cw" style="width: 12px; height: 12px;"></i></button>
+          <button class="btn btn-icon btn-xs" onclick="toggleFolderTree(false)" title="Hide Tree (Ctrl+T)"><i data-lucide="chevron-left" style="width: 12px; height: 12px;"></i></button>
+        </div>
+      </div>
+      <div class="tree-view-content" id="tree-view-root">
+        <!-- Tree Nodes populated dynamically via initFolderTree() -->
+      </div>
+    </aside>
+    <div class="tree-resizer-handle" id="tree-resizer-handle" style="display: none;"></div>
+
     <div class="panes-container layout-dual-vertical" id="panes-grid">
       <!-- Panes 1 to 4 dynamically rendered via app.js -->
     </div>

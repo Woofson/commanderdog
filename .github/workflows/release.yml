@@ -63,6 +63,7 @@ jobs:
           Copy-Item "README.md" "$DistDir\commanderdog\"
           Copy-Item "packaging\windows\register-context-menu.reg" "$DistDir\commanderdog\"
           Copy-Item "packaging\windows\unregister-context-menu.reg" "$DistDir\commanderdog\"
+          Copy-Item "assets\commanderdog.ico" "$DistDir\commanderdog\" -ErrorAction SilentlyContinue
 
           $ZipName = "commanderdog-v${Version}-windows-x86_64.zip"
           Compress-Archive -Path "$DistDir\commanderdog\*" -DestinationPath "$DistDir\$ZipName" -Force

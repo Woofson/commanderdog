@@ -137,6 +137,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   applyTheme(localStorage.getItem('cd_theme') || 'amber-charcoal');
   startTasksPolling();
   initInactivityTracker();
+  initFolderTree();
+  initTreeResizer();
+  setupTabBarMouseWheel();
   checkAuthAndLoad();
 });
 
@@ -792,6 +795,9 @@ async function loadPaneDirectory(paneIndex, targetPath, pushHistory = true, sele
     }
     updatePaneFooter(paneIndex, data);
     fetchGitStatusForPane(paneIndex, pane.path);
+    if (paneIndex === App.activePaneIndex) {
+      syncTreeActiveNode(pane.path);
+    }
   } catch (e) {
     console.error('Directory load error:', e);
   }
@@ -1037,9 +1043,31 @@ function renderPaneBreadcrumbs(paneIndex, pathStr) {
     return;
   }
 
-  // Check if path is a Windows drive path (e.g. C:\ or C:/ or C:\Users\Bolt)
-  const winDriveMatch = pathStr.match(/^([a-zA-Z]:)[\\/]*(.*)$/);
-  const uncMatch = pathStr.match(/^(\\\\[^\\\/]+[\\\/][^\\\/]+)(.*)$/) || pathStr.match(/^(\/\/[^\/]+\/[^\/]+)(.*)$/);
+  // Helper to create root dropdown button (Drive / Storage Root picker)
+  const makeRootDropdownBtn = (displayText, rootTarget, icon = '') => {
+    const btn = document.createElement('span');
+    btn.className = 'crumb-root-dropdown-btn';
+    btn.title = 'Click to switch drive or storage root';
+    btn.innerHTML = `${icon ? icon + ' ' : ''}${displayText} <span style="font-size: 8.5px; opacity: 0.7; margin-left: 2px;">▾</span>`;
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      showBreadcrumbRootDropdown(e, paneIndex);
+    };
+    return btn;
+  };
+
+  // Helper to create clickable separator with subfolder dropdown
+  const makeSepDropdown = (sepChar, parentDir) => {
+    const sep = document.createElement('span');
+    sep.className = 'crumb-sep crumb-sep-dropdown';
+    sep.title = 'Browse subfolders';
+    sep.textContent = sepChar;
+    sep.onclick = (e) => {
+      e.stopPropagation();
+      showBreadcrumbSubfolderDropdown(e, paneIndex, parentDir);
+    };
+    return sep;
+  };
 
   if (winDriveMatch) {
     const driveLetter = winDriveMatch[1].toUpperCase();
@@ -1047,17 +1075,13 @@ function renderPaneBreadcrumbs(paneIndex, pathStr) {
     const rest = winDriveMatch[2];
     const parts = rest.split(/[\\/]/).filter(Boolean);
 
-    const rootCrumb = document.createElement('span');
-    rootCrumb.className = 'crumb';
-    rootCrumb.textContent = driveRoot;
-    rootCrumb.onclick = (e) => { e.stopPropagation(); loadPaneDirectory(paneIndex, driveRoot); };
+    const rootCrumb = makeRootDropdownBtn(driveRoot, driveRoot, '🪟');
     container.appendChild(rootCrumb);
 
     let currentBuild = driveRoot;
     parts.forEach((part, idx) => {
-      const sep = document.createElement('span');
-      sep.className = 'crumb-sep';
-      sep.textContent = '\\';
+      const sepParent = currentBuild;
+      const sep = makeSepDropdown('\\', sepParent);
       container.appendChild(sep);
 
       if (idx > 0 && !currentBuild.endsWith('\\')) currentBuild += '\\';
@@ -1079,17 +1103,13 @@ function renderPaneBreadcrumbs(paneIndex, pathStr) {
     const rest = uncMatch[2];
     const parts = rest.split(/[\\/]/).filter(Boolean);
 
-    const rootCrumb = document.createElement('span');
-    rootCrumb.className = 'crumb';
-    rootCrumb.textContent = shareRoot;
-    rootCrumb.onclick = (e) => { e.stopPropagation(); loadPaneDirectory(paneIndex, shareRoot); };
+    const rootCrumb = makeRootDropdownBtn(shareRoot, shareRoot, '🖥️');
     container.appendChild(rootCrumb);
 
     let currentBuild = shareRoot;
     parts.forEach(part => {
-      const sep = document.createElement('span');
-      sep.className = 'crumb-sep';
-      sep.textContent = '\\';
+      const sepParent = currentBuild;
+      const sep = makeSepDropdown('\\', sepParent);
       container.appendChild(sep);
 
       currentBuild += '\\' + part;
@@ -1106,17 +1126,13 @@ function renderPaneBreadcrumbs(paneIndex, pathStr) {
   }
 
   const parts = pathStr.split('/').filter(Boolean);
-  const rootCrumb = document.createElement('span');
-  rootCrumb.className = 'crumb';
-  rootCrumb.textContent = '/';
-  rootCrumb.onclick = (e) => { e.stopPropagation(); loadPaneDirectory(paneIndex, '/'); };
+  const rootCrumb = makeRootDropdownBtn('/', '/', '📁');
   container.appendChild(rootCrumb);
 
   let currentBuild = '';
   parts.forEach((part) => {
-    const sep = document.createElement('span');
-    sep.className = 'crumb-sep';
-    sep.textContent = '/';
+    const sepParent = currentBuild || '/';
+    const sep = makeSepDropdown('/', sepParent);
     container.appendChild(sep);
 
     currentBuild += '/' + part;
@@ -1128,6 +1144,140 @@ function renderPaneBreadcrumbs(paneIndex, pathStr) {
     c.onclick = (e) => { e.stopPropagation(); loadPaneDirectory(paneIndex, target); };
     container.appendChild(c);
   });
+}
+
+// Global popover cleanup helper
+function closeBreadcrumbPopovers() {
+  document.querySelectorAll('.breadcrumb-popover').forEach(p => p.remove());
+}
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.breadcrumb-popover') && !e.target.closest('.crumb-root-dropdown-btn') && !e.target.closest('.crumb-sep-dropdown')) {
+    closeBreadcrumbPopovers();
+  }
+});
+
+async function showBreadcrumbRootDropdown(event, paneIndex) {
+  closeBreadcrumbPopovers();
+  const trigger = event.currentTarget;
+  const rect = trigger.getBoundingClientRect();
+
+  const popover = document.createElement('div');
+  popover.className = 'breadcrumb-popover';
+  popover.style.top = `${rect.bottom + 4}px`;
+  popover.style.left = `${Math.max(8, rect.left)}px`;
+  popover.innerHTML = '<div style="padding: 6px 8px; color: var(--text-muted); font-size: 11px;">Loading storage roots & drives...</div>';
+  document.body.appendChild(popover);
+
+  try {
+    const roots = await fetchStorageRoots();
+    popover.innerHTML = '';
+
+    if (roots.length === 0) {
+      popover.innerHTML = '<div class="breadcrumb-popover-item" onclick="loadPaneDirectory(' + paneIndex + ', \'/\'); closeBreadcrumbPopovers();">📁 Root Filesystem (/)</div>';
+      return;
+    }
+
+    const drives = roots.filter(r => r.path.match(/^[a-zA-Z]:[\\/]/));
+    const storageRoots = roots.filter(r => !r.path.match(/^[a-zA-Z]:[\\/]/));
+
+    if (drives.length > 0) {
+      const header = document.createElement('div');
+      header.className = 'breadcrumb-popover-header';
+      header.textContent = 'Windows Drives';
+      popover.appendChild(header);
+
+      drives.forEach(d => {
+        const item = document.createElement('div');
+        item.className = 'breadcrumb-popover-item';
+        const isActive = App.panes[paneIndex].path.toUpperCase().startsWith(d.path.toUpperCase());
+        if (isActive) item.classList.add('active');
+        item.innerHTML = `<span style="font-size: 13px;">🪟</span> <span style="font-weight:600;">${escapeHtml(d.path)}</span> <span style="color:var(--text-muted); font-size:10.5px; margin-left:auto;">${escapeHtml(d.name.replace(/^Local Disk\s*\(/i, '').replace(/\)$/, ''))}</span>`;
+        item.onclick = () => {
+          loadPaneDirectory(paneIndex, d.path);
+          closeBreadcrumbPopovers();
+        };
+        popover.appendChild(item);
+      });
+    }
+
+    if (storageRoots.length > 0) {
+      const header = document.createElement('div');
+      header.className = 'breadcrumb-popover-header';
+      header.textContent = 'Storage Roots & Folders';
+      popover.appendChild(header);
+
+      storageRoots.forEach(r => {
+        const item = document.createElement('div');
+        item.className = 'breadcrumb-popover-item';
+        const isActive = App.panes[paneIndex].path.startsWith(r.path);
+        if (isActive) item.classList.add('active');
+        const icon = r.id === 'home' ? '🏠' : '📁';
+        item.innerHTML = `<span style="font-size: 13px;">${icon}</span> <span style="font-weight:500;">${escapeHtml(r.name)}</span>`;
+        item.onclick = () => {
+          loadPaneDirectory(paneIndex, r.path);
+          closeBreadcrumbPopovers();
+        };
+        popover.appendChild(item);
+      });
+    }
+  } catch (err) {
+    popover.innerHTML = '<div style="padding: 6px 8px; color: var(--danger); font-size: 11px;">Failed to load roots</div>';
+  }
+}
+
+async function showBreadcrumbSubfolderDropdown(event, paneIndex, parentDir) {
+  closeBreadcrumbPopovers();
+  const trigger = event.currentTarget;
+  const rect = trigger.getBoundingClientRect();
+
+  const popover = document.createElement('div');
+  popover.className = 'breadcrumb-popover';
+  popover.style.top = `${rect.bottom + 4}px`;
+  popover.style.left = `${Math.max(8, rect.left - 20)}px`;
+  popover.innerHTML = '<div style="padding: 6px 8px; color: var(--text-muted); font-size: 11px;">Loading subfolders...</div>';
+  document.body.appendChild(popover);
+
+  try {
+    const authUrl = resolveAuthUri(parentDir);
+    const res = await fetch(`/api/fs/list?path=${encodeURIComponent(authUrl)}&show_hidden=false`, {
+      headers: { 'Authorization': `Bearer ${App.token}` }
+    });
+
+    if (!res.ok) {
+      popover.innerHTML = '<div style="padding: 6px 8px; color: var(--text-muted); font-size: 11px;">(Cannot access folder)</div>';
+      return;
+    }
+
+    const data = await res.json();
+    const subdirs = (data.entries || []).filter(e => e.is_dir);
+
+    popover.innerHTML = '';
+    if (subdirs.length === 0) {
+      popover.innerHTML = '<div style="padding: 6px 8px; color: var(--text-muted); font-size: 11px;">(No subfolders)</div>';
+      return;
+    }
+
+    const header = document.createElement('div');
+    header.className = 'breadcrumb-popover-header';
+    header.textContent = `Subfolders (${subdirs.length})`;
+    popover.appendChild(header);
+
+    subdirs.sort((a, b) => a.name.localeCompare(b.name)).forEach(dir => {
+      const item = document.createElement('div');
+      item.className = 'breadcrumb-popover-item';
+      const isCurrentChild = App.panes[paneIndex].path.startsWith(dir.path);
+      if (isCurrentChild) item.classList.add('active');
+      item.innerHTML = `<span style="font-size: 12px;">📁</span> <span>${escapeHtml(dir.name)}</span>`;
+      item.onclick = () => {
+        loadPaneDirectory(paneIndex, dir.path);
+        closeBreadcrumbPopovers();
+      };
+      popover.appendChild(item);
+    });
+  } catch (err) {
+    popover.innerHTML = '<div style="padding: 6px 8px; color: var(--danger); font-size: 11px;">Failed to load subfolders</div>';
+  }
 }
 
 function renderPaneTable(paneIndex) {
@@ -2182,6 +2332,11 @@ function setupKeyboardNavigation() {
       if (e.key === 'b' || e.key === 'B') {
         e.preventDefault();
         toggleBranchView(App.activePaneIndex);
+        return;
+      }
+      if (e.key === 't' || e.key === 'T') {
+        e.preventDefault();
+        toggleFolderTree();
         return;
       }
     }
@@ -9161,6 +9316,90 @@ function isImageExtension(filename) {
   return ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico', 'avif', 'tiff'].includes(ext);
 }
 
+let imgPanX = 0;
+let imgPanY = 0;
+let imgIsDragging = false;
+let imgDragStartX = 0;
+let imgDragStartY = 0;
+let lastImageWheelTime = 0;
+
+function setupImageViewerEvents() {
+  const viewport = document.getElementById('img-viewer-viewport');
+  if (!viewport || viewport._wheelAttached) return;
+  viewport._wheelAttached = true;
+
+  // Mouse wheel listener: Scroll to cycle images, Ctrl+Scroll to zoom
+  viewport.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    if (e.ctrlKey || e.metaKey) {
+      const delta = e.deltaY < 0 ? 0.15 : -0.15;
+      zoomImage(delta);
+    } else {
+      const now = Date.now();
+      if (now - lastImageWheelTime > 160) {
+        lastImageWheelTime = now;
+        if (e.deltaY > 0 || e.deltaX > 0) {
+          navImageViewer(1);
+        } else if (e.deltaY < 0 || e.deltaX < 0) {
+          navImageViewer(-1);
+        }
+      }
+    }
+  }, { passive: false });
+
+  // Double-click to toggle fit-to-screen vs 2x zoom
+  viewport.addEventListener('dblclick', (e) => {
+    e.preventDefault();
+    if (imgZoom === 1) {
+      imgZoom = 2;
+    } else {
+      imgZoom = 1;
+      imgPanX = 0;
+      imgPanY = 0;
+    }
+    applyImageTransform();
+  });
+
+  // Pan image when zoomed in
+  viewport.addEventListener('mousedown', (e) => {
+    if (imgZoom > 1 && e.button === 0) {
+      imgIsDragging = true;
+      imgDragStartX = e.clientX - imgPanX;
+      imgDragStartY = e.clientY - imgPanY;
+      viewport.style.cursor = 'grabbing';
+    }
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (imgIsDragging) {
+      imgPanX = e.clientX - imgDragStartX;
+      imgPanY = e.clientY - imgDragStartY;
+      applyImageTransform();
+    }
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (imgIsDragging) {
+      imgIsDragging = false;
+      const vp = document.getElementById('img-viewer-viewport');
+      if (vp) vp.style.cursor = imgZoom > 1 ? 'grab' : 'default';
+    }
+  });
+}
+
+function preloadAdjacentImages() {
+  if (!currentImageList || currentImageList.length <= 1) return;
+  const nextIdx = (currentImageIndex + 1) % currentImageList.length;
+  const prevIdx = (currentImageIndex - 1 + currentImageList.length) % currentImageList.length;
+  [nextIdx, prevIdx].forEach(idx => {
+    const p = currentImageList[idx];
+    if (p) {
+      const preImg = new Image();
+      preImg.src = `/api/fs/download?path=${encodeURIComponent(p)}`;
+    }
+  });
+}
+
 function openImageViewer(filePath) {
   const pane = App.panes[App.activePaneIndex];
   currentImageList = pane.entries.filter(e => !e.is_dir && isImageExtension(e.name)).map(e => e.path);
@@ -9172,6 +9411,7 @@ function openImageViewer(filePath) {
   currentImageIndex = currentImageList.indexOf(filePath);
   if (currentImageIndex === -1) currentImageIndex = 0;
 
+  setupImageViewerEvents();
   loadImageToViewer(currentImageList[currentImageIndex]);
   showModal('image-viewer-modal');
 }
@@ -9184,7 +9424,7 @@ function loadImageToViewer(path) {
 
   resetImageTransform();
 
-  const fileName = path.split('/').pop() || path;
+  const fileName = path.split(/[\\/]/).pop() || path;
   titleEl.textContent = fileName;
   counterEl.textContent = `${currentImageIndex + 1} / ${currentImageList.length}`;
 
@@ -9196,6 +9436,7 @@ function loadImageToViewer(path) {
 
   imgEl.onload = () => {
     metaEl.textContent = `(${imgEl.naturalWidth} × ${imgEl.naturalHeight} px)`;
+    preloadAdjacentImages();
   };
   imgEl.onerror = () => {
     metaEl.textContent = '(Preview unavailable)';
@@ -9209,7 +9450,11 @@ function navImageViewer(dir) {
 }
 
 function zoomImage(delta) {
-  imgZoom = Math.max(0.2, Math.min(5, imgZoom + delta));
+  imgZoom = Math.max(0.2, Math.min(6, parseFloat((imgZoom + delta).toFixed(2))));
+  if (imgZoom <= 1) {
+    imgPanX = 0;
+    imgPanY = 0;
+  }
   applyImageTransform();
 }
 
@@ -9229,13 +9474,19 @@ function resetImageTransform() {
   imgRotation = 0;
   imgFlipH = 1;
   imgFlipV = 1;
+  imgPanX = 0;
+  imgPanY = 0;
   applyImageTransform();
 }
 
 function applyImageTransform() {
   const imgEl = document.getElementById('img-viewer-element');
+  const viewport = document.getElementById('img-viewer-viewport');
   if (imgEl) {
-    imgEl.style.transform = `scale(${imgZoom}) rotate(${imgRotation}deg) scaleX(${imgFlipH}) scaleY(${imgFlipV})`;
+    imgEl.style.transform = `translate(${imgPanX}px, ${imgPanY}px) scale(${imgZoom}) rotate(${imgRotation}deg) scaleX(${imgFlipH}) scaleY(${imgFlipV})`;
+  }
+  if (viewport) {
+    viewport.style.cursor = imgZoom > 1 ? (imgIsDragging ? 'grabbing' : 'grab') : 'default';
   }
 }
 
@@ -13446,6 +13697,318 @@ async function executeFileCombine() {
   } finally {
     if (btn) btn.disabled = false;
   }
+}
+
+// ============================================================================
+// 🌲 FOLDER HIERARCHY TREE VIEW MODULE
+// ============================================================================
+
+App.treeViewOpen = localStorage.getItem('cd_tree_view_open') === 'true';
+App.treeExpandedPaths = new Set(JSON.parse(localStorage.getItem('cd_tree_expanded') || '[]'));
+App.treeSidebarWidth = parseInt(localStorage.getItem('cd_tree_width') || '260');
+
+function toggleFolderTree(forceState) {
+  if (forceState !== undefined) {
+    App.treeViewOpen = !!forceState;
+  } else {
+    App.treeViewOpen = !App.treeViewOpen;
+  }
+
+  const sidebar = document.getElementById('tree-view-sidebar');
+  const resizer = document.getElementById('tree-resizer-handle');
+  const btn = document.getElementById('btn-toggle-tree');
+
+  if (sidebar && resizer) {
+    if (App.treeViewOpen) {
+      sidebar.style.display = 'flex';
+      sidebar.style.width = `${App.treeSidebarWidth}px`;
+      resizer.style.display = 'block';
+      if (btn) btn.classList.add('active');
+      renderFolderTreeRoot();
+    } else {
+      sidebar.style.display = 'none';
+      resizer.style.display = 'none';
+      if (btn) btn.classList.remove('active');
+    }
+  }
+
+  localStorage.setItem('cd_tree_view_open', App.treeViewOpen ? 'true' : 'false');
+  if (window.lucide) lucide.createIcons();
+}
+
+function initFolderTree() {
+  const sidebar = document.getElementById('tree-view-sidebar');
+  const resizer = document.getElementById('tree-resizer-handle');
+  const btn = document.getElementById('btn-toggle-tree');
+
+  if (App.treeSidebarWidth) {
+    document.documentElement.style.setProperty('--tree-sidebar-width', `${App.treeSidebarWidth}px`);
+  }
+
+  if (App.treeViewOpen && sidebar && resizer) {
+    sidebar.style.display = 'flex';
+    resizer.style.display = 'block';
+    if (btn) btn.classList.add('active');
+    renderFolderTreeRoot();
+  }
+}
+
+async function renderFolderTreeRoot() {
+  const rootContainer = document.getElementById('tree-view-root');
+  if (!rootContainer) return;
+
+  rootContainer.innerHTML = '<div style="padding: 12px; color: var(--text-muted); font-size: 11px;"><i data-lucide="loader" class="spin"></i> Loading directory tree...</div>';
+  if (window.lucide) lucide.createIcons();
+
+  try {
+    const roots = await fetchStorageRoots();
+    rootContainer.innerHTML = '';
+
+    if (!roots || roots.length === 0) {
+      // Fallback to system root
+      const fallbackRoot = { id: 'root', name: 'Root Filesystem (/)', path: '/', is_dir: true };
+      buildTreeNode(rootContainer, fallbackRoot, 0);
+      return;
+    }
+
+    // Separate Windows drives and unix/storage roots
+    const drives = roots.filter(r => r.path.match(/^[a-zA-Z]:[\\/]/));
+    const storageRoots = roots.filter(r => !r.path.match(/^[a-zA-Z]:[\\/]/));
+
+    if (drives.length > 0) {
+      const groupTitle = document.createElement('div');
+      groupTitle.className = 'breadcrumb-popover-header';
+      groupTitle.style.padding = '4px 6px 2px';
+      groupTitle.textContent = 'Drives';
+      rootContainer.appendChild(groupTitle);
+
+      for (const d of drives) {
+        buildTreeNode(rootContainer, {
+          name: `${d.path} (${d.name.replace(/^Local Disk\s*\(/i, '').replace(/\)$/, '')})`,
+          path: d.path,
+          is_dir: true,
+          is_drive: true
+        }, 0);
+      }
+    }
+
+    if (storageRoots.length > 0) {
+      if (drives.length > 0) {
+        const groupTitle = document.createElement('div');
+        groupTitle.className = 'breadcrumb-popover-header';
+        groupTitle.style.padding = '8px 6px 2px';
+        groupTitle.textContent = 'Storage Roots';
+        rootContainer.appendChild(groupTitle);
+      }
+
+      for (const r of storageRoots) {
+        buildTreeNode(rootContainer, {
+          name: r.name,
+          path: r.path,
+          is_dir: true,
+          is_home: r.id === 'home'
+        }, 0);
+      }
+    }
+
+    // Sync active node highlight
+    const activePath = App.panes[App.activePaneIndex]?.path;
+    if (activePath) {
+      syncTreeActiveNode(activePath);
+    }
+  } catch (err) {
+    rootContainer.innerHTML = '<div style="padding: 12px; color: var(--danger); font-size: 11px;">Failed to load folder tree</div>';
+  }
+}
+
+function buildTreeNode(parentContainer, nodeData, depth = 0) {
+  const nodeWrapper = document.createElement('div');
+  nodeWrapper.className = 'tree-node-wrapper';
+  nodeWrapper.dataset.path = nodeData.path;
+
+  const row = document.createElement('div');
+  row.className = 'tree-node-row';
+  row.dataset.path = nodeData.path;
+
+  const toggle = document.createElement('span');
+  toggle.className = 'tree-toggle';
+  toggle.innerHTML = '▶';
+
+  const icon = document.createElement('span');
+  icon.className = 'tree-icon';
+  if (nodeData.is_drive) {
+    icon.textContent = '🪟';
+  } else if (nodeData.is_home) {
+    icon.textContent = '🏠';
+  } else {
+    icon.textContent = '📁';
+  }
+
+  const label = document.createElement('span');
+  label.className = 'tree-label';
+  label.textContent = nodeData.name;
+  label.title = `${nodeData.name} (${nodeData.path})`;
+
+  row.appendChild(toggle);
+  row.appendChild(icon);
+  row.appendChild(label);
+  nodeWrapper.appendChild(row);
+
+  const childrenContainer = document.createElement('div');
+  childrenContainer.className = 'tree-children';
+  childrenContainer.style.display = 'none';
+  nodeWrapper.appendChild(childrenContainer);
+
+  let isLoaded = false;
+
+  const expandNode = async () => {
+    toggle.classList.add('expanded');
+    toggle.innerHTML = '▼';
+    icon.textContent = nodeData.is_drive ? '🪟' : (nodeData.is_home ? '🏠' : '📂');
+    childrenContainer.style.display = 'flex';
+    App.treeExpandedPaths.add(nodeData.path);
+    saveTreeExpandedState();
+
+    if (!isLoaded) {
+      childrenContainer.innerHTML = '<div style="padding: 4px 6px; font-size: 10.5px; color: var(--text-muted);">Loading...</div>';
+      try {
+        const authUrl = resolveAuthUri(nodeData.path);
+        const res = await fetch(`/api/fs/list?path=${encodeURIComponent(authUrl)}&show_hidden=false`, {
+          headers: { 'Authorization': `Bearer ${App.token}` }
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          const subdirs = (data.entries || []).filter(e => e.is_dir);
+          childrenContainer.innerHTML = '';
+
+          if (subdirs.length === 0) {
+            childrenContainer.innerHTML = '<div style="padding: 2px 6px; font-size: 10px; color: var(--text-dim); font-style: italic;">(Empty)</div>';
+          } else {
+            subdirs.sort((a, b) => a.name.localeCompare(b.name)).forEach(child => {
+              buildTreeNode(childrenContainer, {
+                name: child.name,
+                path: child.path,
+                is_dir: true
+              }, depth + 1);
+            });
+          }
+          isLoaded = true;
+        } else {
+          childrenContainer.innerHTML = '<div style="padding: 2px 6px; font-size: 10px; color: var(--danger);">(Access denied)</div>';
+        }
+      } catch (err) {
+        childrenContainer.innerHTML = '<div style="padding: 2px 6px; font-size: 10px; color: var(--danger);">(Error)</div>';
+      }
+    }
+  };
+
+  const collapseNode = () => {
+    toggle.classList.remove('expanded');
+    toggle.innerHTML = '▶';
+    icon.textContent = nodeData.is_drive ? '🪟' : (nodeData.is_home ? '🏠' : '📁');
+    childrenContainer.style.display = 'none';
+    App.treeExpandedPaths.delete(nodeData.path);
+    saveTreeExpandedState();
+  };
+
+  // Toggle arrow click
+  toggle.onclick = (e) => {
+    e.stopPropagation();
+    if (childrenContainer.style.display === 'none') {
+      expandNode();
+    } else {
+      collapseNode();
+    }
+  };
+
+  // Label click: navigate active pane
+  row.onclick = (e) => {
+    e.stopPropagation();
+    loadPaneDirectory(App.activePaneIndex, nodeData.path);
+    syncTreeActiveNode(nodeData.path);
+  };
+
+  // Auto-expand if saved in state
+  if (App.treeExpandedPaths.has(nodeData.path)) {
+    expandNode();
+  }
+
+  parentContainer.appendChild(nodeWrapper);
+}
+
+function saveTreeExpandedState() {
+  try {
+    localStorage.setItem('cd_tree_expanded', JSON.stringify(Array.from(App.treeExpandedPaths).slice(0, 100)));
+  } catch (_) {}
+}
+
+function syncTreeActiveNode(targetPath) {
+  if (!targetPath) return;
+  const cleanTarget = targetPath.toLowerCase().replace(/[\/\\]+$/, '');
+
+  document.querySelectorAll('.tree-node-row').forEach(row => {
+    const rowPath = (row.dataset.path || '').toLowerCase().replace(/[\/\\]+$/, '');
+    if (rowPath === cleanTarget) {
+      row.classList.add('active');
+    } else {
+      row.classList.remove('active');
+    }
+  });
+}
+
+function refreshFolderTree() {
+  renderFolderTreeRoot();
+}
+
+function initTreeResizer() {
+  const resizer = document.getElementById('tree-resizer-handle');
+  const sidebar = document.getElementById('tree-view-sidebar');
+  if (!resizer || !sidebar || resizer._resizerAttached) return;
+  resizer._resizerAttached = true;
+
+  let isResizing = false;
+
+  resizer.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    isResizing = true;
+    resizer.classList.add('resizing');
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (!isResizing) return;
+    const newWidth = Math.max(180, Math.min(600, e.clientX));
+    App.treeSidebarWidth = newWidth;
+    sidebar.style.width = `${newWidth}px`;
+    document.documentElement.style.setProperty('--tree-sidebar-width', `${newWidth}px`);
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (isResizing) {
+      isResizing = false;
+      resizer.classList.remove('resizing');
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      localStorage.setItem('cd_tree_width', App.treeSidebarWidth.toString());
+    }
+  });
+}
+
+// ---------------- TAB BAR MOUSE WHEEL SCROLLING ----------------
+function setupTabBarMouseWheel() {
+  document.querySelectorAll('.pane-tabs').forEach(el => {
+    if (!el._wheelAttached) {
+      el._wheelAttached = true;
+      el.addEventListener('wheel', (e) => {
+        if (e.deltaY !== 0) {
+          e.preventDefault();
+          el.scrollLeft += e.deltaY;
+        }
+      }, { passive: false });
+    }
+  });
 }
 
 
