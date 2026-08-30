@@ -171,6 +171,7 @@ async function checkAuthAndLoad() {
     const sysResp = await fetch('/api/system/status');
     if (sysResp.ok) {
       const sysData = await sysResp.json();
+      App.systemStatus = sysData;
       App.isStandalone = sysData.standalone;
       if (sysData.standalone || !sysData.auth_enabled) {
         // Standalone desktop mode: auto-load local user without login prompt!
@@ -4462,11 +4463,23 @@ document.addEventListener('click', (e) => {
   }
 });
 
-function openAboutModal() {
+async function openAboutModal() {
   document.getElementById('profile-dropdown-menu')?.classList.remove('active');
   const verBadge = document.getElementById('about-version-badge');
-  if (verBadge && App.systemStatus && App.systemStatus.version) {
-    verBadge.textContent = `v${App.systemStatus.version} (Desktop & Web)`;
+  if (verBadge) {
+    if (App.systemStatus && App.systemStatus.version) {
+      verBadge.textContent = `v${App.systemStatus.version} (Desktop & Web)`;
+    } else {
+      try {
+        const resp = await fetch('/api/system/status');
+        if (resp.ok) {
+          App.systemStatus = await resp.json();
+          if (App.systemStatus.version) {
+            verBadge.textContent = `v${App.systemStatus.version} (Desktop & Web)`;
+          }
+        }
+      } catch (_) {}
+    }
   }
   showModal('about-modal');
 }
