@@ -26,6 +26,8 @@ const App = {
   showParentDir: localStorage.getItem('cd_show_parent_dir') !== 'false',
   autoOpenTasks: localStorage.getItem('cd_auto_open_tasks') !== 'false',
   taskVerbosity: localStorage.getItem('cd_task_verbosity') || 'detailed',
+  trashEnabled: localStorage.getItem('cd_trash_enabled') !== 'false',
+  customTrashDir: localStorage.getItem('cd_custom_trash_dir') || '',
 };
 
 function getBasename(path) {
@@ -263,9 +265,56 @@ async function loadConfig() {
 
       // Configure Logout vs Exit button
       updateLogoutOrExitButton();
+
+      // Configure Trash Settings UI
+      syncTrashSettingsUI();
     }
   } catch (e) {
     console.error('Config fetch failed:', e);
+  }
+}
+
+function syncTrashSettingsUI() {
+  const savedTrash = localStorage.getItem('cd_trash_enabled');
+  if (savedTrash !== null) {
+    App.trashEnabled = (savedTrash === 'true');
+  } else if (App.trashEnabled === undefined) {
+    App.trashEnabled = (App.config?.paranoid?.trash_enabled !== false);
+  }
+
+  const savedCustom = localStorage.getItem('cd_custom_trash_dir');
+  if (savedCustom !== null) {
+    App.customTrashDir = savedCustom;
+  } else if (App.customTrashDir === undefined) {
+    App.customTrashDir = App.config?.paranoid?.custom_trash_dir || '';
+  }
+
+  const userTrashEl = document.getElementById('setting-user-trash-enabled');
+  const adminTrashEl = document.getElementById('setting-trash-enabled');
+  if (userTrashEl) userTrashEl.checked = App.trashEnabled;
+  if (adminTrashEl) adminTrashEl.checked = App.trashEnabled;
+
+  const userCustomEl = document.getElementById('setting-user-custom-trash');
+  const adminCustomEl = document.getElementById('setting-custom-trash-dir');
+  if (userCustomEl) userCustomEl.value = App.customTrashDir;
+  if (adminCustomEl) adminCustomEl.value = App.customTrashDir;
+}
+
+function toggleTrashSetting(enabled) {
+  App.trashEnabled = !!enabled;
+  localStorage.setItem('cd_trash_enabled', App.trashEnabled ? 'true' : 'false');
+  syncTrashSettingsUI();
+  showToast(App.trashEnabled ? 'Trash Bin enabled (deleted items are moved to trash)' : 'Trash Bin disabled (deleted items will be permanently removed)', 'info');
+}
+
+function saveCustomTrashDir(dir) {
+  App.customTrashDir = (dir || '').trim();
+  localStorage.setItem('cd_custom_trash_dir', App.customTrashDir);
+  syncTrashSettingsUI();
+  if (App.customTrashDir) {
+    showToast(`Custom trash directory configured: ${App.customTrashDir}`, 'info');
+  } else {
+    showToast('Custom trash cleared (using standard system trash)', 'info');
   }
 }
 
@@ -1574,6 +1623,18 @@ function renderPaneTable(paneIndex) {
       if (isTouch) {
         return false; // On touch, long-press only selects the item. The user opens actions via the Actions button.
       }
+      setActivePane(paneIndex);
+
+      // If the right-clicked row is NOT in the current multi-selection, select only this row!
+      if (!pane.selected.has(entry.path)) {
+        pane.selected.clear();
+        pane.selected.add(entry.path);
+        pane.cursorIndex = idx;
+        renderPaneTable(paneIndex);
+      } else {
+        pane.cursorIndex = idx;
+      }
+
       App.contextItem = entry;
       App.contextPaneIndex = paneIndex;
       showContextMenu(e.clientX, e.clientY);
@@ -4797,7 +4858,9 @@ function showContextMenu(x, y) {
     <div class="context-item" onclick="quickTransferToPath('move', '${escapeHtml(d.path)}')"><i data-lucide="folder" style="width:13px;"></i> ${escapeHtml(d.name)}</div>
   `).join('');
 
-  const selectedCount = App.panes[App.activePaneIndex]?.selected?.size || 1;
+  const targetPane = App.panes[App.contextPaneIndex ?? App.activePaneIndex];
+  const isContextSelected = App.contextItem && targetPane?.selected?.has(App.contextItem.path);
+  const selectedCount = (isContextSelected && targetPane?.selected?.size > 1) ? targetPane.selected.size : 1;
   const headerText = selectedCount > 1 ? `⚡ Actions (${selectedCount} items selected)` : `📄 ${escapeHtml(App.contextItem?.name || 'File Actions')}`;
 
   menu.innerHTML = `
@@ -5005,6 +5068,10 @@ function showTouchActionsMenu(e) {
 function showEmptySpaceContextMenu(x, y, paneIndex) {
   const menu = document.getElementById('context-menu');
   if (!menu) return;
+
+  setActivePane(paneIndex);
+  App.contextItem = null;
+  App.contextPaneIndex = paneIndex;
 
   const pane = App.panes[paneIndex];
   const clipInfo = App.clipboard ? `(${App.clipboard.paths.length} item${App.clipboard.paths.length > 1 ? 's' : ''})` : '';
@@ -5224,9 +5291,18 @@ window.addEventListener('popstate', () => {
 });
 
 function getSelectedOrCursorPaths() {
-  const pane = App.panes[App.activePaneIndex];
+  const paneIdx = (App.contextPaneIndex !== null && App.contextPaneIndex !== undefined) ? App.contextPaneIndex : App.activePaneIndex;
+  const pane = App.panes[paneIdx];
+  if (!pane) return [];
+
+  if (App.contextItem) {
+    if (pane.selected.has(App.contextItem.path)) {
+      return Array.from(pane.selected);
+    }
+    return [App.contextItem.path];
+  }
+
   if (pane.selected.size > 0) return Array.from(pane.selected);
-  if (App.contextItem) return [App.contextItem.path];
   if (pane.entries[pane.cursorIndex]) return [pane.entries[pane.cursorIndex].path];
   return [];
 }
@@ -6280,19 +6356,24 @@ function triggerRename() {
 }
 
 async function triggerDelete() {
-  const pane = App.panes[App.activePaneIndex];
-  const paths = pane.selected.size > 0 ? Array.from(pane.selected) : (pane.entries[pane.cursorIndex] ? [pane.entries[pane.cursorIndex].path] : []);
+  const paths = getSelectedOrCursorPaths();
   if (paths.length === 0) return;
 
+  const targetPaneIdx = (App.contextPaneIndex !== null && App.contextPaneIndex !== undefined) ? App.contextPaneIndex : App.activePaneIndex;
+  const useTrash = App.trashEnabled !== false;
+  const customTrash = App.customTrashDir || null;
   const itemNames = paths.map(p => sanitizeCredentials(p).split('/').pop() || p);
+
   const confirmed = await showConfirmDialog({
-    title: 'Delete Confirmation',
-    subtitle: `Move ${paths.length} item(s) to Trash`,
-    message: `Are you sure you want to delete ${paths.length === 1 ? `'${itemNames[0]}'` : `${paths.length} selected items`}?`,
+    title: useTrash ? 'Move to Trash Confirmation' : 'Permanent Deletion Confirmation',
+    subtitle: useTrash ? `Move ${paths.length} item(s) to Trash` : `Permanently Delete ${paths.length} item(s)`,
+    message: useTrash
+      ? `Move ${paths.length === 1 ? `'${itemNames[0]}'` : `${paths.length} selected items`} to Trash?`
+      : `Permanently delete ${paths.length === 1 ? `'${itemNames[0]}'` : `${paths.length} selected items`}? This action cannot be undone!`,
     items: itemNames,
     icon: 'trash-2',
     type: 'danger',
-    confirmText: 'Move to Trash (F8)',
+    confirmText: useTrash ? 'Move to Trash (F8)' : 'Permanently Delete (F8)',
     cancelText: 'Cancel',
   });
 
@@ -6302,11 +6383,12 @@ async function triggerDelete() {
       const resp = await fetch('/api/fs/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
-        body: JSON.stringify({ paths: authPaths, use_trash: true })
+        body: JSON.stringify({ paths: authPaths, use_trash: useTrash, custom_trash_dir: customTrash })
       });
       if (resp.ok) {
-        showToast(`Moved ${paths.length} item(s) to Trash`, 'success');
-        refreshPane(App.activePaneIndex);
+        showToast(useTrash ? `Moved ${paths.length} item(s) to Trash` : `Permanently deleted ${paths.length} item(s)`, 'success');
+        refreshPane(targetPaneIdx);
+        App.contextItem = null;
       } else {
         showToast(`Delete failed: ${sanitizeCredentials(await resp.text())}`, 'error');
       }

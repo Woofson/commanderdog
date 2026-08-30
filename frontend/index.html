@@ -596,6 +596,21 @@
           </div>
 
           <div class="form-group">
+            <label>🗑️ Trash Bin Configuration:</label>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              <label style="font-weight: normal; display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                <input type="checkbox" id="setting-user-trash-enabled" checked onchange="toggleTrashSetting(this.checked)">
+                <span><b>Enable Safe Trash Bin:</b> Move deleted items to trash instead of permanent deletion</span>
+              </label>
+              <div id="wrapper-custom-trash-dir" style="margin-left: 24px;">
+                <label for="setting-user-custom-trash" style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 3px;">Custom Trash Directory (Optional):</label>
+                <input type="text" id="setting-user-custom-trash" class="pane-quick-filter" style="width: 100%; max-width: 480px; padding: 5px 8px; font-family: var(--font-mono); font-size: 11px;" placeholder="Leave empty for OS default (~/.local/share/Trash)" onchange="saveCustomTrashDir(this.value)">
+                <div class="form-hint">When disabled, files are permanently deleted. When a custom directory is set, deleted files are safely timestamped and preserved in that folder.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group">
             <label>Transfer Manager & TeraCopy Display Detail:</label>
             <select id="setting-task-verbosity" class="pane-quick-filter" style="width: 280px;" onchange="setTaskVerbosity(this.value)">
               <option value="detailed" selected>Detailed (TeraCopy Stream, Files & Hashes)</option>
@@ -1070,9 +1085,13 @@
               </div>
               <div class="form-group">
                 <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                  <input type="checkbox" id="setting-trash-enabled" checked>
+                  <input type="checkbox" id="setting-trash-enabled" checked onchange="toggleTrashSetting(this.checked)">
                   <span>Safe Trash Bin (Move deleted items to XDG Trash)</span>
                 </label>
+                <div style="margin-top: 6px;">
+                  <label for="setting-custom-trash-dir" style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 3px;">Server Custom Trash Directory (Optional):</label>
+                  <input type="text" id="setting-custom-trash-dir" class="pane-quick-filter" style="width: 100%; padding: 5px 8px; font-family: var(--font-mono); font-size: 11px;" placeholder="Leave empty for OS default (~/.local/share/Trash)" onchange="saveCustomTrashDir(this.value)">
+                </div>
               </div>
             </div>
           </div>

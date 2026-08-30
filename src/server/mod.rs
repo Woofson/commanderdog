@@ -1942,6 +1942,7 @@ async fn handle_batch_rename(
 struct DeleteRequest {
     paths: Vec<String>,
     use_trash: Option<bool>,
+    custom_trash_dir: Option<String>,
 }
 
 async fn handle_delete(
@@ -1950,6 +1951,7 @@ async fn handle_delete(
     Json(payload): Json<DeleteRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let use_trash = payload.use_trash.unwrap_or(state.config.paranoid.trash_enabled);
+    let custom_trash = payload.custom_trash_dir.as_deref().or(state.config.paranoid.custom_trash_dir.as_deref());
     let mut deleted = Vec::new();
     let mut errors = Vec::new();
 
@@ -2009,7 +2011,7 @@ async fn handle_delete(
                 Err(e) => errors.push(format!("{}: {}", path, e)),
             }
         } else {
-            match LocalFs::delete_entry(&valid_path, use_trash, state.config.paranoid.custom_trash_dir.as_deref()) {
+            match LocalFs::delete_entry(&valid_path, use_trash, custom_trash) {
                 Ok(_) => deleted.push(path.clone()),
                 Err(e) => errors.push(format!("{}: {}", path, e)),
             }
