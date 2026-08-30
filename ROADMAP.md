@@ -57,7 +57,7 @@ graph TD
     E --> F["5. 📝 Collaborative Office Live Editing (WOPI / ONLYOFFICE / Collabora)"]
 ```
 
-### 📄 Milestone 1: PDF Split & Merger Tool (`v0.6.5`)
+### 📄 Milestone 1: PDF Split & Merger Tool & Enhanced Media Viewer (`v0.6.5`)
 - **Multi-File PDF Merger**:
   - Combine multiple selected PDF documents into a single unified PDF with 1-click from pane selection.
   - Interactive drag-and-drop page and document reordering table.
@@ -72,12 +72,21 @@ graph TD
 - **Pure-Rust High-Performance Engine (`lopdf` / `pdf-writer`)**:
   - Zero external dependency (runs without Ghostscript or Python).
   - Blazing-fast in-memory streaming and lossless compression.
+- **🖼️ Enhanced Image Viewer with Mouse Wheel Navigation**:
+  - **Mouse Wheel Next/Previous Cycling**: Scroll mouse wheel up/down to instantly navigate through adjacent images in the folder.
+  - **Configurable Wheel Behavior**: 1-Click toggle in Viewer settings: *Scroll to Browse Images* vs. *Scroll to Zoom*.
+  - **<kbd>Ctrl</kbd> + Wheel Precision Zoom**: Smooth cursor-centered focal zoom with double-click reset to fit-to-screen.
+  - **Intelligent Preload Cache**: Preload neighboring images in background for instant, zero-latency slideshow navigation.
 - **Dockable Tool & Floating Modal**:
-  - Launch from App Launcher, F-key toolbar, or right-click context menu on `.pdf` files.
+  - Launch from App Launcher, F-key toolbar, or right-click context menu on `.pdf` and image files.
 
 ---
 
-### 🪟 Milestone 2: Windows Background Service & Autostart Management (`v0.6.6`)
+### 🪟 Milestone 2: Windows Background Service, Autostart & High-DPI Icons (`v0.6.6`)
+- **🎨 Windows Icon Suite & Shell Associations**:
+  - **Multi-Resolution High-DPI `.ico` Bundle**: Crisp 16x16, 24x24, 32x32, 48x48, 64x64, 128x128, 256x256 icons crafted for Windows 10/11 taskbar, Start Menu tiles, and Explorer.
+  - **System Tray State Badges**: Dynamic overlay badges in the Windows notification area (e.g. active background tasks, locked/unlocked vault indicators).
+  - **File Type Icons (`.cdvault` / `.cdv`)**: Native Windows shell icon registration for encrypted vault containers.
 - **Official Windows NT Service Architecture (`windows-service`)**:
   - Run CommanderDog server headlessly in the background as a registered Windows Service (`services.msc`).
   - Ideal for Windows Server, NAS, home labs, and multi-user environments without requiring active user logon.
@@ -130,7 +139,7 @@ graph TD
 | **`v0.5.0`** | **Zero-Leakage In-Memory Credentials, Leftmost Unified Pane Customizer, Modern Navbar, Tauri Tray** | **Released** |
 | **`v0.5.5`** | **Transparent Encrypted Vaults (AES-256-GCM / Argon2id), Cross-Mount Deletion Engine** | **Released** |
 | **`v0.6.0`** | **🪟 Windows Native Build & Release (MSI, Portable ZIP, Winget, Scoop, WebView2)** | **Released (Current)** |
-| **`v0.6.5`** | **📄 PDF Split & Merger Tool (Visual Page Organizer, Lossless Extract & Merge)** | *Next Up* |
-| **`v0.6.6`** | **🪟 Windows Background Service & System Autostart Management (NT Service, Tray Auto-Launch)** | *Planned* |
+| **`v0.6.5`** | **📄 PDF Split & Merger Tool & Mouse Wheel Image Viewer Navigation** | *Next Up* |
+| **`v0.6.6`** | **🪟 Windows Service, Autostart Management & High-DPI Windows Icons** | *Planned* |
 | **`v0.6.8`** | **⚙️ Folder Automation Watchers & Webhook Rules** | *Planned* |
 | **`v0.7.0`** | **🌐 Enterprise OIDC SSO, Collaborative Office (WOPI) & Automation Engine** | *Planned* |
