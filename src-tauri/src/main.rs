@@ -32,6 +32,7 @@ fn main() {
                         println!("CommanderDog desktop backend bound to: {}", url);
 
                         // Create the primary standalone window pointing to the local embedded server
+                        #[allow(unused_mut)]
                         let mut win_builder = WebviewWindowBuilder::new(
                             &handle,
                             "main",

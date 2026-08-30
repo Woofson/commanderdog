@@ -38,7 +38,7 @@
       "nsis": {
         "installerIcon": "icons/icon.ico",
         "headerImage": null,
-        "languages": ["en-US"],
+        "languages": ["English"],
         "displayLanguageSelector": false
       },
       "wix": {

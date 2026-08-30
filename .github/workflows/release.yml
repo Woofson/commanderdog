@@ -68,8 +68,8 @@ jobs:
           Compress-Archive -Path "$DistDir\commanderdog\*" -DestinationPath "$DistDir\$ZipName" -Force
 
           # Copy installers to dist
-          Get-ChildItem -Path "src-tauri\target\x86_64-pc-windows-msvc\release\bundle\nsis\*.exe" | Copy-Item -Destination $DistDir
-          Get-ChildItem -Path "src-tauri\target\x86_64-pc-windows-msvc\release\bundle\msi\*.msi" | Copy-Item -Destination $DistDir
+          Get-ChildItem -Path "src-tauri\target\x86_64-pc-windows-msvc\release\bundle\nsis\*.exe" -ErrorAction SilentlyContinue | Copy-Item -Destination $DistDir
+          Get-ChildItem -Path "src-tauri\target\x86_64-pc-windows-msvc\release\bundle\msi\*.msi" -ErrorAction SilentlyContinue | Copy-Item -Destination $DistDir
 
           # Generate SHA256 Checksums
           Get-ChildItem -Path "$DistDir\*" -Include *.zip,*.exe,*.msi | ForEach-Object {
