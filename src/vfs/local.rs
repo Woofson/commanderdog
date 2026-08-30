@@ -139,7 +139,7 @@ impl LocalFs {
         let canonical = path.canonicalize().unwrap_or_else(|_| path.clone());
         let canonical_str = canonical.to_string_lossy().to_string();
         let parent_path = canonical.parent().map(|p| p.to_string_lossy().to_string());
-
+        #[cfg(unix)]
         let (user_map, group_map) = Self::get_user_group_maps();
 
         let mut entries = Vec::new();
@@ -273,10 +273,11 @@ impl LocalFs {
             ));
         }
 
-        let canonical = path.canonicalize()?;
+        let canonical = path.canonicalize().unwrap_or_else(|_| path.clone());
         let canonical_str = canonical.to_string_lossy().to_string();
         let parent_path = canonical.parent().map(|p| p.to_string_lossy().to_string());
 
+        #[cfg(unix)]
         let (user_map, group_map) = Self::get_user_group_maps();
 
         let mut entries = Vec::new();
@@ -314,14 +315,38 @@ impl LocalFs {
                 m.modified().ok().and_then(|t| t.duration_since(UNIX_EPOCH).ok().map(|d| d.as_secs()))
             });
 
-            let raw_mode = metadata.as_ref().map(|m| m.mode()).unwrap_or(0o644);
+            #[cfg(unix)]
+            let (raw_mode, uid, gid) = {
+                let mode = metadata.as_ref().map(|m| m.mode()).unwrap_or(0o644);
+                let u = metadata.as_ref().map(|m| m.uid()).unwrap_or(1000);
+                let g = metadata.as_ref().map(|m| m.gid()).unwrap_or(1000);
+                (mode, u, g)
+            };
+            #[cfg(not(unix))]
+            let (raw_mode, uid, gid) = {
+                let is_readonly = metadata.as_ref().map(|m| m.permissions().readonly()).unwrap_or(false);
+                let mode = if is_dir {
+                    0o755
+                } else if is_readonly {
+                    0o444
+                } else {
+                    0o666
+                };
+                (mode, 0, 0)
+            };
+
             let mode_octal = format!("{:04o}", raw_mode & 0o7777);
             let permissions = Self::mode_to_symbolic(raw_mode, is_dir);
 
-            let uid = metadata.as_ref().map(|m| m.uid()).unwrap_or(1000);
-            let gid = metadata.as_ref().map(|m| m.gid()).unwrap_or(1000);
+            #[cfg(unix)]
             let owner = user_map.get(&uid).cloned().unwrap_or_else(|| uid.to_string());
+            #[cfg(unix)]
             let group = group_map.get(&gid).cloned().unwrap_or_else(|| gid.to_string());
+
+            #[cfg(not(unix))]
+            let owner = std::env::var("USERNAME").unwrap_or_else(|_| "Users".to_string());
+            #[cfg(not(unix))]
+            let group = "Users".to_string();
 
             let mime = if !is_dir {
                 mime_guess::from_path(file_path).first_raw().map(|s| s.to_string())

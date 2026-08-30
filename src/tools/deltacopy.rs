@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
+#[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -362,8 +363,15 @@ async fn copy_stream_chunked(
 
     // Preserve permissions
     if options.preserve_permissions {
-        let perm = src_meta.permissions().mode();
-        let _ = fs::set_permissions(dest, fs::Permissions::from_mode(perm));
+        #[cfg(unix)]
+        {
+            let perm = src_meta.permissions().mode();
+            let _ = fs::set_permissions(dest, fs::Permissions::from_mode(perm));
+        }
+        #[cfg(not(unix))]
+        {
+            let _ = fs::set_permissions(dest, src_meta.permissions());
+        }
     }
 
     // Preserve timestamps
