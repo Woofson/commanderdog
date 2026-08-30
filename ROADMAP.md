@@ -50,12 +50,33 @@ This roadmap outlines completed capabilities, active architectural enhancements,
 
 ```mermaid
 graph TD
-    A["v0.6.0 (Live: Windows Native Desktop, WebView2, MSI/EXE Installers, Winget, Scoop, Portable ZIP)"] --> B["1. Folder Automation Watchers & Webhooks (notify-rs)"]
-    B --> C["2. Enterprise OIDC SSO (Authentik, Keycloak, Okta)"]
-    C --> D["3. Collaborative Office Live Editing (WOPI / ONLYOFFICE / Collabora)"]
+    A["v0.6.0 (Live: Windows Native Desktop, WebView2, MSI/EXE Installers, Winget, Scoop, Portable ZIP)"] --> B["1. 📄 PDF Split & Merger Tool (Page Reorder, Rotate & Extract)"]
+    B --> C["2. ⚙️ Folder Automation Watchers & Webhooks (notify-rs)"]
+    C --> D["3. 🌐 Enterprise OIDC SSO (Authentik, Keycloak, Okta)"]
+    D --> E["4. 📝 Collaborative Office Live Editing (WOPI / ONLYOFFICE / Collabora)"]
 ```
 
-### ⚙️ Milestone 1: Folder Automation Watchers & Webhooks (`v0.6.5`)
+### 📄 Milestone 1: PDF Split & Merger Tool (`v0.6.5`)
+- **Multi-File PDF Merger**:
+  - Combine multiple selected PDF documents into a single unified PDF with 1-click from pane selection.
+  - Interactive drag-and-drop page and document reordering table.
+  - Merge options: Table of Contents / Bookmark generation, page numbering stamps, and metadata preservation.
+- **Precision PDF Splitter & Extractor**:
+  - Split by page ranges (e.g., `1-4, 7, 10-15`), extract all pages as individual PDFs, or split into $N$-page bundles.
+  - Split by bookmark chapters / outline sections.
+- **Visual Page Organizer & Reorder Grid**:
+  - Live thumbnail grid preview of all pages in the active document.
+  - Rotate pages clockwise/counter-clockwise ($90^\circ / 180^\circ / 270^\circ$).
+  - Delete blank or unwanted pages before export.
+- **Pure-Rust High-Performance Engine (`lopdf` / `pdf-writer`)**:
+  - Zero external dependency (runs without Ghostscript or Python).
+  - Blazing-fast in-memory streaming and lossless compression.
+- **Dockable Tool & Floating Modal**:
+  - Launch from App Launcher, F-key toolbar, or right-click context menu on `.pdf` files.
+
+---
+
+### ⚙️ Milestone 2: Folder Automation Watchers & Webhooks (`v0.6.8`)
 - **Real-Time Directory Watchers**: Inotify / notify-rs backend tracking specified directories.
 - **Rule Engine**:
   - Automatically convert incoming images/media using ConvertX.
@@ -65,7 +86,7 @@ graph TD
 
 ---
 
-### 🌐 Milestone 2: Enterprise OIDC SSO & Collaborative Office (`v0.7.0`)
+### 🌐 Milestone 3: Enterprise OIDC SSO & Collaborative Office (`v0.7.0`)
 - **OpenID Connect (OIDC)**: Seamless login via Authentik, Authelia, Keycloak, Okta, and Google Workspace alongside Linux PAM.
 - **Collaborative Office (WOPI)**: In-browser live editing for `.docx`, `.xlsx`, `.pptx`, `.odt`, `.ods` via ONLYOFFICE and Collabora Online integration.
 
@@ -84,5 +105,6 @@ graph TD
 | **`v0.5.0`** | **Zero-Leakage In-Memory Credentials, Leftmost Unified Pane Customizer, Modern Navbar, Tauri Tray** | **Released** |
 | **`v0.5.5`** | **Transparent Encrypted Vaults (AES-256-GCM / Argon2id), Cross-Mount Deletion Engine** | **Released** |
 | **`v0.6.0`** | **🪟 Windows Native Build & Release (MSI, Portable ZIP, Winget, Scoop, WebView2)** | **Released (Current)** |
-| **`v0.6.5`** | **Folder Automation Watchers & Webhook Rules** | *Next Up* |
-| **`v0.7.0`** | **Enterprise OIDC SSO, Collaborative Office (WOPI) & Automation Engine** | *Planned* |
+| **`v0.6.5`** | **📄 PDF Split & Merger Tool (Visual Page Organizer, Lossless Extract & Merge)** | *Next Up* |
+| **`v0.6.8`** | **⚙️ Folder Automation Watchers & Webhook Rules** | *Planned* |
+| **`v0.7.0`** | **🌐 Enterprise OIDC SSO, Collaborative Office (WOPI) & Automation Engine** | *Planned* |
