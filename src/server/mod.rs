@@ -239,15 +239,23 @@ pub fn normalize_path(path: &Path) -> PathBuf {
     let mut components = Vec::new();
     for component in path.components() {
         match component {
-            std::path::Component::Prefix(..) => components.push(component),
-            std::path::Component::RootDir => {
+            std::path::Component::Prefix(..) => {
                 components.clear();
                 components.push(component);
+            }
+            std::path::Component::RootDir => {
+                if let Some(std::path::Component::Prefix(..)) = components.first() {
+                    components.truncate(1);
+                    components.push(component);
+                } else {
+                    components.clear();
+                    components.push(component);
+                }
             }
             std::path::Component::CurDir => {}
             std::path::Component::ParentDir => {
                 if let Some(last) = components.last() {
-                    if last != &std::path::Component::RootDir {
+                    if last != &std::path::Component::RootDir && !matches!(last, std::path::Component::Prefix(..)) {
                         components.pop();
                     }
                 }
@@ -365,14 +373,36 @@ async fn handle_get_storage_roots(
 
     // 3. System Root (if allowed in config and user is admin)
     if state.config.storage.allow_entire_system && is_admin {
-        if !accessible.iter().any(|existing| existing.path == "/") {
-            accessible.push(crate::config::StorageRoot {
-                id: "system-root".to_string(),
-                name: "Root Filesystem (/)".to_string(),
-                path: "/".to_string(),
-                read_only: false,
-                allowed_roles: vec!["admin".to_string()],
-            });
+        #[cfg(windows)]
+        {
+            for b in b'A'..=b'Z' {
+                let drive = format!("{}:\\", b as char);
+                if std::path::Path::new(&drive).exists() {
+                    let drive_lower = (b as char).to_ascii_lowercase();
+                    let drive_id = format!("drive-{}", drive_lower);
+                    if !accessible.iter().any(|existing| existing.path.eq_ignore_ascii_case(&drive)) {
+                        accessible.push(crate::config::StorageRoot {
+                            id: drive_id,
+                            name: format!("Local Disk ({}:)", b as char),
+                            path: drive,
+                            read_only: false,
+                            allowed_roles: vec!["admin".to_string()],
+                        });
+                    }
+                }
+            }
+        }
+        #[cfg(not(windows))]
+        {
+            if !accessible.iter().any(|existing| existing.path == "/") {
+                accessible.push(crate::config::StorageRoot {
+                    id: "system-root".to_string(),
+                    name: "Root Filesystem (/)".to_string(),
+                    path: "/".to_string(),
+                    read_only: false,
+                    allowed_roles: vec!["admin".to_string()],
+                });
+            }
         }
     }
 
@@ -3045,6 +3075,13 @@ async fn handle_system_restart(
             if let Ok(exe) = std::env::current_exe() {
                 let args: Vec<String> = std::env::args().skip(1).collect();
                 let _ = std::process::Command::new(exe).args(args).exec();
+            }
+        }
+        #[cfg(windows)]
+        {
+            if let Ok(exe) = std::env::current_exe() {
+                let args: Vec<String> = std::env::args().skip(1).collect();
+                let _ = std::process::Command::new(exe).args(args).spawn();
             }
         }
         std::process::exit(0);

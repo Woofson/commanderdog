@@ -1037,6 +1037,74 @@ function renderPaneBreadcrumbs(paneIndex, pathStr) {
     return;
   }
 
+  // Check if path is a Windows drive path (e.g. C:\ or C:/ or C:\Users\Bolt)
+  const winDriveMatch = pathStr.match(/^([a-zA-Z]:)[\\/]*(.*)$/);
+  const uncMatch = pathStr.match(/^(\\\\[^\\\/]+[\\\/][^\\\/]+)(.*)$/) || pathStr.match(/^(\/\/[^\/]+\/[^\/]+)(.*)$/);
+
+  if (winDriveMatch) {
+    const driveLetter = winDriveMatch[1].toUpperCase();
+    const driveRoot = `${driveLetter}\\`;
+    const rest = winDriveMatch[2];
+    const parts = rest.split(/[\\/]/).filter(Boolean);
+
+    const rootCrumb = document.createElement('span');
+    rootCrumb.className = 'crumb';
+    rootCrumb.textContent = driveRoot;
+    rootCrumb.onclick = (e) => { e.stopPropagation(); loadPaneDirectory(paneIndex, driveRoot); };
+    container.appendChild(rootCrumb);
+
+    let currentBuild = driveRoot;
+    parts.forEach((part, idx) => {
+      const sep = document.createElement('span');
+      sep.className = 'crumb-sep';
+      sep.textContent = '\\';
+      container.appendChild(sep);
+
+      if (idx > 0 && !currentBuild.endsWith('\\')) currentBuild += '\\';
+      currentBuild += part;
+      const target = currentBuild;
+
+      const c = document.createElement('span');
+      c.className = 'crumb';
+      c.textContent = part;
+      c.onclick = (e) => { e.stopPropagation(); loadPaneDirectory(paneIndex, target); };
+      container.appendChild(c);
+    });
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
+
+  if (uncMatch) {
+    const shareRoot = uncMatch[1].replace(/\//g, '\\');
+    const rest = uncMatch[2];
+    const parts = rest.split(/[\\/]/).filter(Boolean);
+
+    const rootCrumb = document.createElement('span');
+    rootCrumb.className = 'crumb';
+    rootCrumb.textContent = shareRoot;
+    rootCrumb.onclick = (e) => { e.stopPropagation(); loadPaneDirectory(paneIndex, shareRoot); };
+    container.appendChild(rootCrumb);
+
+    let currentBuild = shareRoot;
+    parts.forEach(part => {
+      const sep = document.createElement('span');
+      sep.className = 'crumb-sep';
+      sep.textContent = '\\';
+      container.appendChild(sep);
+
+      currentBuild += '\\' + part;
+      const target = currentBuild;
+
+      const c = document.createElement('span');
+      c.className = 'crumb';
+      c.textContent = part;
+      c.onclick = (e) => { e.stopPropagation(); loadPaneDirectory(paneIndex, target); };
+      container.appendChild(c);
+    });
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
+
   const parts = pathStr.split('/').filter(Boolean);
   const rootCrumb = document.createElement('span');
   rootCrumb.className = 'crumb';

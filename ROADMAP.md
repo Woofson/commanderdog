@@ -1,13 +1,35 @@
 # 🗺️ CommanderDog Product Roadmap
 
 > **Slogan**: *Multi-Tab File Commander for Web & Native Desktop — By Woofson*  
-> **Current Version**: `v0.5.0 (Security, UI Modernization & Streamlined UX)`
+> **Current Version**: `v0.6.0 (Windows Native Desktop, Installers & Package Distribution)`
 
 This roadmap outlines completed capabilities, active architectural enhancements, and future milestones for CommanderDog, combining orthodox two-pane file commander power tools (Total Commander, Double Commander, Krusader, Directory Opus) with modern responsive web and native standalone desktop architecture.
 
 ---
 
-## 🚀 1. Completed Milestones (v0.1.0 — v0.5.0)
+## 🚀 1. Completed Milestones (v0.1.0 — v0.6.0)
+
+### 🪟 Windows Native Desktop, Installers & Packaging (`v0.6.0`)
+- [x] **Native Windows Desktop Integration (`CommanderDog.exe`)**:
+  - Rust + Microsoft WebView2 (Edge Chromium) standalone desktop integration via Tauri v2 with embedded local server.
+  - Windows System Tray icon, minimize-to-tray background handling, and smooth hardware acceleration.
+- [x] **Windows Packaging & Installers**:
+  - **Setup Installer (`.msi` / `.exe`)**: Automated NSIS & WiX installer packages with Desktop/Start Menu shortcuts.
+  - **Portable `.zip` Distribution**: Standalone zero-install archive with portable config & database support.
+  - **Package Managers**: Automated manifests for `winget install Woofson.CommanderDog` and Scoop bucket (`packaging/windows/`).
+  - **Windows Explorer Context Menu**: 1-click `.reg` integration scripts adding *"Open in CommanderDog"* to directories and drives.
+- [x] **Windows Filesystem & UNC Path Engine**:
+  - Drive letter navigation (`C:\`, `D:\`, `Z:\`), Windows environment profile expansion (`%USERPROFILE%`, `%APPDATA%`, `%LOCALAPPDATA%`, `%TEMP%`), and Windows SMB UNC network shares (`\\server\share`).
+  - Slide-up terminal console defaulting to Windows PowerShell / `COMSPEC` (`cmd.exe`).
+- [x] **Automated Windows CI/CD Release Matrix**:
+  - GitHub Actions workflow (`.github/workflows/release.yml`) targeting `x86_64-pc-windows-msvc` and attaching releases to GitHub tags.
+
+### 🔒 Transparent Encrypted Vaults & Subsystem Deletions (`v0.5.5`)
+- [x] **Transparent Encrypted Vaults (`.cdvault` / `.cdv`)**:
+  - Zero-knowledge, self-contained password-protected virtual filesystem containers with AES-256-GCM authenticated encryption and Argon2id key derivation.
+  - In-memory on-the-fly streaming with zero plaintext disk leakage and automatic inactivity lock timers.
+- [x] **Subsystem & Cross-Mount Deletion Engine**:
+  - Implemented cross-device copy+delete fallback for trash operations overcoming Linux `EXDEV` partition limitations.
 
 ### 🔒 Security, UI Modernization & Streamlined UX (`v0.5.0`)
 - [x] **Zero-Leakage Credential Security & URI Sanitization**:
@@ -22,103 +44,18 @@ This roadmap outlines completed capabilities, active architectural enhancements,
 - [x] **1-Click Remote Disconnect & Close Archive**:
   - Instant `[ 🔌 ]` Unplug and `[ ✕ ]` Close Archive chips at index 0 on breadcrumbs.
 
-### 🔒 Multi-Tier SSH/SFTP & Zero-Dependency PAM (`v0.4.2`)
-- [x] **Multi-Tier SSH/SFTP Authentication**:
-  - Password, Keyboard-Interactive, User Keys (`~/.ssh/id_*`), and SSH-Agent cascade with remote home `$HOME` resolution.
-- [x] **Runtime Dynamic PAM Loading**:
-  - Runtime dynamic `dlopen("libpam.so.0")` eliminating compile-time linker dependencies across Arch, CachyOS, Debian, Ubuntu, and Fedora.
-
-### 🛡️ Storage Roots, Sandboxing & Multi-Arch Containers (`v0.4.1`)
-- [x] **Configurable Storage Roots (`[[storage.roots]]`)**:
-  - Configure multiple isolated root directories with `id`, `name`, `path`, `read_only`, and `allowed_roles`.
-- [x] **Filesystem Sandboxing & Boundary Enforcement**:
-  - `allow_entire_system = false` strictly prevents access to `/` or unauthorized host paths.
-  - Unified path validation engine (`validate_path_access`) checking path normalization across all 20+ file operations.
-- [x] **Per-User Allowed Roots RBAC**:
-  - SQLite auto-migration adding `allowed_roots` to users and JWT claims.
-  - Interactive root assignment in the Admin Control Panel.
-- [x] **Dynamic Home Directory Resolution**:
-  - Native Linux PAM `$HOME` resolution from `/etc/passwd` alongside configurable virtual DB home templates (`default_user_home_template`).
-- [x] **Multi-Arch Docker Images on GHCR**:
-  - `ghcr.io/woofson/commanderdog:alpine` (~18MB static musl) and `ghcr.io/woofson/commanderdog:latest` (~35MB Debian slim) published for `linux/amd64` and `linux/arm64`.
-
-### 🪓 File Splitter, Git Client & User Home Startup (`v0.4.0`)
-- [x] **Multi-Part File Splitter & Combiner**:
-  - Split archives into chunks (`.001`, `.002`, ...) with SHA-256 integrity manifests and 1-click recombination.
-- [x] **Integrated Git Client**:
-  - Git status indicators, side-by-side git diff viewer, staging, commit composer, and Push/Pull/Log tools.
-- [x] **Universal Tilde Expansion & User `$HOME` Startup**:
-  - Automatic pane initialization in `/home/$USER` with universal tilde (`~` and `~/...`) resolution.
-
-### 🎨 Theming, Ricing & XDG Customization (`v0.3.6`)
-- [x] **Unified Fast-Path XDG Configuration**:
-  - Sub-millisecond single-pass loading of `~/.config/commanderdog/config.toml` (and `/etc/commanderdog/config.toml`).
-- [x] **External TOML Themes Discovery**:
-  - Automatically loads custom `.toml` themes dropped into `~/.config/commanderdog/themes/`.
-- [x] **In-Browser Web Custom Theme Creator & Exporter**:
-  - Interactive theme designer in Settings (<kbd>F10</kbd>) with live color pickers and 1-click TOML download.
-- [x] **Tiling WM Borderless Mode**:
-  - `--no-decorations` / `--frameless` CLI flags and `window_decorations = false` config option for Hyprland/Sway.
-
-### 🖥️ Tauri v2 Standalone Desktop App & System Tray (`src-tauri`)
-- [x] **Tauri v2 Native Desktop Architecture**:
-  - Embedded Axum background server on ephemeral localhost with native Webview window (`src-tauri`).
-- [x] **Global System Tray with Interactive Menu**:
-  - Custom system tray icon (`TrayIconBuilder`) with "Show", "Hide", "Open in Web Browser", and "Quit".
-  - Left-click toggle to show, unminimize, focus, or hide the window.
-- [x] **Minimize to Tray on Close**:
-  - `minimize_to_tray` window event interception preventing termination and keeping the app running silently in the background tray.
-- [x] **Tiling WM Borderless Integration**:
-  - `window_decorations` config control for seamless Hyprland, Sway, and i3 tiling.
-
-### 🪟 In-Pane Docking & Power Tools (`v0.3.0` — `v0.3.1`)
-- [x] **In-Pane Tool Docking (`⇲ Dock / ⇱ Float`)**:
-  - Dock EditorDog, Terminal Console, Byte Calculator, Background Transfers, and Git Client into any directory pane.
-- [x] **ConvertX Universal File Converter**:
-  - Image, audio, video, and document format converter with quality sliders.
-
-### 🌐 Core Orthodox Commander & Multi-Cloud (`v0.1.0` — `v0.2.14`)
-- [x] **Dynamic 1-to-4 Toggleable Panes** (`Alt+1`–`4`) with orthodox keyboard shortcuts (`Tab`, `F1`–`F10`, `Insert`, `Space`).
-- [x] **DeltaCopy / RoboCopy / TeraCopy Engine** with bit-for-bit SHA-256 verification and resume.
-- [x] **Flat / Branch View (<kbd>Ctrl+B</kbd>)** and **Live Grep with "Feed to Pane"**.
-- [x] **Two-Way Directory Synchronizer** and **Visual Disk Usage Treemap Analyzer**.
-- [x] **Multi-Cloud & Remote Protocols**: SMB/CIFS, NFS, AWS S3/MinIO/R2, SFTP, WebDAV, Proton Drive E2EE, and Syncthing.
-- [x] **Visual POSIX Permissions Matrix** ($3\times 3$ `chmod`/`chown` with octal calculator).
-
 ---
 
 ## 🎯 2. What's Next on the Roadmap?
 
 ```mermaid
 graph TD
-    A["v0.5.0 (Live: Zero-Leakage Credentials, Leftmost Pane Customizer, Modern Navbar, Tauri Tray)"] --> B["1. Transparent Encrypted Vaults (AES-256-GCM)"]
-    B --> C["2. 🪟 Windows Native Build & Release (MSI, Portable .zip, Winget)"]
-    C --> D["3. Folder Automation Watchers & Webhooks"]
-    D --> E["4. Enterprise OIDC SSO & ONLYOFFICE / Collabora WOPI"]
+    A["v0.6.0 (Live: Windows Native Desktop, WebView2, MSI/EXE Installers, Winget, Scoop, Portable ZIP)"] --> B["1. Folder Automation Watchers & Webhooks (notify-rs)"]
+    B --> C["2. Enterprise OIDC SSO (Authentik, Keycloak, Okta)"]
+    C --> D["3. Collaborative Office Live Editing (WOPI / ONLYOFFICE / Collabora)"]
 ```
 
-### 🔒 Milestone 1: Transparent Encrypted Vaults (AES-256-GCM / Argon2id)
-- **Zero-Knowledge Encrypted Folders**: Create password-protected encrypted vault directories (`.vault` / `.enc`).
-- **On-the-Fly Decryption**: Files decrypt transparently in memory inside CommanderDog without exposing unencrypted files on disk.
-- **Auto-Lock Timeout**: Automatic vault lock when idle or when session locks.
-
----
-
-### 🪟 Milestone 2: Windows Native Build & Release Pipeline
-- **Native Standalone Windows Binary (`commanderdog.exe`)**:
-  - Direct Rust + Microsoft WebView2 integration (Edge Chromium engine) providing a lightweight standalone desktop experience without Electron overhead.
-- **Windows Packaging & Installers**:
-  - **Setup Installer (`.msi` / `.exe`)**: 1-click Windows installer with Desktop & Start Menu shortcuts and optional "Open in CommanderDog" Shell context menu integration.
-  - **Portable `.zip` Archive**: Zero-install standalone portable distribution for USB drives and portable toolkits.
-  - **Winget & Scoop Manifests**: Package distribution via `winget install Woofson.CommanderDog` and Scoop bucket.
-- **Windows Filesystem & UNC Path Engine**:
-  - First-class support for Windows drive letters (`C:\`, `D:\`, `Z:\`), system user profiles (`%USERPROFILE%`), and Windows SMB UNC shares (`\\server\share`).
-- **Automated Windows CI/CD Release Matrix**:
-  - GitHub Actions automated build job targeting `x86_64-pc-windows-msvc` and `x86_64-pc-windows-gnu` attaching release artifacts to GitHub Releases.
-
----
-
-### ⚙️ Milestone 3: Folder Automation Watchers & Webhooks
+### ⚙️ Milestone 1: Folder Automation Watchers & Webhooks (`v0.6.5`)
 - **Real-Time Directory Watchers**: Inotify / notify-rs backend tracking specified directories.
 - **Rule Engine**:
   - Automatically convert incoming images/media using ConvertX.
@@ -128,7 +65,7 @@ graph TD
 
 ---
 
-### 🌐 Milestone 4: Enterprise OIDC SSO & Collaborative Office (WOPI)
+### 🌐 Milestone 2: Enterprise OIDC SSO & Collaborative Office (`v0.7.0`)
 - **OpenID Connect (OIDC)**: Seamless login via Authentik, Authelia, Keycloak, Okta, and Google Workspace alongside Linux PAM.
 - **Collaborative Office (WOPI)**: In-browser live editing for `.docx`, `.xlsx`, `.pptx`, `.odt`, `.ods` via ONLYOFFICE and Collabora Online integration.
 
@@ -144,8 +81,8 @@ graph TD
 | **`v0.4.0`** | Multi-Part File Splitter & Combiner, Integrated Git Client, Auto-$HOME Startup | **Released** |
 | **`v0.4.1`** | Configurable Storage Roots, Filesystem Sandboxing, Per-User Root RBAC, Multi-Arch Alpine/Debian GHCR | **Released** |
 | **`v0.4.2`** | Multi-Tier SSH/SFTP Auth, Dynamic PAM Zero-Dependency Engine, SFTP $HOME Resolution | **Released** |
-| **`v0.5.0`** | **Zero-Leakage In-Memory Credentials, Leftmost Unified Pane Customizer, Modern Navbar & 1-Click Disconnect, Tauri Tray** | **Released** |
-| **`v0.5.5`** | **Transparent Encrypted Vaults (AES-256-GCM / Argon2id), Cross-Mount Deletion Engine** | **Released (Current)** |
-| **`v0.6.0`** | **🪟 Windows Native Build & Release (MSI, Portable ZIP, Winget, WebView2)** | *Next Up* |
-| **`v0.6.5`** | **Folder Automation Watchers & Webhook Rules** | *Planned* |
+| **`v0.5.0`** | **Zero-Leakage In-Memory Credentials, Leftmost Unified Pane Customizer, Modern Navbar, Tauri Tray** | **Released** |
+| **`v0.5.5`** | **Transparent Encrypted Vaults (AES-256-GCM / Argon2id), Cross-Mount Deletion Engine** | **Released** |
+| **`v0.6.0`** | **🪟 Windows Native Build & Release (MSI, Portable ZIP, Winget, Scoop, WebView2)** | **Released (Current)** |
+| **`v0.6.5`** | **Folder Automation Watchers & Webhook Rules** | *Next Up* |
 | **`v0.7.0`** | **Enterprise OIDC SSO, Collaborative Office (WOPI) & Automation Engine** | *Planned* |

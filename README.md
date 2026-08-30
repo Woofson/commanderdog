@@ -234,6 +234,7 @@ default_theme = "amber-charcoal" # Active theme ID or custom theme from themes/
 
 ## 📚 Documentation & Manuals
 
+- [**Windows Native Desktop & Packaging Guide**](WINDOWS.md) — Winget, Scoop, NSIS Setup, MSI, and Portable ZIP.
 - [**Transparent Encrypted Vaults Guide (AES-256-GCM / Argon2id)**](VAULT.md) — Create, unlock, edit, and secure encrypted containers.
 - [**Docker Deployment Guide**](DOCKER.md) — Multi-arch Debian and Alpine container setup.
 - [**LXC / Proxmox Guide**](LXC.md) — Standalone Linux container deployment.

@@ -1,18 +1,20 @@
 [package]
 name = "commanderdog-desktop"
-version = "0.5.5"
+version = "0.6.0"
 description = "CommanderDog Native Desktop App - Multi-Tab Web Commander"
 authors = ["Bolt J Woofson <bolt@boop.no>"]
 edition = "2021"
 
 [dependencies]
 tauri = { version = "2", features = ["tray-icon"] }
-libdbus-sys = { version = "0.2", features = ["vendored"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tokio = { version = "1", features = ["full"] }
 open = "5.3"
 commanderdog = { path = ".." }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+libdbus-sys = { version = "0.2", features = ["vendored"] }
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

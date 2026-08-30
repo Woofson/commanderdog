@@ -144,10 +144,21 @@ impl Default for StorageConfig {
 }
 
 fn default_user_home_template() -> String {
-    if Path::new("/data").exists() {
-        "/data/users/{username}".to_string()
-    } else {
-        "/home/{username}".to_string()
+    #[cfg(windows)]
+    {
+        if let Ok(userprofile) = std::env::var("USERPROFILE") {
+            let parent = Path::new(&userprofile).parent().unwrap_or(Path::new("C:\\Users"));
+            return format!("{}/{{username}}", parent.to_string_lossy().replace('\\', "/"));
+        }
+        "C:/Users/{username}".to_string()
+    }
+    #[cfg(not(windows))]
+    {
+        if Path::new("/data").exists() {
+            "/data/users/{username}".to_string()
+        } else {
+            "/home/{username}".to_string()
+        }
     }
 }
 
@@ -525,21 +536,31 @@ pub struct BookmarkConfig {
 }
 
 fn default_bookmarks() -> Vec<BookmarkConfig> {
+    #[cfg(windows)]
+    let (root_name, root_path) = ("System Drive (C:)", "C:\\");
+    #[cfg(not(windows))]
+    let (root_name, root_path) = ("Root Filesystem", "/");
+
     vec![
         BookmarkConfig {
             id: "home".to_string(),
             name: "Home Directory".to_string(),
             protocol: "local".to_string(),
-            path: dirs::home_dir().map(|p| p.to_string_lossy().to_string()).unwrap_or_else(|| "/home".to_string()),
+            path: dirs::home_dir().map(|p| p.to_string_lossy().to_string()).unwrap_or_else(|| {
+                #[cfg(windows)]
+                { "C:\\Users".to_string() }
+                #[cfg(not(windows))]
+                { "/home".to_string() }
+            }),
             host: None,
             port: None,
             username: None,
         },
         BookmarkConfig {
             id: "root".to_string(),
-            name: "Root Filesystem".to_string(),
+            name: root_name.to_string(),
             protocol: "local".to_string(),
-            path: "/".to_string(),
+            path: root_path.to_string(),
             host: None,
             port: None,
             username: None,

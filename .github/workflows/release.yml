@@ -1,0 +1,182 @@
+name: Release & Multi-Platform Packaging
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g. 0.6.0)'
+        required: true
+        default: '0.6.0'
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  # -------------------------------------------------------------
+  # 🪟 WINDOWS NATIVE BUILD & PACKAGING
+  # -------------------------------------------------------------
+  build-windows:
+    name: Windows Native Desktop & Portable ZIP (x86_64-pc-windows-msvc)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Cache Cargo dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "^2.0.0" --locked
+
+      - name: Build Core CommanderDog Windows CLI
+        run: cargo build --release --target x86_64-pc-windows-msvc
+
+      - name: Build Tauri Desktop Standalone & Installers (MSI + NSIS EXE)
+        run: |
+          cd src-tauri
+          cargo tauri build --target x86_64-pc-windows-msvc
+
+      - name: Package Standalone Portable ZIP
+        shell: pwsh
+        run: |
+          $Version = "${{ github.ref_name }}".TrimStart('v')
+          if ([string]::IsNullOrEmpty($Version)) { $Version = "${{ github.event.inputs.version }}" }
+          if ([string]::IsNullOrEmpty($Version)) { $Version = "0.6.0" }
+
+          $DistDir = "dist\windows"
+          New-Item -ItemType Directory -Path "$DistDir\commanderdog" -Force | Out-Null
+
+          Copy-Item "target\x86_64-pc-windows-msvc\release\commanderdog.exe" "$DistDir\commanderdog\"
+          Copy-Item "target\x86_64-pc-windows-msvc\release\commanderdog-desktop.exe" "$DistDir\commanderdog\CommanderDog.exe" -ErrorAction SilentlyContinue
+          Copy-Item "src-tauri\target\x86_64-pc-windows-msvc\release\commanderdog-desktop.exe" "$DistDir\commanderdog\CommanderDog.exe" -ErrorAction SilentlyContinue
+          Copy-Item "config.toml" "$DistDir\commanderdog\"
+          Copy-Item "LICENSE" "$DistDir\commanderdog\"
+          Copy-Item "README.md" "$DistDir\commanderdog\"
+          Copy-Item "packaging\windows\register-context-menu.reg" "$DistDir\commanderdog\"
+          Copy-Item "packaging\windows\unregister-context-menu.reg" "$DistDir\commanderdog\"
+
+          $ZipName = "commanderdog-v${Version}-windows-x86_64.zip"
+          Compress-Archive -Path "$DistDir\commanderdog\*" -DestinationPath "$DistDir\$ZipName" -Force
+
+          # Copy installers to dist
+          Get-ChildItem -Path "src-tauri\target\x86_64-pc-windows-msvc\release\bundle\nsis\*.exe" | Copy-Item -Destination $DistDir
+          Get-ChildItem -Path "src-tauri\target\x86_64-pc-windows-msvc\release\bundle\msi\*.msi" | Copy-Item -Destination $DistDir
+
+          # Generate SHA256 Checksums
+          Get-ChildItem -Path "$DistDir\*" -Include *.zip,*.exe,*.msi | ForEach-Object {
+            $h = (Get-FileHash -Path $_.FullName -Algorithm SHA256).Hash.ToLower()
+            "$h  $($_.Name)" | Out-File -FilePath "$DistDir\SHA256SUMS-windows.txt" -Append -Encoding ascii
+          }
+
+      - name: Upload Windows Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: commanderdog-windows-x64
+          path: |
+            dist/windows/*.zip
+            dist/windows/*.exe
+            dist/windows/*.msi
+            dist/windows/SHA256SUMS-windows.txt
+
+  # -------------------------------------------------------------
+  # 🐧 LINUX BUILD & PACKAGING (.deb, .tar.gz)
+  # -------------------------------------------------------------
+  build-linux:
+    name: Linux Binary & Debian Package (x86_64-unknown-linux-gnu)
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install system build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libssl-dev libssh2-1-dev libsqlite3-dev libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-deb
+        run: cargo install cargo-deb --locked
+
+      - name: Build Linux Release Binary
+        run: cargo build --release
+
+      - name: Build Debian Package (.deb)
+        run: cargo deb --no-build
+
+      - name: Package Linux Standalone Tarball
+        run: |
+          mkdir -p dist/linux/commanderdog
+          cp target/release/commanderdog dist/linux/commanderdog/
+          cp config.toml LICENSE README.md dist/linux/commanderdog/
+          cd dist/linux
+          tar -czvf commanderdog-linux-x86_64.tar.gz commanderdog/
+          cp ../../target/debian/*.deb .
+          sha256sum *.tar.gz *.deb > SHA256SUMS-linux.txt
+
+      - name: Upload Linux Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: commanderdog-linux-x64
+          path: |
+            dist/linux/*.tar.gz
+            dist/linux/*.deb
+            dist/linux/SHA256SUMS-linux.txt
+
+  # -------------------------------------------------------------
+  # 🚀 GITHUB RELEASE PUBLISHER
+  # -------------------------------------------------------------
+  publish-release:
+    name: Publish GitHub Release Artifacts
+    needs: [build-windows, build-linux]
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download Windows Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: commanderdog-windows-x64
+          path: release-assets/windows
+
+      - name: Download Linux Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: commanderdog-linux-x64
+          path: release-assets/linux
+
+      - name: Combine Checksums
+        run: |
+          mkdir -p release-assets/all
+          cat release-assets/windows/SHA256SUMS-windows.txt release-assets/linux/SHA256SUMS-linux.txt > release-assets/all/SHA256SUMS.txt
+          mv release-assets/windows/* release-assets/all/ 2>/dev/null || true
+          mv release-assets/linux/* release-assets/all/ 2>/dev/null || true
+
+      - name: Publish to GitHub Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release-assets/all/*.zip
+            release-assets/all/*.exe
+            release-assets/all/*.msi
+            release-assets/all/*.tar.gz
+            release-assets/all/*.deb
+            release-assets/all/SHA256SUMS.txt
+          generate_release_notes: true
+          draft: false
+          prerelease: false

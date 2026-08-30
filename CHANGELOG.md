@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.6.0] - 2026-08-30
+
+### 🪟 Windows Native Desktop, Installers & Package Distribution
+- **Microsoft WebView2 Native Desktop App (`CommanderDog.exe`)**:
+  - Tauri v2 standalone desktop architecture targeting `x86_64-pc-windows-msvc` utilizing built-in Microsoft WebView2 runtime without Electron overhead.
+  - Interactive Windows System Tray icon with quick Summon/Hide and Minimize-to-Tray on close.
+- **Windows Packaging & Package Managers**:
+  - **Setup Installers (`.msi` / `.exe`)**: Automated NSIS setup installer and WiX `.msi` bundle with Desktop and Start Menu shortcut generation.
+  - **Portable `.zip` Distribution**: Zero-install standalone archive with in-place database (`commanderdog.db`) and configuration persistence.
+  - **Windows Package Managers**: Automated **Winget** (`winget install Woofson.CommanderDog`) and **Scoop** bucket manifests in `packaging/windows/`.
+  - **Windows Explorer Context Menu**: Added 1-click registration scripts (`register-context-menu.reg`) integrating *"Open in CommanderDog"* into directory and background right-click context menus.
+- **Windows Filesystem & UNC Path Engine**:
+  - Full drive letter breadcrumb navigation (`C:\`, `D:\`, `Z:\`).
+  - Universal Windows environment variable resolution (`%USERPROFILE%`, `%APPDATA%`, `%LOCALAPPDATA%`, `%TEMP%`).
+  - Windows UNC network share access (`\\server\share\path`).
+  - Slide-up web terminal defaulting to Windows PowerShell / `COMSPEC` (`cmd.exe`).
+- **Release Matrix CI/CD Pipeline**:
+  - Created `.github/workflows/release.yml` for automated multi-target builds across `windows-latest` (MSVC) and `ubuntu-22.04` (Debian/Tarball) with automatic SHA-256 integrity checksum generation.
+- **Documentation**:
+  - Added comprehensive [**`WINDOWS.md`**](WINDOWS.md) installation, deployment, and packaging guide.
+
+---
+
 ## [0.5.5] - 2026-08-29
 
 ### 🔒 Transparent Encrypted Vaults (AES-256-GCM / Argon2id) & Subsystem Deletions

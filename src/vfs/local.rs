@@ -3,42 +3,88 @@ use crate::vfs::checksum::calculate_sha256;
 use std::collections::HashMap;
 use std::fs::{self, File};
 use std::io::{Read, Write};
-use std::os::unix::fs::{MetadataExt, PermissionsExt};
+#[cfg(unix)]
+use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
 use tracing::info;
 
 pub struct LocalFs;
 
+/// Expands `%VAR%` style Windows environment variables
+pub fn expand_windows_env_vars(path_str: &str) -> String {
+    if !path_str.contains('%') {
+        return path_str.to_string();
+    }
+    let mut result = String::new();
+    let mut chars = path_str.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '%' {
+            let mut var_name = String::new();
+            let mut closed = false;
+            while let Some(&next_c) = chars.peek() {
+                chars.next();
+                if next_c == '%' {
+                    closed = true;
+                    break;
+                }
+                var_name.push(next_c);
+            }
+            if closed && !var_name.is_empty() {
+                if let Ok(val) = std::env::var(&var_name) {
+                    result.push_str(&val);
+                } else {
+                    result.push('%');
+                    result.push_str(&var_name);
+                    result.push('%');
+                }
+            } else {
+                result.push('%');
+                result.push_str(&var_name);
+            }
+        } else {
+            result.push(c);
+        }
+    }
+    result
+}
+
 impl LocalFs {
     /// Helper to get cached user and group name lookups
     fn get_user_group_maps() -> (HashMap<u32, String>, HashMap<u32, String>) {
-        let mut users = HashMap::new();
-        let mut groups = HashMap::new();
+        #[cfg(unix)]
+        {
+            let mut users = HashMap::new();
+            let mut groups = HashMap::new();
 
-        if let Ok(passwd) = fs::read_to_string("/etc/passwd") {
-            for line in passwd.lines() {
-                let parts: Vec<&str> = line.split(':').collect();
-                if parts.len() >= 3 {
-                    if let Ok(uid) = parts[2].parse::<u32>() {
-                        users.insert(uid, parts[0].to_string());
+            if let Ok(passwd) = fs::read_to_string("/etc/passwd") {
+                for line in passwd.lines() {
+                    let parts: Vec<&str> = line.split(':').collect();
+                    if parts.len() >= 3 {
+                        if let Ok(uid) = parts[2].parse::<u32>() {
+                            users.insert(uid, parts[0].to_string());
+                        }
                     }
                 }
             }
-        }
 
-        if let Ok(group_file) = fs::read_to_string("/etc/group") {
-            for line in group_file.lines() {
-                let parts: Vec<&str> = line.split(':').collect();
-                if parts.len() >= 3 {
-                    if let Ok(gid) = parts[2].parse::<u32>() {
-                        groups.insert(gid, parts[0].to_string());
+            if let Ok(group_file) = fs::read_to_string("/etc/group") {
+                for line in group_file.lines() {
+                    let parts: Vec<&str> = line.split(':').collect();
+                    if parts.len() >= 3 {
+                        if let Ok(gid) = parts[2].parse::<u32>() {
+                            groups.insert(gid, parts[0].to_string());
+                        }
                     }
                 }
             }
-        }
 
-        (users, groups)
+            (users, groups)
+        }
+        #[cfg(not(unix))]
+        {
+            (HashMap::new(), HashMap::new())
+        }
     }
 
     fn mode_to_symbolic(mode: u32, is_dir: bool) -> String {
@@ -65,8 +111,19 @@ impl LocalFs {
             } else {
                 PathBuf::from(p)
             }
+        } else if let Some(stripped) = p.strip_prefix("~\\") {
+            if let Some(home) = dirs::home_dir() {
+                home.join(stripped)
+            } else {
+                PathBuf::from(p)
+            }
         } else {
-            PathBuf::from(p)
+            #[cfg(windows)]
+            let expanded = expand_windows_env_vars(p);
+            #[cfg(not(windows))]
+            let expanded = p.to_string();
+
+            PathBuf::from(expanded)
         }
     }
 
@@ -79,7 +136,7 @@ impl LocalFs {
             ));
         }
 
-        let canonical = path.canonicalize()?;
+        let canonical = path.canonicalize().unwrap_or_else(|_| path.clone());
         let canonical_str = canonical.to_string_lossy().to_string();
         let parent_path = canonical.parent().map(|p| p.to_string_lossy().to_string());
 
@@ -110,15 +167,38 @@ impl LocalFs {
                         m.modified().ok().and_then(|t| t.duration_since(UNIX_EPOCH).ok().map(|d| d.as_secs()))
                     });
 
-                    let raw_mode = metadata.as_ref().map(|m| m.mode()).unwrap_or(0o644);
+                    #[cfg(unix)]
+                    let (raw_mode, uid, gid) = {
+                        let mode = metadata.as_ref().map(|m| m.mode()).unwrap_or(0o644);
+                        let u = metadata.as_ref().map(|m| m.uid()).unwrap_or(1000);
+                        let g = metadata.as_ref().map(|m| m.gid()).unwrap_or(1000);
+                        (mode, u, g)
+                    };
+                    #[cfg(not(unix))]
+                    let (raw_mode, uid, gid) = {
+                        let is_readonly = metadata.as_ref().map(|m| m.permissions().readonly()).unwrap_or(false);
+                        let mode = if is_dir {
+                            0o755
+                        } else if is_readonly {
+                            0o444
+                        } else {
+                            0o666
+                        };
+                        (mode, 0, 0)
+                    };
+
                     let mode_octal = format!("{:04o}", raw_mode & 0o7777);
                     let permissions = Self::mode_to_symbolic(raw_mode, is_dir);
 
-                    let uid = metadata.as_ref().map(|m| m.uid()).unwrap_or(1000);
-                    let gid = metadata.as_ref().map(|m| m.gid()).unwrap_or(1000);
-
+                    #[cfg(unix)]
                     let owner = user_map.get(&uid).cloned().unwrap_or_else(|| uid.to_string());
+                    #[cfg(unix)]
                     let group = group_map.get(&gid).cloned().unwrap_or_else(|| gid.to_string());
+
+                    #[cfg(not(unix))]
+                    let owner = std::env::var("USERNAME").unwrap_or_else(|_| "Users".to_string());
+                    #[cfg(not(unix))]
+                    let group = "Users".to_string();
 
                     let mime = if is_dir {
                         None
@@ -310,30 +390,59 @@ impl LocalFs {
             return Err(std::io::Error::new(std::io::ErrorKind::NotFound, "Path not found"));
         }
 
-        if recursive && p.is_dir() {
-            for entry in walkdir::WalkDir::new(&p).into_iter().filter_map(|e| e.ok()) {
-                fs::set_permissions(entry.path(), fs::Permissions::from_mode(mode))?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            if recursive && p.is_dir() {
+                for entry in walkdir::WalkDir::new(&p).into_iter().filter_map(|e| e.ok()) {
+                    fs::set_permissions(entry.path(), fs::Permissions::from_mode(mode))?;
+                }
+                Ok(())
+            } else {
+                fs::set_permissions(&p, fs::Permissions::from_mode(mode))
             }
-            Ok(())
-        } else {
-            fs::set_permissions(&p, fs::Permissions::from_mode(mode))
+        }
+        #[cfg(not(unix))]
+        {
+            let set_ro = |target: &Path| -> Result<(), std::io::Error> {
+                let mut perms = fs::metadata(target)?.permissions();
+                perms.set_readonly(mode & 0o222 == 0);
+                fs::set_permissions(target, perms)
+            };
+
+            if recursive && p.is_dir() {
+                for entry in walkdir::WalkDir::new(&p).into_iter().filter_map(|e| e.ok()) {
+                    let _ = set_ro(entry.path());
+                }
+                Ok(())
+            } else {
+                set_ro(&p)
+            }
         }
     }
 
     pub fn chown_entry(path_str: &str, uid: Option<u32>, gid: Option<u32>, recursive: bool) -> Result<(), std::io::Error> {
-        use std::os::unix::fs::chown;
-        let p = Self::resolve_local_path(path_str);
-        if !p.exists() {
-            return Err(std::io::Error::new(std::io::ErrorKind::NotFound, "Path not found"));
-        }
-
-        if recursive && p.is_dir() {
-            for entry in walkdir::WalkDir::new(&p).into_iter().filter_map(|e| e.ok()) {
-                chown(entry.path(), uid, gid)?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::chown;
+            let p = Self::resolve_local_path(path_str);
+            if !p.exists() {
+                return Err(std::io::Error::new(std::io::ErrorKind::NotFound, "Path not found"));
             }
+
+            if recursive && p.is_dir() {
+                for entry in walkdir::WalkDir::new(&p).into_iter().filter_map(|e| e.ok()) {
+                    chown(entry.path(), uid, gid)?;
+                }
+                Ok(())
+            } else {
+                chown(&p, uid, gid)
+            }
+        }
+        #[cfg(not(unix))]
+        {
+            let _ = (path_str, uid, gid, recursive);
             Ok(())
-        } else {
-            chown(&p, uid, gid)
         }
     }
 

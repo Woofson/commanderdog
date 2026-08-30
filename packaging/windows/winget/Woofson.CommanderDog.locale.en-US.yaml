@@ -1,0 +1,34 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.6.0.schema.json
+
+PackageIdentifier: Woofson.CommanderDog
+PackageVersion: 0.6.0
+PackageLocale: en-US
+Publisher: Woofson
+PublisherUrl: https://github.com/woofson
+PublisherSupportUrl: https://github.com/woofson/commanderdog/issues
+Author: Bolt J Woofson
+PackageName: CommanderDog
+PackageUrl: https://github.com/woofson/commanderdog
+License: MIT
+LicenseUrl: https://github.com/woofson/commanderdog/blob/main/LICENSE
+Copyright: Copyright (c) 2026 Bolt J Woofson
+ShortDescription: Multi-Tab File Commander for Web & Native Desktop
+Description: |
+  CommanderDog is a blazing-fast orthodox multi-tab file commander for Windows and Linux.
+  Features 1-to-4 toggleable panes, DeltaCopy bit-for-bit file verification, transparent
+  encrypted vaults (AES-256-GCM / Argon2id), multi-cloud remotes (SMB, SFTP, S3, WebDAV),
+  dockable EditorDog power editor, and native desktop integration with system tray.
+Moniker: commanderdog
+Tags:
+  - file-manager
+  - total-commander
+  - orthodox-file-manager
+  - double-commander
+  - sftp
+  - smb
+  - vault
+  - encryption
+  - explorer
+ReleaseNotesUrl: https://github.com/woofson/commanderdog/releases/tag/v0.6.0
+ManifestType: defaultLocale
+ManifestVersion: 1.6.0

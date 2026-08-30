@@ -45,25 +45,34 @@ async fn handle_terminal_socket(socket: WebSocket, query: TerminalQuery) {
         }
     };
 
-    // Always use standard clean bash or sh for web terminal to prevent non-standard shell escape garbage (like fish / zsh OSC codes)
-    let shell = if std::path::Path::new("/bin/bash").exists() {
-        "/bin/bash"
-    } else if std::path::Path::new("/usr/bin/bash").exists() {
-        "/usr/bin/bash"
-    } else if std::path::Path::new("/bin/sh").exists() {
-        "/bin/sh"
+    #[cfg(windows)]
+    let shell = if let Ok(comspec) = std::env::var("COMSPEC") {
+        comspec
     } else {
-        "/bin/sh"
+        "powershell.exe".to_string()
+    };
+    #[cfg(not(windows))]
+    let shell = if std::path::Path::new("/bin/bash").exists() {
+        "/bin/bash".to_string()
+    } else if std::path::Path::new("/usr/bin/bash").exists() {
+        "/usr/bin/bash".to_string()
+    } else if std::path::Path::new("/bin/sh").exists() {
+        "/bin/sh".to_string()
+    } else {
+        "/bin/sh".to_string()
     };
 
-    let mut cmd = CommandBuilder::new(shell);
+    let mut cmd = CommandBuilder::new(&shell);
     cmd.env("TERM", "xterm-256color");
     cmd.env("COLORTERM", "truecolor");
-    cmd.env("LANG", "C.UTF-8");
-    cmd.env("LC_ALL", "C.UTF-8");
-    cmd.env("SHELL", shell);
-    cmd.env("PROMPT_COMMAND", "");
-    cmd.env("PS1", r#"\[\033[01;33m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ "#);
+    #[cfg(not(windows))]
+    {
+        cmd.env("LANG", "C.UTF-8");
+        cmd.env("LC_ALL", "C.UTF-8");
+        cmd.env("SHELL", &shell);
+        cmd.env("PROMPT_COMMAND", "");
+        cmd.env("PS1", r#"\[\033[01;33m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ "#);
+    }
 
     if let Some(ref cwd) = query.cwd {
         let p = std::path::Path::new(cwd);
