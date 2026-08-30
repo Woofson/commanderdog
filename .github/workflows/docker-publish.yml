@@ -82,6 +82,9 @@ jobs:
           targets: x86_64-unknown-linux-musl
 
       - name: Compile CommanderDog for Alpine (musl)
+        env:
+          CC_x86_64_unknown_linux_musl: musl-gcc
+          AR_x86_64_unknown_linux_musl: ar
         run: |
           cargo build --release --target x86_64-unknown-linux-musl --no-default-features
 
