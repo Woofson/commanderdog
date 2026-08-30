@@ -749,8 +749,10 @@ async function loadPaneDirectory(paneIndex, targetPath, pushHistory = true, sele
   }
   localStorage.setItem(`cd_pane_path_${paneIndex}`, cleanPath);
 
-  if (pushHistory && window.history && history.pushState) {
-    history.pushState({ type: 'dir', paneIndex, path: cleanPath }, '', '');
+  if (pushHistory && typeof window !== 'undefined' && window.history && typeof window.history.pushState === 'function') {
+    try {
+      window.history.pushState({ type: 'dir', paneIndex, path: cleanPath }, '', '');
+    } catch (_) {}
   }
 
   try {
@@ -787,16 +789,26 @@ async function loadPaneDirectory(paneIndex, targetPath, pushHistory = true, sele
       }
     }
 
-    renderPaneBreadcrumbs(paneIndex, pane.path);
+    try {
+      renderPaneBreadcrumbs(paneIndex, pane.path);
+    } catch (bErr) {
+      console.error('Breadcrumb render error:', bErr);
+    }
+
     if (pane.dockedTool) {
       renderDockedPaneTool(paneIndex);
     } else {
       renderPaneTable(paneIndex);
     }
-    updatePaneFooter(paneIndex, data);
-    fetchGitStatusForPane(paneIndex, pane.path);
-    if (paneIndex === App.activePaneIndex) {
-      syncTreeActiveNode(pane.path);
+
+    try {
+      updatePaneFooter(paneIndex, data);
+      fetchGitStatusForPane(paneIndex, pane.path);
+      if (paneIndex === App.activePaneIndex) {
+        syncTreeActiveNode(pane.path);
+      }
+    } catch (fErr) {
+      console.warn('Footer/tree sync error:', fErr);
     }
   } catch (e) {
     console.error('Directory load error:', e);
@@ -808,6 +820,7 @@ function renderPaneBreadcrumbs(paneIndex, pathStr) {
   const container = document.getElementById(`pane-crumbs-${paneIndex}`);
   if (!container) return;
   container.innerHTML = '';
+  pathStr = pathStr || '/';
 
   if (pane && pane.isBranchView) {
     const branchBadge = document.createElement('span');
@@ -1068,6 +1081,10 @@ function renderPaneBreadcrumbs(paneIndex, pathStr) {
     };
     return sep;
   };
+
+  // Check if path is a Windows drive path (e.g. C:\ or C:/ or C:\Users\Bolt)
+  const winDriveMatch = pathStr.match(/^([a-zA-Z]:)[\\/]*(.*)$/);
+  const uncMatch = pathStr.match(/^(\\\\[^\\\/]+[\\\/][^\\\/]+)(.*)$/) || pathStr.match(/^(\/\/[^\/]+\/[^\/]+)(.*)$/);
 
   if (winDriveMatch) {
     const driveLetter = winDriveMatch[1].toUpperCase();
@@ -7384,8 +7401,10 @@ function showModal(id) {
   const el = document.getElementById(id);
   if (el) {
     el.classList.add('active');
-    if (window.history && history.pushState) {
-      history.pushState({ type: 'modal', modalId: id }, '', '');
+    if (typeof window !== 'undefined' && window.history && typeof window.history.pushState === 'function') {
+      try {
+        window.history.pushState({ type: 'modal', modalId: id }, '', '');
+      } catch (_) {}
     }
   }
 }
@@ -7605,10 +7624,12 @@ function showToast(message, type = 'info', duration = 3500) {
 }
 
 function setupHistoryNavigation() {
-  if (!window.history || !history.pushState) return;
+  if (typeof window === 'undefined' || !window.history || typeof window.history.pushState !== 'function') return;
 
   // Set initial state
-  history.replaceState({ type: 'dir', paneIndex: App.activePaneIndex, path: App.panes[App.activePaneIndex]?.path || '/' }, '', '');
+  try {
+    window.history.replaceState({ type: 'dir', paneIndex: App.activePaneIndex, path: App.panes[App.activePaneIndex]?.path || '/' }, '', '');
+  } catch (_) {}
 
   window.addEventListener('popstate', (e) => {
     // 1. If any modal is active, close it!
@@ -7620,7 +7641,9 @@ function setupHistoryNavigation() {
       } else {
         topModal.classList.remove('active');
       }
-      history.pushState({ type: 'dir', paneIndex: App.activePaneIndex, path: App.panes[App.activePaneIndex]?.path || '/' }, '', '');
+      try {
+        window.history.pushState({ type: 'dir', paneIndex: App.activePaneIndex, path: App.panes[App.activePaneIndex]?.path || '/' }, '', '');
+      } catch (_) {}
       return;
     }
 
@@ -7628,7 +7651,9 @@ function setupHistoryNavigation() {
     const termDrawer = document.getElementById('terminal-drawer');
     if (termDrawer && termDrawer.classList.contains('active')) {
       toggleTerminal(false);
-      history.pushState({ type: 'dir', paneIndex: App.activePaneIndex, path: App.panes[App.activePaneIndex]?.path || '/' }, '', '');
+      try {
+        window.history.pushState({ type: 'dir', paneIndex: App.activePaneIndex, path: App.panes[App.activePaneIndex]?.path || '/' }, '', '');
+      } catch (_) {}
       return;
     }
 
@@ -7636,7 +7661,9 @@ function setupHistoryNavigation() {
     const taskWin = document.getElementById('floating-task-manager');
     if (taskWin && taskWin.classList.contains('active') && !taskWin.classList.contains('minimized')) {
       minimizeFloatingTaskManager();
-      history.pushState({ type: 'dir', paneIndex: App.activePaneIndex, path: App.panes[App.activePaneIndex]?.path || '/' }, '', '');
+      try {
+        window.history.pushState({ type: 'dir', paneIndex: App.activePaneIndex, path: App.panes[App.activePaneIndex]?.path || '/' }, '', '');
+      } catch (_) {}
       return;
     }
 
@@ -7648,7 +7675,9 @@ function setupHistoryNavigation() {
       if (pane && pane.path !== '/' && pane.path !== '') {
         navPaneUp(App.activePaneIndex);
       }
-      history.pushState({ type: 'dir', paneIndex: App.activePaneIndex, path: pane?.path || '/' }, '', '');
+      try {
+        window.history.pushState({ type: 'dir', paneIndex: App.activePaneIndex, path: pane?.path || '/' }, '', '');
+      } catch (_) {}
     }
   });
 }
