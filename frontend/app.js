@@ -4975,8 +4975,10 @@ function showContextMenu(x, y) {
 
   if (window.lucide) lucide.createIcons();
 
-  menu.style.display = 'block';
+  positionContextMenu(menu, x, y);
+}
 
+function positionContextMenu(menu, x, y) {
   const backdrop = document.getElementById('context-menu-backdrop');
   const actBtn = document.getElementById('mob-btn-actions');
 
@@ -4995,22 +4997,86 @@ function showContextMenu(x, y) {
     menu.style.bottom = '56px';
     menu.style.top = 'auto';
     menu.style.borderRadius = '12px';
-  } else {
-    if (backdrop) backdrop.classList.remove('active');
-    if (x > window.innerWidth - 480) {
-      menu.classList.add('submenu-flip-left');
-    } else {
-      menu.classList.remove('submenu-flip-left');
-    }
-    menu.style.position = 'fixed';
-    menu.style.left = `${Math.min(x, window.innerWidth - 240)}px`;
-    menu.style.top = `${Math.min(y, window.innerHeight - 380)}px`;
-    menu.style.right = 'auto';
-    menu.style.bottom = 'auto';
-    menu.style.width = 'auto';
-    menu.style.maxHeight = 'none';
-    menu.style.borderRadius = '6px';
+    menu.style.display = 'block';
+    menu.style.visibility = 'visible';
+    return;
   }
+
+  if (backdrop) backdrop.classList.remove('active');
+
+  // Desktop positioning with collision detection and automatic upward flip
+  menu.style.display = 'block';
+  menu.style.visibility = 'hidden';
+  menu.style.position = 'fixed';
+  menu.style.right = 'auto';
+  menu.style.bottom = 'auto';
+  menu.style.width = 'auto';
+  menu.style.borderRadius = '6px';
+
+  // Measure rendered menu dimensions
+  const menuWidth = menu.offsetWidth || 250;
+  const menuHeight = menu.offsetHeight || 500;
+  const pad = 10;
+  const bottomPad = 36; // Extra breathing room for function key bar / taskbar
+
+  // Horizontal placement
+  let left = x;
+  if (x + menuWidth > window.innerWidth - pad) {
+    left = Math.max(pad, window.innerWidth - menuWidth - pad);
+    menu.classList.add('submenu-flip-left');
+  } else if (x > window.innerWidth - 480) {
+    menu.classList.add('submenu-flip-left');
+  } else {
+    menu.classList.remove('submenu-flip-left');
+  }
+  left = Math.max(pad, left);
+
+  // Vertical placement: flip upwards if overflowing bottom!
+  let top = y;
+  const availableBelow = window.innerHeight - bottomPad - y;
+  if (menuHeight > availableBelow) {
+    // If opening downwards overflows, check if opening upwards fits better
+    const candidateUp = y - menuHeight;
+    if (candidateUp >= pad) {
+      top = candidateUp;
+    } else {
+      // If neither fits completely, clamp to top pad or fit within viewport
+      top = Math.max(pad, window.innerHeight - menuHeight - bottomPad);
+    }
+  }
+
+  const maxAllowedHeight = window.innerHeight - top - bottomPad;
+  menu.style.maxHeight = `${Math.max(200, maxAllowedHeight)}px`;
+  menu.style.overflowY = menuHeight > maxAllowedHeight ? 'auto' : 'visible';
+  menu.style.overflowX = 'hidden';
+
+  menu.style.left = `${left}px`;
+  menu.style.top = `${top}px`;
+  menu.style.visibility = 'visible';
+
+  // Prevent submenus from overflowing bottom
+  menu.querySelectorAll('.context-item.has-submenu').forEach(item => {
+    item.onmouseenter = () => {
+      const sub = item.querySelector('.context-submenu');
+      if (!sub) return;
+      const itemRect = item.getBoundingClientRect();
+      const subHeight = sub.offsetHeight || 220;
+      if (itemRect.top + subHeight > window.innerHeight - bottomPad) {
+        sub.style.top = 'auto';
+        sub.style.bottom = '-4px';
+      } else {
+        sub.style.top = '-4px';
+        sub.style.bottom = 'auto';
+      }
+      if (itemRect.right + 240 > window.innerWidth - pad) {
+        sub.style.left = 'auto';
+        sub.style.right = 'calc(100% - 2px)';
+      } else {
+        sub.style.left = 'calc(100% - 2px)';
+        sub.style.right = 'auto';
+      }
+    };
+  });
 }
 
 function toggleContextSubmenu(e, itemEl) {
@@ -5110,33 +5176,7 @@ function showEmptySpaceContextMenu(x, y, paneIndex) {
 
   if (window.lucide) lucide.createIcons();
 
-  menu.style.display = 'block';
-
-  const backdrop = document.getElementById('context-menu-backdrop');
-  const actBtn = document.getElementById('mob-btn-actions');
-
-  if (window.innerWidth <= 768) {
-    if (backdrop) backdrop.classList.add('active');
-    if (actBtn) actBtn.classList.add('active');
-    menu.style.position = 'fixed';
-    menu.style.left = '10px';
-    menu.style.right = '10px';
-    menu.style.width = 'calc(100vw - 20px)';
-    menu.style.maxHeight = '70vh';
-    menu.style.overflowY = 'auto';
-    menu.style.bottom = '56px';
-    menu.style.top = 'auto';
-    menu.style.borderRadius = '12px';
-  } else {
-    if (backdrop) backdrop.classList.remove('active');
-    menu.style.position = 'fixed';
-    menu.style.left = `${Math.min(x, window.innerWidth - 250)}px`;
-    menu.style.top = `${Math.min(y, window.innerHeight - 380)}px`;
-    menu.style.right = 'auto';
-    menu.style.bottom = 'auto';
-    menu.style.width = 'auto';
-    menu.style.maxHeight = 'none';
-  }
+  positionContextMenu(menu, x, y);
 }
 
 
