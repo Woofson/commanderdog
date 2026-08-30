@@ -1144,6 +1144,21 @@ function renderPaneBreadcrumbs(paneIndex, pathStr) {
     c.onclick = (e) => { e.stopPropagation(); loadPaneDirectory(paneIndex, target); };
     container.appendChild(c);
   });
+  if (window.lucide) lucide.createIcons();
+}
+
+async function fetchStorageRoots() {
+  try {
+    const res = await fetch('/api/storage/roots', {
+      headers: { 'Authorization': `Bearer ${App.token}` }
+    });
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch (e) {
+    console.warn('Failed to fetch storage roots:', e);
+  }
+  return [];
 }
 
 // Global popover cleanup helper
