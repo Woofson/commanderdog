@@ -51,9 +51,10 @@ This roadmap outlines completed capabilities, active architectural enhancements,
 ```mermaid
 graph TD
     A["v0.6.0 (Live: Windows Native Desktop, WebView2, MSI/EXE Installers, Winget, Scoop, Portable ZIP)"] --> B["1. 📄 PDF Split & Merger Tool (Page Reorder, Rotate & Extract)"]
-    B --> C["2. ⚙️ Folder Automation Watchers & Webhooks (notify-rs)"]
-    C --> D["3. 🌐 Enterprise OIDC SSO (Authentik, Keycloak, Okta)"]
-    D --> E["4. 📝 Collaborative Office Live Editing (WOPI / ONLYOFFICE / Collabora)"]
+    B --> C["2. 🪟 Windows Service & Autostart Management (NT Service, Tray Auto-Launch)"]
+    C --> D["3. ⚙️ Folder Automation Watchers & Webhooks (notify-rs)"]
+    D --> E["4. 🌐 Enterprise OIDC SSO (Authentik, Keycloak, Okta)"]
+    E --> F["5. 📝 Collaborative Office Live Editing (WOPI / ONLYOFFICE / Collabora)"]
 ```
 
 ### 📄 Milestone 1: PDF Split & Merger Tool (`v0.6.5`)
@@ -76,7 +77,31 @@ graph TD
 
 ---
 
-### ⚙️ Milestone 2: Folder Automation Watchers & Webhooks (`v0.6.8`)
+### 🪟 Milestone 2: Windows Background Service & Autostart Management (`v0.6.6`)
+- **Official Windows NT Service Architecture (`windows-service`)**:
+  - Run CommanderDog server headlessly in the background as a registered Windows Service (`services.msc`).
+  - Ideal for Windows Server, NAS, home labs, and multi-user environments without requiring active user logon.
+  - CLI management commands:
+    ```powershell
+    commanderdog.exe service install   # Registers CommanderDog NT Service
+    commanderdog.exe service uninstall # Removes NT Service cleanly
+    commanderdog.exe service start     # Starts background service
+    commanderdog.exe service stop      # Graceful service shutdown
+    commanderdog.exe service status    # Service health & uptime query
+    ```
+  - Native Windows Event Log (`eventvwr.msc`) integration for audit and error tracking.
+- **User Logon Autostart & System Tray Minimization**:
+  - 1-Click toggle in Settings / Tray: *"Start on Windows Startup"*.
+  - Managed via `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` and Startup folder.
+  - Configurable start mode: Launch minimized directly into the System Tray with web server active (`--minimized` / `--tray-only`).
+- **Windows Task Scheduler Integration (`schtasks`)**:
+  - Helper scripts and manifest presets for scheduled starts on system boot, user idle, or wake-from-sleep.
+- **In-App Service Manager Panel**:
+  - View running service status, port bindings, memory usage, and restart service directly from the Settings UI.
+
+---
+
+### ⚙️ Milestone 3: Folder Automation Watchers & Webhooks (`v0.6.8`)
 - **Real-Time Directory Watchers**: Inotify / notify-rs backend tracking specified directories.
 - **Rule Engine**:
   - Automatically convert incoming images/media using ConvertX.
@@ -86,7 +111,7 @@ graph TD
 
 ---
 
-### 🌐 Milestone 3: Enterprise OIDC SSO & Collaborative Office (`v0.7.0`)
+### 🌐 Milestone 4: Enterprise OIDC SSO & Collaborative Office (`v0.7.0`)
 - **OpenID Connect (OIDC)**: Seamless login via Authentik, Authelia, Keycloak, Okta, and Google Workspace alongside Linux PAM.
 - **Collaborative Office (WOPI)**: In-browser live editing for `.docx`, `.xlsx`, `.pptx`, `.odt`, `.ods` via ONLYOFFICE and Collabora Online integration.
 
@@ -106,5 +131,6 @@ graph TD
 | **`v0.5.5`** | **Transparent Encrypted Vaults (AES-256-GCM / Argon2id), Cross-Mount Deletion Engine** | **Released** |
 | **`v0.6.0`** | **🪟 Windows Native Build & Release (MSI, Portable ZIP, Winget, Scoop, WebView2)** | **Released (Current)** |
 | **`v0.6.5`** | **📄 PDF Split & Merger Tool (Visual Page Organizer, Lossless Extract & Merge)** | *Next Up* |
+| **`v0.6.6`** | **🪟 Windows Background Service & System Autostart Management (NT Service, Tray Auto-Launch)** | *Planned* |
 | **`v0.6.8`** | **⚙️ Folder Automation Watchers & Webhook Rules** | *Planned* |
 | **`v0.7.0`** | **🌐 Enterprise OIDC SSO, Collaborative Office (WOPI) & Automation Engine** | *Planned* |
