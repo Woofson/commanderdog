@@ -51,6 +51,7 @@ pub fn expand_windows_env_vars(path_str: &str) -> String {
 
 impl LocalFs {
     /// Helper to get cached user and group name lookups
+    #[cfg(unix)]
     fn get_user_group_maps() -> (HashMap<u32, String>, HashMap<u32, String>) {
         #[cfg(unix)]
         {

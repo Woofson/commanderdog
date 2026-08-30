@@ -29,7 +29,7 @@ fn main() {
                 match start_background_server(config).await {
                     Ok(port) => {
                         let url = format!("http://127.0.0.1:{}", port);
-                        tracing::info!("CommanderDog desktop backend bound to: {}", url);
+                        println!("CommanderDog desktop backend bound to: {}", url);
 
                         // Create the primary standalone window pointing to the local embedded server
                         let mut win_builder = WebviewWindowBuilder::new(
