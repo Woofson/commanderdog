@@ -21,6 +21,8 @@ pub struct AppConfig {
     pub desktop: DesktopConfig,
     #[serde(default)]
     pub custom_actions: Vec<CustomAction>,
+    #[serde(default = "default_open_with")]
+    pub open_with: Vec<OpenWithRule>,
     #[serde(default)]
     pub bookmarks: Vec<BookmarkConfig>,
     #[serde(default)]
@@ -38,6 +40,7 @@ impl Default for AppConfig {
             ui: UiConfig::default(),
             desktop: DesktopConfig::default(),
             custom_actions: default_custom_actions(),
+            open_with: default_open_with(),
             bookmarks: default_bookmarks(),
             syncthing: crate::tools::syncthing::SyncthingConfig::default(),
         }
@@ -525,6 +528,57 @@ fn default_custom_actions() -> Vec<CustomAction> {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OpenWithRule {
+    pub id: String,
+    pub name: String,
+    pub extensions: Vec<String>,
+    pub command: String,
+    pub icon: String,
+    #[serde(default)]
+    pub is_default: bool,
+}
+
+pub fn default_open_with() -> Vec<OpenWithRule> {
+    vec![
+        OpenWithRule {
+            id: "editor-code".to_string(),
+            name: "VS Code / Cursor".to_string(),
+            extensions: vec![
+                "rs".to_string(), "js".to_string(), "ts".to_string(), "py".to_string(),
+                "json".to_string(), "toml".to_string(), "md".to_string(), "txt".to_string(),
+                "html".to_string(), "css".to_string(), "sh".to_string(), "c".to_string(), "cpp".to_string(),
+            ],
+            command: "code \"%1\"".to_string(),
+            icon: "code".to_string(),
+            is_default: false,
+        },
+        OpenWithRule {
+            id: "media-vlc".to_string(),
+            name: "VLC Media Player".to_string(),
+            extensions: vec![
+                "mp4".to_string(), "mkv".to_string(), "avi".to_string(), "webm".to_string(),
+                "mov".to_string(), "mp3".to_string(), "flac".to_string(), "wav".to_string(),
+                "ogg".to_string(), "m4a".to_string(),
+            ],
+            command: "vlc \"%1\"".to_string(),
+            icon: "film".to_string(),
+            is_default: false,
+        },
+        OpenWithRule {
+            id: "image-viewer".to_string(),
+            name: "System Default Viewer".to_string(),
+            extensions: vec![
+                "png".to_string(), "jpg".to_string(), "jpeg".to_string(), "webp".to_string(),
+                "svg".to_string(), "gif".to_string(), "bmp".to_string(), "ico".to_string(),
+            ],
+            command: "open \"%1\"".to_string(),
+            icon: "image".to_string(),
+            is_default: false,
+        },
+    ]
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BookmarkConfig {
     pub id: String,
     pub name: String,
@@ -843,5 +897,33 @@ mod tests {
         assert_eq!(config.storage.roots[0].id, "vault");
         assert_eq!(config.storage.roots[0].read_only, true);
         assert_eq!(config.storage.roots[1].name, "Public Share");
+    }
+
+    #[test]
+    fn test_open_with_and_custom_actions_parsing() {
+        let sample_toml = r##"
+            [[open_with]]
+            id = "custom-vlc"
+            name = "VLC Player"
+            extensions = ["mp4", "mkv"]
+            command = "vlc %1"
+            icon = "film"
+            is_default = true
+
+            [[custom_actions]]
+            id = "git-pull"
+            label = "Git Pull"
+            icon = "git-pull-request"
+            command = "git -C {dir} pull"
+            applicable_to = "folder"
+            in_background = false
+        "##;
+
+        let config: AppConfig = toml::from_str(sample_toml).unwrap();
+        assert_eq!(config.open_with.len(), 1);
+        assert_eq!(config.open_with[0].id, "custom-vlc");
+        assert_eq!(config.open_with[0].extensions, vec!["mp4", "mkv"]);
+        assert_eq!(config.custom_actions.len(), 1);
+        assert_eq!(config.custom_actions[0].command, "git -C {dir} pull");
     }
 }

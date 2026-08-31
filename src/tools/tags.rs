@@ -13,7 +13,10 @@ pub struct FileTagInfo {
 #[derive(Debug, Clone, Deserialize)]
 pub struct SetTagsRequest {
     pub paths: Vec<String>,
+    #[serde(default)]
     pub color_label: Option<String>,
+    #[serde(default)]
+    pub clear_color: Option<bool>,
     pub add_tags: Option<Vec<String>>,
     pub remove_tags: Option<Vec<String>>,
     pub set_tags: Option<Vec<String>>,
@@ -102,8 +105,10 @@ impl TagManager {
                 |r| Ok((r.get(0)?, r.get(1)?)),
             ).optional().unwrap_or(None);
 
-            let cur_color = if let Some(ref col) = req.color_label {
-                if col.is_empty() || col == "none" || col == "clear" {
+            let cur_color = if req.clear_color == Some(true) {
+                None
+            } else if let Some(ref col) = req.color_label {
+                if col.is_empty() || col == "none" || col == "clear" || col == "null" {
                     None
                 } else {
                     Some(col.clone())
@@ -155,5 +160,59 @@ impl TagManager {
         }
 
         Ok(count)
+    }
+}
+
+#[cfg(test)]
+pub mod tests {
+    use super::*;
+
+    #[test]
+    fn test_tags_and_color_label_persistence_and_clearing() {
+        let conn = Arc::new(Mutex::new(Connection::open_in_memory().unwrap()));
+        let manager = TagManager::new(conn).unwrap();
+
+        let path = "/test/file.txt".to_string();
+
+        // 1. Set color to red
+        manager.set_tags(SetTagsRequest {
+            paths: vec![path.clone()],
+            color_label: Some("red".to_string()),
+            clear_color: None,
+            add_tags: Some(vec!["urgent".to_string(), "invoice".to_string()]),
+            remove_tags: None,
+            set_tags: None,
+        }).unwrap();
+
+        let info = manager.get_tags_for_path(&path).unwrap();
+        assert_eq!(info.color_label, Some("red".to_string()));
+        assert_eq!(info.tags, vec!["urgent".to_string(), "invoice".to_string()]);
+
+        // 2. Clear color using clear_color: Some(true) while preserving tags
+        manager.set_tags(SetTagsRequest {
+            paths: vec![path.clone()],
+            color_label: Some("none".to_string()),
+            clear_color: Some(true),
+            add_tags: None,
+            remove_tags: None,
+            set_tags: None,
+        }).unwrap();
+
+        let info2 = manager.get_tags_for_path(&path).unwrap();
+        assert_eq!(info2.color_label, None);
+        assert_eq!(info2.tags, vec!["urgent".to_string(), "invoice".to_string()]);
+
+        // 3. Clear tags too -> record should be deleted from SQLite
+        manager.set_tags(SetTagsRequest {
+            paths: vec![path.clone()],
+            color_label: None,
+            clear_color: None,
+            add_tags: None,
+            remove_tags: None,
+            set_tags: Some(vec![]),
+        }).unwrap();
+
+        let info3 = manager.get_tags_for_path(&path);
+        assert!(info3.is_none());
     }
 }

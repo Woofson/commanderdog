@@ -148,6 +148,8 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/system/config-file", get(handle_get_config_file).post(handle_save_config_file))
         .route("/api/system/reload-config", post(handle_reload_config))
         .route("/api/system/autostart", get(handle_get_autostart).post(handle_set_autostart))
+        .route("/api/system/open-with", post(handle_open_with))
+        .route("/api/system/run-custom-action", post(handle_run_custom_action))
         // Embedded Frontend Fallback
         .fallback(handle_static_asset)
         .layer(DefaultBodyLimit::max(state.config.server.upload_max_size_mb * 1024 * 1024))
@@ -3490,6 +3492,111 @@ async fn handle_set_autostart(
     }
 
     Ok(Json(serde_json::json!({ "success": true, "enabled": payload.enabled })))
+}
+
+#[derive(Deserialize)]
+struct OpenWithRequest {
+    file_path: String,
+    command: Option<String>,
+}
+
+async fn handle_open_with(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<OpenWithRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let valid_path = validate_path_access(&state, &headers, &payload.file_path, false)?;
+    let local_path = crate::vfs::local::LocalFs::resolve_local_path(&valid_path);
+
+    if !local_path.exists() {
+        return Err((StatusCode::NOT_FOUND, format!("Target file does not exist: {}", local_path.display())));
+    }
+
+    let path_str = local_path.to_string_lossy().to_string();
+
+    if let Some(cmd) = payload.command {
+        if !cmd.trim().is_empty() {
+            let replaced = cmd.replace("%1", &path_str).replace("{file}", &path_str);
+            #[cfg(target_os = "windows")]
+            {
+                let _ = std::process::Command::new("cmd")
+                    .args(["/C", &replaced])
+                    .spawn()
+                    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to spawn process: {}", e)))?;
+            }
+            #[cfg(not(target_os = "windows"))]
+            {
+                let _ = std::process::Command::new("sh")
+                    .args(["-c", &replaced])
+                    .spawn()
+                    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to spawn process: {}", e)))?;
+            }
+            return Ok(Json(serde_json::json!({ "success": true, "command": replaced })));
+        }
+    }
+
+    open::that_detached(&local_path).map_err(|e| {
+        (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to open file with default system handler: {}", e))
+    })?;
+
+    Ok(Json(serde_json::json!({ "success": true, "path": path_str })))
+}
+
+#[derive(Deserialize)]
+struct RunCustomActionRequest {
+    command: String,
+    target_path: String,
+    selection: Option<Vec<String>>,
+    target_pane_path: Option<String>,
+}
+
+async fn handle_run_custom_action(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<RunCustomActionRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let valid_path = validate_path_access(&state, &headers, &payload.target_path, false)?;
+    let local_path = crate::vfs::local::LocalFs::resolve_local_path(&valid_path);
+    let target_str = local_path.to_string_lossy().to_string();
+    let dir_str = if local_path.is_dir() {
+        target_str.clone()
+    } else {
+        local_path.parent().map(|p| p.to_string_lossy().to_string()).unwrap_or_else(|| target_str.clone())
+    };
+
+    let selection_joined = payload.selection
+        .as_ref()
+        .map(|list| list.iter().map(|s| format!("\"{}\"", s)).collect::<Vec<_>>().join(" "))
+        .unwrap_or_else(|| format!("\"{}\"", target_str));
+
+    let target_pane_str = payload.target_pane_path.unwrap_or_default();
+
+    let exec_cmd = payload.command
+        .replace("{file}", &format!("\"{}\"", target_str))
+        .replace("{dir}", &format!("\"{}\"", dir_str))
+        .replace("{selection}", &selection_joined)
+        .replace("{target_pane}", &format!("\"{}\"", target_pane_str))
+        .replace("%1", &format!("\"{}\"", target_str));
+
+    #[cfg(target_os = "windows")]
+    let child = std::process::Command::new("cmd")
+        .args(["/C", &exec_cmd])
+        .current_dir(&dir_str)
+        .spawn();
+
+    #[cfg(not(target_os = "windows"))]
+    let child = std::process::Command::new("sh")
+        .args(["-c", &exec_cmd])
+        .current_dir(&dir_str)
+        .spawn();
+
+    child.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to run action: {}", e)))?;
+
+    Ok(Json(serde_json::json!({
+        "success": true,
+        "executed": exec_cmd,
+        "working_dir": dir_str
+    })))
 }
 
 #[cfg(test)]

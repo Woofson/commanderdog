@@ -12,6 +12,8 @@
   <script src="https://unpkg.com/lucide@latest"></script>
   <!-- Mermaid.js CDN for Markdown Diagrams -->
   <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <!-- Marked.js CDN for Full GitHub-Flavored Markdown & HTML support -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <!-- Prism.js for Syntax Highlighting -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css" />
   <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js"></script>
@@ -219,11 +221,21 @@
 
   <!-- Right Click / Touch Context Menu -->
   <div id="context-menu" class="context-menu">
-    <div class="context-item" onclick="triggerView()"><i data-lucide="eye" style="width: 14px;"></i> Quick View (F3)</div>
-    <div class="context-item" onclick="triggerEditor()"><i data-lucide="file-edit" style="width: 14px;"></i> Edit File (F4)</div>
-    <div class="context-item" onclick="triggerDownload()"><i data-lucide="download" style="width: 14px;"></i> Download / Batch Zip</div>
-    <div class="context-item" onclick="triggerShare()"><i data-lucide="share-2" style="width: 14px; color: var(--accent);"></i> Share Link / Guest Dropbox...</div>
-    <div class="context-item" onclick="triggerDiff()"><i data-lucide="git-compare" style="width: 14px;"></i> Compare / Diff</div>
+    <div class="context-item" id="ctx-item-view" onclick="triggerView()"><i data-lucide="eye" style="width: 14px;"></i> Quick View (F3)</div>
+    <div class="context-item" id="ctx-item-edit" onclick="triggerEditor()"><i data-lucide="file-edit" style="width: 14px;"></i> Edit File (F4)</div>
+    <div class="context-item context-submenu-parent" id="ctx-item-openwith" onmouseenter="populateOpenWithSubmenu()">
+      <span style="display: flex; align-items: center; gap: 6px;"><i data-lucide="external-link" style="width: 14px; color: var(--accent);"></i> Open With...</span>
+      <i data-lucide="chevron-right" style="width: 12px; margin-left: auto;"></i>
+      <div class="context-submenu" id="ctx-openwith-submenu"></div>
+    </div>
+    <div class="context-item context-submenu-parent" id="ctx-item-custom-actions" onmouseenter="populateCustomActionsSubmenu()" style="display: none;">
+      <span style="display: flex; align-items: center; gap: 6px;"><i data-lucide="terminal" style="width: 14px; color: var(--accent);"></i> Custom Actions...</span>
+      <i data-lucide="chevron-right" style="width: 12px; margin-left: auto;"></i>
+      <div class="context-submenu" id="ctx-custom-actions-submenu"></div>
+    </div>
+    <div class="context-item" id="ctx-item-download" onclick="triggerDownload()"><i data-lucide="download" style="width: 14px;"></i> Download / Batch Zip</div>
+    <div class="context-item" id="ctx-item-share" onclick="triggerShare()"><i data-lucide="share-2" style="width: 14px; color: var(--accent);"></i> Share Link / Guest Dropbox...</div>
+    <div class="context-item" id="ctx-item-diff" onclick="triggerDiff()"><i data-lucide="git-compare" style="width: 14px;"></i> Compare / Diff</div>
     <div class="context-sep"></div>
     <div class="context-item" onclick="triggerPermissions()"><i data-lucide="lock" style="width: 14px;"></i> Permissions & Ownership</div>
     <div class="context-item" onclick="triggerCopy()"><i data-lucide="copy" style="width: 14px;"></i> Copy to Target Pane (F5)</div>
@@ -332,6 +344,195 @@
       <div class="modal-footer">
         <button class="btn" onclick="closeModal('permissions-modal')">Cancel</button>
         <button class="btn btn-accent" id="btn-save-permissions">Apply Permissions</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Windows-Style Comprehensive File & Folder Properties Modal -->
+  <div class="modal-overlay" id="properties-modal" style="z-index: 2950;">
+    <div class="modal-box" style="width: 560px; max-width: 95vw; height: 580px; max-height: 90vh; display: flex; flex-direction: column;">
+      <div class="modal-header" style="padding: 10px 16px; border-bottom: 1px solid var(--border);">
+        <div style="display: flex; align-items: center; gap: 8px; overflow: hidden;">
+          <img id="prop-header-icon" src="assets/folder-open.png" style="width: 18px; height: 18px; object-fit: contain;">
+          <span id="prop-header-title" style="font-weight: 700; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; overflow: hidden;">Properties</span>
+        </div>
+        <button class="btn btn-icon" onclick="closeModal('properties-modal')"><i data-lucide="x"></i></button>
+      </div>
+
+      <!-- Properties Tabs Header -->
+      <div class="settings-tabs" style="border-bottom: 1px solid var(--border); padding: 0 8px;">
+        <button class="settings-tab-btn active" id="btn-prop-tab-general" onclick="switchPropertiesTab('prop-tab-general')"><i data-lucide="info"></i> General</button>
+        <button class="settings-tab-btn" id="btn-prop-tab-security" onclick="switchPropertiesTab('prop-tab-security')"><i data-lucide="shield"></i> Security</button>
+        <button class="settings-tab-btn" id="btn-prop-tab-checksums" onclick="switchPropertiesTab('prop-tab-checksums')"><i data-lucide="hash"></i> Checksums</button>
+        <button class="settings-tab-btn" id="btn-prop-tab-tags" onclick="switchPropertiesTab('prop-tab-tags')"><i data-lucide="tag"></i> Color & Tags</button>
+      </div>
+
+      <!-- Properties Modal Body -->
+      <div class="modal-body" style="flex: 1; overflow-y: auto; padding: 14px 16px;">
+        <!-- Tab 1: General & EXIF/Metadata -->
+        <div class="settings-tab-content active" id="prop-tab-general">
+          <div style="display: flex; gap: 14px; align-items: center; padding-bottom: 12px; border-bottom: 1px solid var(--border); margin-bottom: 12px;">
+            <div id="prop-big-icon-container" style="width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; background: var(--bg-active); border-radius: 8px; border: 1px solid var(--border);">
+              <img id="prop-big-icon" src="assets/folder-open.png" style="width: 32px; height: 32px; object-fit: contain;">
+            </div>
+            <div style="flex: 1; min-width: 0;">
+              <input type="text" id="prop-input-filename" class="pane-quick-filter" style="width: 100%; font-weight: 700; font-size: 13px; padding: 5px 8px;" readonly>
+              <div id="prop-file-type-desc" style="font-size: 11px; color: var(--text-muted); margin-top: 3px;">File Folder</div>
+            </div>
+          </div>
+
+          <table class="properties-table" style="width: 100%; font-size: 12px; border-collapse: collapse;">
+            <tr>
+              <td style="width: 110px; color: var(--text-muted);">Location:</td>
+              <td style="font-family: var(--font-mono); font-size: 11px; word-break: break-all;" id="prop-val-location">/home/user</td>
+            </tr>
+            <tr>
+              <td style="color: var(--text-muted);">Size:</td>
+              <td style="font-weight: 600;" id="prop-val-size">0 B (0 bytes)</td>
+            </tr>
+            <tr>
+              <td style="color: var(--text-muted);">Contains:</td>
+              <td id="prop-val-contains">-</td>
+            </tr>
+            <tr>
+              <td style="color: var(--text-muted);">Created:</td>
+              <td id="prop-val-created">-</td>
+            </tr>
+            <tr>
+              <td style="color: var(--text-muted);">Modified:</td>
+              <td id="prop-val-modified">-</td>
+            </tr>
+            <tr>
+              <td style="color: var(--text-muted);">Permissions:</td>
+              <td style="font-family: var(--font-mono);" id="prop-val-mode">-</td>
+            </tr>
+          </table>
+
+          <!-- Media / EXIF Section if available -->
+          <div id="prop-media-section" style="display: none; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border);">
+            <div style="font-weight: 700; font-size: 11px; text-transform: uppercase; color: var(--accent); margin-bottom: 6px;">Media & EXIF Metadata</div>
+            <div id="prop-media-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 11px;"></div>
+          </div>
+        </div>
+
+        <!-- Tab 2: Permissions & Security -->
+        <div class="settings-tab-content" id="prop-tab-security">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <span style="font-weight: 600; font-size: 12px; color: var(--accent);">Unix POSIX Permissions & Ownership</span>
+            <span class="perm-octal-badge" id="prop-perm-octal">0755</span>
+          </div>
+
+          <table class="perm-matrix" style="width: 100%; margin-bottom: 12px;">
+            <thead>
+              <tr>
+                <th>Class</th>
+                <th>Read (r)</th>
+                <th>Write (w)</th>
+                <th>Execute (x)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style="font-weight: 600; color: var(--accent);">Owner (u)</td>
+                <td><input type="checkbox" id="prop-perm-u-r" onchange="updatePropPermFromCheckboxes()"></td>
+                <td><input type="checkbox" id="prop-perm-u-w" onchange="updatePropPermFromCheckboxes()"></td>
+                <td><input type="checkbox" id="prop-perm-u-x" onchange="updatePropPermFromCheckboxes()"></td>
+              </tr>
+              <tr>
+                <td style="font-weight: 600; color: var(--info);">Group (g)</td>
+                <td><input type="checkbox" id="prop-perm-g-r" onchange="updatePropPermFromCheckboxes()"></td>
+                <td><input type="checkbox" id="prop-perm-g-w" onchange="updatePropPermFromCheckboxes()"></td>
+                <td><input type="checkbox" id="prop-perm-g-x" onchange="updatePropPermFromCheckboxes()"></td>
+              </tr>
+              <tr>
+                <td style="font-weight: 600; color: var(--text-muted);">Others (o)</td>
+                <td><input type="checkbox" id="prop-perm-o-r" onchange="updatePropPermFromCheckboxes()"></td>
+                <td><input type="checkbox" id="prop-perm-o-w" onchange="updatePropPermFromCheckboxes()"></td>
+                <td><input type="checkbox" id="prop-perm-o-x" onchange="updatePropPermFromCheckboxes()"></td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px;">
+            <div>
+              <label style="font-size: 11px; display: block; margin-bottom: 4px;">Owner User:</label>
+              <select id="prop-perm-owner" class="pane-quick-filter" style="width: 100%;"></select>
+            </div>
+            <div>
+              <label style="font-size: 11px; display: block; margin-bottom: 4px;">Group:</label>
+              <select id="prop-perm-group" class="pane-quick-filter" style="width: 100%;"></select>
+            </div>
+          </div>
+
+          <div style="margin-bottom: 12px;" id="prop-perm-recursive-wrapper">
+            <label style="font-weight: normal; font-size: 12px; display: flex; align-items: center; gap: 6px;">
+              <input type="checkbox" id="prop-perm-recursive"> Apply recursively to subfolders
+            </label>
+          </div>
+
+          <button class="btn btn-accent btn-sm" onclick="savePropertiesSecurity()"><i data-lucide="check"></i> Apply Security Changes</button>
+        </div>
+
+        <!-- Tab 3: Checksums -->
+        <div class="settings-tab-content" id="prop-tab-checksums">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <span style="font-weight: 600; font-size: 12px; color: var(--accent);">File Checksums & Integrity</span>
+            <button class="btn btn-sm" onclick="calculatePropertiesChecksums()"><i data-lucide="play"></i> Compute Checksums</button>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <div>
+              <label style="font-size: 10px; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">SHA-256 Checksum:</label>
+              <div style="display: flex; gap: 6px; margin-top: 2px;">
+                <input type="text" id="prop-hash-sha256" class="pane-quick-filter" readonly style="flex: 1; font-family: var(--font-mono); font-size: 11px;" value="-">
+                <button class="btn btn-icon btn-sm" onclick="copyPropHash('prop-hash-sha256')" title="Copy SHA-256"><i data-lucide="copy"></i></button>
+              </div>
+            </div>
+            <div>
+              <label style="font-size: 10px; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">MD5 Checksum:</label>
+              <div style="display: flex; gap: 6px; margin-top: 2px;">
+                <input type="text" id="prop-hash-md5" class="pane-quick-filter" readonly style="flex: 1; font-family: var(--font-mono); font-size: 11px;" value="-">
+                <button class="btn btn-icon btn-sm" onclick="copyPropHash('prop-hash-md5')" title="Copy MD5"><i data-lucide="copy"></i></button>
+              </div>
+            </div>
+            <div>
+              <label style="font-size: 10px; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">SHA-1 Checksum:</label>
+              <div style="display: flex; gap: 6px; margin-top: 2px;">
+                <input type="text" id="prop-hash-sha1" class="pane-quick-filter" readonly style="flex: 1; font-family: var(--font-mono); font-size: 11px;" value="-">
+                <button class="btn btn-icon btn-sm" onclick="copyPropHash('prop-hash-sha1')" title="Copy SHA-1"><i data-lucide="copy"></i></button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 4: Color & Tags -->
+        <div class="settings-tab-content" id="prop-tab-tags">
+          <div class="form-group">
+            <label style="font-weight: 600; font-size: 12px; margin-bottom: 6px; display: block;">Color Label:</label>
+            <div class="context-color-palette" style="display: flex; gap: 8px; margin-top: 4px;">
+              <span class="color-dot color-red" onclick="setPropFileColor('red')" title="Red (Urgent)"></span>
+              <span class="color-dot color-orange" onclick="setPropFileColor('orange')" title="Orange (Pending)"></span>
+              <span class="color-dot color-yellow" onclick="setPropFileColor('yellow')" title="Yellow (Review)"></span>
+              <span class="color-dot color-green" onclick="setPropFileColor('green')" title="Green (Approved)"></span>
+              <span class="color-dot color-blue" onclick="setPropFileColor('blue')" title="Blue (Important)"></span>
+              <span class="color-dot color-purple" onclick="setPropFileColor('purple')" title="Purple (Personal)"></span>
+              <span class="color-dot color-none" onclick="setPropFileColor('none')" title="Clear Label">✕</span>
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-top: 16px;">
+            <label style="font-weight: 600; font-size: 12px; margin-bottom: 6px; display: block;">Custom Tags:</label>
+            <div id="prop-tags-container" style="display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0; min-height: 28px;"></div>
+            <div style="display: flex; gap: 6px; margin-top: 6px;">
+              <input type="text" id="prop-input-new-tag" class="pane-quick-filter" placeholder="Add tag (e.g. docs, urgent)..." style="flex: 1;" onkeydown="if(event.key==='Enter')addPropCustomTag()">
+              <button class="btn btn-sm btn-accent" onclick="addPropCustomTag()"><i data-lucide="plus"></i> Add</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer" style="padding: 10px 16px; border-top: 1px solid var(--border);">
+        <button class="btn btn-accent btn-sm" onclick="closeModal('properties-modal')">Close</button>
       </div>
     </div>
   </div>
@@ -558,7 +759,10 @@
       <!-- User Settings Tabs Header -->
       <div class="settings-tabs">
         <button class="settings-tab-btn active" onclick="switchSettingsTab('tab-general')"><i data-lucide="sliders"></i> General</button>
-        <button class="settings-tab-btn" onclick="switchSettingsTab('tab-palette')"><i data-lucide="palette"></i> Themes & Palette</button>
+        <button class="settings-tab-btn" onclick="switchSettingsTab('tab-columns')"><i data-lucide="columns-3"></i> Columns & Views</button>
+        <button class="settings-tab-btn" onclick="switchSettingsTab('tab-openwith')"><i data-lucide="external-link"></i> Open With</button>
+        <button class="settings-tab-btn" onclick="switchSettingsTab('tab-context')"><i data-lucide="mouse-pointer"></i> Context Menu</button>
+        <button class="settings-tab-btn" onclick="switchSettingsTab('tab-palette')"><i data-lucide="palette"></i> Themes</button>
         <button class="settings-tab-btn" onclick="switchSettingsTab('tab-desktop')"><i data-lucide="monitor"></i> Desktop & Tray</button>
         <button class="settings-tab-btn" onclick="switchSettingsTab('tab-bookmarks')"><i data-lucide="bookmark"></i> Bookmarks</button>
         <button class="settings-tab-btn" onclick="switchSettingsTab('tab-keys')"><i data-lucide="keyboard"></i> Keybindings</button>
@@ -654,6 +858,152 @@
               <button class="perm-chip" onclick="setFontSizePreset(17)">Large (17px)</button>
             </div>
             <div class="form-hint">Adjust text size smoothly across file tables, breadcrumbs, and panes.</div>
+          </div>
+        </div>
+
+        <!-- Tab: Columns & View Modes -->
+        <div class="settings-tab-content" id="tab-columns">
+          <h4 style="color: var(--accent); margin-bottom: 8px;">Columns & View Modes Configuration</h4>
+          <p style="color: var(--text-muted); font-size: 11px; margin-bottom: 14px;">Customize default file view modes, resizable table column visibility, and widths.</p>
+
+          <div class="form-group">
+            <label>Default Panel View Mode:</label>
+            <div style="display: flex; gap: 10px; margin-top: 6px;">
+              <label class="radio-label" style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                <input type="radio" name="setting-view-mode" value="details" checked onchange="setDefaultViewMode(this.value)">
+                <span><b>Details Table</b> (Orthodox table with Name, Size, Modified, Mode, Owner)</span>
+              </label>
+            </div>
+            <div style="display: flex; gap: 10px; margin-top: 6px;">
+              <label class="radio-label" style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                <input type="radio" name="setting-view-mode" value="grid" onchange="setDefaultViewMode(this.value)">
+                <span><b>Thumbnail Gallery / Grid</b> (Visual preview cards for photos, media & documents)</span>
+              </label>
+            </div>
+            <div style="display: flex; gap: 10px; margin-top: 6px;">
+              <label class="radio-label" style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                <input type="radio" name="setting-view-mode" value="compact" onchange="setDefaultViewMode(this.value)">
+                <span><b>Compact Multi-Column List</b> (High-density multi-column filename browser)</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Visible Table Columns (Details Mode):</label>
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 6px;" id="column-visibility-checkboxes">
+              <label style="font-weight: normal; display: flex; align-items: center; gap: 6px;"><input type="checkbox" id="col-toggle-name" checked disabled> <b>File Name</b> (Always Visible)</label>
+              <label style="font-weight: normal; display: flex; align-items: center; gap: 6px;"><input type="checkbox" id="col-toggle-ext" onchange="toggleColumnVisibility('ext', this.checked)"> File Extension (.ext)</label>
+              <label style="font-weight: normal; display: flex; align-items: center; gap: 6px;"><input type="checkbox" id="col-toggle-size" checked onchange="toggleColumnVisibility('size', this.checked)"> File Size</label>
+              <label style="font-weight: normal; display: flex; align-items: center; gap: 6px;"><input type="checkbox" id="col-toggle-modified" checked onchange="toggleColumnVisibility('modified', this.checked)"> Date Modified</label>
+              <label style="font-weight: normal; display: flex; align-items: center; gap: 6px;"><input type="checkbox" id="col-toggle-created" onchange="toggleColumnVisibility('created', this.checked)"> Date Created</label>
+              <label style="font-weight: normal; display: flex; align-items: center; gap: 6px;"><input type="checkbox" id="col-toggle-mode" checked onchange="toggleColumnVisibility('mode', this.checked)"> Permissions / Mode (POSIX / Octal)</label>
+              <label style="font-weight: normal; display: flex; align-items: center; gap: 6px;"><input type="checkbox" id="col-toggle-owner" checked onchange="toggleColumnVisibility('owner', this.checked)"> Owner</label>
+              <label style="font-weight: normal; display: flex; align-items: center; gap: 6px;"><input type="checkbox" id="col-toggle-group" onchange="toggleColumnVisibility('group', this.checked)"> Group</label>
+              <label style="font-weight: normal; display: flex; align-items: center; gap: 6px;"><input type="checkbox" id="col-toggle-hash" onchange="toggleColumnVisibility('hash', this.checked)"> SHA-256 Checksum</label>
+              <label style="font-weight: normal; display: flex; align-items: center; gap: 6px;"><input type="checkbox" id="col-toggle-tags" onchange="toggleColumnVisibility('tags', this.checked)"> Tags & Colors</label>
+            </div>
+            <div class="form-hint" style="margin-top: 8px;">You can also drag column header borders in file panels to resize column widths dynamically, double-click dividers to auto-fit, or right-click any header to toggle columns.</div>
+          </div>
+
+          <div class="form-group">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <label style="margin-bottom: 0;">Reset Column Widths:</label>
+                <div class="form-hint">Restore default column widths across all panes.</div>
+              </div>
+              <button class="btn btn-sm" onclick="resetAllColumnWidths()"><i data-lucide="rotate-ccw"></i> Reset Widths</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab: Open With & External Handlers -->
+        <div class="settings-tab-content" id="tab-openwith">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <div>
+              <h4 style="color: var(--accent); margin: 0;">Open With & External Application Handlers</h4>
+              <p style="color: var(--text-muted); font-size: 11px; margin: 4px 0 0;">Map file extensions to external desktop applications and custom launchers.</p>
+            </div>
+            <button class="btn btn-accent btn-sm" onclick="showAddOpenWithRulePrompt()"><i data-lucide="plus"></i> Add Handler</button>
+          </div>
+
+          <div id="openwith-rules-list" style="margin-top: 12px;">
+            <!-- Populated dynamically via JS -->
+          </div>
+
+          <!-- Add / Edit Rule Form -->
+          <div id="openwith-rule-form" style="display: none; background: var(--bg-active); border: 1px solid var(--border); border-radius: 6px; padding: 12px; margin-top: 12px;">
+            <input type="hidden" id="openwith-edit-id" value="">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+              <div>
+                <label style="font-size: 11px; display: block; margin-bottom: 4px;">Application / Rule Name:</label>
+                <input type="text" id="openwith-input-name" class="pane-quick-filter" style="width: 100%;" placeholder="e.g. VLC Player">
+              </div>
+              <div>
+                <label style="font-size: 11px; display: block; margin-bottom: 4px;">Matching Extensions (comma-separated):</label>
+                <input type="text" id="openwith-input-exts" class="pane-quick-filter" style="width: 100%;" placeholder="e.g. mp4, mkv, avi, webm">
+              </div>
+            </div>
+            <div style="margin-bottom: 10px;">
+              <label style="font-size: 11px; display: block; margin-bottom: 4px;">Command Line (%1 or {file} = full path):</label>
+              <input type="text" id="openwith-input-cmd" class="pane-quick-filter" style="width: 100%; font-family: var(--font-mono);" placeholder='e.g. vlc "%1" or code "%1"'>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <button class="btn btn-accent btn-sm" onclick="saveOpenWithRule()"><i data-lucide="check"></i> Save Rule</button>
+              <button class="btn btn-sm" onclick="hideOpenWithRuleForm()">Cancel</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab: Context Menu Customizer -->
+        <div class="settings-tab-content" id="tab-context">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <div>
+              <h4 style="color: var(--accent); margin: 0;">Context Menu Customizer & Shell Actions</h4>
+              <p style="color: var(--text-muted); font-size: 11px; margin: 4px 0 0;">Toggle built-in context actions and create custom scripts with parameter tokens.</p>
+            </div>
+            <button class="btn btn-accent btn-sm" onclick="showAddCustomActionPrompt()"><i data-lucide="plus"></i> New Shell Action</button>
+          </div>
+
+          <div class="form-group" style="margin-top: 12px;">
+            <label>Built-in Context Menu Items Visibility:</label>
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 6px;" id="context-items-checkboxes">
+              <label style="font-weight: normal; display: flex; align-items: center; gap: 6px;"><input type="checkbox" id="ctx-toggle-view" checked onchange="toggleContextItemVisibility('view', this.checked)"> Quick View (F3)</label>
+              <label style="font-weight: normal; display: flex; align-items: center; gap: 6px;"><input type="checkbox" id="ctx-toggle-edit" checked onchange="toggleContextItemVisibility('edit', this.checked)"> Edit in EditorDog (F4)</label>
+              <label style="font-weight: normal; display: flex; align-items: center; gap: 6px;"><input type="checkbox" id="ctx-toggle-openwith" checked onchange="toggleContextItemVisibility('openwith', this.checked)"> Open With Submenu</label>
+              <label style="font-weight: normal; display: flex; align-items: center; gap: 6px;"><input type="checkbox" id="ctx-toggle-download" checked onchange="toggleContextItemVisibility('download', this.checked)"> Download / Batch Zip</label>
+              <label style="font-weight: normal; display: flex; align-items: center; gap: 6px;"><input type="checkbox" id="ctx-toggle-share" checked onchange="toggleContextItemVisibility('share', this.checked)"> Share Link / Guest Dropbox</label>
+              <label style="font-weight: normal; display: flex; align-items: center; gap: 6px;"><input type="checkbox" id="ctx-toggle-diff" checked onchange="toggleContextItemVisibility('diff', this.checked)"> Compare / Diff (F9)</label>
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-top: 16px;">
+            <label>User-Defined Shell Actions ({file}, {dir}, {selection}, {target_pane}):</label>
+            <div id="custom-actions-list" style="margin-top: 8px;">
+              <!-- Populated dynamically via JS -->
+            </div>
+          </div>
+
+          <!-- Add / Edit Custom Action Form -->
+          <div id="custom-action-form" style="display: none; background: var(--bg-active); border: 1px solid var(--border); border-radius: 6px; padding: 12px; margin-top: 12px;">
+            <input type="hidden" id="custom-action-edit-id" value="">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+              <div>
+                <label style="font-size: 11px; display: block; margin-bottom: 4px;">Action Label:</label>
+                <input type="text" id="custom-action-input-label" class="pane-quick-filter" style="width: 100%;" placeholder="e.g. Git Pull Repo">
+              </div>
+              <div>
+                <label style="font-size: 11px; display: block; margin-bottom: 4px;">Lucide Icon Name:</label>
+                <input type="text" id="custom-action-input-icon" class="pane-quick-filter" style="width: 100%;" placeholder="e.g. git-branch, terminal, file-code">
+              </div>
+            </div>
+            <div style="margin-bottom: 10px;">
+              <label style="font-size: 11px; display: block; margin-bottom: 4px;">Shell Command (Tokens: <code>{file}</code>, <code>{dir}</code>, <code>{selection}</code>, <code>{target_pane}</code>):</label>
+              <input type="text" id="custom-action-input-cmd" class="pane-quick-filter" style="width: 100%; font-family: var(--font-mono);" placeholder="e.g. git -C {dir} pull or 7z a -tzip archive.zip {selection}">
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <button class="btn btn-accent btn-sm" onclick="saveCustomShellAction()"><i data-lucide="check"></i> Save Action</button>
+              <button class="btn btn-sm" onclick="hideCustomActionForm()">Cancel</button>
+            </div>
           </div>
         </div>
 
@@ -2492,7 +2842,7 @@
           <div style="font-size: 18px; font-weight: 800; color: var(--accent); letter-spacing: 0.5px;">CommanderDog</div>
           <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 10px;">Multi-Tab Web Commander - By Woofson</div>
           <div style="display: flex; justify-content: center; gap: 6px; flex-wrap: wrap;">
-            <span id="about-version-badge" class="badge" style="background: rgba(245, 158, 11, 0.2); color: var(--accent); border: 1px solid rgba(245, 158, 11, 0.4); font-weight: 700;">v0.6.6-rc1 (Desktop & Web)</span>
+            <span id="about-version-badge" class="badge" style="background: rgba(245, 158, 11, 0.2); color: var(--accent); border: 1px solid rgba(245, 158, 11, 0.4); font-weight: 700;">v0.6.7-rc1 (Desktop & Web)</span>
             <span class="badge" style="background: rgba(56, 189, 248, 0.15); color: var(--info); border: 1px solid rgba(56, 189, 248, 0.3);">Rust + Axum + Tokio</span>
             <span class="badge" style="background: rgba(34, 197, 94, 0.15); color: var(--success); border: 1px solid rgba(34, 197, 94, 0.3);">MIT Open Source</span>
           </div>
@@ -3052,46 +3402,43 @@
     </div>
   </div>
 
-  <!-- Custom Tags & Color Labels Editor Modal -->
+  <!-- Simple Custom Tags Modal -->
   <div class="modal-overlay" id="tags-modal">
-    <div class="modal-box" style="width: 440px;">
+    <div class="modal-box" style="width: 420px;">
       <div class="modal-header">
         <div style="display: flex; align-items: center; gap: 8px;">
-          <span style="font-size: 16px;">🏷️</span>
-          <span style="font-weight: 700;">Color Labels & Tags</span>
+          <i data-lucide="tag" style="width: 16px; height: 16px; color: var(--accent);"></i>
+          <span style="font-weight: 700;">Custom Tags</span>
         </div>
         <button class="btn btn-icon" onclick="closeModal('tags-modal')"><i data-lucide="x"></i></button>
       </div>
 
-      <div class="modal-body" style="padding: 16px; display: flex; flex-direction: column; gap: 14px;">
+      <div class="modal-body" style="padding: 16px; display: flex; flex-direction: column; gap: 12px;">
         <div>
-          <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 6px;">Target Items:</div>
-          <div id="tags-modal-targets" style="font-size: 12px; font-weight: 600; font-family: var(--font-mono); word-break: break-all;">1 file selected</div>
+          <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 4px;">Target Item:</div>
+          <div id="tags-modal-targets" style="font-size: 12px; font-weight: 600; font-family: var(--font-mono); color: var(--accent); word-break: break-all;">1 file selected</div>
         </div>
 
         <div>
-          <label style="font-size: 11px; font-weight: 600; display: block; margin-bottom: 6px;">Color Label:</label>
-          <div class="tags-color-picker" id="tags-modal-color-picker">
-            <button type="button" class="tag-color-btn color-none active" onclick="selectModalColor('none')" title="None">✕</button>
-            <button type="button" class="tag-color-btn color-red" onclick="selectModalColor('red')" title="Red (Urgent)"></button>
-            <button type="button" class="tag-color-btn color-orange" onclick="selectModalColor('orange')" title="Orange (Pending)"></button>
-            <button type="button" class="tag-color-btn color-yellow" onclick="selectModalColor('yellow')" title="Yellow (Review)"></button>
-            <button type="button" class="tag-color-btn color-green" onclick="selectModalColor('green')" title="Green (Approved)"></button>
-            <button type="button" class="tag-color-btn color-blue" onclick="selectModalColor('blue')" title="Blue (Important)"></button>
-            <button type="button" class="tag-color-btn color-purple" onclick="selectModalColor('purple')" title="Purple (Personal)"></button>
+          <label style="font-size: 11px; font-weight: 600; display: block; margin-bottom: 6px;">Active Tags:</label>
+          <div id="tags-modal-chips" style="display: flex; flex-wrap: wrap; gap: 6px; min-height: 32px; padding: 6px 10px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 6px; align-items: center;">
+            <span style="color: var(--text-muted); font-size: 11px;">No tags yet</span>
           </div>
         </div>
 
         <div>
-          <label style="font-size: 11px; font-weight: 600; display: block; margin-bottom: 6px;">Custom Text Tags (comma separated):</label>
-          <input type="text" id="tags-modal-input" class="pane-quick-filter" style="width: 100%;" placeholder="e.g. invoice, urgent, reviewed, v2">
-          <div style="font-size: 10px; color: var(--text-dim); margin-top: 4px;">Press Apply to save color labels and tags</div>
+          <label style="font-size: 11px; font-weight: 600; display: block; margin-bottom: 6px;">Add New Tag(s):</label>
+          <div style="display: flex; gap: 6px;">
+            <input type="text" id="tags-modal-input" class="pane-quick-filter" style="flex: 1;" placeholder="e.g. invoice, project, urgent" onkeydown="if (event.key === 'Enter') { event.preventDefault(); addModalTagFromInput(); }">
+            <button class="btn btn-accent btn-sm" onclick="addModalTagFromInput()"><i data-lucide="plus" style="width: 13px;"></i> Add</button>
+          </div>
+          <div style="font-size: 10px; color: var(--text-dim); margin-top: 4px;">Separate multiple tags with commas or press Enter to add</div>
         </div>
       </div>
 
       <div class="modal-footer">
         <button class="btn" onclick="closeModal('tags-modal')">Cancel</button>
-        <button class="btn btn-accent" onclick="saveModalTags()"><i data-lucide="check"></i> Apply Tags</button>
+        <button class="btn btn-accent" onclick="saveModalTags()"><i data-lucide="check"></i> Save Tags</button>
       </div>
     </div>
   </div>

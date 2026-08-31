@@ -7,6 +7,70 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.6.8] - 2026-08-31
+
+### 📐 Resizable Columns, Custom Column Chooser, Multi-Size Grid & Folder Tree Sidebar
+- **Interactive Drag-to-Resize Table Columns**:
+  - **Dynamic Column Resizers**: Smooth grab-and-drag dividers on all table headers (`Name`, `Ext`, `Size`, `Modified`, `Created`, `Mode`, `Owner`, `Group`, `SHA-256`, `Tags`).
+  - **Double-Click Auto-Fit (`autoFitColumn`)**: Double-clicking any column divider automatically scans DOM content widths and fits the column perfectly (with min 45px / max 600px limits).
+  - **Auto-Fit All Columns**: One-click action to auto-fit all visible columns simultaneously.
+  - **Sticky LocalStorage Persistence**: Column widths save to `localStorage.cd_col_widths` and seamlessly restore across sessions and panes.
+- **Custom Column Chooser & Header Settings Popover**:
+  - **Right-Click Table Header Chooser**: Right-clicking any column header opens a sleek popover with checkboxes to toggle any column on or off on the fly.
+  - **Quick Header Slider Button**: Added `sliders-horizontal` tool button to pane top bar for instant column visibility customization.
+  - **Extended Columns**: Added support for *Date Created*, *SHA-256 Checksum Preview*, and *Color Labels & Tags* directly in the file table.
+  - **Reset to Defaults**: 1-click restore to standard orthodox column widths and visibility.
+- **Thumbnail Gallery Multi-Size View Modes**:
+  - **4 Card Preview Sizes**: Seamless switching between Small (`90px`), Medium (`130px`), Large (`180px`), and Extra Large (`260px`) grid cards.
+  - **Rich Card Previews**: High-DPI thumbnails for images, videos, documents, audio discs, and folders with item counts.
+- **Collapsible Directory Tree Sidebar Per Pane**:
+  - **Pane Folder Tree (`[ 🌳 ]` Toggle)**: Added collapsible sidebar on the left side of any pane header.
+  - **Expandable Hierarchy**: Live dynamic asynchronous subfolder expansion fetching subdirectories on demand.
+  - **Active Node Sync**: Automatically highlights and navigates the tree node when browsing directories in the active pane.
+  - **Draggable Sidebar Resizer**: Smooth drag divider to resize tree width between 120px and 450px with `localStorage` persistence.
+
+---
+
+## [0.6.7] - 2026-08-31
+
+### 🖱️ Orthodox Context Menu & Submenus, Windows Properties Dialog & GitHub Markdown Engine
+- **Orthodox Right-Click Context Menu & Submenus**:
+  - **Full-Width Viewport & Touch Submenus Fix**: Eliminated media query pointer restrictions and parent clipping (`overflow: visible`), enabling multi-level flyout submenus across all display resolutions.
+  - **Dynamic Collision Avoidance**: Automatically flips submenus to the left if near the right edge of the screen and offsets upwards if near the bottom viewport edge.
+  - **Tiered Action Hierarchy**: Cleanly structured into *Open with...*, *Quick view (F3)*, *Edit (F4)*, *Properties (Alt+Enter)*, *Copy to...*, *Move to...*, *Clipboard Actions (Copy/Cut/Paste/Rename/Delete)*, *Archive Submenu*, and *Tools Submenu*.
+- **Windows-Style Properties Dialog (`Alt+Enter`)**:
+  - **Tab 1: General & Media/EXIF**: Detailed file metadata, dimensions, camera model, lens, exposure, audio/video stream codecs, and bitrate.
+  - **Tab 2: Security & Permissions**: Interactive POSIX 3x3 permission matrix (`rwx` for User, Group, Others), octal display/input (`0755`), recursive permission applicator, and Owner/Group selectors.
+  - **Tab 3: Checksums & Hashes**: On-demand calculation of SHA-256, MD5, and SHA-1 cryptographic hashes with 1-click clipboard copy.
+  - **Tab 4: Color Labels & Tags**: Full palette selector and tag chip editor with instant SQLite persistence.
+- **GitHub-Flavored Markdown (GFM) & HTML Rendering**:
+  - **Raw HTML Tag Support**: Full support for `<details>`, `<summary>`, `<kbd>`, `<div>`, `<center>`, `<img>`, `<table>`, `<sup>`, `<sub>`, `<del>`, and `<br>` in EditorDog preview and Quick View.
+  - **GitHub Alerts**: Dedicated callouts for `> [!NOTE]`, `> [!TIP]`, `> [!IMPORTANT]`, `> [!WARNING]`, and `> [!CAUTION]`.
+  - **Code Blocks & Mermaid**: PrismJS syntax highlighting with 1-click *"Copy Code"* buttons and live Mermaid diagram rendering.
+  - **Dual-Engine Architecture**: Integrated `marked.js` with zero-dependency offline fallback parser for airgapped environments.
+- **Refined Header Color Dot & Custom Tags**:
+  - Top context header featuring a crisp circular dot with expandable mini color palette (`[ 🔴 🟠 🟡 🟢 🔵 🟣 ✕ ] [More...]`).
+  - Dynamic tag icon glowing emerald green (`#22c55e`) when tags are present on the file, and neutral gray when unassigned.
+  - Dedicated simple Custom Tags modal with chip pill management and instant add/remove.
+  - Fixed database persistence bug where clearing color labels was only visual; now explicitly updates and clears SQLite records.
+
+---
+
+## [0.6.6] - 2026-08-31
+
+### ⚙️ Windows NT Service, Autostart & Rich Filetype Icon Suite
+- **Windows NT Service & Autostart Management**:
+  - Headless background service management via `commanderdog service [install|uninstall|start|stop|status]`.
+  - Windows registry Run key autostart and Linux desktop integration.
+  - Minimization to system tray via `--minimized` / `--tray-only`.
+- **Extended Rich MIME Icon Suite**:
+  - Over 100+ specialized high-DPI vector icons for programming languages, 3D models, databases, media codecs, and system directories.
+  - Multi-resolution Windows `.ico` bundle for Windows Taskbar and Start Menu.
+- **Intelligent User Home Directory Fallback**:
+  - Automatic resolution of PAM / LDAP / DB home directory on fresh login sessions, preventing access errors on restricted roots (`/`).
+
+---
+
 ## [0.6.0] - 2026-08-30
 
 ### 🪟 Windows Native Desktop, Installers & Package Distribution

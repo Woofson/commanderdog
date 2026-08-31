@@ -148,6 +148,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   applyFKeyBarState();
   applyFontSize(App.fontSize);
   applyBorderSettings();
+  applyAllColumnWidths();
   applyTheme(localStorage.getItem('cd_theme') || 'amber-charcoal');
   startTasksPolling();
   initInactivityTracker();
@@ -161,7 +162,11 @@ function initPanes() {
   const defaultCount = 4;
   const defaultHome = getUserDefaultHomeDir();
   for (let i = 0; i < defaultCount; i++) {
-    App.panes.push(new PaneState(i, defaultHome));
+    const p = new PaneState(i, defaultHome);
+    p.viewMode = localStorage.getItem(`cd_pane_viewmode_${i}`) || 'details';
+    p.gridSize = localStorage.getItem(`cd_pane_gridsize_${i}`) || 'md';
+    p.showTree = localStorage.getItem(`cd_pane_tree_${i}`) === '1';
+    App.panes.push(p);
   }
   loadPaneCustomNames();
 }
@@ -496,10 +501,14 @@ function renderAllPanes() {
     const pane = App.panes[i];
     const paneEl = createPaneElement(pane, i);
     container.appendChild(paneEl);
+    if (pane.showTree) {
+      loadPaneDirectoryTree(i);
+    }
     loadPaneDirectory(i, pane.path);
   }
 
   applyPaneColors();
+  applyAllColumnWidths();
   if (window.lucide) lucide.createIcons();
 }
 
@@ -611,6 +620,7 @@ function createPaneElement(pane, index) {
         <button onclick="navPaneHistory(${index}, 1)" title="Forward"><i data-lucide="arrow-right"></i></button>
         <button onclick="navPaneUp(${index})" title="Parent Directory (Backspace)"><i data-lucide="arrow-up"></i></button>
         <button onclick="refreshPane(${index})" title="Refresh"><i data-lucide="rotate-cw"></i></button>
+        <button class="btn btn-icon pane-tree-btn desktop-header-tool ${App.panes[index]?.showTree ? 'active' : ''}" id="btn-tree-${index}" onclick="event.stopPropagation(); togglePaneTree(${index});" title="Toggle Folder Tree Sidebar"><i data-lucide="folder-tree"></i></button>
         <button onclick="openRemoteModal(${index})" class="desktop-header-tool" title="Connect Remote SFTP / WebDAV Server"><i data-lucide="network"></i></button>
       </div>
 
@@ -644,27 +654,78 @@ function createPaneElement(pane, index) {
         </button>
       </div>
 
+      <!-- View Mode Buttons (Details / Grid / Compact) & Column Chooser -->
+      <div class="viewmode-btn-group desktop-header-tool" style="display: flex; gap: 2px; align-items: center;">
+        <button class="btn btn-icon viewmode-btn ${App.panes[index]?.viewMode === 'details' ? 'active' : ''}" id="btn-view-details-${index}" onclick="setPaneViewMode(${index}, 'details')" title="Details Table View"><i data-lucide="list"></i></button>
+        <button class="btn btn-icon viewmode-btn ${App.panes[index]?.viewMode === 'grid' ? 'active' : ''}" id="btn-view-grid-${index}" onclick="setPaneViewMode(${index}, 'grid')" title="Thumbnail Gallery (Grid)"><i data-lucide="layout-grid"></i></button>
+        <button class="btn btn-icon viewmode-btn ${App.panes[index]?.viewMode === 'compact' ? 'active' : ''}" id="btn-view-compact-${index}" onclick="setPaneViewMode(${index}, 'compact')" title="Compact Multi-Column List"><i data-lucide="columns-3"></i></button>
+        <button class="btn btn-icon desktop-header-tool" onclick="openColumnHeaderContextMenu(event, ${index})" title="Configure Table Columns & Auto-Fit"><i data-lucide="sliders-horizontal" style="width: 13px; height: 13px; color: var(--accent);"></i></button>
+      </div>
+
       <input type="text" class="pane-quick-filter" placeholder="Filter (/)..." id="pane-filter-${index}" oninput="handleFilterInput(${index}, this.value)">
     </div>
 
     <div class="pane-content" id="pane-content-${index}">
-      <div class="pull-refresh-indicator" id="pull-refresh-${index}" style="display: none; height: 0px; overflow: hidden; justify-content: center; align-items: center; background: rgba(0,0,0,0.3); color: var(--accent); font-size: 11px; font-weight: 700; transition: height 0.1s linear; border-bottom: 1px dashed var(--border);">
-        <i data-lucide="rotate-cw" class="pull-refresh-spinner" style="width: 14px; margin-right: 6px;"></i>
-        <span class="pull-refresh-label">Pull down to refresh...</span>
+      <div class="pane-split-wrapper" id="pane-split-${index}">
+        <div class="pane-tree-sidebar" id="pane-tree-${index}" style="display: ${App.panes[index]?.showTree ? 'flex' : 'none'};"></div>
+        <div class="pane-tree-resizer" id="pane-tree-resizer-${index}" style="display: ${App.panes[index]?.showTree ? 'block' : 'none'};" onmousedown="initTreeResize(event, ${index})"></div>
+        <div class="pane-main-view" id="pane-main-${index}">
+          <div class="pull-refresh-indicator" id="pull-refresh-${index}" style="display: none; height: 0px; overflow: hidden; justify-content: center; align-items: center; background: rgba(0,0,0,0.3); color: var(--accent); font-size: 11px; font-weight: 700; transition: height 0.1s linear; border-bottom: 1px dashed var(--border);">
+            <i data-lucide="rotate-cw" class="pull-refresh-spinner" style="width: 14px; margin-right: 6px;"></i>
+            <span class="pull-refresh-label">Pull down to refresh...</span>
+          </div>
+          <table class="file-table" id="pane-table-${index}">
+            <thead>
+              <tr id="pane-header-row-${index}" oncontextmenu="event.preventDefault(); openColumnHeaderContextMenu(event, ${index});">
+                <th class="col-header col-icon" style="width: 28px; text-align: center;"></th>
+                <th class="col-header col-name" id="col-header-${index}-name" onclick="sortPane(${index}, 'name')" oncontextmenu="event.preventDefault(); openColumnHeaderContextMenu(event, ${index});">
+                  <span>Name</span>
+                  <div class="col-resizer" onmousedown="initColResize(event, ${index}, 'name')" ondblclick="autoFitColumn(${index}, 'name')" title="Drag to resize | Double-click to auto-fit"></div>
+                </th>
+                <th class="col-header col-ext" id="col-header-${index}-ext" onclick="sortPane(${index}, 'ext')" oncontextmenu="event.preventDefault(); openColumnHeaderContextMenu(event, ${index});">
+                  <span>Ext</span>
+                  <div class="col-resizer" onmousedown="initColResize(event, ${index}, 'ext')" ondblclick="autoFitColumn(${index}, 'ext')" title="Drag to resize | Double-click to auto-fit"></div>
+                </th>
+                <th class="col-header col-size" id="col-header-${index}-size" style="width: 80px;" onclick="sortPane(${index}, 'size')" oncontextmenu="event.preventDefault(); openColumnHeaderContextMenu(event, ${index});">
+                  <span>Size</span>
+                  <div class="col-resizer" onmousedown="initColResize(event, ${index}, 'size')" ondblclick="autoFitColumn(${index}, 'size')" title="Drag to resize | Double-click to auto-fit"></div>
+                </th>
+                <th class="col-header col-modified" id="col-header-${index}-modified" style="width: 130px;" onclick="sortPane(${index}, 'modified')" oncontextmenu="event.preventDefault(); openColumnHeaderContextMenu(event, ${index});">
+                  <span>Modified</span>
+                  <div class="col-resizer" onmousedown="initColResize(event, ${index}, 'modified')" ondblclick="autoFitColumn(${index}, 'modified')" title="Drag to resize | Double-click to auto-fit"></div>
+                </th>
+                <th class="col-header col-created" id="col-header-${index}-created" style="width: 130px; display: none;" onclick="sortPane(${index}, 'created')" oncontextmenu="event.preventDefault(); openColumnHeaderContextMenu(event, ${index});">
+                  <span>Created</span>
+                  <div class="col-resizer" onmousedown="initColResize(event, ${index}, 'created')" ondblclick="autoFitColumn(${index}, 'created')" title="Drag to resize | Double-click to auto-fit"></div>
+                </th>
+                <th class="col-header col-mode" id="col-header-${index}-mode" style="width: 75px;" oncontextmenu="event.preventDefault(); openColumnHeaderContextMenu(event, ${index});">
+                  <span>Mode</span>
+                  <div class="col-resizer" onmousedown="initColResize(event, ${index}, 'mode')" ondblclick="autoFitColumn(${index}, 'mode')" title="Drag to resize | Double-click to auto-fit"></div>
+                </th>
+                <th class="col-header col-owner" id="col-header-${index}-owner" style="width: 85px;" oncontextmenu="event.preventDefault(); openColumnHeaderContextMenu(event, ${index});">
+                  <span>Owner</span>
+                  <div class="col-resizer" onmousedown="initColResize(event, ${index}, 'owner')" ondblclick="autoFitColumn(${index}, 'owner')" title="Drag to resize | Double-click to auto-fit"></div>
+                </th>
+                <th class="col-header col-group" id="col-header-${index}-group" style="width: 85px; display: none;" oncontextmenu="event.preventDefault(); openColumnHeaderContextMenu(event, ${index});">
+                  <span>Group</span>
+                  <div class="col-resizer" onmousedown="initColResize(event, ${index}, 'group')" ondblclick="autoFitColumn(${index}, 'group')" title="Drag to resize | Double-click to auto-fit"></div>
+                </th>
+                <th class="col-header col-hash" id="col-header-${index}-hash" style="width: 100px; display: none;" oncontextmenu="event.preventDefault(); openColumnHeaderContextMenu(event, ${index});">
+                  <span>SHA-256</span>
+                  <div class="col-resizer" onmousedown="initColResize(event, ${index}, 'hash')" ondblclick="autoFitColumn(${index}, 'hash')" title="Drag to resize | Double-click to auto-fit"></div>
+                </th>
+                <th class="col-header col-tags" id="col-header-${index}-tags" style="width: 90px; display: none;" oncontextmenu="event.preventDefault(); openColumnHeaderContextMenu(event, ${index});">
+                  <span>Tags</span>
+                  <div class="col-resizer" onmousedown="initColResize(event, ${index}, 'tags')" ondblclick="autoFitColumn(${index}, 'tags')" title="Drag to resize | Double-click to auto-fit"></div>
+                </th>
+              </tr>
+            </thead>
+            <tbody id="pane-tbody-${index}"></tbody>
+          </table>
+          <div class="grid-gallery-container size-${App.panes[index]?.gridSize || 'md'}" id="pane-grid-${index}" style="display: none;"></div>
+          <div class="compact-list-container" id="pane-compact-${index}" style="display: none;"></div>
+        </div>
       </div>
-      <table class="file-table">
-        <thead>
-          <tr>
-            <th style="width: 28px; text-align: center;"></th>
-            <th onclick="sortPane(${index}, 'name')">Name</th>
-            <th style="width: 75px;" onclick="sortPane(${index}, 'size')">Size</th>
-            <th style="width: 125px;" onclick="sortPane(${index}, 'modified')">Modified</th>
-            <th style="width: 70px;">Mode</th>
-            <th style="width: 80px;">Owner</th>
-          </tr>
-        </thead>
-        <tbody id="pane-tbody-${index}"></tbody>
-      </table>
     </div>
 
     <div class="pane-footer" id="pane-footer-${index}">
@@ -877,6 +938,7 @@ async function loadPaneDirectory(paneIndex, targetPath, pushHistory = true, sele
       if (paneIndex === App.activePaneIndex) {
         syncTreeActiveNode(pane.path);
       }
+      syncPaneTreeActiveNode(paneIndex, pane.path);
     } catch (fErr) {
       console.warn('Footer/tree sync error:', fErr);
     }
@@ -1384,10 +1446,22 @@ async function showBreadcrumbSubfolderDropdown(event, paneIndex, parentDir) {
 
 function renderPaneTable(paneIndex) {
   const pane = App.panes[paneIndex];
+  const tableEl = document.getElementById(`pane-table-${paneIndex}`);
   const tbody = document.getElementById(`pane-tbody-${paneIndex}`);
+  const gridEl = document.getElementById(`pane-grid-${paneIndex}`);
+  const compactEl = document.getElementById(`pane-compact-${paneIndex}`);
   if (!tbody) return;
 
   tbody.innerHTML = '';
+  if (gridEl) gridEl.innerHTML = '';
+  if (compactEl) compactEl.innerHTML = '';
+
+  const mode = pane.viewMode || 'details';
+
+  // Toggle visible container
+  if (tableEl) tableEl.style.display = (mode === 'details') ? '' : 'none';
+  if (gridEl) gridEl.style.display = (mode === 'grid') ? 'grid' : 'none';
+  if (compactEl) compactEl.style.display = (mode === 'compact') ? 'flex' : 'none';
 
   let filtered = pane.entries;
   if (pane.filterText) {
@@ -1400,299 +1474,441 @@ function renderPaneTable(paneIndex) {
     if (a.is_dir !== b.is_dir) return a.is_dir ? -1 : 1;
     let cmp = 0;
     if (pane.sortBy === 'name') cmp = a.name.localeCompare(b.name);
+    else if (pane.sortBy === 'ext') {
+      const extA = a.name.includes('.') ? a.name.split('.').pop() : '';
+      const extB = b.name.includes('.') ? b.name.split('.').pop() : '';
+      cmp = extA.localeCompare(extB);
+    }
     else if (pane.sortBy === 'size') cmp = a.size - b.size;
     else if (pane.sortBy === 'modified') cmp = (a.modified || 0) - (b.modified || 0);
     return pane.sortAsc ? cmp : -cmp;
   });
 
   const isTouchDevice = window.innerWidth <= 768 || window.matchMedia('(pointer: coarse)').matches;
+  const isImageFile = (name) => /\.(png|jpe?g|webp|svg|gif|bmp|ico|avif|tiff)$/i.test(name);
 
-  // Parent directory ".." row when not at root (and enabled in settings)
-  if (App.showParentDir && pane.path !== '/' && pane.path !== '' && !pane.filterText) {
-    const parentTr = document.createElement('tr');
-    parentTr.className = 'file-row parent-dir-row';
-    parentTr.draggable = !isTouchDevice;
+  // Parent directory ".." when not at root
+  const showParent = App.showParentDir && pane.path !== '/' && pane.path !== '' && !pane.filterText;
 
-    let parentTouchStart = 0;
-    parentTr.ontouchstart = () => { parentTouchStart = Date.now(); };
-    parentTr.ontouchend = (e) => {
-      if (Date.now() - parentTouchStart < 400) {
-        e.preventDefault();
-        setActivePane(paneIndex);
-        navPaneUp(paneIndex);
-      }
-    };
-
-    parentTr.onclick = (e) => {
-      e.stopPropagation();
-      setActivePane(paneIndex);
-      if (isTouchDevice) {
-        navPaneUp(paneIndex);
-      } else {
-        pane.selected.clear();
-        pane.cursorIndex = -1;
-        renderPaneTable(paneIndex);
-      }
-    };
-
-    parentTr.ondblclick = (e) => {
-      e.stopPropagation();
-      setActivePane(paneIndex);
-      navPaneUp(paneIndex);
-    };
-
-    if (!isTouchDevice) {
-      parentTr.ondragover = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        parentTr.classList.add('drag-over-row');
-      };
-
-      parentTr.ondragleave = () => parentTr.classList.remove('drag-over-row');
-
-      parentTr.ondrop = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        parentTr.classList.remove('drag-over-row');
-        const parts = pane.path.split('/').filter(Boolean);
-        parts.pop();
-        const parent = parts.length === 0 ? '/' : '/' + parts.join('/');
-        handlePaneDrop(e, paneIndex, parent);
-      };
-    }
-
-    parentTr.innerHTML = `
-      <td class="file-cell file-cell-icon">
-        <div class="row-icon-wrapper">
-          <img src="assets/folder-open.png" class="file-icon-img" alt="Parent Directory" style="width: 17px; height: 17px;">
+  if (mode === 'grid') {
+    if (showParent) {
+      const pCard = document.createElement('div');
+      pCard.className = 'grid-gallery-card parent-dir-card';
+      pCard.innerHTML = `
+        <div class="grid-thumb-wrapper">
+          <img src="assets/folder-open.png" style="width: 44px; height: 44px; object-fit: contain;" alt="..">
         </div>
-      </td>
-      <td class="file-cell file-cell-name">
-        <span class="file-name-text" style="font-weight: 700; color: var(--accent); font-size: 13px;">..</span>
-      </td>
-      <td class="file-cell file-cell-mono file-cell-size" style="color: var(--accent); font-weight: 600;">&lt;UP&gt;</td>
-      <td class="file-cell file-cell-mono">-</td>
-      <td class="file-cell file-cell-mono">-</td>
-      <td class="file-cell file-cell-mono">-</td>
-    `;
-    tbody.appendChild(parentTr);
-  }
-
-  filtered.forEach((entry, idx) => {
-    const tagInfo = fileTagsMap.get(entry.path);
-    let colorClass = '';
-    let tagsHtml = '';
-    if (tagInfo) {
-      if (tagInfo.color_label && tagInfo.color_label !== 'none') {
-        colorClass = `file-row-color-${tagInfo.color_label}`;
-      }
-      if (tagInfo.tags && tagInfo.tags.length > 0) {
-        tagsHtml = tagInfo.tags.map(t => `<span class="file-tag-badge">#${escapeHtml(t)}</span>`).join('');
-      }
+        <div class="grid-card-name" style="font-weight: 700; color: var(--accent);">..</div>
+        <div class="grid-card-meta">&lt;UP&gt;</div>
+      `;
+      pCard.onclick = () => { setActivePane(paneIndex); navPaneUp(paneIndex); };
+      gridEl.appendChild(pCard);
     }
 
-    const isSelected = pane.selected.has(entry.path);
-    const tr = document.createElement('tr');
-    tr.className = `file-row ${isSelected ? 'selected' : ''} ${idx === pane.cursorIndex ? 'cursor-focus' : ''} ${colorClass}`;
-    tr.draggable = !isTouchDevice;
+    filtered.forEach((entry, idx) => {
+      const isSelected = pane.selected.has(entry.path);
+      const card = document.createElement('div');
+      card.className = `grid-gallery-card ${isSelected ? 'selected' : ''} ${idx === pane.cursorIndex ? 'cursor-focus' : ''}`;
+      card.draggable = !isTouchDevice;
 
-    if (!isTouchDevice) {
-      tr.ondragstart = (e) => {
-        const selectedPaths = pane.selected.size > 0 ? Array.from(pane.selected) : [entry.path];
-        e.dataTransfer.setData('text/plain', JSON.stringify({
-          sourcePane: paneIndex,
-          paths: selectedPaths
-        }));
-        e.dataTransfer.effectAllowed = 'copyMove';
-      };
-
-      tr.ondragover = (e) => {
-        if (entry.is_dir) {
-          e.preventDefault();
-          e.stopPropagation();
-          tr.classList.add('drag-over-row');
-        }
-      };
-
-      tr.ondragleave = () => {
-        if (entry.is_dir) {
-          tr.classList.remove('drag-over-row');
-        }
-      };
-
-      tr.ondrop = (e) => {
-        if (entry.is_dir) {
-          e.preventDefault();
-          e.stopPropagation();
-          tr.classList.remove('drag-over-row');
-          handlePaneDrop(e, paneIndex, entry.path);
-        }
-      };
-    }
-
-    let touchStartX = 0;
-    let touchStartY = 0;
-    let touchStartTime = 0;
-    let isScrolling = false;
-    let isLongPress = false;
-    let touchTimer = null;
-
-    // Standard Android tap-and-hold (long-press 400ms) for multi-select
-    tr.ontouchstart = (e) => {
-      if (!e.touches || e.touches.length === 0) return;
-      touchStartX = e.touches[0].clientX;
-      touchStartY = e.touches[0].clientY;
-      touchStartTime = Date.now();
-      isScrolling = false;
-      isLongPress = false;
-
-      touchTimer = setTimeout(() => {
-        if (isScrolling) return;
-        isLongPress = true;
-        setActivePane(paneIndex);
-        App.contextItem = entry;
-        App.contextPaneIndex = paneIndex;
-
-        // Toggle selection on tap-and-hold
-        if (pane.selected.has(entry.path)) {
-          pane.selected.delete(entry.path);
+      let thumbHtml = '';
+      if (entry.is_dir) {
+        thumbHtml = `<img src="assets/folder-open.png" style="width: 48px; height: 48px; object-fit: contain;" alt="Folder">`;
+      } else if (isImageFile(entry.name)) {
+        thumbHtml = `<img src="/api/files/download?path=${encodeURIComponent(entry.path)}" class="grid-thumb-img" loading="lazy" alt="${escapeHtml(entry.name)}" onerror="this.src='assets/logo.png'">`;
+      } else {
+        const iconDetails = getFileIconDetails(entry.name, false, entry.is_archive);
+        if (iconDetails.src) {
+          thumbHtml = `<img src="${iconDetails.src}" style="width: 44px; height: 44px; object-fit: contain;" alt="File">`;
         } else {
+          const colorStyle = iconDetails.color ? `style="color: ${iconDetails.color};"` : '';
+          thumbHtml = `<i data-lucide="${iconDetails.icon}" class="grid-icon-svg" ${colorStyle}></i>`;
+        }
+      }
+
+      card.innerHTML = `
+        <div class="grid-thumb-wrapper">${thumbHtml}</div>
+        <div class="grid-card-name" title="${escapeHtml(entry.name)}">${escapeHtml(entry.name)}</div>
+        <div class="grid-card-meta">${entry.is_dir ? '&lt;DIR&gt;' : formatBytes(entry.size)}</div>
+      `;
+
+      card.onclick = (e) => {
+        setActivePane(paneIndex);
+        if (e.shiftKey || e.ctrlKey) {
+          if (pane.selected.has(entry.path)) pane.selected.delete(entry.path);
+          else pane.selected.add(entry.path);
+        } else {
+          pane.selected.clear();
           pane.selected.add(entry.path);
         }
+        pane.cursorIndex = idx;
         renderPaneTable(paneIndex);
-        updateMobileBottomBar();
+      };
 
-        if (navigator.vibrate) navigator.vibrate(50);
-      }, 400);
-    };
+      card.ondblclick = () => {
+        openFileByType(entry, paneIndex);
+      };
 
-    tr.ontouchmove = (e) => {
-      if (!e.touches || e.touches.length === 0) return;
-      const dx = Math.abs(e.touches[0].clientX - touchStartX);
-      const dy = Math.abs(e.touches[0].clientY - touchStartY);
-      if (dx > 8 || dy > 8) {
-        isScrolling = true;
-        if (touchTimer) {
-          clearTimeout(touchTimer);
-          touchTimer = null;
+      card.oncontextmenu = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setActivePane(paneIndex);
+        if (!pane.selected.has(entry.path)) {
+          pane.selected.clear();
+          pane.selected.add(entry.path);
+          pane.cursorIndex = idx;
+          renderPaneTable(paneIndex);
+        }
+        App.contextItem = entry;
+        App.contextPaneIndex = paneIndex;
+        showContextMenu(e.clientX, e.clientY);
+      };
+
+      gridEl.appendChild(card);
+    });
+
+  } else if (mode === 'compact') {
+    if (showParent) {
+      const pItem = document.createElement('div');
+      pItem.className = 'compact-list-item parent-dir-item';
+      pItem.innerHTML = `
+        <img src="assets/folder-open.png" style="width: 15px; height: 15px; object-fit: contain;">
+        <span style="font-weight: 700; color: var(--accent);">..</span>
+      `;
+      pItem.onclick = () => { setActivePane(paneIndex); navPaneUp(paneIndex); };
+      compactEl.appendChild(pItem);
+    }
+
+    filtered.forEach((entry, idx) => {
+      const isSelected = pane.selected.has(entry.path);
+      const item = document.createElement('div');
+      item.className = `compact-list-item ${isSelected ? 'selected' : ''} ${idx === pane.cursorIndex ? 'cursor-focus' : ''}`;
+      
+      const iconDetails = getFileIconDetails(entry.name, entry.is_dir, entry.is_archive);
+      let iconHtml = '';
+      if (iconDetails.src) {
+        iconHtml = `<img src="${iconDetails.src}" style="width: 15px; height: 15px; object-fit: contain;">`;
+      } else {
+        const colorStyle = iconDetails.color ? `style="width: 14px; height: 14px; color: ${iconDetails.color};"` : `style="width: 14px; height: 14px;"`;
+        iconHtml = `<i data-lucide="${iconDetails.icon}" ${colorStyle}></i>`;
+      }
+
+      item.innerHTML = `
+        ${iconHtml}
+        <span class="compact-item-name" title="${escapeHtml(entry.name)}" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(entry.name)}</span>
+      `;
+
+      item.onclick = (e) => {
+        setActivePane(paneIndex);
+        if (e.shiftKey || e.ctrlKey) {
+          if (pane.selected.has(entry.path)) pane.selected.delete(entry.path);
+          else pane.selected.add(entry.path);
+        } else {
+          pane.selected.clear();
+          pane.selected.add(entry.path);
+        }
+        pane.cursorIndex = idx;
+        renderPaneTable(paneIndex);
+      };
+
+      item.ondblclick = () => openFileByType(entry, paneIndex);
+
+      item.oncontextmenu = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setActivePane(paneIndex);
+        if (!pane.selected.has(entry.path)) {
+          pane.selected.clear();
+          pane.selected.add(entry.path);
+          pane.cursorIndex = idx;
+          renderPaneTable(paneIndex);
+        }
+        App.contextItem = entry;
+        App.contextPaneIndex = paneIndex;
+        showContextMenu(e.clientX, e.clientY);
+      };
+
+      compactEl.appendChild(item);
+    });
+
+  } else {
+    // Details Mode (Orthodox Table)
+    if (showParent) {
+      const parentTr = document.createElement('tr');
+      parentTr.className = 'file-row parent-dir-row';
+      parentTr.draggable = !isTouchDevice;
+
+      let parentTouchStart = 0;
+      parentTr.ontouchstart = () => { parentTouchStart = Date.now(); };
+      parentTr.ontouchend = (e) => {
+        if (Date.now() - parentTouchStart < 400) {
+          e.preventDefault();
+          setActivePane(paneIndex);
+          navPaneUp(paneIndex);
+        }
+      };
+
+      parentTr.onclick = (e) => {
+        e.stopPropagation();
+        setActivePane(paneIndex);
+        if (isTouchDevice) {
+          navPaneUp(paneIndex);
+        } else {
+          pane.selected.clear();
+          pane.cursorIndex = -1;
+          renderPaneTable(paneIndex);
+        }
+      };
+
+      parentTr.ondblclick = (e) => {
+        e.stopPropagation();
+        setActivePane(paneIndex);
+        navPaneUp(paneIndex);
+      };
+
+      if (!isTouchDevice) {
+        parentTr.ondragover = (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          parentTr.classList.add('drag-over-row');
+        };
+        parentTr.ondragleave = () => parentTr.classList.remove('drag-over-row');
+        parentTr.ondrop = (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          parentTr.classList.remove('drag-over-row');
+          const parts = pane.path.split('/').filter(Boolean);
+          parts.pop();
+          const parent = parts.length === 0 ? '/' : '/' + parts.join('/');
+          handlePaneDrop(e, paneIndex, parent);
+        };
+      }
+
+      parentTr.innerHTML = `
+        <td class="file-cell file-cell-icon">
+          <div class="row-icon-wrapper">
+            <img src="assets/folder-open.png" class="file-icon-img" alt="Parent Directory" style="width: 17px; height: 17px;">
+          </div>
+        </td>
+        <td class="file-cell file-cell-name">
+          <span class="file-name-text" style="font-weight: 700; color: var(--accent); font-size: 13px;">..</span>
+        </td>
+        ${ColumnConfig.visibility.ext ? '<td class="file-cell file-cell-mono">-</td>' : ''}
+        ${ColumnConfig.visibility.size ? '<td class="file-cell file-cell-mono file-cell-size" style="color: var(--accent); font-weight: 600;">&lt;UP&gt;</td>' : ''}
+        ${ColumnConfig.visibility.modified ? '<td class="file-cell file-cell-mono">-</td>' : ''}
+        ${ColumnConfig.visibility.created ? '<td class="file-cell file-cell-mono">-</td>' : ''}
+        ${ColumnConfig.visibility.mode ? '<td class="file-cell file-cell-mono">-</td>' : ''}
+        ${ColumnConfig.visibility.owner ? '<td class="file-cell file-cell-mono">-</td>' : ''}
+        ${ColumnConfig.visibility.group ? '<td class="file-cell file-cell-mono">-</td>' : ''}
+        ${ColumnConfig.visibility.hash ? '<td class="file-cell file-cell-mono">-</td>' : ''}
+        ${ColumnConfig.visibility.tags ? '<td class="file-cell file-cell-mono">-</td>' : ''}
+      `;
+      tbody.appendChild(parentTr);
+    }
+
+    filtered.forEach((entry, idx) => {
+      const tagInfo = fileTagsMap.get(entry.path);
+      let colorClass = '';
+      let tagsHtml = '';
+      if (tagInfo) {
+        if (tagInfo.color_label && tagInfo.color_label !== 'none') {
+          colorClass = `file-row-color-${tagInfo.color_label}`;
+        }
+        if (tagInfo.tags && tagInfo.tags.length > 0) {
+          tagsHtml = tagInfo.tags.map(t => `<span class="file-tag-badge">#${escapeHtml(t)}</span>`).join('');
         }
       }
-    };
 
-    tr.ontouchend = (e) => {
-      if (touchTimer) {
-        clearTimeout(touchTimer);
-        touchTimer = null;
+      const isSelected = pane.selected.has(entry.path);
+      const tr = document.createElement('tr');
+      tr.className = `file-row ${isSelected ? 'selected' : ''} ${idx === pane.cursorIndex ? 'cursor-focus' : ''} ${colorClass}`;
+      tr.draggable = !isTouchDevice;
+
+      if (!isTouchDevice) {
+        tr.ondragstart = (e) => {
+          const selectedPaths = pane.selected.size > 0 ? Array.from(pane.selected) : [entry.path];
+          e.dataTransfer.setData('text/plain', JSON.stringify({
+            sourcePane: paneIndex,
+            paths: selectedPaths
+          }));
+          e.dataTransfer.effectAllowed = 'copyMove';
+        };
+
+        tr.ondragover = (e) => {
+          if (entry.is_dir) {
+            e.preventDefault();
+            e.stopPropagation();
+            tr.classList.add('drag-over-row');
+          }
+        };
+
+        tr.ondragleave = () => {
+          if (entry.is_dir) {
+            tr.classList.remove('drag-over-row');
+          }
+        };
+
+        tr.ondrop = (e) => {
+          if (entry.is_dir) {
+            e.preventDefault();
+            e.stopPropagation();
+            tr.classList.remove('drag-over-row');
+            handlePaneDrop(e, paneIndex, entry.path);
+          }
+        };
       }
 
-      if (isLongPress) {
-        e.preventDefault();
-        return;
-      }
+      let touchStartX = 0;
+      let touchStartY = 0;
+      let touchStartTime = 0;
+      let isScrolling = false;
+      let isLongPress = false;
+      let touchTimer = null;
 
-      if (isScrolling) return;
+      tr.ontouchstart = (e) => {
+        if (!e.touches || e.touches.length === 0) return;
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
+        touchStartTime = Date.now();
+        isScrolling = false;
+        isLongPress = false;
 
-      const pressDuration = Date.now() - touchStartTime;
-      // Valid touch tap (<400ms without scrolling)
-      if (pressDuration < 400) {
-        e.preventDefault();
-        setActivePane(paneIndex);
-
-        // If in Multi-Select Mode (1 or more items selected):
-        if (pane.selected.size > 0) {
+        touchTimer = setTimeout(() => {
+          if (isScrolling) return;
+          isLongPress = true;
+          setActivePane(paneIndex);
           if (pane.selected.has(entry.path)) {
             pane.selected.delete(entry.path);
           } else {
             pane.selected.add(entry.path);
           }
+          pane.cursorIndex = idx;
           renderPaneTable(paneIndex);
           updateMobileBottomBar();
-          return;
+          if (navigator.vibrate) navigator.vibrate(40);
+        }, 400);
+      };
+
+      tr.ontouchmove = (e) => {
+        if (!e.touches || e.touches.length === 0) return;
+        const dx = Math.abs(e.touches[0].clientX - touchStartX);
+        const dy = Math.abs(e.touches[0].clientY - touchStartY);
+        if (dx > 8 || dy > 8) {
+          isScrolling = true;
+          if (touchTimer) {
+            clearTimeout(touchTimer);
+            touchTimer = null;
+          }
         }
+      };
 
-        // Normal browsing mode: Single tap opens folder / file
-        openFileByType(entry, paneIndex);
-      }
-    };
+      tr.ontouchend = (e) => {
+        if (touchTimer) {
+          clearTimeout(touchTimer);
+          touchTimer = null;
+        }
+        if (isLongPress || isScrolling) return;
+        const pressDuration = Date.now() - touchStartTime;
+        if (pressDuration < 400) {
+          e.preventDefault();
+          setActivePane(paneIndex);
+          if (pane.selected.size > 0) {
+            if (pane.selected.has(entry.path)) {
+              pane.selected.delete(entry.path);
+            } else {
+              pane.selected.add(entry.path);
+            }
+            renderPaneTable(paneIndex);
+            updateMobileBottomBar();
+            return;
+          }
+          openFileByType(entry, paneIndex);
+        }
+      };
 
-    tr.onclick = (e) => {
-      const isTouch = window.innerWidth <= 768 || window.matchMedia('(pointer: coarse)').matches;
-      if (isTouch) return; // Touch handled by touchend
+      tr.onclick = (e) => {
+        const isTouch = window.innerWidth <= 768 || window.matchMedia('(pointer: coarse)').matches;
+        if (isTouch) return;
 
-      setActivePane(paneIndex);
-      if (e.shiftKey || e.ctrlKey) {
-        if (pane.selected.has(entry.path)) pane.selected.delete(entry.path);
-        else pane.selected.add(entry.path);
-      } else {
-        pane.selected.clear();
-        pane.selected.add(entry.path);
-      }
-      pane.cursorIndex = idx;
-      renderPaneTable(paneIndex);
-      updateMobileBottomBar();
-    };
-
-    tr.ondblclick = () => {
-      openFileByType(entry, paneIndex);
-    };
-
-    tr.oncontextmenu = (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const isTouch = window.innerWidth <= 768 || window.matchMedia('(pointer: coarse)').matches;
-      if (isTouch) {
-        return false; // On touch, long-press only selects the item. The user opens actions via the Actions button.
-      }
-      setActivePane(paneIndex);
-
-      // If the right-clicked row is NOT in the current multi-selection, select only this row!
-      if (!pane.selected.has(entry.path)) {
-        pane.selected.clear();
-        pane.selected.add(entry.path);
+        setActivePane(paneIndex);
+        if (e.shiftKey || e.ctrlKey) {
+          if (pane.selected.has(entry.path)) pane.selected.delete(entry.path);
+          else pane.selected.add(entry.path);
+        } else {
+          pane.selected.clear();
+          pane.selected.add(entry.path);
+        }
         pane.cursorIndex = idx;
         renderPaneTable(paneIndex);
+        updateMobileBottomBar();
+      };
+
+      tr.ondblclick = () => {
+        openFileByType(entry, paneIndex);
+      };
+
+      tr.oncontextmenu = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const isTouch = window.innerWidth <= 768 || window.matchMedia('(pointer: coarse)').matches;
+        if (isTouch) return false;
+
+        setActivePane(paneIndex);
+        if (!pane.selected.has(entry.path)) {
+          pane.selected.clear();
+          pane.selected.add(entry.path);
+          pane.cursorIndex = idx;
+          renderPaneTable(paneIndex);
+        } else {
+          pane.cursorIndex = idx;
+        }
+
+        App.contextItem = entry;
+        App.contextPaneIndex = paneIndex;
+        showContextMenu(e.clientX, e.clientY);
+      };
+
+      let iconHtml = '';
+      const isMobile = window.innerWidth <= 768;
+      const showCheckBadge = isSelected && isMobile;
+
+      if (showCheckBadge) {
+        iconHtml = `<i data-lucide="check" class="file-icon check-icon" style="width: 15px; height: 15px;"></i>`;
       } else {
-        pane.cursorIndex = idx;
+        const iconDetails = getFileIconDetails(entry.name, entry.is_dir, entry.is_archive);
+        if (iconDetails.src) {
+          iconHtml = `<img src="${iconDetails.src}" class="file-icon-img" alt="Folder" style="width: 17px; height: 17px;">`;
+        } else {
+          const colorStyle = iconDetails.color ? `style="width: 15px; height: 15px; color: ${iconDetails.color};"` : `style="width: 15px; height: 15px;"`;
+          iconHtml = `<i data-lucide="${iconDetails.icon}" class="file-icon ${iconDetails.type}" ${colorStyle}></i>`;
+        }
       }
 
-      App.contextItem = entry;
-      App.contextPaneIndex = paneIndex;
-      showContextMenu(e.clientX, e.clientY);
-    };
+      const ext = entry.name.includes('.') ? entry.name.split('.').pop() : '';
 
-    let iconHtml = '';
-    const isMobile = window.innerWidth <= 768;
-    const showCheckBadge = isSelected && isMobile;
+      tr.innerHTML = `
+        <td class="file-cell file-cell-icon">
+          <div class="row-icon-wrapper ${showCheckBadge ? 'selected' : ''}">
+            ${iconHtml}
+          </div>
+        </td>
+        <td class="file-cell file-cell-name">
+          <span class="file-name-text">${escapeHtml(entry.name)}</span>${tagsHtml}
+        </td>
+        ${ColumnConfig.visibility.ext ? `<td class="file-cell file-cell-mono">${entry.is_dir ? '' : escapeHtml(ext)}</td>` : ''}
+        ${ColumnConfig.visibility.size ? `<td class="file-cell file-cell-mono file-cell-size">${entry.is_dir ? '<DIR>' : formatBytes(entry.size)}</td>` : ''}
+        ${ColumnConfig.visibility.modified ? `<td class="file-cell file-cell-mono">${formatDate(entry.modified)}</td>` : ''}
+        ${ColumnConfig.visibility.created ? `<td class="file-cell file-cell-mono">${entry.created ? formatDate(entry.created) : '-'}</td>` : ''}
+        ${ColumnConfig.visibility.mode ? `<td class="file-cell file-cell-mono" title="${entry.permissions}">${entry.mode_octal || entry.permissions}</td>` : ''}
+        ${ColumnConfig.visibility.owner ? `<td class="file-cell file-cell-mono">${entry.owner || '-'}</td>` : ''}
+        ${ColumnConfig.visibility.group ? `<td class="file-cell file-cell-mono">${entry.group || '-'}</td>` : ''}
+        ${ColumnConfig.visibility.hash ? `<td class="file-cell file-cell-mono" style="font-size: 10px; color: var(--text-dim);">${entry.sha256 ? entry.sha256.slice(0, 8) + '...' : '-'}</td>` : ''}
+        ${ColumnConfig.visibility.tags ? `<td class="file-cell file-cell-mono">${tagInfo?.color_label ? `<span class="color-dot-mini color-${tagInfo.color_label}" style="vertical-align: middle;"></span> ` : ''}${tagInfo?.tags?.length ? tagInfo.tags.join(', ') : '-'}</td>` : ''}
+      `;
 
-    if (showCheckBadge) {
-      iconHtml = `<i data-lucide="check" class="file-icon check-icon" style="width: 15px; height: 15px;"></i>`;
-    } else {
-      const iconDetails = getFileIconDetails(entry.name, entry.is_dir, entry.is_archive);
-      if (iconDetails.src) {
-        iconHtml = `<img src="${iconDetails.src}" class="file-icon-img" alt="Folder" style="width: 17px; height: 17px;">`;
-      } else {
-        const colorStyle = iconDetails.color ? `style="width: 15px; height: 15px; color: ${iconDetails.color};"` : `style="width: 15px; height: 15px;"`;
-        iconHtml = `<i data-lucide="${iconDetails.icon}" class="file-icon ${iconDetails.type}" ${colorStyle}></i>`;
-      }
-    }
-
-    tr.innerHTML = `
-      <td class="file-cell file-cell-icon">
-        <div class="row-icon-wrapper ${showCheckBadge ? 'selected' : ''}">
-          ${iconHtml}
-        </div>
-      </td>
-      <td class="file-cell file-cell-name">
-        <span class="file-name-text">${escapeHtml(entry.name)}</span>${tagsHtml}
-      </td>
-      <td class="file-cell file-cell-mono file-cell-size">${entry.is_dir ? '<DIR>' : formatBytes(entry.size)}</td>
-      <td class="file-cell file-cell-mono">${formatDate(entry.modified)}</td>
-      <td class="file-cell file-cell-mono" title="${entry.permissions}">${entry.mode_octal || entry.permissions}</td>
-      <td class="file-cell file-cell-mono">${entry.owner}:${entry.group}</td>
-    `;
-
-    tbody.appendChild(tr);
-  });
+      tbody.appendChild(tr);
+    });
+  }
 
   if (window.lucide) lucide.createIcons();
   updateMobileBottomBar();
@@ -1934,6 +2150,669 @@ document.getElementById('btn-save-permissions')?.addEventListener('click', async
   refreshPane(App.activePaneIndex);
 });
 
+// ---------------- RESIZABLE COLUMNS, VIEW MODES & DIRECTORY TREE ----------------
+
+let ColumnConfig = {
+  widths: JSON.parse(localStorage.getItem('cd_col_widths') || '{}'),
+  visibility: JSON.parse(localStorage.getItem('cd_col_visibility') || '{"name":true,"ext":false,"size":true,"modified":true,"created":false,"mode":true,"owner":true,"group":false,"hash":false,"tags":false}'),
+};
+
+function initColResize(e, paneIndex, colKey) {
+  e.preventDefault();
+  e.stopPropagation();
+
+  const th = document.getElementById(`col-header-${paneIndex}-${colKey}`);
+  if (!th) return;
+
+  const startX = e.clientX;
+  const startWidth = th.offsetWidth;
+  document.body.classList.add('is-col-resizing');
+
+  const onMouseMove = (moveEvent) => {
+    const diff = moveEvent.clientX - startX;
+    const newWidth = Math.max(35, startWidth + diff);
+    applyColumnWidth(colKey, newWidth);
+  };
+
+  const onMouseUp = () => {
+    document.body.classList.remove('is-col-resizing');
+    window.removeEventListener('mousemove', onMouseMove);
+    window.removeEventListener('mouseup', onMouseUp);
+    saveColumnWidth(colKey, th.offsetWidth);
+  };
+
+  window.addEventListener('mousemove', onMouseMove);
+  window.addEventListener('mouseup', onMouseUp);
+}
+
+function applyColumnWidth(colKey, width) {
+  ColumnConfig.widths[colKey] = width;
+  for (let i = 0; i < 4; i++) {
+    const th = document.getElementById(`col-header-${i}-${colKey}`);
+    if (th) th.style.width = `${width}px`;
+  }
+}
+
+function saveColumnWidth(colKey, width) {
+  ColumnConfig.widths[colKey] = width;
+  localStorage.setItem('cd_col_widths', JSON.stringify(ColumnConfig.widths));
+}
+
+function autoFitColumn(paneIndex, colKey) {
+  const table = document.getElementById(`pane-table-${paneIndex}`);
+  if (!table) return;
+  const th = document.getElementById(`col-header-${paneIndex}-${colKey}`);
+  if (!th) return;
+
+  const colIdx = Array.from(th.parentElement.children).indexOf(th);
+  if (colIdx < 0) return;
+
+  let maxW = th.scrollWidth + 24;
+  const rows = table.querySelectorAll('tbody tr');
+  rows.forEach(r => {
+    const cell = r.children[colIdx];
+    if (cell) {
+      maxW = Math.max(maxW, cell.scrollWidth + 18);
+    }
+  });
+
+  const fittedWidth = Math.min(Math.max(45, maxW), 600);
+  applyColumnWidth(colKey, fittedWidth);
+  saveColumnWidth(colKey, fittedWidth);
+}
+
+function autoFitAllColumns(paneIndex) {
+  Object.keys(ColumnConfig.visibility).forEach(colKey => {
+    if (ColumnConfig.visibility[colKey]) {
+      autoFitColumn(paneIndex, colKey);
+    }
+  });
+  showToast('All visible columns auto-fitted', 'success');
+}
+
+function applyAllColumnWidths() {
+  const widths = ColumnConfig.widths;
+  const vis = ColumnConfig.visibility;
+
+  for (let i = 0; i < 4; i++) {
+    for (const [colKey, w] of Object.entries(widths)) {
+      const th = document.getElementById(`col-header-${i}-${colKey}`);
+      if (th && w) th.style.width = `${w}px`;
+    }
+    for (const [colKey, isVis] of Object.entries(vis)) {
+      const th = document.getElementById(`col-header-${i}-${colKey}`);
+      if (th) th.style.display = isVis ? '' : 'none';
+    }
+  }
+}
+
+function toggleColumnVisibility(colKey, visible) {
+  ColumnConfig.visibility[colKey] = visible;
+  localStorage.setItem('cd_col_visibility', JSON.stringify(ColumnConfig.visibility));
+  applyAllColumnWidths();
+  for (let i = 0; i < 4; i++) {
+    renderPaneTable(i);
+  }
+}
+
+function resetAllColumnWidths() {
+  ColumnConfig.widths = {};
+  ColumnConfig.visibility = { name: true, ext: false, size: true, modified: true, created: false, mode: true, owner: true, group: false, hash: false, tags: false };
+  localStorage.removeItem('cd_col_widths');
+  localStorage.removeItem('cd_col_visibility');
+  applyAllColumnWidths();
+  updateColumnCheckboxes();
+  for (let i = 0; i < 4; i++) {
+    renderPaneTable(i);
+  }
+  showToast('Column widths and visibility reset to default', 'info');
+}
+
+function updateColumnCheckboxes() {
+  ['name', 'ext', 'size', 'modified', 'created', 'mode', 'owner', 'group', 'hash', 'tags'].forEach(k => {
+    const el = document.getElementById(`col-toggle-${k}`);
+    if (el) el.checked = !!ColumnConfig.visibility[k];
+  });
+}
+
+function openColumnHeaderContextMenu(e, paneIndex) {
+  e.preventDefault();
+  e.stopPropagation();
+
+  document.getElementById('col-chooser-popover')?.remove();
+
+  const pop = document.createElement('div');
+  pop.id = 'col-chooser-popover';
+  pop.className = 'col-chooser-popover';
+
+  const colDefinitions = [
+    { key: 'name', label: 'File Name', locked: true },
+    { key: 'ext', label: 'Extension (.ext)' },
+    { key: 'size', label: 'File Size' },
+    { key: 'modified', label: 'Date Modified' },
+    { key: 'created', label: 'Date Created' },
+    { key: 'mode', label: 'Mode (Permissions)' },
+    { key: 'owner', label: 'Owner' },
+    { key: 'group', label: 'Group' },
+    { key: 'hash', label: 'SHA-256 Checksum' },
+    { key: 'tags', label: 'Tags & Colors' },
+  ];
+
+  let itemsHtml = `<div class="col-chooser-title">Table Columns</div>`;
+  colDefinitions.forEach(col => {
+    const isChecked = col.locked || !!ColumnConfig.visibility[col.key];
+    const disabledAttr = col.locked ? 'disabled' : '';
+    itemsHtml += `
+      <label class="col-chooser-item" onclick="event.stopPropagation()">
+        <input type="checkbox" ${isChecked ? 'checked' : ''} ${disabledAttr} onchange="toggleColumnVisibility('${col.key}', this.checked)">
+        <span>${escapeHtml(col.label)}</span>
+      </label>
+    `;
+  });
+
+  itemsHtml += `
+    <div style="height: 1px; background: var(--border); margin: 4px 0;"></div>
+    <div class="col-chooser-action-btn" onclick="autoFitAllColumns(${paneIndex}); document.getElementById('col-chooser-popover')?.remove();">
+      <i data-lucide="move-horizontal" style="width: 13px;"></i> Auto-Fit All Columns
+    </div>
+    <div class="col-chooser-action-btn" onclick="resetAllColumnWidths(); document.getElementById('col-chooser-popover')?.remove();">
+      <i data-lucide="rotate-ccw" style="width: 13px;"></i> Reset Default Columns
+    </div>
+  `;
+
+  pop.innerHTML = itemsHtml;
+  document.body.appendChild(pop);
+
+  if (window.lucide) lucide.createIcons({ root: pop });
+
+  const popW = 220;
+  const popH = pop.offsetHeight || 340;
+  let posX = e.clientX;
+  let posY = e.clientY;
+
+  if (posX + popW > window.innerWidth) posX = window.innerWidth - popW - 10;
+  if (posY + popH > window.innerHeight) posY = window.innerHeight - popH - 10;
+
+  pop.style.left = `${Math.max(10, posX)}px`;
+  pop.style.top = `${Math.max(10, posY)}px`;
+
+  const dismissPopover = (ev) => {
+    if (!pop.contains(ev.target)) {
+      pop.remove();
+      document.removeEventListener('click', dismissPopover);
+    }
+  };
+  setTimeout(() => document.addEventListener('click', dismissPopover), 10);
+}
+
+function setPaneViewMode(paneIndex, mode) {
+  const pane = App.panes[paneIndex];
+  if (!pane) return;
+  pane.viewMode = mode;
+  localStorage.setItem(`cd_pane_viewmode_${paneIndex}`, mode);
+
+  ['details', 'grid', 'compact'].forEach(m => {
+    const btn = document.getElementById(`btn-view-${m}-${paneIndex}`);
+    if (btn) {
+      if (m === mode) btn.classList.add('active');
+      else btn.classList.remove('active');
+    }
+  });
+
+  renderPaneTable(paneIndex);
+}
+
+function setPaneGridSize(paneIndex, size) {
+  const pane = App.panes[paneIndex];
+  if (!pane) return;
+  pane.gridSize = size;
+  localStorage.setItem(`cd_pane_gridsize_${paneIndex}`, size);
+  const gridEl = document.getElementById(`pane-grid-${paneIndex}`);
+  if (gridEl) {
+    gridEl.className = `grid-gallery-container size-${size}`;
+  }
+}
+
+function togglePaneTree(paneIndex) {
+  const pane = App.panes[paneIndex];
+  if (!pane) return;
+  pane.showTree = !pane.showTree;
+  localStorage.setItem(`cd_pane_tree_${paneIndex}`, pane.showTree ? '1' : '0');
+
+  const sidebar = document.getElementById(`pane-tree-${paneIndex}`);
+  const resizer = document.getElementById(`pane-tree-resizer-${paneIndex}`);
+  const btn = document.getElementById(`btn-tree-${paneIndex}`);
+
+  if (sidebar) sidebar.style.display = pane.showTree ? 'flex' : 'none';
+  if (resizer) resizer.style.display = pane.showTree ? 'block' : 'none';
+  if (btn) {
+    if (pane.showTree) btn.classList.add('active');
+    else btn.classList.remove('active');
+  }
+
+  if (pane.showTree) {
+    loadPaneDirectoryTree(paneIndex);
+  }
+}
+
+async function loadPaneDirectoryTree(paneIndex) {
+  const sidebar = document.getElementById(`pane-tree-${paneIndex}`);
+  if (!sidebar) return;
+
+  sidebar.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 6px; border-bottom: 1px solid var(--border); margin-bottom: 4px;">
+      <span style="font-size: 10px; font-weight: 700; color: var(--accent); text-transform: uppercase;">Folders</span>
+      <button class="btn btn-icon btn-xs" onclick="loadPaneDirectoryTree(${paneIndex})" title="Refresh Tree" style="padding: 2px; width: 18px; height: 18px; border: none; background: transparent;"><i data-lucide="rotate-cw" style="width: 11px; height: 11px;"></i></button>
+    </div>
+    <div id="pane-tree-roots-${paneIndex}" style="display: flex; flex-direction: column; gap: 2px;"></div>
+  `;
+
+  const rootsContainer = document.getElementById(`pane-tree-roots-${paneIndex}`);
+  const homePath = getUserDefaultHomeDir() || '~';
+
+  const roots = [
+    { name: 'Home', path: homePath, icon: 'home' },
+    { name: 'Root', path: '/', icon: 'hard-drive' },
+  ];
+
+  if (App.storageRoots && App.storageRoots.length > 0) {
+    App.storageRoots.forEach(r => {
+      if (r.path !== '/' && r.path !== homePath) {
+        roots.push({ name: r.name, path: r.path, icon: 'server' });
+      }
+    });
+  }
+
+  roots.forEach(root => {
+    const nodeEl = createTreeNodeElement(paneIndex, root.name, root.path, root.icon);
+    rootsContainer.appendChild(nodeEl);
+  });
+
+  if (window.lucide) lucide.createIcons({ root: sidebar });
+}
+
+function createTreeNodeElement(paneIndex, name, path, iconName = 'folder') {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'tree-node-item';
+  wrapper.dataset.path = path;
+
+  const isActive = App.panes[paneIndex]?.path === path;
+
+  const row = document.createElement('div');
+  row.className = `tree-node-row ${isActive ? 'active' : ''}`;
+  row.innerHTML = `
+    <span class="tree-expander" onclick="event.stopPropagation(); toggleTreeNodeExpand(this, ${paneIndex}, '${escapeHtml(path)}')">
+      <i data-lucide="chevron-right" style="width: 12px; height: 12px;"></i>
+    </span>
+    <i data-lucide="${iconName}" class="tree-node-icon" style="color: var(--accent);"></i>
+    <span class="tree-node-label" title="${escapeHtml(path)}">${escapeHtml(name)}</span>
+  `;
+
+  row.onclick = () => {
+    loadPaneDirectory(paneIndex, path);
+    const sidebar = document.getElementById(`pane-tree-${paneIndex}`);
+    if (sidebar) {
+      sidebar.querySelectorAll('.tree-node-row').forEach(r => r.classList.remove('active'));
+      row.classList.add('active');
+    }
+  };
+
+  const childrenContainer = document.createElement('div');
+  childrenContainer.className = 'tree-node-children';
+
+  wrapper.appendChild(row);
+  wrapper.appendChild(childrenContainer);
+  return wrapper;
+}
+
+async function toggleTreeNodeExpand(expanderEl, paneIndex, path) {
+  const wrapper = expanderEl.closest('.tree-node-item');
+  if (!wrapper) return;
+  const childrenContainer = wrapper.querySelector('.tree-node-children');
+  if (!childrenContainer) return;
+
+  const isExpanded = childrenContainer.classList.contains('expanded');
+  if (isExpanded) {
+    childrenContainer.classList.remove('expanded');
+    expanderEl.classList.remove('expanded');
+  } else {
+    childrenContainer.classList.add('expanded');
+    expanderEl.classList.add('expanded');
+
+    if (childrenContainer.children.length === 0) {
+      childrenContainer.innerHTML = '<div style="font-size: 10px; color: var(--text-muted); padding: 2px 6px;">Loading...</div>';
+      try {
+        const resp = await fetch(`/api/fs/list?path=${encodeURIComponent(path)}`, {
+          headers: { 'Authorization': `Bearer ${App.token}` }
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          childrenContainer.innerHTML = '';
+          const subdirs = (data.entries || []).filter(e => e.is_dir && !e.name.startsWith('.'));
+          if (subdirs.length === 0) {
+            childrenContainer.innerHTML = '<div style="font-size: 10px; color: var(--text-dim); padding: 2px 6px; font-style: italic;">(No subfolders)</div>';
+          } else {
+            subdirs.sort((a, b) => a.name.localeCompare(b.name));
+            subdirs.forEach(sub => {
+              const childNode = createTreeNodeElement(paneIndex, sub.name, sub.path, 'folder');
+              childrenContainer.appendChild(childNode);
+            });
+            if (window.lucide) lucide.createIcons({ root: childrenContainer });
+          }
+        } else {
+          childrenContainer.innerHTML = '<div style="font-size: 10px; color: var(--danger); padding: 2px 6px;">Failed to load</div>';
+        }
+      } catch (e) {
+        childrenContainer.innerHTML = '<div style="font-size: 10px; color: var(--danger); padding: 2px 6px;">Error</div>';
+      }
+    }
+  }
+}
+
+function initTreeResize(e, paneIndex) {
+  e.preventDefault();
+  e.stopPropagation();
+
+  const sidebar = document.getElementById(`pane-tree-${paneIndex}`);
+  if (!sidebar) return;
+
+  const startX = e.clientX;
+  const startWidth = sidebar.offsetWidth;
+  document.body.classList.add('is-col-resizing');
+
+  const onMouseMove = (moveEvent) => {
+    const diff = moveEvent.clientX - startX;
+    const newWidth = Math.min(Math.max(120, startWidth + diff), 450);
+    sidebar.style.width = `${newWidth}px`;
+  };
+
+  const onMouseUp = () => {
+    document.body.classList.remove('is-col-resizing');
+    window.removeEventListener('mousemove', onMouseMove);
+    window.removeEventListener('mouseup', onMouseUp);
+    localStorage.setItem(`cd_tree_width_${paneIndex}`, sidebar.offsetWidth);
+  };
+
+  window.addEventListener('mousemove', onMouseMove);
+  window.addEventListener('mouseup', onMouseUp);
+}
+
+function syncPaneTreeActiveNode(paneIndex, path) {
+  const sidebar = document.getElementById(`pane-tree-${paneIndex}`);
+  if (!sidebar) return;
+  sidebar.querySelectorAll('.tree-node-row').forEach(row => {
+    const parentItem = row.closest('.tree-node-item');
+    if (parentItem && parentItem.dataset.path === path) {
+      row.classList.add('active');
+    } else {
+      row.classList.remove('active');
+    }
+  });
+}
+
+function setDefaultViewMode(mode) {
+  App.defaultViewMode = mode;
+  localStorage.setItem('cd_default_viewmode', mode);
+  for (let i = 0; i < 4; i++) {
+    if (App.panes[i]) {
+      setPaneViewMode(i, mode);
+    }
+  }
+}
+
+// ---------------- OPEN WITH & EXTERNAL HANDLERS ----------------
+
+let OpenWithRules = JSON.parse(localStorage.getItem('cd_openwith_rules') || 'null');
+if (!OpenWithRules) {
+  OpenWithRules = [
+    { id: 'vlc', name: 'VLC Media Player', exts: ['mp4', 'mkv', 'avi', 'webm', 'mov', 'mp3', 'flac', 'wav'], cmd: 'vlc "%1"', icon: 'film' },
+    { id: 'code', name: 'VS Code', exts: ['rs', 'js', 'ts', 'py', 'json', 'toml', 'md', 'txt', 'html', 'css', 'sh', 'c', 'cpp'], cmd: 'code "%1"', icon: 'code' },
+    { id: 'default', name: 'System Default Application', exts: ['*'], cmd: '', icon: 'external-link' },
+  ];
+}
+
+function renderOpenWithRules() {
+  const list = document.getElementById('openwith-rules-list');
+  if (!list) return;
+
+  if (OpenWithRules.length === 0) {
+    list.innerHTML = '<div style="color: var(--text-muted); font-size: 12px; padding: 12px 0;">No external handlers configured yet. Click "Add Handler" above.</div>';
+    return;
+  }
+
+  list.innerHTML = OpenWithRules.map((r, idx) => `
+    <div class="rule-config-row">
+      <i data-lucide="${r.icon || 'external-link'}" style="width: 16px; color: var(--accent);"></i>
+      <div style="flex: 1; min-width: 0;">
+        <div style="font-weight: 600; font-size: 12px;">${escapeHtml(r.name)}</div>
+        <div style="display: flex; gap: 6px; align-items: center; margin-top: 2px; flex-wrap: wrap;">
+          <span class="rule-pill">${escapeHtml(r.exts.join(', '))}</span>
+          <span style="font-family: var(--font-mono); font-size: 11px; color: var(--text-muted);">${escapeHtml(r.cmd || 'System Default')}</span>
+        </div>
+      </div>
+      <button class="btn btn-icon btn-sm" onclick="editOpenWithRule(${idx})" title="Edit"><i data-lucide="edit-3" style="width: 13px;"></i></button>
+      <button class="btn btn-icon btn-sm" onclick="deleteOpenWithRule(${idx})" title="Delete"><i data-lucide="trash-2" style="width: 13px; color: var(--danger);"></i></button>
+    </div>
+  `).join('');
+
+  if (window.lucide) lucide.createIcons();
+}
+
+function showAddOpenWithRulePrompt() {
+  document.getElementById('openwith-edit-id').value = '';
+  document.getElementById('openwith-input-name').value = '';
+  document.getElementById('openwith-input-exts').value = '';
+  document.getElementById('openwith-input-cmd').value = '';
+  document.getElementById('openwith-rule-form').style.display = 'block';
+}
+
+function editOpenWithRule(index) {
+  const r = OpenWithRules[index];
+  if (!r) return;
+  document.getElementById('openwith-edit-id').value = String(index);
+  document.getElementById('openwith-input-name').value = r.name;
+  document.getElementById('openwith-input-exts').value = r.exts.join(', ');
+  document.getElementById('openwith-input-cmd').value = r.cmd;
+  document.getElementById('openwith-rule-form').style.display = 'block';
+}
+
+function hideOpenWithRuleForm() {
+  document.getElementById('openwith-rule-form').style.display = 'none';
+}
+
+function saveOpenWithRule() {
+  const editId = document.getElementById('openwith-edit-id').value;
+  const name = document.getElementById('openwith-input-name').value.trim();
+  const extsRaw = document.getElementById('openwith-input-exts').value.trim();
+  const cmd = document.getElementById('openwith-input-cmd').value.trim();
+
+  if (!name) {
+    showToast('Please enter an application / rule name', 'error');
+    return;
+  }
+
+  const exts = extsRaw.split(',').map(e => e.trim().replace(/^\./, '')).filter(Boolean);
+  if (exts.length === 0) exts.push('*');
+
+  const rule = {
+    id: 'rule-' + Date.now(),
+    name,
+    exts,
+    cmd,
+    icon: cmd.toLowerCase().includes('vlc') ? 'film' : (cmd.toLowerCase().includes('code') ? 'code' : 'external-link')
+  };
+
+  if (editId !== '') {
+    OpenWithRules[parseInt(editId)] = rule;
+  } else {
+    OpenWithRules.push(rule);
+  }
+
+  localStorage.setItem('cd_openwith_rules', JSON.stringify(OpenWithRules));
+  hideOpenWithRuleForm();
+  renderOpenWithRules();
+  showToast('Open-With rule saved', 'success');
+}
+
+function deleteOpenWithRule(index) {
+  OpenWithRules.splice(index, 1);
+  localStorage.setItem('cd_openwith_rules', JSON.stringify(OpenWithRules));
+  renderOpenWithRules();
+  showToast('Rule deleted', 'info');
+}
+
+async function executeOpenWith(filePath, command) {
+  try {
+    const res = await fetch('/api/system/open-with', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${App.token || ''}`,
+      },
+      body: JSON.stringify({ file_path: filePath, command: command || null }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      showToast(data.error || 'Failed to open file', 'error');
+    } else {
+      showToast(`Launched application`, 'success');
+    }
+  } catch (err) {
+    showToast('Failed to connect to system handler', 'error');
+  }
+}
+
+// ---------------- CONTEXT MENU CUSTOMIZER & SHELL ACTIONS ----------------
+
+let ContextItemVisibility = JSON.parse(localStorage.getItem('cd_context_visibility') || '{"view":true,"edit":true,"openwith":true,"download":true,"share":true,"diff":true}');
+let CustomShellActions = JSON.parse(localStorage.getItem('cd_custom_shell_actions') || 'null');
+if (!CustomShellActions) {
+  CustomShellActions = [
+    { id: 'git-status', label: 'Git Status Here', icon: 'git-branch', cmd: 'git -C {dir} status' },
+    { id: 'zip-sel', label: 'Compress Selection (7z)', icon: 'archive', cmd: '7z a -tzip "{dir}/archive.zip" {selection}' },
+  ];
+}
+
+function toggleContextItemVisibility(key, visible) {
+  ContextItemVisibility[key] = visible;
+  localStorage.setItem('cd_context_visibility', JSON.stringify(ContextItemVisibility));
+}
+
+function renderCustomActionsList() {
+  const list = document.getElementById('custom-actions-list');
+  if (!list) return;
+
+  if (CustomShellActions.length === 0) {
+    list.innerHTML = '<div style="color: var(--text-muted); font-size: 12px; padding: 12px 0;">No custom shell actions defined yet. Click "New Shell Action" above.</div>';
+    return;
+  }
+
+  list.innerHTML = CustomShellActions.map((a, idx) => `
+    <div class="rule-config-row">
+      <i data-lucide="${a.icon || 'terminal'}" style="width: 16px; color: var(--accent);"></i>
+      <div style="flex: 1; min-width: 0;">
+        <div style="font-weight: 600; font-size: 12px;">${escapeHtml(a.label)}</div>
+        <div style="font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); margin-top: 2px;">${escapeHtml(a.cmd)}</div>
+      </div>
+      <button class="btn btn-icon btn-sm" onclick="editCustomShellAction(${idx})" title="Edit"><i data-lucide="edit-3" style="width: 13px;"></i></button>
+      <button class="btn btn-icon btn-sm" onclick="deleteCustomShellAction(${idx})" title="Delete"><i data-lucide="trash-2" style="width: 13px; color: var(--danger);"></i></button>
+    </div>
+  `).join('');
+
+  if (window.lucide) lucide.createIcons();
+}
+
+function showAddCustomActionPrompt() {
+  document.getElementById('custom-action-edit-id').value = '';
+  document.getElementById('custom-action-input-label').value = '';
+  document.getElementById('custom-action-input-icon').value = 'terminal';
+  document.getElementById('custom-action-input-cmd').value = '';
+  document.getElementById('custom-action-form').style.display = 'block';
+}
+
+function editCustomShellAction(index) {
+  const a = CustomShellActions[index];
+  if (!a) return;
+  document.getElementById('custom-action-edit-id').value = String(index);
+  document.getElementById('custom-action-input-label').value = a.label;
+  document.getElementById('custom-action-input-icon').value = a.icon || 'terminal';
+  document.getElementById('custom-action-input-cmd').value = a.cmd;
+  document.getElementById('custom-action-form').style.display = 'block';
+}
+
+function hideCustomActionForm() {
+  document.getElementById('custom-action-form').style.display = 'none';
+}
+
+function saveCustomShellAction() {
+  const editId = document.getElementById('custom-action-edit-id').value;
+  const label = document.getElementById('custom-action-input-label').value.trim();
+  const icon = document.getElementById('custom-action-input-icon').value.trim() || 'terminal';
+  const cmd = document.getElementById('custom-action-input-cmd').value.trim();
+
+  if (!label || !cmd) {
+    showToast('Please enter action label and command', 'error');
+    return;
+  }
+
+  const action = {
+    id: 'action-' + Date.now(),
+    label,
+    icon,
+    cmd,
+  };
+
+  if (editId !== '') {
+    CustomShellActions[parseInt(editId)] = action;
+  } else {
+    CustomShellActions.push(action);
+  }
+
+  localStorage.setItem('cd_custom_shell_actions', JSON.stringify(CustomShellActions));
+  hideCustomActionForm();
+  renderCustomActionsList();
+  showToast('Custom shell action saved', 'success');
+}
+
+function deleteCustomShellAction(index) {
+  CustomShellActions.splice(index, 1);
+  localStorage.setItem('cd_custom_shell_actions', JSON.stringify(CustomShellActions));
+  renderCustomActionsList();
+  showToast('Action removed', 'info');
+}
+
+async function executeCustomAction(cmd, targetPath) {
+  const pane = App.panes[App.activePaneIndex];
+  const selection = pane && pane.selected.size > 0 ? Array.from(pane.selected) : [targetPath];
+  const targetPanePath = App.panes[(App.activePaneIndex + 1) % (App.paneCount || 2)]?.path || '';
+
+  try {
+    showToast(`Executing action: ${cmd.split(' ')[0]}...`, 'info');
+    const res = await fetch('/api/system/run-custom-action', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${App.token || ''}`,
+      },
+      body: JSON.stringify({
+        command: cmd,
+        target_path: targetPath,
+        selection: selection,
+        target_pane_path: targetPanePath,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      showToast(data.error || 'Execution failed', 'error');
+    } else {
+      showToast(`Action finished: ${data.executed}`, 'success');
+      refreshPane(App.activePaneIndex);
+    }
+  } catch (err) {
+    showToast('Failed to run action on host', 'error');
+  }
+}
+
 // ---------------- SETTINGS & CONF.D INSPECTOR ----------------
 
 function switchSettingsTab(tabId) {
@@ -1950,6 +2829,9 @@ function switchSettingsTab(tabId) {
   document.getElementById(tabId)?.classList.add('active');
 
   if (tabId === 'tab-bookmarks') loadBookmarksList();
+  if (tabId === 'tab-openwith') renderOpenWithRules();
+  if (tabId === 'tab-context') renderCustomActionsList();
+  if (tabId === 'tab-columns') updateColumnCheckboxes();
 }
 
 function switchAdminTab(tabId) {
@@ -2597,6 +3479,10 @@ function setupKeyboardNavigation() {
         break;
       case 'Enter':
         e.preventDefault();
+        if (e.altKey) {
+          triggerProperties();
+          break;
+        }
         if (pane.entries[pane.cursorIndex]) {
           const entry = pane.entries[pane.cursorIndex];
           if (entry.is_dir || entry.is_archive) loadPaneDirectory(App.activePaneIndex, entry.path);
@@ -3983,29 +4869,245 @@ function updateMarkdownPreview() {
   const preview = document.getElementById('editor-preview-container');
   if (!preview) return;
 
-  let html = content
-    .replace(/^### (.*$)/gim, '<h3>$1</h3>')
-    .replace(/^## (.*$)/gim, '<h2>$1</h2>')
-    .replace(/^# (.*$)/gim, '<h1>$1</h1>')
-    .replace(/\*\*(.*)\*\*/gim, '<b>$1</b>')
-    .replace(/\*(.*)\*/gim, '<i>$1</i>')
-    .replace(/```mermaid\n([\s\S]*?)\n```/gim, '<div class="mermaid">$1</div>')
-    .replace(/```([a-z]*)\n([\s\S]*?)\n```/gim, (match, lang, code) => {
-      const prismLang = window.Prism ? (Prism.languages[lang] || Prism.languages.markup) : null;
-      const highlighted = (window.Prism && prismLang) ? Prism.highlight(code, prismLang, lang) : escapeHtml(code);
-      return `<pre class="language-${lang}"><code class="language-${lang}">${highlighted}</code></pre>`;
-    })
-    .replace(/\n/gim, '<br>');
+  preview.innerHTML = renderMarkdownToHtml(content);
+  postProcessMarkdownContainer(preview);
+}
 
-  preview.innerHTML = html;
+function renderMarkdownToHtml(content) {
+  if (!content) return '<p style="color: var(--text-muted); font-style: italic;">(Empty markdown document)</p>';
 
-  if (window.mermaid) {
+  // Transform GitHub alert callouts: > [!NOTE], > [!TIP], > [!IMPORTANT], > [!WARNING], > [!CAUTION]
+  let transformed = content.replace(/^>\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*(.*)$/gim, (match, type, text) => {
+    const alertType = type.toUpperCase();
+    const alertIcons = {
+      NOTE: 'info',
+      TIP: 'lightbulb',
+      IMPORTANT: 'alert-circle',
+      WARNING: 'alert-triangle',
+      CAUTION: 'alert-octagon'
+    };
+    const alertColors = {
+      NOTE: '#3b82f6',
+      TIP: '#10b981',
+      IMPORTANT: '#8b5cf6',
+      WARNING: '#f59e0b',
+      CAUTION: '#ef4444'
+    };
+    return `<div class="markdown-alert markdown-alert-${alertType.toLowerCase()}" style="border-left: 4px solid ${alertColors[alertType]}; padding: 8px 14px; margin: 12px 0; background: rgba(255,255,255,0.03); border-radius: 0 6px 6px 0;"><strong style="color: ${alertColors[alertType]}; display: flex; align-items: center; gap: 6px;"><i data-lucide="${alertIcons[alertType] || 'info'}" style="width: 14px; height: 14px;"></i> ${alertType}</strong> ${text}</div>`;
+  });
+
+  let html = '';
+  if (typeof marked !== 'undefined' && marked.parse) {
     try {
-      mermaid.init(undefined, document.querySelectorAll('.mermaid'));
-    } catch (err) {
-      console.warn('Mermaid rendering error:', err);
+      marked.setOptions({
+        gfm: true,
+        breaks: true,
+        headerIds: true,
+        mangle: false
+      });
+      html = marked.parse(transformed);
+    } catch (e) {
+      console.warn('marked.parse error, using fallback markdown renderer:', e);
+      html = fallbackRenderMarkdown(transformed);
+    }
+  } else {
+    html = fallbackRenderMarkdown(transformed);
+  }
+
+  return html;
+}
+
+function postProcessMarkdownContainer(container) {
+  if (!container) return;
+
+  // Convert Mermaid code blocks into rendered diagrams
+  if (window.mermaid) {
+    container.querySelectorAll('pre code.language-mermaid').forEach(codeEl => {
+      const pre = codeEl.closest('pre');
+      const mermaidDiv = document.createElement('div');
+      mermaidDiv.className = 'mermaid';
+      mermaidDiv.textContent = codeEl.textContent;
+      if (pre && pre.parentNode) {
+        pre.parentNode.replaceChild(mermaidDiv, pre);
+      }
+    });
+
+    const mermaidDivs = container.querySelectorAll('.mermaid');
+    if (mermaidDivs.length > 0) {
+      try {
+        mermaid.init(undefined, mermaidDivs);
+      } catch (err) {
+        console.warn('Mermaid render error:', err);
+      }
     }
   }
+
+  // Syntax highlighting with Prism
+  if (window.Prism) {
+    container.querySelectorAll('pre code').forEach(codeBlock => {
+      if (!codeBlock.closest('.mermaid')) {
+        Prism.highlightElement(codeBlock);
+      }
+    });
+  }
+
+  // Attach 1-click Copy button to all code blocks
+  container.querySelectorAll('pre').forEach(pre => {
+    if (pre.querySelector('.code-copy-btn')) return;
+    pre.style.position = 'relative';
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'code-copy-btn';
+    copyBtn.style.cssText = 'position: absolute; top: 6px; right: 6px; padding: 2px 6px; font-size: 10px; opacity: 0.7; z-index: 10; border-radius: 4px; border: 1px solid var(--border); background: var(--bg-header); color: var(--text-main); cursor: pointer; display: flex; align-items: center; gap: 4px;';
+    copyBtn.innerHTML = '<i data-lucide="copy" style="width: 11px; height: 11px;"></i> Copy';
+    copyBtn.onclick = (e) => {
+      e.stopPropagation();
+      const codeText = pre.querySelector('code')?.innerText || pre.innerText;
+      navigator.clipboard.writeText(codeText);
+      copyBtn.innerHTML = '<i data-lucide="check" style="width: 11px; height: 11px; color: var(--success);"></i> Copied';
+      setTimeout(() => {
+        copyBtn.innerHTML = '<i data-lucide="copy" style="width: 11px; height: 11px;"></i> Copy';
+        if (window.lucide) lucide.createIcons({ root: copyBtn });
+      }, 1500);
+    };
+    pre.appendChild(copyBtn);
+  });
+
+  // Render Lucide icons
+  if (window.lucide) {
+    lucide.createIcons({ root: container });
+  }
+}
+
+function fallbackRenderMarkdown(content) {
+  if (!content) return '<p style="color: var(--text-muted); font-style: italic;">(Empty markdown document)</p>';
+
+  const lines = content.split('\n');
+  let inCodeBlock = false;
+  let codeBlockLang = '';
+  let codeBlockContent = [];
+  let inTable = false;
+  let tableRows = [];
+  let outHtml = [];
+
+  const inlineFormat = (txt) => {
+    return txt
+      .replace(/`([^`]+)`/g, '<code>$1</code>')
+      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+      .replace(/__([^_]+)__/g, '<strong>$1</strong>')
+      .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+      .replace(/_([^_]+)_/g, '<em>$1</em>')
+      .replace(/~~([^~]+)~~/g, '<del>$1</del>')
+      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
+      .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1">');
+  };
+
+  const flushTable = () => {
+    if (!inTable || tableRows.length === 0) return;
+    let tbl = '<table>';
+    if (tableRows.length > 0) {
+      tbl += '<thead><tr>';
+      tableRows[0].forEach(cell => {
+        tbl += `<th>${inlineFormat(cell.trim())}</th>`;
+      });
+      tbl += '</tr></thead>';
+    }
+    if (tableRows.length > 1) {
+      tbl += '<tbody>';
+      for (let r = 1; r < tableRows.length; r++) {
+        tbl += '<tr>';
+        tableRows[r].forEach(cell => {
+          tbl += `<td>${inlineFormat(cell.trim())}</td>`;
+        });
+        tbl += '</tr>';
+      }
+      tbl += '</tbody>';
+    }
+    tbl += '</table>';
+    outHtml.push(tbl);
+    inTable = false;
+    tableRows = [];
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    if (line.trim().startsWith('```')) {
+      if (inCodeBlock) {
+        const code = codeBlockContent.join('\n');
+        if (codeBlockLang === 'mermaid') {
+          outHtml.push(`<div class="mermaid">${escapeHtml(code)}</div>`);
+        } else {
+          outHtml.push(`<pre class="language-${codeBlockLang}"><code class="language-${codeBlockLang}">${escapeHtml(code)}</code></pre>`);
+        }
+        inCodeBlock = false;
+        codeBlockLang = '';
+        codeBlockContent = [];
+      } else {
+        flushTable();
+        inCodeBlock = true;
+        codeBlockLang = line.trim().replace(/^```/, '').trim();
+        codeBlockContent = [];
+      }
+      continue;
+    }
+
+    if (inCodeBlock) {
+      codeBlockContent.push(line);
+      continue;
+    }
+
+    if (line.trim().startsWith('|') && line.trim().endsWith('|')) {
+      const cells = line.trim().slice(1, -1).split('|');
+      const isSep = cells.every(c => /^[\s-:]+$/.test(c));
+      if (!isSep) {
+        inTable = true;
+        tableRows.push(cells);
+      }
+      continue;
+    } else {
+      flushTable();
+    }
+
+    // Pass through direct HTML tags
+    if (/^\s*<(\/?[a-zA-Z][a-zA-Z0-9]*(\s+[^>]*)?\/?>)\s*$/.test(line) || /^\s*<(details|summary|div|p|span|img|kbd|table|tr|td|th|thead|tbody|tfoot|h[1-6]|ul|ol|li|blockquote|pre|code|hr|br|b|strong|i|em|u|del|s|center|figure|figcaption|video|audio|source|svg|path)[>\s]/i.test(line)) {
+      outHtml.push(line);
+      continue;
+    }
+
+    if (line.startsWith('# ')) {
+      outHtml.push(`<h1>${inlineFormat(line.slice(2))}</h1>`);
+    } else if (line.startsWith('## ')) {
+      outHtml.push(`<h2>${inlineFormat(line.slice(3))}</h2>`);
+    } else if (line.startsWith('### ')) {
+      outHtml.push(`<h3>${inlineFormat(line.slice(4))}</h3>`);
+    } else if (line.startsWith('#### ')) {
+      outHtml.push(`<h4>${inlineFormat(line.slice(5))}</h4>`);
+    } else if (line.startsWith('##### ')) {
+      outHtml.push(`<h5>${inlineFormat(line.slice(6))}</h5>`);
+    } else if (line.startsWith('###### ')) {
+      outHtml.push(`<h6>${inlineFormat(line.slice(7))}</h6>`);
+    } else if (line.startsWith('> ')) {
+      outHtml.push(`<blockquote><p>${inlineFormat(line.slice(2))}</p></blockquote>`);
+    } else if (line.startsWith('- [x] ') || line.startsWith('* [x] ')) {
+      outHtml.push(`<li class="task-list-item"><input type="checkbox" checked disabled><span style="text-decoration: line-through; opacity: 0.7;">${inlineFormat(line.slice(6))}</span></li>`);
+    } else if (line.startsWith('- [ ] ') || line.startsWith('* [ ] ')) {
+      outHtml.push(`<li class="task-list-item"><input type="checkbox" disabled><span>${inlineFormat(line.slice(6))}</span></li>`);
+    } else if (line.startsWith('- ') || line.startsWith('* ') || line.startsWith('+ ')) {
+      outHtml.push(`<li>${inlineFormat(line.slice(2))}</li>`);
+    } else if (/^\d+\.\s/.test(line)) {
+      const match = line.match(/^(\d+\.)\s(.*)/);
+      outHtml.push(`<li><b>${match[1]}</b> ${inlineFormat(match[2])}</li>`);
+    } else if (line.trim() === '---' || line.trim() === '***' || line.trim() === '___') {
+      outHtml.push('<hr>');
+    } else if (line.trim() === '') {
+      outHtml.push('<br>');
+    } else {
+      outHtml.push(`<p>${inlineFormat(line)}</p>`);
+    }
+  }
+
+  flushTable();
+  return outHtml.join('\n');
 }
 
 // ---------------- ADVANCED FIND & REPLACE TOOLBAR ----------------
@@ -4937,6 +6039,34 @@ async function showParanoidConfirm(action, sources, destination, onProceed) {
 
 // ---------------- CONTEXT MENU & UI ACTIONS ----------------
 
+let activePropertiesEntry = null;
+
+function adjustSubmenuPosition(itemEl) {
+  if (window.innerWidth <= 768) return;
+
+  const submenu = itemEl.querySelector(':scope > .context-submenu');
+  if (!submenu) return;
+
+  submenu.style.left = 'calc(100% - 2px)';
+  submenu.style.right = 'auto';
+  submenu.style.top = '-4px';
+  submenu.style.bottom = 'auto';
+
+  const subRect = submenu.getBoundingClientRect();
+  const pad = 10;
+
+  if (subRect.right > window.innerWidth - pad) {
+    submenu.style.left = 'auto';
+    submenu.style.right = 'calc(100% - 2px)';
+  }
+
+  if (subRect.bottom > window.innerHeight - 36) {
+    const overflow = subRect.bottom - (window.innerHeight - 36);
+    const newTop = -4 - overflow;
+    submenu.style.top = `${newTop}px`;
+  }
+}
+
 function showContextMenu(x, y) {
   const menu = document.getElementById('context-menu');
   if (!menu) return;
@@ -4970,42 +6100,100 @@ function showContextMenu(x, y) {
   const targetPane = App.panes[App.contextPaneIndex ?? App.activePaneIndex];
   const isContextSelected = App.contextItem && targetPane?.selected?.has(App.contextItem.path);
   const selectedCount = (isContextSelected && targetPane?.selected?.size > 1) ? targetPane.selected.size : 1;
-  const headerText = selectedCount > 1 ? `⚡ Actions (${selectedCount} items selected)` : `📄 ${escapeHtml(App.contextItem?.name || 'File Actions')}`;
+  const headerText = selectedCount > 1 ? `⚡ ${selectedCount} items selected` : `${escapeHtml(App.contextItem?.name || 'File Actions')}`;
+
+  const filename = App.contextItem?.name || '';
+  const ext = filename.includes('.') ? filename.split('.').pop().toLowerCase() : '';
+  const matchingRules = OpenWithRules.filter(r => r.exts.includes('*') || r.exts.map(e => e.toLowerCase()).includes(ext));
+
+  let openWithItems = '';
+  if (matchingRules.length > 0) {
+    matchingRules.forEach(r => {
+      openWithItems += `<div class="context-item" onclick="executeOpenWith('${escapeHtml(App.contextItem?.path || '')}', '${escapeHtml(r.cmd)}'); hideContextMenu();">
+        <i data-lucide="${r.icon || 'external-link'}" style="width: 13px;"></i> ${escapeHtml(r.name)}
+      </div>`;
+    });
+  } else {
+    openWithItems += `<div class="context-item" onclick="executeOpenWith('${escapeHtml(App.contextItem?.path || '')}', null); hideContextMenu();">
+      <i data-lucide="external-link" style="width: 13px;"></i> System Default App
+    </div>`;
+  }
+  openWithItems += `<div class="context-sep"></div><div class="context-item" onclick="openSettings(); switchSettingsTab('tab-openwith'); hideContextMenu();">
+    <i data-lucide="settings" style="width: 13px; color: var(--accent);"></i> Configure Handlers...
+  </div>`;
+
+  let userCustomActions = '';
+  if (CustomShellActions.length > 0) {
+    CustomShellActions.forEach(a => {
+      userCustomActions += `<div class="context-item" onclick="executeCustomAction('${escapeHtml(a.cmd)}', '${escapeHtml(App.contextItem?.path || '')}'); hideContextMenu();">
+        <i data-lucide="${a.icon || 'terminal'}" style="width: 13px;"></i> ${escapeHtml(a.label)}
+      </div>`;
+    });
+  } else {
+    userCustomActions = '<div style="color: var(--text-muted); font-size: 11px; padding: 4px 8px;">No custom actions</div>';
+  }
+  userCustomActions += `<div class="context-sep"></div><div class="context-item" onclick="openSettings(); switchSettingsTab('tab-context'); hideContextMenu();">
+    <i data-lucide="settings" style="width: 13px; color: var(--accent);"></i> Manage Shell Actions...
+  </div>`;
+
+  const curTagInfo = App.contextItem ? fileTagsMap.get(App.contextItem.path) : null;
+  const curColor = curTagInfo?.color_label;
+  const curTags = curTagInfo?.tags || [];
+  const hasTags = curTags.length > 0;
+  const colorMap = {
+    red: '#ef4444',
+    orange: '#f97316',
+    yellow: '#eab308',
+    green: '#22c55e',
+    blue: '#3b82f6',
+    purple: '#a855f7'
+  };
+  const activeColorHex = curColor && colorMap[curColor] ? colorMap[curColor] : null;
 
   menu.innerHTML = `
-    <div style="padding: 8px 12px; font-size: 11px; font-weight: 700; color: var(--accent); border-bottom: 1px solid var(--border); font-family: var(--font-mono); text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">
-      ${headerText}
-    </div>
-    <div class="context-item" onclick="triggerView()"><i data-lucide="eye" style="width: 14px;"></i> Quick View (F3)</div>
-    <div class="context-item" onclick="triggerMediaInspector()"><i data-lucide="info" style="width: 14px; color: var(--accent);"></i> Media & EXIF Inspector...</div>
-    <div class="context-item" onclick="triggerEditor()"><i data-lucide="file-edit" style="width: 14px;"></i> Edit File (F4)</div>
-    <div class="context-item" onclick="triggerDiff()"><i data-lucide="git-compare" style="width: 14px;"></i> Compare / Diff</div>
-    <div class="context-sep"></div>
-
-    <!-- Color Label Palette & Tags -->
-    <div class="context-item context-color-palette-item" style="display: flex; justify-content: space-between; align-items: center; cursor: default;" onclick="event.stopPropagation()">
-      <span style="display: flex; align-items: center; gap: 6px;"><i data-lucide="tag" style="width: 14px; color: var(--accent);"></i> Color Label:</span>
-      <div class="context-color-palette">
-        <span class="color-dot color-red" onclick="setContextFileColor('red')" title="Red (Urgent)"></span>
-        <span class="color-dot color-orange" onclick="setContextFileColor('orange')" title="Orange (Pending)"></span>
-        <span class="color-dot color-yellow" onclick="setContextFileColor('yellow')" title="Yellow (Review)"></span>
-        <span class="color-dot color-green" onclick="setContextFileColor('green')" title="Green (Approved)"></span>
-        <span class="color-dot color-blue" onclick="setContextFileColor('blue')" title="Blue (Important)"></span>
-        <span class="color-dot color-purple" onclick="setContextFileColor('purple')" title="Purple (Personal)"></span>
-        <span class="color-dot color-none" onclick="setContextFileColor('none')" title="Clear Label">✕</span>
+    <!-- Top Header: Filename on left, Small Color Dot & Tag icon on right -->
+    <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; border-bottom: 1px solid var(--border); background: rgba(0,0,0,0.15);">
+      <span style="font-weight: 700; font-size: 11px; font-family: var(--font-mono); color: var(--accent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 170px;" title="${escapeHtml(App.contextItem?.name || '')}">
+        ${headerText}
+      </span>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span id="ctx-btn-color" onclick="toggleContextColorPalette(event)" title="Set Color Label" style="width: 12px; height: 12px; min-width: 12px; min-height: 12px; max-width: 12px; max-height: 12px; aspect-ratio: 1 / 1; border-radius: 50%; border: 1.5px solid ${activeColorHex || 'var(--border)'}; background: ${activeColorHex || 'rgba(255,255,255,0.15)'}; display: inline-block; flex-shrink: 0; cursor: pointer; transition: transform 0.15s, box-shadow 0.15s; box-shadow: ${activeColorHex ? `0 0 5px ${activeColorHex}` : 'none'};" onmouseenter="this.style.transform='scale(1.25)'" onmouseleave="this.style.transform='scale(1)'"></span>
+        <i data-lucide="tag" id="ctx-icon-tag" onclick="triggerEditTagsModal(); hideContextMenu();" title="${hasTags ? `Custom Tags (${escapeHtml(curTags.map(t => '#' + t).join(', '))})` : 'Custom Tags (None assigned)'}" style="width: 13px; height: 13px; color: ${hasTags ? '#22c55e' : 'var(--text-muted)'}; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; opacity: ${hasTags ? '1' : '0.55'}; filter: ${hasTags ? 'drop-shadow(0 0 4px rgba(34, 197, 94, 0.75))' : 'none'}; transition: opacity 0.15s, transform 0.15s, filter 0.15s;" onmouseenter="this.style.opacity='1'; this.style.transform='scale(1.2)';" onmouseleave="this.style.opacity='${hasTags ? '1' : '0.55'}'; this.style.transform='scale(1)';"></i>
       </div>
     </div>
-    <div class="context-item" onclick="triggerEditTagsModal()"><i data-lucide="tags" style="width: 14px; color: var(--accent);"></i> Edit Custom Tags...</div>
+
+    <!-- Toggleable Minimal Color Palette Bar -->
+    <div id="ctx-color-palette-bar" style="display: none; padding: 6px 10px; border-bottom: 1px solid var(--border); background: rgba(0,0,0,0.28); justify-content: space-between; align-items: center;" onclick="event.stopPropagation()">
+      <div style="display: flex; gap: 5px; align-items: center;">
+        <span class="color-dot-mini color-red" onclick="setContextFileColor('red')" title="Red (Urgent)"></span>
+        <span class="color-dot-mini color-orange" onclick="setContextFileColor('orange')" title="Orange (Pending)"></span>
+        <span class="color-dot-mini color-yellow" onclick="setContextFileColor('yellow')" title="Yellow (Review)"></span>
+        <span class="color-dot-mini color-green" onclick="setContextFileColor('green')" title="Green (Approved)"></span>
+        <span class="color-dot-mini color-blue" onclick="setContextFileColor('blue')" title="Blue (Important)"></span>
+        <span class="color-dot-mini color-purple" onclick="setContextFileColor('purple')" title="Purple (Personal)"></span>
+        <span class="color-dot-mini color-none" onclick="setContextFileColor('none')" title="Clear Label">✕</span>
+      </div>
+      <button class="btn btn-xs btn-subtle" onclick="openPropertiesColorTab()" title="More colors & tags in Properties dialog" style="font-size: 10px; padding: 2px 6px; margin-left: 8px; border: 1px solid var(--border); border-radius: 4px; background: rgba(255,255,255,0.05); color: var(--accent); cursor: pointer; white-space: nowrap;">
+        More...
+      </button>
+    </div>
+
+    <!-- Group 1: Open With, View, Edit, Properties -->
+    <div class="context-item has-submenu" onmouseenter="adjustSubmenuPosition(this)" onclick="toggleContextSubmenu(event, this)">
+      <div style="display:flex; align-items:center; gap:8px;"><i data-lucide="external-link" style="width: 14px; color: var(--accent);"></i> Open with...</div>
+      <i data-lucide="chevron-right" class="submenu-chevron" style="width: 12px;"></i>
+      <div class="context-submenu">
+        ${openWithItems}
+      </div>
+    </div>
+    <div class="context-item" onclick="triggerView()"><i data-lucide="eye" style="width: 14px;"></i> Quick View (F3)</div>
+    <div class="context-item" onclick="triggerEditor()"><i data-lucide="file-edit" style="width: 14px;"></i> Edit (F4)</div>
+    <div class="context-item" onclick="triggerProperties()"><i data-lucide="info" style="width: 14px; color: var(--accent);"></i> Properties (Alt+Enter)</div>
     <div class="context-sep"></div>
 
-    <div class="context-item" onclick="triggerCopyClipboard()"><i data-lucide="clipboard-copy" style="width: 14px;"></i> Copy to Clipboard (Ctrl+C)</div>
-    <div class="context-item" onclick="triggerCutClipboard()"><i data-lucide="scissors" style="width: 14px;"></i> Cut (Ctrl+X)</div>
-    <div class="context-item ${App.clipboard ? '' : 'disabled'}" onclick="triggerPaste(App.activePaneIndex)" style="${App.clipboard ? '' : 'opacity: 0.5; pointer-events: none;'}"><i data-lucide="clipboard-paste" style="width: 14px;"></i> Paste (Ctrl+V)</div>
-    <div class="context-sep"></div>
-    
-    <!-- Dynamic Advanced Copy Submenu -->
-    <div class="context-item has-submenu" onclick="toggleContextSubmenu(event, this)">
-      <div style="display:flex; align-items:center; gap:8px;"><i data-lucide="copy" style="width: 14px;"></i> Quick Copy to...</div>
+    <!-- Group 2: Copy to, Move to, Copy, Cut, Paste, Rename, Delete -->
+    <div class="context-item has-submenu" onmouseenter="adjustSubmenuPosition(this)" onclick="toggleContextSubmenu(event, this)">
+      <div style="display:flex; align-items:center; gap:8px;"><i data-lucide="copy" style="width: 14px;"></i> Copy to...</div>
       <i data-lucide="chevron-right" class="submenu-chevron" style="width: 12px;"></i>
       <div class="context-submenu">
         ${copyPaneItems ? `<div class="submenu-header">Active Panes</div>${copyPaneItems}<div class="context-sep"></div>` : ''}
@@ -5017,9 +6205,8 @@ function showContextMenu(x, y) {
       </div>
     </div>
 
-    <!-- Dynamic Advanced Move Submenu -->
-    <div class="context-item has-submenu" onclick="toggleContextSubmenu(event, this)">
-      <div style="display:flex; align-items:center; gap:8px;"><i data-lucide="move" style="width: 14px;"></i> Quick Move to...</div>
+    <div class="context-item has-submenu" onmouseenter="adjustSubmenuPosition(this)" onclick="toggleContextSubmenu(event, this)">
+      <div style="display:flex; align-items:center; gap:8px;"><i data-lucide="move" style="width: 14px;"></i> Move to...</div>
       <i data-lucide="chevron-right" class="submenu-chevron" style="width: 12px;"></i>
       <div class="context-submenu">
         ${movePaneItems ? `<div class="submenu-header">Active Panes</div>${movePaneItems}<div class="context-sep"></div>` : ''}
@@ -5030,62 +6217,390 @@ function showContextMenu(x, y) {
       </div>
     </div>
 
+    <div class="context-item" onclick="triggerCopyClipboard()"><i data-lucide="clipboard-copy" style="width: 14px;"></i> Copy (Ctrl+C)</div>
+    <div class="context-item" onclick="triggerCutClipboard()"><i data-lucide="scissors" style="width: 14px;"></i> Cut (Ctrl+X)</div>
+    <div class="context-item ${App.clipboard ? '' : 'disabled'}" onclick="triggerPaste(App.activePaneIndex)" style="${App.clipboard ? '' : 'opacity: 0.5; pointer-events: none;'}"><i data-lucide="clipboard-paste" style="width: 14px;"></i> Paste (Ctrl+V)</div>
     <div class="context-item" onclick="triggerRename()"><i data-lucide="edit-3" style="width: 14px;"></i> Rename (F2)</div>
-    <div class="context-item" onclick="triggerBulkRename()"><i data-lucide="tags" style="width: 14px; color: var(--accent);"></i> Advanced Bulk Rename... (Shift+F6)</div>
-    <div class="context-item" onclick="triggerDelete()"><i data-lucide="trash-2" style="width: 14px;"></i> Delete / Trash (F8)</div>
+    <div class="context-item" onclick="triggerDelete()"><i data-lucide="trash-2" style="width: 14px; color: var(--danger);"></i> Delete (F8)</div>
     <div class="context-sep"></div>
 
-    <!-- Dynamic Custom Script Actions Submenu -->
-    <div class="context-item has-submenu" onclick="toggleContextSubmenu(event, this)">
-      <div style="display:flex; align-items:center; gap:8px;"><i data-lucide="terminal-square" style="width: 14px; color: var(--accent);"></i> Custom Script Actions</div>
+    <!-- Group 3: Archive Submenu -->
+    <div class="context-item has-submenu" onmouseenter="adjustSubmenuPosition(this)" onclick="toggleContextSubmenu(event, this)">
+      <div style="display:flex; align-items:center; gap:8px;"><i data-lucide="archive" style="width: 14px; color: var(--accent);"></i> Archive</div>
       <i data-lucide="chevron-right" class="submenu-chevron" style="width: 12px;"></i>
       <div class="context-submenu">
-        <div class="submenu-header">Shell Actions (conf.d)</div>
-        <div class="context-item" onclick="runPredefinedAction('chmod +x &quot;{file}&quot;', 'Make Executable (chmod +x)')"><i data-lucide="shield" style="width:13px;"></i> Make Executable (chmod +x)</div>
-        <div class="context-item" onclick="runPredefinedAction('stat &quot;{file}&quot;', 'File Stat Info')"><i data-lucide="info" style="width:13px;"></i> Inspect Stat (stat)</div>
-        <div class="context-item" onclick="runPredefinedAction('du -sh &quot;{file}&quot;', 'Disk Usage')"><i data-lucide="hard-drive" style="width:13px;"></i> Check Disk Usage (du -sh)</div>
-        <div class="context-item" onclick="runPredefinedAction('git -C &quot;{dir}&quot; log -n 10 --oneline --graph', 'Git Log')"><i data-lucide="git-branch" style="width:13px;"></i> Git Recent Log (git log)</div>
-        <div class="context-item" onclick="runPredefinedAction('md5sum &quot;{file}&quot;', 'MD5 Hash')"><i data-lucide="hash" style="width:13px;"></i> Calculate MD5 Hash</div>
-        <div class="context-item" onclick="runPredefinedAction('wc -l &quot;{file}&quot;', 'Line Count')"><i data-lucide="list-ordered" style="width:13px;"></i> Count Lines (wc -l)</div>
+        <div class="context-item" onclick="triggerArchiveZip()"><i data-lucide="archive" style="width: 13px;"></i> Add to .zip</div>
+        <div class="context-item" onclick="triggerArchive7z()"><i data-lucide="archive" style="width: 13px;"></i> Add to .7z</div>
+        <div class="context-item" onclick="triggerArchiveTarGz()"><i data-lucide="archive" style="width: 13px;"></i> Add to .tar.gz</div>
+        <div class="context-item" onclick="triggerCompressModal()"><i data-lucide="package" style="width: 13px;"></i> Add to Archive...</div>
+        <div class="context-item" onclick="triggerExtract()"><i data-lucide="folder-archive" style="width: 13px;"></i> Extract Here</div>
+        <div class="context-sep"></div>
+        <div class="context-item" onclick="triggerChecksum()"><i data-lucide="shield-check" style="width: 13px;"></i> Calculate Checksums</div>
       </div>
     </div>
-    <div class="context-item" onclick="triggerGitManager()"><i data-lucide="git-branch" style="width: 14px; color: var(--accent);"></i> Git Manager & Diff...</div>
-    <div class="context-item" onclick="openPdfToolModal(App.contextItem ? App.contextItem.path : null)"><i data-lucide="file-text" style="width: 14px; color: #ef4444;"></i> PDF Merge & Split Studio...</div>
-    <div class="context-item" onclick="triggerFileSplit()"><i data-lucide="scissors" style="width: 14px; color: var(--accent);"></i> Split Large File...</div>
-    <div class="context-item" onclick="triggerFileCombine()"><i data-lucide="merge" style="width: 14px; color: var(--accent);"></i> Combine Part Files (.001, .002)...</div>
-    <div class="context-item" onclick="openSyncModal()"><i data-lucide="refresh-cw" style="width: 14px;"></i> Two-Way Directory Sync...</div>
-    <div class="context-item" onclick="openDiskUsageModal()"><i data-lucide="pie-chart" style="width: 14px; color: var(--accent);"></i> Disk Usage & Space Analyzer...</div>
-    <div class="context-item" onclick="openSearchModal()"><i data-lucide="search" style="width: 14px;"></i> Deep Search in Directory (Ctrl+F)</div>
+    <div class="context-sep"></div>
 
-    <!-- Dock Tool Panel Submenu -->
-    <div class="context-item has-submenu" onclick="toggleContextSubmenu(event, this)">
-      <div style="display:flex; align-items:center; gap:8px;"><i data-lucide="panel-left-close" style="width: 14px; color: var(--accent);"></i> Dock Tool in this Pane</div>
+    <!-- Group 4: Tools Submenu -->
+    <div class="context-item has-submenu" onmouseenter="adjustSubmenuPosition(this)" onclick="toggleContextSubmenu(event, this)">
+      <div style="display:flex; align-items:center; gap:8px;"><i data-lucide="wrench" style="width: 14px; color: var(--accent);"></i> Tools</div>
       <i data-lucide="chevron-right" class="submenu-chevron" style="width: 12px;"></i>
       <div class="context-submenu">
-        <div class="submenu-header">Dockable Panels</div>
-        <div class="context-item" onclick="dockToolToPane('editor', App.activePaneIndex)"><i data-lucide="file-code" style="width:13px;"></i> 💻 EditorDog Multi-Tab</div>
-        <div class="context-item" onclick="dockToolToPane('terminal', App.activePaneIndex)"><i data-lucide="terminal" style="width:13px;"></i> 📟 Terminal Console</div>
-        <div class="context-item" onclick="dockToolToPane('calculator', App.activePaneIndex)"><i data-lucide="calculator" style="width:13px;"></i> 🧮 Byte Calculator</div>
-        <div class="context-item" onclick="dockToolToPane('tasks', App.activePaneIndex)"><i data-lucide="activity" style="width:13px;"></i> ⚡ Background Transfers</div>
-        <div class="context-item" onclick="dockToolToPane('git', App.activePaneIndex)"><i data-lucide="git-branch" style="width:13px;"></i> 🌲 Git Working Tree</div>
+        <div class="context-item" onclick="openSearchModal()"><i data-lucide="search" style="width: 13px;"></i> Advanced Search (Ctrl+F)</div>
+        <div class="context-item" onclick="triggerDiff()"><i data-lucide="git-compare" style="width: 13px;"></i> Compare / Diff (F9)</div>
+        <div class="context-item" onclick="triggerBulkRename()"><i data-lucide="tags" style="width: 13px;"></i> Advanced Rename (Shift+F6)</div>
+        <div class="context-item has-submenu" onmouseenter="adjustSubmenuPosition(this)" onclick="toggleContextSubmenu(event, this)">
+          <div style="display:flex; align-items:center; gap:8px;"><i data-lucide="terminal-square" style="width: 13px; color: var(--accent);"></i> Custom Script Actions</div>
+          <i data-lucide="chevron-right" class="submenu-chevron" style="width: 12px;"></i>
+          <div class="context-submenu">
+            <div class="submenu-header">User Actions</div>
+            ${userCustomActions}
+            <div class="context-sep"></div>
+            <div class="submenu-header">Shell Actions</div>
+            <div class="context-item" onclick="runPredefinedAction('chmod +x &quot;{file}&quot;', 'Make Executable (chmod +x)')"><i data-lucide="shield" style="width:13px;"></i> Make Executable (chmod +x)</div>
+            <div class="context-item" onclick="runPredefinedAction('stat &quot;{file}&quot;', 'File Stat Info')"><i data-lucide="info" style="width:13px;"></i> Inspect Stat (stat)</div>
+            <div class="context-item" onclick="runPredefinedAction('du -sh &quot;{file}&quot;', 'Disk Usage')"><i data-lucide="hard-drive" style="width:13px;"></i> Check Disk Usage (du -sh)</div>
+            <div class="context-item" onclick="runPredefinedAction('git -C &quot;{dir}&quot; log -n 10 --oneline --graph', 'Git Log')"><i data-lucide="git-branch" style="width:13px;"></i> Git Recent Log (git log)</div>
+            <div class="context-item" onclick="runPredefinedAction('md5sum &quot;{file}&quot;', 'MD5 Hash')"><i data-lucide="hash" style="width:13px;"></i> Calculate MD5 Hash</div>
+            <div class="context-item" onclick="runPredefinedAction('wc -l &quot;{file}&quot;', 'Line Count')"><i data-lucide="list-ordered" style="width:13px;"></i> Count Lines (wc -l)</div>
+          </div>
+        </div>
+        <div class="context-item" onclick="openPdfToolModal(App.contextItem ? App.contextItem.path : null)"><i data-lucide="file-text" style="width: 13px; color: #ef4444;"></i> PDFDog (Split & Merge)</div>
+        <div class="context-item" onclick="triggerFileSplit()"><i data-lucide="scissors" style="width: 13px;"></i> Split Large File...</div>
+        <div class="context-item" onclick="triggerFileCombine()"><i data-lucide="merge" style="width: 13px;"></i> Combine Part Files (.001, .002)...</div>
+        <div class="context-item" onclick="openSyncModal()"><i data-lucide="refresh-cw" style="width: 13px;"></i> Sync / Backup Engine...</div>
+        <div class="context-item" onclick="openDiskUsageModal()"><i data-lucide="pie-chart" style="width: 13px;"></i> Disk Usage & Space Analyzer</div>
+        <div class="context-item" onclick="triggerGitManager()"><i data-lucide="git-branch" style="width: 13px;"></i> Git Manager & Diff</div>
       </div>
     </div>
 
     ${App.contextItem && isVaultFile(App.contextItem.name) ? `
+      <div class="context-sep"></div>
       <div class="context-item" onclick="handleVaultOpen('${escapeHtml(App.contextItem.path)}')"><i data-lucide="key" style="width: 14px; color: var(--accent);"></i> Unlock / Open Vault...</div>
       <div class="context-item" onclick="disconnectPaneRemote(App.activePaneIndex)"><i data-lucide="lock" style="width: 14px; color: var(--danger);"></i> Lock Vault</div>
-      <div class="context-sep"></div>
     ` : ''}
-    <div class="context-item" onclick="triggerPermissions()"><i data-lucide="lock" style="width: 14px;"></i> Permissions & Ownership</div>
-    <div class="context-item" onclick="triggerChecksum()"><i data-lucide="shield-check" style="width: 14px;"></i> Calculate SHA-256 Hash</div>
-    <div class="context-item" onclick="triggerArchiveZip()"><i data-lucide="archive" style="width: 14px;"></i> Compress to .zip</div>
-    <div class="context-item" onclick="triggerArchiveTarGz()"><i data-lucide="archive" style="width: 14px;"></i> Compress to .tar.gz</div>
-    <div class="context-item" onclick="triggerExtract()"><i data-lucide="folder-archive" style="width: 14px;"></i> Extract Archive Here</div>
   `;
 
   if (window.lucide) lucide.createIcons();
 
   positionContextMenu(menu, x, y);
+}
+
+function triggerProperties(targetEntry) {
+  const pane = App.panes[App.contextPaneIndex ?? App.activePaneIndex];
+  const entry = targetEntry || App.contextItem || (pane?.entries ? pane.entries[pane.cursorIndex] : null);
+  if (!entry) {
+    showToast('No item selected to inspect properties', 'info');
+    return;
+  }
+
+  activePropertiesEntry = entry;
+  activePermEntry = entry;
+
+  const headerIcon = document.getElementById('prop-header-icon');
+  const bigIcon = document.getElementById('prop-big-icon');
+  const title = document.getElementById('prop-header-title');
+  const filenameInput = document.getElementById('prop-input-filename');
+  const typeDesc = document.getElementById('prop-file-type-desc');
+
+  if (title) title.textContent = `${entry.name} - Properties`;
+  if (filenameInput) filenameInput.value = entry.name;
+
+  const iconDetails = getFileIconDetails(entry.name, entry.is_dir, entry.is_archive);
+  if (headerIcon) {
+    if (iconDetails.src) headerIcon.src = iconDetails.src;
+    else headerIcon.src = entry.is_dir ? 'assets/folder-open.png' : 'assets/logo.png';
+  }
+  if (bigIcon) {
+    if (iconDetails.src) bigIcon.src = iconDetails.src;
+    else bigIcon.src = entry.is_dir ? 'assets/folder-open.png' : 'assets/logo.png';
+  }
+
+  const ext = entry.name.includes('.') ? entry.name.split('.').pop().toUpperCase() : '';
+  if (typeDesc) {
+    typeDesc.textContent = entry.is_dir ? 'File Folder' : (ext ? `${ext} File` : 'System File');
+  }
+
+  const parts = entry.path.split('/').filter(Boolean);
+  parts.pop();
+  const parentLoc = parts.length === 0 ? '/' : '/' + parts.join('/');
+  document.getElementById('prop-val-location').textContent = parentLoc;
+  document.getElementById('prop-val-size').textContent = entry.is_dir ? '<DIR>' : `${formatBytes(entry.size)} (${(entry.size || 0).toLocaleString()} bytes)`;
+  document.getElementById('prop-val-created').textContent = entry.created ? formatDate(entry.created) : (entry.modified ? formatDate(entry.modified) : '-');
+  document.getElementById('prop-val-modified').textContent = formatDate(entry.modified);
+  document.getElementById('prop-val-mode').textContent = `${entry.permissions || '-'} (${entry.mode_octal || '-'})`;
+  document.getElementById('prop-val-contains').textContent = entry.is_dir ? 'Scanning contents...' : '1 File';
+
+  if (entry.is_dir) {
+    fetch(`/api/fs/list?path=${encodeURIComponent(entry.path)}`, { headers: { 'Authorization': `Bearer ${App.token}` } })
+      .then(res => res.json())
+      .then(data => {
+        if (data.entries) {
+          const files = data.entries.filter(e => !e.is_dir).length;
+          const dirs = data.entries.filter(e => e.is_dir).length;
+          const el = document.getElementById('prop-val-contains');
+          if (el) el.textContent = `${files} Files, ${dirs} Folders`;
+        }
+      }).catch(() => {});
+  }
+
+  const mediaSec = document.getElementById('prop-media-section');
+  const mediaGrid = document.getElementById('prop-media-grid');
+  if (mediaSec && mediaGrid) {
+    if (!entry.is_dir && (isImageExtension(entry.name) || isAudioExtension(entry.name) || isVideoExtension(entry.name))) {
+      mediaSec.style.display = 'block';
+      mediaGrid.innerHTML = '<div style="color:var(--text-muted); grid-column: span 2;">Reading media tags & EXIF...</div>';
+      fetch(`/api/fs/inspect-media?path=${encodeURIComponent(entry.path)}`, { headers: { 'Authorization': `Bearer ${App.token}` } })
+        .then(res => res.json())
+        .then(data => {
+          if (data.meta) {
+            let html = '';
+            if (data.meta.width && data.meta.height) {
+              html += `<div><span style="color:var(--text-muted);">Dimensions:</span> <strong>${data.meta.width} × ${data.meta.height}</strong></div>`;
+            }
+            if (data.meta.duration_sec) {
+              html += `<div><span style="color:var(--text-muted);">Duration:</span> <strong>${Math.round(data.meta.duration_sec)}s</strong></div>`;
+            }
+            if (data.meta.camera_make || data.meta.camera_model) {
+              html += `<div style="grid-column: span 2;"><span style="color:var(--text-muted);">Camera:</span> <strong>${data.meta.camera_make || ''} ${data.meta.camera_model || ''}</strong></div>`;
+            }
+            if (data.meta.codec) {
+              html += `<div><span style="color:var(--text-muted);">Codec:</span> <strong>${data.meta.codec}</strong></div>`;
+            }
+            if (data.meta.bitrate_kbps) {
+              html += `<div><span style="color:var(--text-muted);">Bitrate:</span> <strong>${data.meta.bitrate_kbps} kbps</strong></div>`;
+            }
+            mediaGrid.innerHTML = html || '<div style="color:var(--text-muted); grid-column: span 2;">No extended EXIF tags found</div>';
+          } else {
+            mediaGrid.innerHTML = '<div style="color:var(--text-muted); grid-column: span 2;">No media metadata available</div>';
+          }
+        }).catch(() => {
+          mediaGrid.innerHTML = '<div style="color:var(--text-muted); grid-column: span 2;">Could not read media tags</div>';
+        });
+    } else {
+      mediaSec.style.display = 'none';
+    }
+  }
+
+  setPropPermCheckboxesFromMode(entry.mode || (entry.mode_octal ? parseInt(entry.mode_octal, 8) : 0o755));
+  populatePropOwnerGroupDropdowns(entry.owner, entry.group);
+  const recWrapper = document.getElementById('prop-perm-recursive-wrapper');
+  if (recWrapper) recWrapper.style.display = entry.is_dir ? 'block' : 'none';
+
+  document.getElementById('prop-hash-sha256').value = '-';
+  document.getElementById('prop-hash-md5').value = '-';
+  document.getElementById('prop-hash-sha1').value = '-';
+
+  renderPropTagsTab(entry.path);
+
+  switchPropertiesTab('prop-tab-general');
+  showModal('properties-modal');
+}
+
+function switchPropertiesTab(tabId) {
+  const modal = document.getElementById('properties-modal');
+  if (!modal) return;
+  modal.querySelectorAll('.settings-tab-btn').forEach(btn => btn.classList.remove('active'));
+  modal.querySelectorAll('.settings-tab-content').forEach(c => c.classList.remove('active'));
+
+  const btn = document.getElementById(`btn-${tabId}`);
+  if (btn) btn.classList.add('active');
+  const content = document.getElementById(tabId);
+  if (content) content.classList.add('active');
+}
+
+function setPropPermCheckboxesFromMode(mode) {
+  document.getElementById('prop-perm-u-r').checked = (mode & 0o400) !== 0;
+  document.getElementById('prop-perm-u-w').checked = (mode & 0o200) !== 0;
+  document.getElementById('prop-perm-u-x').checked = (mode & 0o100) !== 0;
+
+  document.getElementById('prop-perm-g-r').checked = (mode & 0o040) !== 0;
+  document.getElementById('prop-perm-g-w').checked = (mode & 0o020) !== 0;
+  document.getElementById('prop-perm-g-x').checked = (mode & 0o010) !== 0;
+
+  document.getElementById('prop-perm-o-r').checked = (mode & 0o004) !== 0;
+  document.getElementById('prop-perm-o-w').checked = (mode & 0o002) !== 0;
+  document.getElementById('prop-perm-o-x').checked = (mode & 0o001) !== 0;
+
+  document.getElementById('prop-perm-octal').textContent = '0' + (mode & 0o777).toString(8);
+}
+
+function updatePropPermFromCheckboxes() {
+  let mode = 0;
+  if (document.getElementById('prop-perm-u-r').checked) mode |= 0o400;
+  if (document.getElementById('prop-perm-u-w').checked) mode |= 0o200;
+  if (document.getElementById('prop-perm-u-x').checked) mode |= 0o100;
+
+  if (document.getElementById('prop-perm-g-r').checked) mode |= 0o040;
+  if (document.getElementById('prop-perm-g-w').checked) mode |= 0o020;
+  if (document.getElementById('prop-perm-g-x').checked) mode |= 0o010;
+
+  if (document.getElementById('prop-perm-o-r').checked) mode |= 0o004;
+  if (document.getElementById('prop-perm-o-w').checked) mode |= 0o002;
+  if (document.getElementById('prop-perm-o-x').checked) mode |= 0o001;
+
+  document.getElementById('prop-perm-octal').textContent = '0' + (mode & 0o777).toString(8);
+}
+
+function populatePropOwnerGroupDropdowns(currentOwner, currentGroup) {
+  const uSel = document.getElementById('prop-perm-owner');
+  const gSel = document.getElementById('prop-perm-group');
+  if (!uSel || !gSel) return;
+  uSel.innerHTML = '';
+  gSel.innerHTML = '';
+
+  (App.systemUsers || ['root']).forEach(u => {
+    const opt = document.createElement('option');
+    opt.value = u;
+    opt.textContent = u;
+    if (u === currentOwner) opt.selected = true;
+    uSel.appendChild(opt);
+  });
+
+  (App.systemGroups || ['root']).forEach(g => {
+    const opt = document.createElement('option');
+    opt.value = g;
+    opt.textContent = g;
+    if (g === currentGroup) opt.selected = true;
+    gSel.appendChild(opt);
+  });
+}
+
+async function savePropertiesSecurity() {
+  if (!activePropertiesEntry) return;
+
+  const modeStr = document.getElementById('prop-perm-octal').textContent;
+  const modeVal = parseInt(modeStr, 8);
+  const recursive = document.getElementById('prop-perm-recursive')?.checked || false;
+  const owner = document.getElementById('prop-perm-owner')?.value;
+  const group = document.getElementById('prop-perm-group')?.value;
+
+  const paths = [activePropertiesEntry.path];
+
+  try {
+    showToast('Applying permissions...', 'info');
+    await fetch('/api/fs/chmod', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
+      body: JSON.stringify({ paths, mode: modeVal, recursive })
+    });
+
+    if (owner && group) {
+      await fetch('/api/fs/chown', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
+        body: JSON.stringify({ paths, owner, group, recursive })
+      });
+    }
+
+    showToast('Security permissions updated', 'success');
+    refreshPane(App.activePaneIndex);
+  } catch (err) {
+    showToast('Failed to apply permissions', 'error');
+  }
+}
+
+async function calculatePropertiesChecksums() {
+  if (!activePropertiesEntry || activePropertiesEntry.is_dir) {
+    showToast('Checksums only apply to individual files', 'info');
+    return;
+  }
+
+  const shaEl = document.getElementById('prop-hash-sha256');
+  const md5El = document.getElementById('prop-hash-md5');
+  const sha1El = document.getElementById('prop-hash-sha1');
+
+  if (shaEl) shaEl.value = 'Calculating SHA-256...';
+  if (md5El) md5El.value = 'Calculating MD5...';
+  if (sha1El) sha1El.value = 'Calculating SHA-1...';
+
+  try {
+    const res = await fetch(`/api/fs/checksum?path=${encodeURIComponent(activePropertiesEntry.path)}`, {
+      headers: { 'Authorization': `Bearer ${App.token}` }
+    });
+    const data = await res.json();
+    if (data.sha256) shaEl.value = data.sha256;
+    if (data.md5) md5El.value = data.md5;
+    if (data.sha1) sha1El.value = data.sha1 || '-';
+    showToast('Hashes calculated', 'success');
+  } catch (err) {
+    if (shaEl) shaEl.value = 'Calculation failed';
+    if (md5El) md5El.value = 'Calculation failed';
+    if (sha1El) sha1El.value = 'Calculation failed';
+  }
+}
+
+function copyPropHash(elementId) {
+  const el = document.getElementById(elementId);
+  if (!el || !el.value || el.value === '-' || el.value.includes('...')) return;
+  navigator.clipboard.writeText(el.value);
+  showToast('Checksum copied to clipboard', 'info');
+}
+
+function renderPropTagsTab(path) {
+  const container = document.getElementById('prop-tags-container');
+  if (!container) return;
+  container.innerHTML = '';
+
+  const tagInfo = fileTagsMap.get(path);
+  const tags = tagInfo?.tags || [];
+
+  if (tags.length === 0) {
+    container.innerHTML = '<span style="color: var(--text-muted); font-size: 11px;">No custom tags assigned yet.</span>';
+    return;
+  }
+
+  tags.forEach(tag => {
+    const pill = document.createElement('span');
+    pill.className = 'file-tag-badge';
+    pill.style.cssText = 'font-size: 12px; padding: 3px 8px; display: inline-flex; align-items: center; gap: 6px;';
+    pill.innerHTML = `<span>#${escapeHtml(tag)}</span><i data-lucide="x" style="width: 12px; height: 12px; cursor: pointer;" onclick="removePropCustomTag('${escapeHtml(tag)}')"></i>`;
+    container.appendChild(pill);
+  });
+
+  if (window.lucide) lucide.createIcons();
+}
+
+function setPropFileColor(color) {
+  if (!activePropertiesEntry) return;
+  setContextFileColor(color);
+}
+
+function addPropCustomTag() {
+  if (!activePropertiesEntry) return;
+  const input = document.getElementById('prop-input-new-tag');
+  if (!input) return;
+  const val = input.value.trim().replace(/^#/, '');
+  if (!val) return;
+
+  const path = activePropertiesEntry.path;
+  const tagInfo = fileTagsMap.get(path) || { color_label: 'none', tags: [] };
+  if (!tagInfo.tags.includes(val)) {
+    tagInfo.tags.push(val);
+    fileTagsMap.set(path, tagInfo);
+    saveFileTagsToStorage();
+    renderPropTagsTab(path);
+    refreshPane(App.activePaneIndex);
+    input.value = '';
+    showToast(`Added tag #${val}`, 'success');
+  }
+}
+
+function removePropCustomTag(tag) {
+  if (!activePropertiesEntry) return;
+  const path = activePropertiesEntry.path;
+  const tagInfo = fileTagsMap.get(path);
+  if (tagInfo && tagInfo.tags) {
+    tagInfo.tags = tagInfo.tags.filter(t => t !== tag);
+    fileTagsMap.set(path, tagInfo);
+    saveFileTagsToStorage();
+    renderPropTagsTab(path);
+    refreshPane(App.activePaneIndex);
+    showToast(`Removed tag #${tag}`, 'info');
+  }
+}
+
+function triggerArchive7z() {
+  triggerCompressModal();
 }
 
 function positionContextMenu(menu, x, y) {
@@ -5155,42 +6670,29 @@ function positionContextMenu(menu, x, y) {
     }
   }
 
-  const maxAllowedHeight = window.innerHeight - top - bottomPad;
-  menu.style.maxHeight = `${Math.max(200, maxAllowedHeight)}px`;
-  menu.style.overflowY = menuHeight > maxAllowedHeight ? 'auto' : 'visible';
-  menu.style.overflowX = 'hidden';
+  menu.style.maxHeight = 'none';
+  menu.style.overflow = 'visible';
+  menu.style.overflowY = 'visible';
+  menu.style.overflowX = 'visible';
 
   menu.style.left = `${left}px`;
   menu.style.top = `${top}px`;
   menu.style.visibility = 'visible';
 
-  // Prevent submenus from overflowing bottom
+  // Attach dynamic collision adjuster to all submenus
   menu.querySelectorAll('.context-item.has-submenu').forEach(item => {
-    item.onmouseenter = () => {
-      const sub = item.querySelector('.context-submenu');
-      if (!sub) return;
-      const itemRect = item.getBoundingClientRect();
-      const subHeight = sub.offsetHeight || 220;
-      if (itemRect.top + subHeight > window.innerHeight - bottomPad) {
-        sub.style.top = 'auto';
-        sub.style.bottom = '-4px';
-      } else {
-        sub.style.top = '-4px';
-        sub.style.bottom = 'auto';
-      }
-      if (itemRect.right + 240 > window.innerWidth - pad) {
-        sub.style.left = 'auto';
-        sub.style.right = 'calc(100% - 2px)';
-      } else {
-        sub.style.left = 'calc(100% - 2px)';
-        sub.style.right = 'auto';
+    item.onmouseenter = () => adjustSubmenuPosition(item);
+    item.onmouseleave = () => {
+      if (window.innerWidth > 768) {
+        const sub = item.querySelector(':scope > .context-submenu');
+        if (sub) sub.style.display = '';
       }
     };
   });
 }
 
 function toggleContextSubmenu(e, itemEl) {
-  if (window.innerWidth <= 768 || window.matchMedia('(pointer: coarse)').matches) {
+  if (window.innerWidth <= 768) {
     e.stopPropagation();
     const isOpen = itemEl.classList.contains('expanded');
     const menu = itemEl.closest('.context-menu');
@@ -5200,6 +6702,9 @@ function toggleContextSubmenu(e, itemEl) {
       });
     }
     itemEl.classList.toggle('expanded', !isOpen);
+  } else {
+    e.stopPropagation();
+    adjustSubmenuPosition(itemEl);
   }
 }
 
@@ -5423,13 +6928,13 @@ document.addEventListener('click', (e) => {
 
   const insideMenu = e.target.closest('#context-menu');
   if (insideMenu) {
-    // If clicked a submenu parent or the color palette row itself (not a dot), keep open for sub-navigation
     const submenuHeader = e.target.closest('.context-item.has-submenu');
-    const colorPaletteRow = e.target.closest('.context-color-palette-item') && !e.target.closest('.color-dot');
-    if (submenuHeader || colorPaletteRow) {
+    const colorBtn = e.target.closest('#ctx-btn-color');
+    const colorBar = e.target.closest('#ctx-color-palette-bar');
+    const colorDot = e.target.closest('.color-dot-mini') || e.target.closest('.color-dot');
+    if (submenuHeader || colorBtn || (colorBar && !colorDot)) {
       return;
     }
-    // Any other action or color dot clicked inside context menu -> dismiss menu immediately!
     hideContextMenu();
   } else {
     hideContextMenu();
@@ -10132,10 +11637,8 @@ async function openDocumentViewer(filePath) {
         const data = await resp.json();
         currentDocViewerRawText = data.content || '';
         if (mdPanel) {
-          mdPanel.innerHTML = renderRichMarkdown(currentDocViewerRawText);
-          if (window.mermaid) {
-            try { mermaid.init(undefined, mdPanel.querySelectorAll('.mermaid')); } catch (e) {}
-          }
+          mdPanel.innerHTML = renderMarkdownToHtml(currentDocViewerRawText);
+          postProcessMarkdownContainer(mdPanel);
         }
       }
     } catch (e) {
@@ -10301,7 +11804,8 @@ function toggleDocRawRenderMode() {
       const mdPanel = document.getElementById('doc-view-md');
       if (mdPanel) {
         mdPanel.style.display = 'block';
-        mdPanel.innerHTML = renderRichMarkdown(currentDocViewerRawText);
+        mdPanel.innerHTML = renderMarkdownToHtml(currentDocViewerRawText);
+        postProcessMarkdownContainer(mdPanel);
       }
     } else if (['html', 'htm', 'xhtml', 'svg', 'xml'].includes(ext)) {
       document.getElementById('doc-view-text').style.display = 'none';
@@ -10312,127 +11816,7 @@ function toggleDocRawRenderMode() {
 }
 
 function renderRichMarkdown(content) {
-  if (!content) return '<p style="color: var(--text-muted); font-style: italic;">(Empty markdown document)</p>';
-  
-  let lines = content.split('\n');
-  let inCodeBlock = false;
-  let codeBlockLang = '';
-  let codeBlockContent = [];
-  let inTable = false;
-  let tableRows = [];
-  let outHtml = [];
-
-  const escapeH = (str) => (str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-
-  const inlineFormat = (txt) => {
-    return txt
-      .replace(/`([^`]+)`/g, '<code style="background: rgba(255,255,255,0.08); padding: 1px 5px; border-radius: 3px; font-family: var(--font-mono); font-size: 11px;">$1</code>')
-      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-      .replace(/\*([^*]+)\*/g, '<em>$1</em>')
-      .replace(/~~([^~]+)~~/g, '<del>$1</del>')
-      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" style="color: var(--accent); text-decoration: underline;">$1</a>')
-      .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" style="max-width: 100%; border-radius: 6px; margin: 8px 0;">');
-  };
-
-  const flushTable = () => {
-    if (!inTable || tableRows.length === 0) return;
-    let tbl = '<div style="overflow-x: auto; margin: 16px 0;"><table class="doc-csv-table" style="border: 1px solid var(--border); border-radius: 6px; overflow: hidden;">';
-    if (tableRows.length > 0) {
-      tbl += '<thead><tr>';
-      tableRows[0].forEach(cell => {
-        tbl += `<th>${inlineFormat(escapeH(cell.trim()))}</th>`;
-      });
-      tbl += '</tr></thead>';
-    }
-    if (tableRows.length > 1) {
-      tbl += '<tbody>';
-      for (let r = 1; r < tableRows.length; r++) {
-        tbl += '<tr>';
-        tableRows[r].forEach(cell => {
-          tbl += `<td>${inlineFormat(escapeH(cell.trim()))}</td>`;
-        });
-        tbl += '</tr>';
-      }
-      tbl += '</tbody>';
-    }
-    tbl += '</table></div>';
-    outHtml.push(tbl);
-    inTable = false;
-    tableRows = [];
-  };
-
-  for (let i = 0; i < lines.length; i++) {
-    let line = lines[i];
-
-    if (line.trim().startsWith('```')) {
-      if (inCodeBlock) {
-        const code = codeBlockContent.join('\n');
-        if (codeBlockLang === 'mermaid') {
-          outHtml.push(`<div class="mermaid">${escapeH(code)}</div>`);
-        } else {
-          const prismLang = window.Prism ? (Prism.languages[codeBlockLang] || Prism.languages.markup) : null;
-          const highlighted = (window.Prism && prismLang) ? Prism.highlight(code, prismLang, codeBlockLang) : escapeH(code);
-          outHtml.push(`<pre class="language-${codeBlockLang}" style="background: var(--bg-dark); border: 1px solid var(--border); padding: 12px; border-radius: 6px; overflow-x: auto; margin: 12px 0;"><code class="language-${codeBlockLang}">${highlighted}</code></pre>`);
-        }
-        inCodeBlock = false;
-        codeBlockLang = '';
-        codeBlockContent = [];
-      } else {
-        flushTable();
-        inCodeBlock = true;
-        codeBlockLang = line.trim().replace(/^```/, '').trim();
-        codeBlockContent = [];
-      }
-      continue;
-    }
-
-    if (inCodeBlock) {
-      codeBlockContent.push(line);
-      continue;
-    }
-
-    if (line.trim().startsWith('|') && line.trim().endsWith('|')) {
-      const cells = line.trim().slice(1, -1).split('|');
-      const isSep = cells.every(c => /^[\s-:]+$/.test(c));
-      if (!isSep) {
-        inTable = true;
-        tableRows.push(cells);
-      }
-      continue;
-    } else {
-      flushTable();
-    }
-
-    if (line.startsWith('# ')) {
-      outHtml.push(`<h1 style="color: var(--text-main); font-size: 20px; font-weight: 800; border-bottom: 1px solid var(--border); padding-bottom: 6px; margin: 18px 0 10px 0;">${inlineFormat(escapeH(line.slice(2)))}</h1>`);
-    } else if (line.startsWith('## ')) {
-      outHtml.push(`<h2 style="color: var(--text-main); font-size: 17px; font-weight: 700; border-bottom: 1px solid var(--border); padding-bottom: 4px; margin: 16px 0 8px 0;">${inlineFormat(escapeH(line.slice(3)))}</h2>`);
-    } else if (line.startsWith('### ')) {
-      outHtml.push(`<h3 style="color: var(--accent); font-size: 14px; font-weight: 700; margin: 14px 0 6px 0;">${inlineFormat(escapeH(line.slice(4)))}</h3>`);
-    } else if (line.startsWith('#### ')) {
-      outHtml.push(`<h4 style="color: var(--text-main); font-size: 13px; font-weight: 600; margin: 12px 0 4px 0;">${inlineFormat(escapeH(line.slice(5)))}</h4>`);
-    } else if (line.startsWith('> ')) {
-      outHtml.push(`<blockquote style="border-left: 3px solid var(--accent); padding: 6px 12px; margin: 8px 0; background: rgba(245,158,11,0.05); color: var(--text-muted);">${inlineFormat(escapeH(line.slice(2)))}</blockquote>`);
-    } else if (line.startsWith('- [x] ') || line.startsWith('* [x] ')) {
-      outHtml.push(`<div style="display: flex; align-items: center; gap: 8px; margin: 4px 0;"><input type="checkbox" checked disabled><span style="text-decoration: line-through; color: var(--text-dim);">${inlineFormat(escapeH(line.slice(6)))}</span></div>`);
-    } else if (line.startsWith('- [ ] ') || line.startsWith('* [ ] ')) {
-      outHtml.push(`<div style="display: flex; align-items: center; gap: 8px; margin: 4px 0;"><input type="checkbox" disabled><span>${inlineFormat(escapeH(line.slice(6)))}</span></div>`);
-    } else if (line.startsWith('- ') || line.startsWith('* ')) {
-      outHtml.push(`<li style="margin: 3px 0; margin-left: 18px;">${inlineFormat(escapeH(line.slice(2)))}</li>`);
-    } else if (/^\d+\.\s/.test(line)) {
-      const match = line.match(/^(\d+\.)\s(.*)/);
-      outHtml.push(`<li style="margin: 3px 0; margin-left: 18px;" value="${parseInt(match[1])}"><b>${match[1]}</b> ${inlineFormat(escapeH(match[2]))}</li>`);
-    } else if (line.trim() === '---' || line.trim() === '***') {
-      outHtml.push(`<hr style="border: none; border-top: 1px solid var(--border); margin: 16px 0;">`);
-    } else if (line.trim() === '') {
-      outHtml.push('<div style="height: 8px;"></div>');
-    } else {
-      outHtml.push(`<p style="margin: 6px 0; line-height: 1.6; color: var(--text-main); font-size: 13px;">${inlineFormat(escapeH(line))}</p>`);
-    }
-  }
-
-  flushTable();
-  return outHtml.join('\n');
+  return renderMarkdownToHtml(content);
 }
 
 function renderCsvData(csvText, delimiter = ',') {
@@ -11561,6 +12945,13 @@ async function setContextFileColor(color) {
   const paths = getSelectedOrCursorPaths();
   if (paths.length === 0) return;
 
+  const isClearing = (!color || color === 'none' || color === 'clear');
+  const payload = {
+    paths,
+    color_label: isClearing ? 'none' : color,
+    clear_color: isClearing
+  };
+
   try {
     const resp = await fetch('/api/fs/tags/set', {
       method: 'POST',
@@ -11568,16 +12959,13 @@ async function setContextFileColor(color) {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${App.token}`
       },
-      body: JSON.stringify({
-        paths,
-        color_label: color === 'none' ? null : color
-      })
+      body: JSON.stringify(payload)
     });
 
     if (resp.ok) {
       paths.forEach(p => {
         const existing = fileTagsMap.get(p) || { path: p, tags: [], updated_at: Date.now() };
-        existing.color_label = (color === 'none') ? null : color;
+        existing.color_label = isClearing ? null : color;
         if (!existing.color_label && (!existing.tags || existing.tags.length === 0)) {
           fileTagsMap.delete(p);
         } else {
@@ -11585,7 +12973,7 @@ async function setContextFileColor(color) {
         }
       });
       renderPaneTable(App.activePaneIndex);
-      showToast(color === 'none' ? 'Color label cleared' : `Color label set to ${color}`, 'success');
+      showToast(isClearing ? 'Color label cleared' : `Color label set to ${color}`, 'success');
     } else {
       showToast('Failed to update color label', 'error');
     }
@@ -11594,6 +12982,22 @@ async function setContextFileColor(color) {
     showToast('Error setting color label', 'error');
   }
 }
+
+function toggleContextColorPalette(e) {
+  if (e) e.stopPropagation();
+  const bar = document.getElementById('ctx-color-palette-bar');
+  if (bar) {
+    bar.style.display = bar.style.display === 'none' ? 'flex' : 'none';
+  }
+}
+
+function openPropertiesColorTab() {
+  hideContextMenu();
+  triggerProperties();
+  switchPropertiesTab('prop-tab-tags');
+}
+
+let modalTargetTags = [];
 
 function triggerEditTagsModal() {
   hideContextMenu();
@@ -11612,39 +13016,73 @@ function triggerEditTagsModal() {
     }
   }
 
-  let curColor = 'none';
-  let curTags = [];
+  modalTargetTags = [];
   if (paths.length === 1 && fileTagsMap.has(paths[0])) {
     const info = fileTagsMap.get(paths[0]);
-    curColor = info.color_label || 'none';
-    curTags = info.tags || [];
+    modalTargetTags = [...(info.tags || [])];
   }
 
-  selectModalColor(curColor);
+  renderModalTagChips();
   const inputEl = document.getElementById('tags-modal-input');
-  if (inputEl) inputEl.value = curTags.join(', ');
+  if (inputEl) inputEl.value = '';
 
   showModal('tags-modal');
   inputEl?.focus();
 }
 
-function selectModalColor(color) {
-  selectedModalColor = color;
-  const btns = document.querySelectorAll('#tags-modal-color-picker .tag-color-btn');
-  btns.forEach(btn => {
-    if (btn.classList.contains(`color-${color}`)) {
-      btn.classList.add('active');
-    } else {
-      btn.classList.remove('active');
+function renderModalTagChips() {
+  const container = document.getElementById('tags-modal-chips');
+  if (!container) return;
+  container.innerHTML = '';
+
+  if (modalTargetTags.length === 0) {
+    container.innerHTML = '<span style="color: var(--text-muted); font-size: 11px;">No tags yet</span>';
+    return;
+  }
+
+  modalTargetTags.forEach(t => {
+    const chip = document.createElement('span');
+    chip.className = 'file-tag-badge';
+    chip.style.cssText = 'font-size: 12px; padding: 3px 8px; display: inline-flex; align-items: center; gap: 6px;';
+    chip.innerHTML = `<span>#${escapeHtml(t)}</span><i data-lucide="x" style="width: 12px; height: 12px; cursor: pointer;" onclick="removeModalTag('${escapeHtml(t)}')"></i>`;
+    container.appendChild(chip);
+  });
+
+  if (window.lucide) lucide.createIcons({ root: container });
+}
+
+function addModalTagFromInput() {
+  const inputEl = document.getElementById('tags-modal-input');
+  if (!inputEl) return;
+  const raw = inputEl.value.trim();
+  if (!raw) return;
+
+  const newTags = raw.split(',').map(s => s.trim().replace(/^#/, '')).filter(Boolean);
+  newTags.forEach(t => {
+    if (!modalTargetTags.includes(t)) {
+      modalTargetTags.push(t);
     }
   });
+
+  inputEl.value = '';
+  renderModalTagChips();
+}
+
+function removeModalTag(tag) {
+  modalTargetTags = modalTargetTags.filter(t => t !== tag);
+  renderModalTagChips();
 }
 
 async function saveModalTags() {
-  if (modalTargetPaths.length === 0) return;
+  if (modalTargetPaths.length === 0) {
+    closeModal('tags-modal');
+    return;
+  }
+
   const inputEl = document.getElementById('tags-modal-input');
-  const rawText = inputEl ? inputEl.value.trim() : '';
-  const tagsList = rawText ? rawText.split(',').map(s => s.trim()).filter(Boolean) : [];
+  if (inputEl && inputEl.value.trim()) {
+    addModalTagFromInput();
+  }
 
   try {
     const resp = await fetch('/api/fs/tags/set', {
@@ -11655,19 +13093,14 @@ async function saveModalTags() {
       },
       body: JSON.stringify({
         paths: modalTargetPaths,
-        color_label: selectedModalColor === 'none' ? null : selectedModalColor,
-        set_tags: tagsList
+        set_tags: modalTargetTags
       })
     });
 
     if (resp.ok) {
       modalTargetPaths.forEach(p => {
-        const existing = {
-          path: p,
-          color_label: selectedModalColor === 'none' ? null : selectedModalColor,
-          tags: tagsList,
-          updated_at: Date.now()
-        };
+        const existing = fileTagsMap.get(p) || { path: p, color_label: null, tags: [], updated_at: Date.now() };
+        existing.tags = [...modalTargetTags];
         if (!existing.color_label && existing.tags.length === 0) {
           fileTagsMap.delete(p);
         } else {
@@ -11677,12 +13110,11 @@ async function saveModalTags() {
 
       renderPaneTable(App.activePaneIndex);
       closeModal('tags-modal');
-      showToast('Tags and color labels updated', 'success');
+      showToast('Tags updated', 'success');
     } else {
       showToast('Failed to save tags', 'error');
     }
   } catch (e) {
-    console.error('Save tags error:', e);
     showToast('Error saving tags', 'error');
   }
 }

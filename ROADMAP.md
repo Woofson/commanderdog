@@ -1,7 +1,7 @@
 # <img src="assets/logo.png" alt="CommanderDog Logo" height="40" style="vertical-align: -6px; margin-right: 8px;" /> CommanderDog Product Roadmap
 
 > **Slogan**: *Multi-Tab File Commander for Web & Native Desktop — By Woofson*  
-> **Current Version**: `v0.6.6-rc1 (Desktop & Web)`
+> **Current Version**: `v0.6.8-rc1 (Desktop & Web)`
 
 This roadmap outlines completed capabilities, active architectural enhancements, and future milestones for CommanderDog, combining orthodox two-pane file commander power tools (Total Commander, Double Commander, Krusader, Directory Opus) with modern responsive web and native standalone desktop architecture.
 
@@ -25,7 +25,7 @@ This roadmap outlines completed capabilities, active architectural enhancements,
 │                        │ Engine & Background Tasks   │ bandwidth throttling & auto-retry   │
 ├────────────────────────┼─────────────────────────────┼─────────────────────────────────────┤
 │ Bvckup 2 & SyncToy     │ Delta Backup & Sync         │ Two-Way Sync, Echo/Mirror,          │
-│                        │ Engine (v0.6.8)             │ Contribute, Archive/Versioning,     │
+│                        │ Engine (v0.6.9)             │ Contribute, Archive/Versioning,     │
 │                        │                             │ USN Journal change indexing         │
 ├────────────────────────┼─────────────────────────────┼─────────────────────────────────────┤
 │ Syncthing              │ Live Syncthing Dashboard    │ Peer status, throughput charts,     │
@@ -54,7 +54,53 @@ This roadmap outlines completed capabilities, active architectural enhancements,
 
 ---
 
-## 1. Completed Milestones (v0.1.0 — v0.6.6)
+## 1. Completed Milestones (v0.1.0 — v0.6.8)
+
+### Resizable Columns, Custom Column Chooser, Multi-Size Grid & Folder Tree Sidebar (`v0.6.8`)
+- [x] **Interactive Drag-to-Resize Table Columns**:
+  - Grab-and-drag divider handles on all table headers (`Name`, `Ext`, `Size`, `Modified`, `Created`, `Mode`, `Owner`, `Group`, `SHA-256`, `Tags`).
+  - Double-click resizer auto-fit (`autoFitColumn`) scanning DOM content widths and fitting the column perfectly.
+  - Sticky width layout saved to `localStorage` per pane and globally.
+- [x] **Custom Column Builder & Header Settings Popover**:
+  - Right-click column header chooser popover with checkbox toggles for instant customization.
+  - Quick column settings button on the pane navigation toolbar.
+  - Support for *Date Created*, *SHA-256 Checksums*, and *Color Labels / Custom Tags* in table rows.
+- [x] **Thumbnail Gallery Multi-Size View Modes**:
+  - 4 card preview sizes: Small (`90px`), Medium (`130px`), Large (`180px`), Extra Large (`260px`).
+  - Rich preview cards for images, videos, documents, audio discs, and folders with item counts.
+- [x] **Collapsible Directory Tree Sidebar Per Pane**:
+  - Toggle folder tree button `[ 🌳 ]` on any pane header.
+  - Dynamic asynchronous subfolder expansion on click.
+  - Automatic active node highlighting matching active pane directory navigation.
+  - Draggable sidebar resizer with `localStorage` width persistence.
+
+### Orthodox Context Menus, Properties Dialog & GFM Markdown (`v0.6.7`)
+- [x] **Orthodox Right-Click Context Menu & Submenus**:
+  - Full-width viewport & touch fix: Removed pointer media query constraints and restored `overflow: visible` on context menu containers.
+  - Dynamic collision detection: Automatically flips submenus to the left if near screen edge and adjusts vertical offsets upward when near viewport bottom.
+  - Reorganized functional tiers matching orthodox specifications (Open with, Quick view, Edit, Properties, Copy/Move to, Clipboard actions, Archive submenu, Tools submenu).
+- [x] **Windows-Style Properties Dialog (`Alt+Enter`)**:
+  - 4-tabbed modal: General & Media/EXIF, Security & Permissions (3x3 matrix, octal, recursive), Checksums (SHA-256, MD5, SHA-1 with 1-click copy), Color labels & Custom tags.
+- [x] **GitHub-Flavored Markdown (GFM) & HTML Rendering in EditorDog**:
+  - Full raw HTML tags (`<details>`, `<summary>`, `<kbd>`, `<img>`, `<table>`, `<div>`, etc.).
+  - GitHub alerts (`> [!NOTE]`, `> [!TIP]`, `> [!WARNING]`, etc.), PrismJS code highlighting with copy buttons, and live Mermaid diagrams.
+  - Dual-engine marked.js + offline fallback.
+- [x] **Color Labels & Tags System**:
+  - Circular color dot on header with collapsible mini palette (`[ 🔴 🟠 🟡 🟢 🔵 🟣 ✕ ] [More...]`).
+  - Glowing green tag icon (`#22c55e`) when tags exist on file; inactive gray when none.
+  - Dedicated simple Custom Tags modal with chip pill management.
+  - Persistent color clearing in SQLite backend.
+
+### Windows NT Service, Autostart & Rich Filetype Icon Suite (`v0.6.6`)
+- [x] **Windows NT Service & Autostart Management**:
+  - Headless background service management via `commanderdog service [install|uninstall|start|stop|status]`.
+  - Windows registry Run key autostart and Linux desktop integration.
+  - Minimization to system tray via `--minimized` / `--tray-only`.
+- [x] **Extended Rich MIME Icon Suite**:
+  - Over 100+ specialized high-DPI vector icons for programming languages, 3D models, databases, media codecs, and system directories.
+  - Multi-resolution Windows `.ico` bundle for Windows Taskbar and Start Menu.
+- [x] **Intelligent User Home Directory Fallback**:
+  - Automatic resolution of PAM / LDAP / DB home directory on fresh login sessions, preventing access errors on restricted roots (`/`).
 
 ### Pure-Rust PDF Split & Merger, Mouse-Wheel Image Viewer & Dynamic Statusbar (`v0.6.5`)
 - [x] **Pure-Rust PDF Engine (`lopdf`)**:
@@ -68,16 +114,30 @@ This roadmap outlines completed capabilities, active architectural enhancements,
 - [x] **Dynamic Selection Statusbar Counter**:
   - Live selection counter in each tab/pane footer: `3 / 142 selected (1 dir, 2 files) - Selected: 45.2 MB (of 1.8 GB)`.
 
-### Windows NT Service, Autostart & Rich Filetype Icon Suite (`v0.6.6`)
-- [x] **Windows NT Service & Autostart Management**:
-  - Headless background service management via `commanderdog service [install|uninstall|start|stop|status]`.
-  - Windows registry Run key autostart and Linux desktop integration.
-  - Minimization to system tray via `--minimized` / `--tray-only`.
-- [x] **Extended Rich MIME Icon Suite**:
-  - Over 100+ specialized high-DPI vector icons for programming languages, 3D models, databases, media codecs, and system directories.
-  - Multi-resolution Windows `.ico` bundle for Windows Taskbar and Start Menu.
-- [x] **Intelligent User Home Directory Fallback**:
-  - Automatic resolution of PAM / LDAP / DB home directory on fresh login sessions, preventing access errors on restricted roots (`/`).
+---
+
+## 2. What's Next on the Roadmap?
+
+```mermaid
+graph TD
+    A["v0.6.8 (Current: Resizable Columns, Custom Chooser, Multi-Size Grid & Tree Sidebar)"] --> B["1. Bvckup 2 & SyncToy Delta Backup Engine (v0.6.9)"]
+    B --> C["2. Orthodox Commander Power Tools Inspiration Suite (v0.7.0)"]
+    C --> D["3. Enterprise OIDC SSO & Collaborative Office (v0.8.0)"]
+```
+
+---
+
+### Milestone 1: Bvckup 2 & SyncToy Delta Backup & Sync Engine (`v0.6.9`)
+- **4 Core Replication Profiles**:
+  - **Synchronize (Two-Way Sync)**: Bi-directional reconciliation with conflict detection.
+  - **Echo / Mirror (One-Way Backup)**: Make Destination an exact mirror of Source (left-to-right).
+  - **Contribute / Additive**: Replicate additions and modifications without deleting destination files.
+  - **Subscribe / Versioning**: Preserve previous versions of modified and deleted files in timestamped `_archive/` snapshot trees.
+- **Block-Level Delta Copy Engine**:
+  - In-place binary delta calculation and patching for large modified files (transferring only changed blocks).
+  - Fast change indexing via filesystem journals (Windows USN Journal & Linux `inotify`).
+- **Background Tasks, Automation & Watchers**:
+  - Continuous real-time folder watching, periodic cron/timer schedules, and triggers on external USB/storage connection.
 
 ### Windows Native Desktop, Installers & Packaging (`v0.6.0`)
 - [x] **Native Windows Desktop Integration (`CommanderDog.exe`)**:
@@ -253,8 +313,9 @@ graph TD
 | **`v0.5.5`** | **Transparent Encrypted Vaults (AES-256-GCM / Argon2id), Cross-Mount Deletion Engine** | **Released** |
 | **`v0.6.0`** | **Windows Native Build & Release (MSI, Portable ZIP, Winget, Scoop, WebView2)** | **Released** |
 | **`v0.6.5`** | **PDF Split/Merger, Mouse-Wheel Image Navigation & Dynamic Statusbar Selection** | **Released** |
-| **`v0.6.6`** | **Windows Service, Autostart Management & Rich Filetype Icon Suite** | **Released (Current)** |
-| **`v0.6.7`** | **Resizable Columns, Alternate View Modes, "Open With" App Config & Context Menus** | *Next Up* |
-| **`v0.6.8`** | **Bvckup 2 & SyncToy Delta Backup, Background Daemons, Scheduled Tasks & Automation** | *Planned* |
+| **`v0.6.6`** | **Windows Service, Autostart Management & Rich Filetype Icon Suite** | **Released** |
+| **`v0.6.7`** | **Orthodox Context Menu, Properties Dialog, GFM & Raw HTML Editor, Tags & Colors** | **Released** |
+| **`v0.6.8`** | **Resizable Columns, Custom Chooser, Multi-Size Grid & Tree Sidebar** | **Released (Current)** |
+| **`v0.6.9`** | **Bvckup 2 & SyncToy Delta Backup, Background Daemons, Scheduled Tasks & Automation** | *Next Up* |
 | **`v0.7.0`** | **Orthodox Commander Power Tools (Multi-Rename, Dir Sync, Workspaces, Quick Filter)** | *Planned* |
 | **`v0.8.0`** | **Enterprise OIDC SSO, Collaborative Office (WOPI) & Automation Engine** | *Planned* |

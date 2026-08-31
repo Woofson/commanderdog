@@ -137,6 +137,23 @@ if [ -f "packaging/APKBUILD" ]; then
     sed -i "s/^pkgrel=.*/pkgrel=0/" packaging/APKBUILD
 fi
 
+# packaging/windows/scoop/commanderdog.json
+if [ -f "packaging/windows/scoop/commanderdog.json" ]; then
+    sed -i "s/\"version\": \".*\"/\"version\": \"${TARGET_VERSION}\"/" packaging/windows/scoop/commanderdog.json
+    sed -i "s/download\/v[^\/]*\//download\/v${TARGET_VERSION}\//g" packaging/windows/scoop/commanderdog.json
+    sed -i "s/v[0-9]\+\.[0-9]\+\.[0-9]\+.*\.zip/v${TARGET_VERSION}.zip/g" packaging/windows/scoop/commanderdog.json
+fi
+
+# packaging/windows/winget
+if [ -f "packaging/windows/winget/Woofson.CommanderDog.yaml" ]; then
+    sed -i "s/^PackageVersion: .*/PackageVersion: ${TARGET_VERSION}/" packaging/windows/winget/Woofson.CommanderDog.yaml
+fi
+if [ -f "packaging/windows/winget/Woofson.CommanderDog.installer.yaml" ]; then
+    sed -i "s/^PackageVersion: .*/PackageVersion: ${TARGET_VERSION}/" packaging/windows/winget/Woofson.CommanderDog.installer.yaml
+    sed -i "s/download\/v[^\/]*\//download\/v${TARGET_VERSION}\//g" packaging/windows/winget/Woofson.CommanderDog.installer.yaml
+    sed -i "s/CommanderDog_[0-9]\+\.[0-9]\+\.[0-9]\+[^_]*_/CommanderDog_${TARGET_VERSION}_/g" packaging/windows/winget/Woofson.CommanderDog.installer.yaml
+fi
+
 # ------------------------------------------------------------------------------
 # 4. BUILD RELEASE PACKAGES
 # ------------------------------------------------------------------------------
