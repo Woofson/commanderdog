@@ -1,8 +1,6 @@
 # 🐕 CommanderDog
 
 <div align="center">
-  <img src="assets/commanderdogq.png" alt="CommanderDog Quad-Pane Banner" width="800" style="border-radius: 8px; box-shadow: 0 12px 32px rgba(0,0,0,0.6); margin-bottom: 12px;" />
-  <br/>
   <img src="assets/CommanderDogWin.png" alt="CommanderDog Windows Desktop Edition" width="800" style="border-radius: 8px; box-shadow: 0 12px 32px rgba(0,0,0,0.6);" />
   <p><em>Multi-Tab File Commander for Web & Native Desktop (Windows & Linux) — By Woofson</em></p>
 </div>
