@@ -69,6 +69,7 @@ winres = "0.1"
 default = []
 gui = ["dep:wry", "dep:tao"]
 pam = []
+desktop-app = []
 
 [package.metadata.deb]
 maintainer = "Bolt J Woofson <bolt@boop.no>"

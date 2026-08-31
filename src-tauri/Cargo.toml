@@ -12,7 +12,7 @@ serde_json = "1.0"
 tokio = { version = "1", features = ["full"] }
 open = "5.3"
 tracing = "0.1"
-commanderdog = { path = ".." }
+commanderdog = { path = "..", features = ["desktop-app"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 libdbus-sys = { version = "0.2", features = ["vendored"] }
