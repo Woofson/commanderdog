@@ -1,5 +1,9 @@
 # 🪟 CommanderDog for Windows
 
+<div align="center">
+  <img src="assets/CommanderDogWin.png" alt="CommanderDog Windows Desktop Edition" width="800" style="border-radius: 8px; box-shadow: 0 12px 32px rgba(0,0,0,0.6); margin: 12px 0;" />
+</div>
+
 > **Multi-Tab File Commander for Web & Native Windows Desktop**  
 > *Engineered in Rust & Microsoft WebView2 — High-Performance, Low Memory, Zero Electron Overhead.*
 

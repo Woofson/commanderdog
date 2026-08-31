@@ -5,6 +5,7 @@ pub mod diff;
 pub mod disk_usage;
 pub mod git;
 pub mod paranoid;
+pub mod pdf;
 pub mod search;
 pub mod splitter;
 pub mod sync;

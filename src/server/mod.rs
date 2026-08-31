@@ -118,6 +118,10 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/tools/disk-usage", get(handle_disk_usage))
         .route("/api/tools/split", post(handle_split_file))
         .route("/api/tools/combine", post(handle_combine_files))
+        .route("/api/tools/pdf/info", get(handle_pdf_info))
+        .route("/api/tools/pdf/merge", post(handle_pdf_merge))
+        .route("/api/tools/pdf/split", post(handle_pdf_split))
+        .route("/api/tools/pdf/reorder", post(handle_pdf_reorder))
         .route("/api/tools/syncthing/status", get(handle_syncthing_status))
         .route("/api/tools/syncthing/scan", post(handle_syncthing_scan))
         .route("/api/tools/search", post(handle_search))
@@ -143,6 +147,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/system/users-groups", get(handle_get_system_users_groups))
         .route("/api/system/config-file", get(handle_get_config_file).post(handle_save_config_file))
         .route("/api/system/reload-config", post(handle_reload_config))
+        .route("/api/system/autostart", get(handle_get_autostart).post(handle_set_autostart))
         // Embedded Frontend Fallback
         .fallback(handle_static_asset)
         .layer(DefaultBodyLimit::max(state.config.server.upload_max_size_mb * 1024 * 1024))
@@ -3321,6 +3326,170 @@ async fn handle_static_asset(uri: axum::http::Uri) -> Response {
             }
         }
     }
+}
+
+// ---------------- PDF TOOL HANDLERS ----------------
+
+#[derive(Deserialize)]
+struct PdfInfoQuery {
+    path: String,
+}
+
+async fn handle_pdf_info(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<PdfInfoQuery>,
+) -> Result<Json<crate::tools::pdf::PdfInfo>, (StatusCode, String)> {
+    let valid_path = validate_path_access(&state, &headers, &query.path, false)?;
+    let local_path = crate::vfs::local::LocalFs::resolve_local_path(&valid_path);
+    crate::tools::pdf::PdfEngine::get_info(&local_path)
+        .map(Json)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))
+}
+
+async fn handle_pdf_merge(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<crate::tools::pdf::MergeRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let mut local_sources = Vec::new();
+    for src in &payload.sources {
+        let valid_src = validate_path_access(&state, &headers, src, false)?;
+        local_sources.push(crate::vfs::local::LocalFs::resolve_local_path(&valid_src));
+    }
+    let valid_dst = validate_path_access(&state, &headers, &payload.destination, true)?;
+    let local_dst = crate::vfs::local::LocalFs::resolve_local_path(&valid_dst);
+
+    crate::tools::pdf::PdfEngine::merge(&local_sources, &local_dst, payload.add_bookmarks.unwrap_or(true))
+        .map(|_| Json(serde_json::json!({ "success": true, "destination": valid_dst })))
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))
+}
+
+async fn handle_pdf_split(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<crate::tools::pdf::SplitRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let valid_src = validate_path_access(&state, &headers, &payload.source, false)?;
+    let local_src = crate::vfs::local::LocalFs::resolve_local_path(&valid_src);
+
+    let valid_dst_dir = validate_path_access(&state, &headers, &payload.destination_dir, true)?;
+    let local_dst_dir = crate::vfs::local::LocalFs::resolve_local_path(&valid_dst_dir);
+
+    crate::tools::pdf::PdfEngine::split(
+        &local_src,
+        &local_dst_dir,
+        &payload.split_mode,
+        payload.page_ranges.as_deref(),
+        payload.chunk_size,
+        payload.output_prefix.as_deref(),
+    )
+    .map(|files| {
+        let files_str: Vec<String> = files.iter().map(|p| p.to_string_lossy().to_string()).collect();
+        Json(serde_json::json!({ "success": true, "files": files_str }))
+    })
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))
+}
+
+async fn handle_pdf_reorder(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<crate::tools::pdf::PageReorderRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let valid_src = validate_path_access(&state, &headers, &payload.source, false)?;
+    let local_src = crate::vfs::local::LocalFs::resolve_local_path(&valid_src);
+
+    let valid_dst = validate_path_access(&state, &headers, &payload.destination, true)?;
+    let local_dst = crate::vfs::local::LocalFs::resolve_local_path(&valid_dst);
+
+    crate::tools::pdf::PdfEngine::reorder_and_rotate(&local_src, &payload.pages, &local_dst)
+        .map(|_| Json(serde_json::json!({ "success": true, "destination": valid_dst })))
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))
+}
+
+// ---------------- SYSTEM AUTOSTART HANDLERS ----------------
+
+#[derive(Serialize, Deserialize)]
+struct AutostartStatus {
+    enabled: bool,
+    platform: String,
+    target_path: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct SetAutostartRequest {
+    enabled: bool,
+    minimized: Option<bool>,
+}
+
+async fn handle_get_autostart() -> Json<AutostartStatus> {
+    #[cfg(target_os = "windows")]
+    {
+        let output = std::process::Command::new("reg")
+            .args(["query", "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run", "/v", "CommanderDog"])
+            .output();
+        let enabled = output.map_or(false, |o| o.status.success());
+        Json(AutostartStatus {
+            enabled,
+            platform: "windows".to_string(),
+            target_path: std::env::current_exe().ok().map(|p| p.to_string_lossy().to_string()),
+        })
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let autostart_file = dirs::config_dir()
+            .map(|c| c.join("autostart/commanderdog.desktop"));
+        let enabled = autostart_file.as_ref().map_or(false, |p| p.exists());
+        Json(AutostartStatus {
+            enabled,
+            platform: std::env::consts::OS.to_string(),
+            target_path: autostart_file.map(|p| p.to_string_lossy().to_string()),
+        })
+    }
+}
+
+async fn handle_set_autostart(
+    Json(payload): Json<SetAutostartRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let exe_path = std::env::current_exe().map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let flags = if payload.minimized.unwrap_or(false) { " --minimized" } else { "" };
+    let exec_cmd = format!("\"{}\"{}", exe_path.display(), flags);
+
+    #[cfg(target_os = "windows")]
+    {
+        if payload.enabled {
+            let status = std::process::Command::new("reg")
+                .args(["add", "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run", "/v", "CommanderDog", "/t", "REG_SZ", "/d", &exec_cmd, "/f"])
+                .status()
+                .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+            if !status.success() {
+                return Err((StatusCode::INTERNAL_SERVER_ERROR, "Failed to set Windows autostart registry key".to_string()));
+            }
+        } else {
+            let _ = std::process::Command::new("reg")
+                .args(["delete", "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run", "/v", "CommanderDog", "/f"])
+                .status();
+        }
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        if let Some(config_dir) = dirs::config_dir() {
+            let auto_dir = config_dir.join("autostart");
+            let desktop_path = auto_dir.join("commanderdog.desktop");
+            if payload.enabled {
+                let _ = std::fs::create_dir_all(&auto_dir);
+                let content = format!(
+                    "[Desktop Entry]\nType=Application\nName=CommanderDog\nComment=Multi-Tab Web Commander\nExec={}\nIcon=commanderdog\nTerminal=false\nCategories=Utility;FileManager;\n",
+                    exec_cmd
+                );
+                std::fs::write(&desktop_path, content).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+            } else if desktop_path.exists() {
+                let _ = std::fs::remove_file(&desktop_path);
+            }
+        }
+    }
+
+    Ok(Json(serde_json::json!({ "success": true, "enabled": payload.enabled })))
 }
 
 #[cfg(test)]

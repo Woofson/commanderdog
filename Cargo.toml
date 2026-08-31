@@ -1,6 +1,6 @@
 [package]
 name = "commanderdog"
-version = "0.6.0"
+version = "0.6.6-rc1"
 edition = "2021"
 authors = ["Bolt J Woofson <bolt@boop.no>"]
 description = "Multi-Tab Web Commander - By Woofson"
@@ -55,11 +55,15 @@ async-trait = "0.1"
 base64 = "0.22"
 hmac = "0.12"
 regex = "1.11"
+lopdf = "0.34"
 wry = { version = "0.47", optional = true }
 tao = { version = "0.30", optional = true }
 
 [target.'cfg(not(target_os = "windows"))'.dependencies]
 openssl = { version = "0.10", features = ["vendored"] }
+
+[target.'cfg(windows)'.build-dependencies]
+winres = "0.1"
 
 [features]
 default = []

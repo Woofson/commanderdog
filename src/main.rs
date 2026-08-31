@@ -75,6 +75,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                     i += 1;
                 }
             }
+            "service" => {
+                if i + 1 < args.len() {
+                    let subcmd = args[i + 1].clone();
+                    handle_service_command(&subcmd)?;
+                    return Ok(());
+                } else {
+                    eprintln!("Usage: commanderdog service [install|uninstall|start|stop|status]");
+                    return Ok(());
+                }
+            }
+            "--minimized" | "--tray-only" => {
+                auto_open = false;
+                config.server.standalone = true;
+            }
             "--no-decorations" | "--frameless" => {
                 config.ui.window_decorations = false;
             }
@@ -90,6 +104,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 println!();
                 println!("USAGE:");
                 println!("    commanderdog [OPTIONS]");
+                println!("    commanderdog service [COMMAND]");
                 println!();
                 println!("OPTIONS:");
                 println!("    -s, --standalone    Run in standalone desktop mode (auto-authenticates as local user, opens browser/window)");
@@ -97,11 +112,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 println!("    -p, --port <PORT>   Override web server port (default: 3140 or config.toml setting)");
                 println!("        --host <HOST>   Override web server bind host (default: 0.0.0.0)");
                 println!("        --no-auth       Disable login authentication and run with local permissions");
+                println!("        --minimized     Launch minimized in system tray / background without opening window");
                 println!("        --no-decorations Launch without window titlebar/frame (ideal for Hyprland/tiling WMs)");
                 println!("        --frameless     Alias for --no-decorations");
                 println!("        --decorations   Force enable window titlebar and borders");
                 println!("    -v, --version       Print version information");
                 println!("    -h, --help          Print this help message");
+                println!();
+                println!("SERVICE COMMANDS:");
+                println!("    install             Register CommanderDog as Windows NT Service or systemd user service");
+                println!("    uninstall           Remove registered background service");
+                println!("    start               Start background service");
+                println!("    stop                Stop running service");
+                println!("    status              Query service running status");
                 return Ok(());
             }
             _ => {}
@@ -239,4 +262,91 @@ fn run_native_gui(url: &str, title: &str, decorations: bool) -> Result<(), Box<d
             *control_flow = ControlFlow::Exit;
         }
     });
+}
+
+fn handle_service_command(cmd: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let exe = std::env::current_exe()?;
+    #[cfg(target_os = "windows")]
+    {
+        match cmd {
+            "install" => {
+                println!("Installing CommanderDog Windows Service via sc.exe...");
+                let status = std::process::Command::new("sc.exe")
+                    .args(["create", "CommanderDog", "binPath=", &format!("\"{}\" --server", exe.display()), "start=", "auto", "DisplayName=", "CommanderDog Web Service"])
+                    .status()?;
+                if status.success() {
+                    println!("Successfully registered CommanderDog Windows Service.");
+                } else {
+                    eprintln!("Failed to register service. Ensure you are running Command Prompt / PowerShell as Administrator.");
+                }
+            }
+            "uninstall" => {
+                println!("Removing CommanderDog Windows Service...");
+                let _ = std::process::Command::new("sc.exe").args(["stop", "CommanderDog"]).status();
+                let status = std::process::Command::new("sc.exe").args(["delete", "CommanderDog"]).status()?;
+                if status.success() {
+                    println!("Successfully removed CommanderDog Windows Service.");
+                }
+            }
+            "start" => {
+                println!("Starting CommanderDog Windows Service...");
+                let status = std::process::Command::new("sc.exe").args(["start", "CommanderDog"]).status()?;
+                if status.success() {
+                    println!("Service started.");
+                }
+            }
+            "stop" => {
+                println!("Stopping CommanderDog Windows Service...");
+                let status = std::process::Command::new("sc.exe").args(["stop", "CommanderDog"]).status()?;
+                if status.success() {
+                    println!("Service stopped.");
+                }
+            }
+            "status" => {
+                let _ = std::process::Command::new("sc.exe").args(["query", "CommanderDog"]).status();
+            }
+            _ => eprintln!("Unknown service command: {}. Available: install, uninstall, start, stop, status", cmd),
+        }
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        match cmd {
+            "install" => {
+                println!("Creating user systemd service ~/.config/systemd/user/commanderdog.service...");
+                if let Some(config_dir) = dirs::config_dir() {
+                    let systemd_dir = config_dir.join("systemd/user");
+                    std::fs::create_dir_all(&systemd_dir)?;
+                    let unit_path = systemd_dir.join("commanderdog.service");
+                    let content = format!(
+                        "[Unit]\nDescription=CommanderDog Web Commander Server\nAfter=network.target\n\n[Service]\nExecStart=\"{}\" --server\nRestart=always\nRestartSec=5\n\n[Install]\nWantedBy=default.target\n",
+                        exe.display()
+                    );
+                    std::fs::write(&unit_path, content)?;
+                    println!("Created service unit at {}", unit_path.display());
+                    println!("To enable: systemctl --user daemon-reload && systemctl --user enable --now commanderdog");
+                }
+            }
+            "uninstall" => {
+                if let Some(config_dir) = dirs::config_dir() {
+                    let unit_path = config_dir.join("systemd/user/commanderdog.service");
+                    let _ = std::process::Command::new("systemctl").args(["--user", "disable", "--now", "commanderdog"]).status();
+                    if unit_path.exists() {
+                        let _ = std::fs::remove_file(unit_path);
+                    }
+                    println!("CommanderDog systemd service uninstalled.");
+                }
+            }
+            "start" => {
+                let _ = std::process::Command::new("systemctl").args(["--user", "start", "commanderdog"]).status();
+            }
+            "stop" => {
+                let _ = std::process::Command::new("systemctl").args(["--user", "stop", "commanderdog"]).status();
+            }
+            "status" => {
+                let _ = std::process::Command::new("systemctl").args(["--user", "status", "commanderdog"]).status();
+            }
+            _ => eprintln!("Unknown service command: {}. Available: install, uninstall, start, stop, status", cmd),
+        }
+    }
+    Ok(())
 }

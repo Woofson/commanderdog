@@ -918,8 +918,10 @@ pub struct SecuritySettings {
 }
 
 pub fn get_linux_user_info(username: &str) -> (String, String) {
-    let mut home_dir = format!("/home/{}", username);
-    let mut is_admin = username == "root";
+    let mut home_dir = dirs::home_dir()
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_else(|| format!("/home/{}", username));
+    let mut is_admin = username == "root" || username.eq_ignore_ascii_case("administrator");
 
     if let Ok(passwd) = std::fs::read_to_string("/etc/passwd") {
         for line in passwd.lines() {

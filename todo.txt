@@ -1,0 +1,9 @@
+- Functions bar at the bottom - togglable in settings.
+- Resizable "name" "size" "modified" "mode" "owner", and also add customize/add more fields.
+- More view-modes (thumbnails etc).
+- statusbar in each tab can show how many selected files/folders if selected.
+- customize "open with" and default file open app/program, in settings, if say, i want to open multimedia in vlc and images/photos in faststone image viewer or feh, i can change that in settings.
+- Customizable right click context menu
+- more icons, files and folders only have default icons in windows.
+- what ever else of solutions we can get inspiration from by next explorer, total commander, multi commander, xyplorer. Compile a list, and i can pick and mix.
+- Bvckup2 / SyncToy style background backup & synchronization engine (Two-Way Sync, Echo/Mirror, Contribute, Archive/Versioning, block-level delta copies) with background daemon & scheduled tasks on Linux (systemd timers / cron) and Windows (Task Scheduler / Windows NT Service).

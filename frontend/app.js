@@ -45,10 +45,22 @@ function formatBytes(bytes) {
 
 const formatFileSize = formatBytes;
 
+function getUserDefaultHomeDir() {
+  if (App.user && App.user.home_dir && App.user.home_dir.trim() !== '' && App.user.home_dir !== '/') {
+    return App.user.home_dir.trim();
+  }
+  if (App.systemStatus && App.systemStatus.home_dir && App.systemStatus.home_dir !== '/') {
+    return App.systemStatus.home_dir.trim();
+  }
+  return '~';
+}
+
 class PaneState {
-  constructor(id, initialPath = '/') {
+  constructor(id, initialPath = null) {
     this.id = id;
-    this.path = localStorage.getItem(`cd_pane_path_${id}`) || initialPath;
+    const defaultHome = getUserDefaultHomeDir();
+    const saved = localStorage.getItem(`cd_pane_path_${id}`);
+    this.path = (saved && saved !== '/') ? saved : (initialPath || defaultHome);
     this.entries = [];
     this.selected = new Set();
     this.cursorIndex = 0;
@@ -147,21 +159,22 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 function initPanes() {
   const defaultCount = 4;
+  const defaultHome = getUserDefaultHomeDir();
   for (let i = 0; i < defaultCount; i++) {
-    App.panes.push(new PaneState(i, '/'));
+    App.panes.push(new PaneState(i, defaultHome));
   }
   loadPaneCustomNames();
 }
 
-function applyUserHomeToPanes() {
-  const home = (App.user && App.user.home_dir && App.user.home_dir.trim() !== '') ? App.user.home_dir : null;
+function applyUserHomeToPanes(force = false) {
+  const home = getUserDefaultHomeDir();
   if (home && home !== '/') {
     App.panes.forEach((pane, idx) => {
       const saved = localStorage.getItem(`cd_pane_path_${idx}`);
-      if (!saved || saved === '/' || pane.path === '/') {
+      if (force || !saved || saved === '/' || pane.path === '/' || pane.path === '~') {
         pane.path = home;
         pane.history = [home];
-        pane.historyIdx = 0;
+        pane.historyIndex = 0;
         localStorage.setItem(`cd_pane_path_${idx}`, home);
       }
     });
@@ -785,8 +798,9 @@ function togglePaneDotfiles(paneIndex) {
 
 async function loadPaneDirectory(paneIndex, targetPath, pushHistory = true, selectItemName = null) {
   if (targetPath === '~' || (typeof targetPath === 'string' && targetPath.startsWith('~/'))) {
-    const userHome = (App.user && App.user.home_dir && App.user.home_dir !== '/') ? App.user.home_dir : '/';
-    targetPath = targetPath === '~' ? userHome : (userHome.endsWith('/') ? userHome : userHome + '/') + targetPath.substring(2);
+    const userHome = getUserDefaultHomeDir();
+    const resolvedHome = (userHome && userHome !== '~') ? userHome : '/';
+    targetPath = targetPath === '~' ? resolvedHome : (resolvedHome.endsWith('/') ? resolvedHome : resolvedHome + '/') + targetPath.substring(2);
   }
 
   const cleanPath = sanitizeCredentials(targetPath);
@@ -814,8 +828,14 @@ async function loadPaneDirectory(paneIndex, targetPath, pushHistory = true, sele
 
     if (!resp.ok) {
       const errText = sanitizeCredentials(await resp.text());
+      console.warn(`Failed to load ${cleanPath}:`, errText);
+      const userHome = getUserDefaultHomeDir();
+      if ((cleanPath === '/' || resp.status === 403) && userHome && userHome !== '/' && userHome !== cleanPath) {
+        console.info(`Auto-redirecting pane ${paneIndex} from ${cleanPath} to user home: ${userHome}`);
+        loadPaneDirectory(paneIndex, userHome, false);
+        return;
+      }
       showToast(`Failed to load directory: ${errText}`, 'error');
-      console.error(`Failed to load ${cleanPath}:`, errText);
       return;
     }
 
@@ -1646,34 +1666,14 @@ function renderPaneTable(paneIndex) {
 
     if (showCheckBadge) {
       iconHtml = `<i data-lucide="check" class="file-icon check-icon" style="width: 15px; height: 15px;"></i>`;
-    } else if (entry.is_dir) {
-      iconHtml = `<img src="assets/folder-closed.png" class="file-icon-img" alt="Folder" style="width: 17px; height: 17px;">`;
     } else {
-      let iconType = 'text';
-      let iconName = 'file-text';
-      if (isVaultFile(entry.name)) {
-        iconType = 'vault';
-        iconName = 'shield-check';
-      } else if (entry.is_archive) {
-        iconType = 'archive';
-        iconName = 'file-archive';
-      } else if (isImageExtension(entry.name)) {
-        iconType = 'image';
-        iconName = 'image';
-      } else if (isPdfExtension(entry.name)) {
-        iconType = 'pdf';
-        iconName = 'file-text';
-      } else if (isAudioExtension(entry.name)) {
-        iconType = 'audio';
-        iconName = 'music';
-      } else if (isVideoExtension(entry.name)) {
-        iconType = 'video';
-        iconName = 'video';
-      } else if (isComicBookExtension(entry.name)) {
-        iconType = 'book';
-        iconName = 'book-open';
+      const iconDetails = getFileIconDetails(entry.name, entry.is_dir, entry.is_archive);
+      if (iconDetails.src) {
+        iconHtml = `<img src="${iconDetails.src}" class="file-icon-img" alt="Folder" style="width: 17px; height: 17px;">`;
+      } else {
+        const colorStyle = iconDetails.color ? `style="width: 15px; height: 15px; color: ${iconDetails.color};"` : `style="width: 15px; height: 15px;"`;
+        iconHtml = `<i data-lucide="${iconDetails.icon}" class="file-icon ${iconDetails.type}" ${colorStyle}></i>`;
       }
-      iconHtml = `<i data-lucide="${iconName}" class="file-icon ${iconType}" style="width: 15px; height: 15px;"></i>`;
     }
 
     tr.innerHTML = `
@@ -1696,14 +1696,123 @@ function renderPaneTable(paneIndex) {
 
   if (window.lucide) lucide.createIcons();
   updateMobileBottomBar();
+  updatePaneFooter(paneIndex);
+}
+
+function getFileIconDetails(name, is_dir, is_archive) {
+  if (is_dir) {
+    const lower = (name || '').toLowerCase();
+    if (lower === '.git') return { icon: 'git-branch', type: 'git', color: '#f97316' };
+    if (lower === 'node_modules') return { icon: 'package', type: 'package', color: '#10b981' };
+    if (lower === 'downloads') return { icon: 'download', type: 'folder', color: '#38bdf8' };
+    if (lower === 'documents') return { icon: 'file-text', type: 'folder', color: '#38bdf8' };
+    if (lower === 'pictures' || lower === 'photos') return { icon: 'image', type: 'folder', color: '#a855f7' };
+    if (lower === 'music') return { icon: 'music', type: 'folder', color: '#f43f5e' };
+    if (lower === 'videos') return { icon: 'video', type: 'folder', color: '#06b6d4' };
+    if (lower === '.trash' || lower === 'trash') return { icon: 'trash-2', type: 'folder', color: '#ef4444' };
+    if (lower === 'desktop') return { icon: 'monitor', type: 'folder', color: '#f59e0b' };
+    return { icon: null, type: 'folder-img', src: 'assets/folder-closed.png' };
+  }
+
+  if (isVaultFile(name)) {
+    return { icon: 'shield-check', type: 'vault', color: '#f59e0b' };
+  }
+
+  const ext = (name || '').split('.').pop().toLowerCase();
+
+  // Archives & Packages
+  if (is_archive || ['zip', 'tar', 'gz', 'tgz', 'bz2', 'xz', '7z', 'rar', 'iso', 'img', 'vhd', 'deb', 'rpm', 'apk', 'pkg', 'zst'].includes(ext)) {
+    return { icon: 'file-archive', type: 'archive', color: '#f59e0b' };
+  }
+
+  // Executables & Binaries
+  if (['exe', 'msi', 'bat', 'cmd', 'ps1', 'sh', 'bash', 'bin', 'appimage', 'elf', 'dylib', 'so', 'dll'].includes(ext)) {
+    return { icon: 'terminal', type: 'executable', color: '#10b981' };
+  }
+
+  // Code & Developer Formats
+  if (ext === 'rs') return { icon: 'code', type: 'code', color: '#ef4444' };
+  if (['py', 'pyw', 'ipynb'].includes(ext)) return { icon: 'code', type: 'code', color: '#38bdf8' };
+  if (['js', 'mjs', 'cjs', 'ts', 'tsx', 'jsx'].includes(ext)) return { icon: 'code', type: 'code', color: '#eab308' };
+  if (['html', 'htm', 'vue', 'svelte'].includes(ext)) return { icon: 'globe', type: 'web', color: '#f97316' };
+  if (['css', 'scss', 'less'].includes(ext)) return { icon: 'palette', type: 'style', color: '#38bdf8' };
+  if (['c', 'cpp', 'h', 'hpp', 'cc', 'cxx'].includes(ext)) return { icon: 'cpu', type: 'c-code', color: '#6366f1' };
+  if (ext === 'go') return { icon: 'code', type: 'go', color: '#06b6d4' };
+  if (['java', 'jar', 'kt', 'kts'].includes(ext)) return { icon: 'coffee', type: 'java', color: '#f97316' };
+  if (['cs', 'vb', 'fs'].includes(ext)) return { icon: 'code', type: 'dotnet', color: '#a855f7' };
+  if (['php', 'rb', 'gem', 'lua', 'pl', 'r', 'swift', 'dart'].includes(ext)) return { icon: 'code', type: 'script', color: '#ec4899' };
+  if (['sql', 'sqlite', 'sqlite3', 'db', 'mdb', 'accdb'].includes(ext)) return { icon: 'database', type: 'db', color: '#14b8a6' };
+  if (['json', 'toml', 'yaml', 'yml', 'xml', 'ini', 'env', 'conf', 'config'].includes(ext)) return { icon: 'sliders', type: 'config', color: '#e2e8f0' };
+
+  // Documents & Spreadsheets
+  if (ext === 'pdf') return { icon: 'file-text', type: 'pdf', color: '#ef4444' };
+  if (['md', 'markdown'].includes(ext)) return { icon: 'book-open', type: 'markdown', color: '#c084fc' };
+  if (['doc', 'docx', 'odt', 'rtf', 'pages'].includes(ext)) return { icon: 'file-text', type: 'doc', color: '#3b82f6' };
+  if (['xls', 'xlsx', 'ods', 'csv', 'tsv', 'tab'].includes(ext)) return { icon: 'table', type: 'sheet', color: '#10b981' };
+  if (['ppt', 'pptx', 'odp', 'key'].includes(ext)) return { icon: 'presentation', type: 'presentation', color: '#f97316' };
+
+  // Images & 3D
+  if (isImageExtension(name)) return { icon: 'image', type: 'image', color: '#10b981' };
+  if (['stl', 'obj', 'blend', 'fbx', 'gltf', 'glb', '3ds', 'step', 'stp'].includes(ext)) return { icon: 'box', type: '3d', color: '#06b6d4' };
+  if (['psd', 'ai', 'eps', 'sketch', 'fig', 'xcf'].includes(ext)) return { icon: 'palette', type: 'design', color: '#a855f7' };
+
+  // Media
+  if (isAudioExtension(name)) return { icon: 'music', type: 'audio', color: '#f43f5e' };
+  if (isVideoExtension(name)) return { icon: 'video', type: 'video', color: '#38bdf8' };
+  if (isComicBookExtension(name)) return { icon: 'book', type: 'comic', color: '#f59e0b' };
+
+  // Fonts & Certificates
+  if (['ttf', 'otf', 'woff', 'woff2', 'eot'].includes(ext)) return { icon: 'type', type: 'font', color: '#94a3b8' };
+  if (['pem', 'crt', 'cer', 'key', 'pub', 'asc', 'gpg', 'sig', 'kdbx'].includes(ext)) return { icon: 'key', type: 'crypto', color: '#f59e0b' };
+
+  return { icon: 'file-text', type: 'text', color: '#94a3b8' };
 }
 
 function updatePaneFooter(paneIndex, data) {
+  const pane = App.panes[paneIndex];
   const footer = document.getElementById(`pane-footer-${paneIndex}`);
-  if (footer) {
+  if (!footer || !pane) return;
+
+  if (data) {
+    pane.lastTotalDirs = data.total_dirs;
+    pane.lastTotalFiles = data.total_files;
+    pane.lastTotalSize = data.total_size;
+  }
+
+  if (pane.selected && pane.selected.size > 0) {
+    let selFiles = 0;
+    let selDirs = 0;
+    let selBytes = 0;
+
+    pane.entries.forEach(e => {
+      if (pane.selected.has(e.path)) {
+        if (e.is_dir) selDirs++;
+        else {
+          selFiles++;
+          selBytes += (e.size || 0);
+        }
+      }
+    });
+
+    const totalCount = pane.entries.length;
+    const selCount = pane.selected.size;
+
     footer.innerHTML = `
-      <span>${data.total_dirs} dirs, ${data.total_files} files</span>
-      <span>Total: ${formatBytes(data.total_size)}</span>
+      <span style="color: var(--accent); font-weight: 700;">
+        ⚡ ${selCount}/${totalCount} selected (${selDirs > 0 ? `${selDirs} dir${selDirs > 1 ? 's' : ''}, ` : ''}${selFiles} file${selFiles !== 1 ? 's' : ''})
+      </span>
+      <span style="color: var(--accent); font-weight: 700;">
+        Selected: ${formatBytes(selBytes)} (of ${formatBytes(pane.lastTotalSize || 0)})
+      </span>
+    `;
+  } else {
+    const totalDirs = pane.lastTotalDirs ?? 0;
+    const totalFiles = pane.lastTotalFiles ?? 0;
+    const totalSize = pane.lastTotalSize ?? 0;
+
+    footer.innerHTML = `
+      <span>${totalDirs} dirs, ${totalFiles} files</span>
+      <span>Total: ${formatBytes(totalSize)}</span>
     `;
   }
 }
@@ -4941,6 +5050,7 @@ function showContextMenu(x, y) {
       </div>
     </div>
     <div class="context-item" onclick="triggerGitManager()"><i data-lucide="git-branch" style="width: 14px; color: var(--accent);"></i> Git Manager & Diff...</div>
+    <div class="context-item" onclick="openPdfToolModal(App.contextItem ? App.contextItem.path : null)"><i data-lucide="file-text" style="width: 14px; color: #ef4444;"></i> PDF Merge & Split Studio...</div>
     <div class="context-item" onclick="triggerFileSplit()"><i data-lucide="scissors" style="width: 14px; color: var(--accent);"></i> Split Large File...</div>
     <div class="context-item" onclick="triggerFileCombine()"><i data-lucide="merge" style="width: 14px; color: var(--accent);"></i> Combine Part Files (.001, .002)...</div>
     <div class="context-item" onclick="openSyncModal()"><i data-lucide="refresh-cw" style="width: 14px;"></i> Two-Way Directory Sync...</div>
@@ -6178,6 +6288,7 @@ async function handleLoginSubmit() {
     if (pInput) pInput.value = '';
     await loadConfig();
     await loadSystemUsersGroups();
+    applyUserHomeToPanes(true);
     renderAllPanes();
   } else {
     if (err) {
@@ -9518,23 +9629,39 @@ let imgPanX = 0;
 let imgPanY = 0;
 let imgIsDragging = false;
 let imgDragStartX = 0;
-let imgDragStartY = 0;
-let lastImageWheelTime = 0;
+let imgWheelMode = localStorage.getItem('cd_img_wheel_mode') || 'browse';
+
+function toggleImgWheelMode() {
+  imgWheelMode = imgWheelMode === 'browse' ? 'zoom' : 'browse';
+  localStorage.setItem('cd_img_wheel_mode', imgWheelMode);
+  updateImgWheelModeButton();
+  showToast(imgWheelMode === 'browse' ? 'Mouse wheel: Browse next/prev images (Ctrl+Wheel to Zoom)' : 'Mouse wheel: Direct zoom in/out', 'info');
+}
+
+function updateImgWheelModeButton() {
+  const btn = document.getElementById('btn-img-wheel-mode');
+  if (btn) {
+    btn.style.color = imgWheelMode === 'zoom' ? 'var(--accent)' : '';
+    btn.title = `Mouse Wheel Mode: ${imgWheelMode === 'browse' ? 'Browse Images (Click to switch to Direct Zoom)' : 'Direct Zoom (Click to switch to Browse)'}`;
+  }
+}
 
 function setupImageViewerEvents() {
   const viewport = document.getElementById('img-viewer-viewport');
   if (!viewport || viewport._wheelAttached) return;
   viewport._wheelAttached = true;
+  updateImgWheelModeButton();
 
-  // Mouse wheel listener: Scroll to cycle images, Ctrl+Scroll to zoom
+  // Mouse wheel listener: Scroll to cycle images or direct zoom
   viewport.addEventListener('wheel', (e) => {
     e.preventDefault();
-    if (e.ctrlKey || e.metaKey) {
+    const isDirectZoom = imgWheelMode === 'zoom';
+    if (e.ctrlKey || e.metaKey || isDirectZoom) {
       const delta = e.deltaY < 0 ? 0.15 : -0.15;
       zoomImage(delta);
     } else {
       const now = Date.now();
-      if (now - lastImageWheelTime > 160) {
+      if (now - lastImageWheelTime > 150) {
         lastImageWheelTime = now;
         if (e.deltaY > 0 || e.deltaX > 0) {
           navImageViewer(1);
@@ -13963,8 +14090,10 @@ async function renderFolderTreeRoot() {
     rootContainer.innerHTML = '';
 
     if (!roots || roots.length === 0) {
-      // Fallback to system root
-      const fallbackRoot = { id: 'root', name: 'Root Filesystem (/)', path: '/', is_dir: true };
+      const userHome = getUserDefaultHomeDir();
+      const fallbackRoot = (userHome && userHome !== '/')
+        ? { id: 'home', name: `Personal Home (${userHome})`, path: userHome, is_dir: true, is_home: true }
+        : { id: 'root', name: 'Root Filesystem (/)', path: '/', is_dir: true };
       buildTreeNode(rootContainer, fallbackRoot, 0);
       return;
     }
@@ -14208,6 +14337,373 @@ function setupTabBarMouseWheel() {
     }
   });
 }
+
+// ---------------- PURE-RUST PDF POWER STUDIO ----------------
+let currentPdfMergeList = [];
+let currentPdfOrganizerPages = []; // [{ page_num: 1, rotation: 0 }]
+let activePdfTab = 'merge';
+
+function openPdfToolModal(initialPdf = null, tab = 'merge') {
+  const modal = document.getElementById('pdf-tool-modal');
+  if (!modal) return;
+
+  const pane = App.panes[App.activePaneIndex];
+  if (initialPdf) {
+    if (tab === 'split') {
+      const srcEl = document.getElementById('pdf-split-source');
+      if (srcEl) {
+        srcEl.value = initialPdf;
+        fetchPdfSplitInfo(initialPdf);
+      }
+      const dirEl = document.getElementById('pdf-split-dest-dir');
+      if (dirEl) dirEl.value = pane.path;
+    } else if (tab === 'reorder') {
+      const reSrc = document.getElementById('pdf-reorder-source');
+      if (reSrc) {
+        reSrc.value = initialPdf;
+        loadPdfPagesOrganizer(initialPdf);
+      }
+    } else {
+      currentPdfMergeList = [initialPdf];
+      renderPdfMergeList();
+      const destEl = document.getElementById('pdf-merge-dest');
+      if (destEl) destEl.value = `${pane.path.replace(/\/?$/, '')}/merged_document.pdf`;
+    }
+  } else {
+    const selectedPdfs = Array.from(pane.selected).filter(p => isPdfExtension(p));
+    if (selectedPdfs.length > 0) {
+      currentPdfMergeList = selectedPdfs;
+      renderPdfMergeList();
+      const destEl = document.getElementById('pdf-merge-dest');
+      if (destEl) destEl.value = `${pane.path.replace(/\/?$/, '')}/merged_document.pdf`;
+    }
+  }
+
+  switchPdfTab(tab);
+  showModal('pdf-tool-modal');
+}
+
+function switchPdfTab(tab) {
+  activePdfTab = tab;
+  ['merge', 'split', 'reorder'].forEach(t => {
+    const btn = document.getElementById(`btn-pdf-tab-${t}`);
+    const content = document.getElementById(`pdf-tab-${t}`);
+    if (btn) btn.classList.toggle('active', t === tab);
+    if (content) content.style.display = t === tab ? 'block' : 'none';
+  });
+  if (window.lucide) lucide.createIcons();
+}
+
+function renderPdfMergeList() {
+  const box = document.getElementById('pdf-merge-file-list');
+  if (!box) return;
+  if (currentPdfMergeList.length === 0) {
+    box.innerHTML = `<div style="color: var(--text-muted); text-align: center; padding: 24px;">No PDF files added. Select PDFs in any pane or click Add Selected.</div>`;
+    return;
+  }
+
+  box.innerHTML = currentPdfMergeList.map((p, idx) => `
+    <div style="display: flex; align-items: center; justify-content: space-between; padding: 4px 8px; background: var(--bg-header); border: 1px solid var(--border); border-radius: 4px;" data-idx="${idx}">
+      <div style="display: flex; align-items: center; gap: 6px; overflow: hidden;">
+        <span style="color: var(--text-muted); font-size: 10px; font-family: var(--font-mono);">${idx + 1}.</span>
+        <i data-lucide="file-text" style="width: 13px; color: #ef4444;"></i>
+        <span style="font-family: var(--font-mono); font-size: 11px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">${escapeHtml(p)}</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 4px;">
+        <button class="btn btn-icon btn-sm" onclick="movePdfMergeItem(${idx}, -1)" ${idx === 0 ? 'disabled' : ''} title="Move Up"><i data-lucide="arrow-up" style="width:11px;"></i></button>
+        <button class="btn btn-icon btn-sm" onclick="movePdfMergeItem(${idx}, 1)" ${idx === currentPdfMergeList.length - 1 ? 'disabled' : ''} title="Move Down"><i data-lucide="arrow-down" style="width:11px;"></i></button>
+        <button class="btn btn-icon btn-sm" onclick="removePdfMergeItem(${idx})" title="Remove"><i data-lucide="x" style="width:11px; color: var(--danger);"></i></button>
+      </div>
+    </div>
+  `).join('');
+
+  if (window.lucide) lucide.createIcons();
+}
+
+function movePdfMergeItem(idx, delta) {
+  const target = idx + delta;
+  if (target < 0 || target >= currentPdfMergeList.length) return;
+  const item = currentPdfMergeList.splice(idx, 1)[0];
+  currentPdfMergeList.splice(target, 0, item);
+  renderPdfMergeList();
+}
+
+function removePdfMergeItem(idx) {
+  currentPdfMergeList.splice(idx, 1);
+  renderPdfMergeList();
+}
+
+function addActivePanePdfFiles() {
+  const pane = App.panes[App.activePaneIndex];
+  const selectedPdfs = Array.from(pane.selected).filter(p => isPdfExtension(p));
+  if (selectedPdfs.length === 0) {
+    const item = pane.entries[pane.cursorIndex];
+    if (item && isPdfExtension(item.path)) {
+      selectedPdfs.push(item.path);
+    }
+  }
+
+  selectedPdfs.forEach(p => {
+    if (!currentPdfMergeList.includes(p)) {
+      currentPdfMergeList.push(p);
+    }
+  });
+
+  renderPdfMergeList();
+  if (currentPdfMergeList.length > 0) {
+    const destEl = document.getElementById('pdf-merge-dest');
+    if (destEl && !destEl.value) {
+      destEl.value = `${pane.path.replace(/\/?$/, '')}/merged_document.pdf`;
+    }
+  }
+}
+
+function useActivePaneSelectedPdf(tab) {
+  const pane = App.panes[App.activePaneIndex];
+  const firstPdf = Array.from(pane.selected).find(p => isPdfExtension(p)) ||
+    (pane.entries[pane.cursorIndex] && isPdfExtension(pane.entries[pane.cursorIndex].path) ? pane.entries[pane.cursorIndex].path : null);
+
+  if (!firstPdf) {
+    showToast('Please select a PDF file in the active pane', 'warning');
+    return;
+  }
+
+  if (tab === 'split') {
+    const srcEl = document.getElementById('pdf-split-source');
+    if (srcEl) {
+      srcEl.value = firstPdf;
+      fetchPdfSplitInfo(firstPdf);
+    }
+    const dirEl = document.getElementById('pdf-split-dest-dir');
+    if (dirEl) dirEl.value = pane.path;
+  } else if (tab === 'reorder') {
+    const reSrc = document.getElementById('pdf-reorder-source');
+    if (reSrc) {
+      reSrc.value = firstPdf;
+      loadPdfPagesOrganizer(firstPdf);
+    }
+  }
+}
+
+async function fetchPdfSplitInfo(pdfPath) {
+  const badge = document.getElementById('pdf-split-info-badge');
+  if (!badge || !pdfPath) return;
+
+  try {
+    const resp = await fetch(`/api/tools/pdf/info?path=${encodeURIComponent(resolveAuthUri(pdfPath))}`, {
+      headers: { 'Authorization': `Bearer ${App.token}` }
+    });
+    if (resp.ok) {
+      const info = await resp.json();
+      badge.style.display = 'block';
+      badge.textContent = `📄 Total Pages: ${info.page_count} | Size: ${formatBytes(info.file_size_bytes)} | PDF v${info.version}`;
+      const rangesVal = document.getElementById('pdf-split-ranges-val');
+      if (rangesVal && info.page_count > 1) {
+        rangesVal.value = `1-${Math.min(2, info.page_count)}, ${Math.min(3, info.page_count)}-${info.page_count}`;
+      }
+    } else {
+      badge.style.display = 'none';
+    }
+  } catch (e) {
+    badge.style.display = 'none';
+  }
+}
+
+function togglePdfSplitModeUI(mode) {
+  const rangesGroup = document.getElementById('pdf-split-ranges-group');
+  const chunkGroup = document.getElementById('pdf-split-chunk-group');
+  if (rangesGroup) rangesGroup.style.display = mode === 'ranges' ? 'block' : 'none';
+  if (chunkGroup) chunkGroup.style.display = mode === 'page_count' ? 'block' : 'none';
+}
+
+async function loadPdfPagesOrganizer(pdfPath) {
+  const grid = document.getElementById('pdf-page-organizer-grid');
+  const countEl = document.getElementById('pdf-reorder-page-count');
+  const destEl = document.getElementById('pdf-reorder-dest');
+  if (!grid || !pdfPath) return;
+
+  grid.innerHTML = `<div style="grid-column: 1 / -1; color: var(--text-muted); text-align: center; padding: 24px;">Loading document pages...</div>`;
+
+  try {
+    const resp = await fetch(`/api/tools/pdf/info?path=${encodeURIComponent(resolveAuthUri(pdfPath))}`, {
+      headers: { 'Authorization': `Bearer ${App.token}` }
+    });
+    if (resp.ok) {
+      const info = await resp.json();
+      currentPdfOrganizerPages = [];
+      for (let i = 1; i <= info.page_count; i++) {
+        currentPdfOrganizerPages.push({ page_num: i, rotation: 0 });
+      }
+      if (countEl) countEl.textContent = `${info.page_count} pages`;
+      if (destEl && !destEl.value) {
+        destEl.value = pdfPath.replace(/\.pdf$/i, '_reordered.pdf');
+      }
+      renderPdfPageOrganizerGrid();
+    } else {
+      grid.innerHTML = `<div style="grid-column: 1 / -1; color: var(--danger); text-align: center; padding: 24px;">Failed to read PDF document</div>`;
+    }
+  } catch (e) {
+    grid.innerHTML = `<div style="grid-column: 1 / -1; color: var(--danger); text-align: center; padding: 24px;">Error reading PDF: ${e}</div>`;
+  }
+}
+
+function renderPdfPageOrganizerGrid() {
+  const grid = document.getElementById('pdf-page-organizer-grid');
+  const countEl = document.getElementById('pdf-reorder-page-count');
+  if (!grid) return;
+
+  if (countEl) countEl.textContent = `${currentPdfOrganizerPages.length} pages`;
+
+  if (currentPdfOrganizerPages.length === 0) {
+    grid.innerHTML = `<div style="grid-column: 1 / -1; color: var(--text-muted); text-align: center; padding: 24px;">All pages removed. Re-select document to reset.</div>`;
+    return;
+  }
+
+  grid.innerHTML = currentPdfOrganizerPages.map((p, idx) => `
+    <div style="background: var(--bg-header); border: 1px solid var(--border); border-radius: 6px; padding: 6px; display: flex; flex-direction: column; align-items: center; justify-content: space-between; gap: 4px; position: relative;">
+      <div style="font-size: 10px; font-weight: 700; color: var(--accent); font-family: var(--font-mono);">Page ${p.page_num}</div>
+      <div style="width: 44px; height: 58px; background: white; border: 1px solid var(--border); border-radius: 2px; display: flex; align-items: center; justify-content: center; transform: rotate(${p.rotation}deg); transition: transform 0.15s ease;">
+        <span style="color: black; font-size: 10px; font-family: var(--font-mono); font-weight: 700;">#${p.page_num}</span>
+      </div>
+      <div style="display: flex; gap: 2px; margin-top: 2px;">
+        <button class="btn btn-icon btn-sm" style="padding: 2px 4px; font-size: 9px;" onclick="rotatePdfOrganizerPage(${idx}, 90)" title="Rotate 90°">↻</button>
+        <button class="btn btn-icon btn-sm" style="padding: 2px 4px; font-size: 9px;" onclick="movePdfOrganizerPage(${idx}, -1)" ${idx === 0 ? 'disabled' : ''} title="Move Left">◀</button>
+        <button class="btn btn-icon btn-sm" style="padding: 2px 4px; font-size: 9px;" onclick="movePdfOrganizerPage(${idx}, 1)" ${idx === currentPdfOrganizerPages.length - 1 ? 'disabled' : ''} title="Move Right">▶</button>
+        <button class="btn btn-icon btn-sm" style="padding: 2px 4px; font-size: 9px; color: var(--danger);" onclick="removePdfOrganizerPage(${idx})" title="Delete Page">✕</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function rotatePdfOrganizerPage(idx, deg) {
+  if (currentPdfOrganizerPages[idx]) {
+    currentPdfOrganizerPages[idx].rotation = (currentPdfOrganizerPages[idx].rotation + deg) % 360;
+    renderPdfPageOrganizerGrid();
+  }
+}
+
+function movePdfOrganizerPage(idx, delta) {
+  const target = idx + delta;
+  if (target < 0 || target >= currentPdfOrganizerPages.length) return;
+  const item = currentPdfOrganizerPages.splice(idx, 1)[0];
+  currentPdfOrganizerPages.splice(target, 0, item);
+  renderPdfPageOrganizerGrid();
+}
+
+function removePdfOrganizerPage(idx) {
+  currentPdfOrganizerPages.splice(idx, 1);
+  renderPdfPageOrganizerGrid();
+}
+
+async function executePdfActiveTab() {
+  const btn = document.getElementById('btn-pdf-execute');
+  if (btn) btn.disabled = true;
+
+  try {
+    if (activePdfTab === 'merge') {
+      const dest = document.getElementById('pdf-merge-dest')?.value?.trim();
+      const addBookmarks = document.getElementById('pdf-merge-add-bookmarks')?.checked ?? true;
+      if (currentPdfMergeList.length < 2) {
+        showToast('Please add at least 2 PDF documents to merge', 'warning');
+        return;
+      }
+      if (!dest) {
+        showToast('Please enter an output destination PDF path', 'warning');
+        return;
+      }
+
+      showToast('Merging PDF documents in pure Rust...', 'info');
+      const resp = await fetch('/api/tools/pdf/merge', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${App.token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sources: currentPdfMergeList.map(p => resolveAuthUri(p)),
+          destination: resolveAuthUri(dest),
+          add_bookmarks: addBookmarks
+        })
+      });
+
+      if (resp.ok) {
+        closeModal('pdf-tool-modal');
+        showToast(`Successfully merged ${currentPdfMergeList.length} PDFs into ${dest.split('/').pop()}!`, 'success');
+        renderAllPanes();
+      } else {
+        showToast(`PDF merge failed: ${await resp.text()}`, 'error');
+      }
+    } else if (activePdfTab === 'split') {
+      const source = document.getElementById('pdf-split-source')?.value?.trim();
+      const destDir = document.getElementById('pdf-split-dest-dir')?.value?.trim();
+      const mode = document.getElementById('pdf-split-mode')?.value || 'ranges';
+      const ranges = document.getElementById('pdf-split-ranges-val')?.value?.trim();
+      const chunkSize = parseInt(document.getElementById('pdf-split-chunk-val')?.value || '2', 10);
+      const prefix = document.getElementById('pdf-split-prefix')?.value?.trim() || null;
+
+      if (!source || !destDir) {
+        showToast('Please specify source PDF and output directory', 'warning');
+        return;
+      }
+
+      showToast('Splitting PDF document...', 'info');
+      const resp = await fetch('/api/tools/pdf/split', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${App.token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          source: resolveAuthUri(source),
+          destination_dir: resolveAuthUri(destDir),
+          split_mode: mode,
+          page_ranges: mode === 'ranges' ? ranges : null,
+          chunk_size: mode === 'page_count' ? chunkSize : null,
+          output_prefix: prefix
+        })
+      });
+
+      if (resp.ok) {
+        const res = await resp.json();
+        closeModal('pdf-tool-modal');
+        showToast(`PDF split into ${res.files.length} parts in ${destDir}!`, 'success');
+        renderAllPanes();
+      } else {
+        showToast(`PDF split failed: ${await resp.text()}`, 'error');
+      }
+    } else if (activePdfTab === 'reorder') {
+      const source = document.getElementById('pdf-reorder-source')?.value?.trim();
+      const dest = document.getElementById('pdf-reorder-dest')?.value?.trim();
+
+      if (!source || !dest) {
+        showToast('Please specify source PDF and destination output path', 'warning');
+        return;
+      }
+      if (currentPdfOrganizerPages.length === 0) {
+        showToast('No pages to export in organizer', 'warning');
+        return;
+      }
+
+      showToast('Reordering & rotating PDF pages...', 'info');
+      const resp = await fetch('/api/tools/pdf/reorder', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${App.token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          source: resolveAuthUri(source),
+          destination: resolveAuthUri(dest),
+          pages: currentPdfOrganizerPages
+        })
+      });
+
+      if (resp.ok) {
+        closeModal('pdf-tool-modal');
+        showToast(`Successfully reordered and exported PDF to ${dest.split('/').pop()}!`, 'success');
+        renderAllPanes();
+      } else {
+        showToast(`PDF reorder failed: ${await resp.text()}`, 'error');
+      }
+    }
+  } catch (e) {
+    showToast(`Error executing PDF operation: ${e}`, 'error');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
 
 
 

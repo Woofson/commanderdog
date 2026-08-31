@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
   <title>CommanderDog - Multi-Tab Web Commander</title>
   <link rel="icon" type="image/png" href="assets/logo.png">
+  <link rel="apple-touch-icon" href="assets/logo.png">
+  <link rel="shortcut icon" href="assets/commanderdog.ico">
   <link rel="stylesheet" href="app.css">
   <!-- Lucide Icons CDN -->
   <script src="https://unpkg.com/lucide@latest"></script>
@@ -86,6 +88,7 @@
           <div class="dropdown-item" onclick="openDiskUsageModal()"><i data-lucide="pie-chart" style="color: var(--accent);"></i> Disk Usage & Treemap Analyzer</div>
           <div class="dropdown-item" onclick="openSyncthingModal()"><i data-lucide="repeat"></i> Syncthing Dashboard</div>
           <div class="dropdown-item" onclick="openConverterModal()"><i data-lucide="file-output"></i> ConvertX Converters</div>
+          <div class="dropdown-item" onclick="openPdfToolModal()"><i data-lucide="file-text" style="color: #ef4444;"></i> PDF Power Studio (Merge & Split)</div>
           <div class="dropdown-item" onclick="openFloatingTaskManager()"><i data-lucide="list-checks"></i> Background Transfers & Queue</div>
         </div>
       </div>
@@ -1664,6 +1667,7 @@
           </div>
 
           <div style="width: 1px; height: 16px; background: var(--border); margin: 0 2px;"></div>
+          <button class="btn btn-icon btn-sm" id="btn-img-wheel-mode" onclick="toggleImgWheelMode()" title="Toggle Wheel Mode: Browse Images vs Direct Zoom"><i data-lucide="mouse"></i></button>
           <button class="btn btn-icon btn-sm" onclick="inspectCurrentImage()" title="Inspect EXIF & GPS Metadata"><i data-lucide="info"></i></button>
           <a id="img-viewer-download-link" class="btn btn-icon btn-sm" href="#" download title="Download Image"><i data-lucide="download"></i></a>
           <button class="btn btn-icon btn-sm" onclick="closeModal('image-viewer-modal')" title="Close Viewer (Esc)"><i data-lucide="x"></i></button>
@@ -2488,7 +2492,7 @@
           <div style="font-size: 18px; font-weight: 800; color: var(--accent); letter-spacing: 0.5px;">CommanderDog</div>
           <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 10px;">Multi-Tab Web Commander - By Woofson</div>
           <div style="display: flex; justify-content: center; gap: 6px; flex-wrap: wrap;">
-            <span id="about-version-badge" class="badge" style="background: rgba(245, 158, 11, 0.2); color: var(--accent); border: 1px solid rgba(245, 158, 11, 0.4); font-weight: 700;">v0.6.0 (Desktop & Web)</span>
+            <span id="about-version-badge" class="badge" style="background: rgba(245, 158, 11, 0.2); color: var(--accent); border: 1px solid rgba(245, 158, 11, 0.4); font-weight: 700;">v0.6.6-rc1 (Desktop & Web)</span>
             <span class="badge" style="background: rgba(56, 189, 248, 0.15); color: var(--info); border: 1px solid rgba(56, 189, 248, 0.3);">Rust + Axum + Tokio</span>
             <span class="badge" style="background: rgba(34, 197, 94, 0.15); color: var(--success); border: 1px solid rgba(34, 197, 94, 0.3);">MIT Open Source</span>
           </div>
@@ -3242,6 +3246,125 @@
       <div class="modal-footer">
         <button class="btn" onclick="closeModal('file-combiner-modal')">Cancel</button>
         <button class="btn btn-accent" id="btn-run-combine" onclick="executeFileCombine()"><i data-lucide="merge"></i> Join & Verify</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pure-Rust PDF Split & Merger Tool Modal -->
+  <div class="modal-overlay" id="pdf-tool-modal" style="z-index: 2050;">
+    <div class="modal-box" style="width: 680px; max-width: calc(100vw - 32px); max-height: 88vh; display: flex; flex-direction: column;">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <i data-lucide="file-text" style="color: #ef4444; width: 18px; height: 18px;"></i>
+          <span style="font-weight: 700; font-size: 14px;">📄 PDF Power Studio: Merge & Split</span>
+        </div>
+        <button class="btn btn-icon" onclick="closeModal('pdf-tool-modal')"><i data-lucide="x"></i></button>
+      </div>
+
+      <!-- Tabs Header -->
+      <div class="settings-tabs" style="border-bottom: 1px solid var(--border); padding: 0 12px; background: var(--bg-dark);">
+        <button class="settings-tab-btn active" id="btn-pdf-tab-merge" onclick="switchPdfTab('merge')"><i data-lucide="merge"></i> 📑 Merge PDFs</button>
+        <button class="settings-tab-btn" id="btn-pdf-tab-split" onclick="switchPdfTab('split')"><i data-lucide="scissors"></i> ✂️ Split PDF</button>
+        <button class="settings-tab-btn" id="btn-pdf-tab-reorder" onclick="switchPdfTab('reorder')"><i data-lucide="rotate-cw"></i> 🔄 Reorder & Rotate</button>
+      </div>
+
+      <div class="modal-body" style="padding: 16px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 14px;">
+        <!-- Tab 1: Merge PDFs -->
+        <div id="pdf-tab-merge" class="pdf-tab-content">
+          <div class="form-group">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <label style="font-weight: 600;">PDF Documents to Merge (Drag to Reorder):</label>
+              <button class="btn btn-sm" onclick="addActivePanePdfFiles()"><i data-lucide="plus"></i> Add Selected from Pane</button>
+            </div>
+            <div id="pdf-merge-file-list" style="min-height: 100px; max-height: 200px; overflow-y: auto; padding: 6px; background: var(--bg-dark); border: 1px solid var(--border); border-radius: 4px; display: flex; flex-direction: column; gap: 4px; font-size: 11px;">
+              <div style="color: var(--text-muted); text-align: center; padding: 24px;">No PDF files added. Select PDFs in any pane or click Add Selected.</div>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Output Merged PDF Path:</label>
+            <input type="text" id="pdf-merge-dest" class="pane-quick-filter" style="width: 100%;" placeholder="e.g. /path/to/merged_document.pdf" />
+          </div>
+          <div class="form-group">
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 12px;">
+              <input type="checkbox" id="pdf-merge-add-bookmarks" checked />
+              <span>Generate Table of Contents / Outline Bookmarks for Each Document</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Tab 2: Split PDF -->
+        <div id="pdf-tab-split" class="pdf-tab-content" style="display: none;">
+          <div class="form-group">
+            <label>Source PDF to Split:</label>
+            <div style="display: flex; gap: 8px;">
+              <input type="text" id="pdf-split-source" class="pane-quick-filter" style="flex: 1;" placeholder="/path/to/document.pdf" onchange="fetchPdfSplitInfo(this.value)" />
+              <button class="btn btn-sm" onclick="useActivePaneSelectedPdf('split')">Use Current</button>
+            </div>
+            <div id="pdf-split-info-badge" style="display: none; margin-top: 6px; font-size: 11px; font-family: var(--font-mono); color: var(--accent);"></div>
+          </div>
+
+          <div class="form-group">
+            <label>Split Mode:</label>
+            <select id="pdf-split-mode" class="pane-quick-filter" style="width: 100%;" onchange="togglePdfSplitModeUI(this.value)">
+              <option value="ranges" selected>Custom Page Ranges (e.g. 1-3, 5, 8-10)</option>
+              <option value="each_page">Extract Every Page as an Individual PDF</option>
+              <option value="page_count">Split into N-Page Bundles</option>
+            </select>
+          </div>
+
+          <div class="form-group" id="pdf-split-ranges-group">
+            <label>Page Ranges:</label>
+            <input type="text" id="pdf-split-ranges-val" class="pane-quick-filter" style="width: 100%;" placeholder="e.g. 1-4, 6, 8-12" value="1-2" />
+            <div class="form-hint">Separate page numbers and ranges with commas (e.g., "1-3, 5, 7-10").</div>
+          </div>
+
+          <div class="form-group" id="pdf-split-chunk-group" style="display: none;">
+            <label>Pages per Split Part:</label>
+            <input type="number" id="pdf-split-chunk-val" class="pane-quick-filter" style="width: 120px;" min="1" max="500" value="2" />
+          </div>
+
+          <div class="form-group">
+            <label>Output Directory:</label>
+            <input type="text" id="pdf-split-dest-dir" class="pane-quick-filter" style="width: 100%;" placeholder="Directory to store split PDFs" />
+          </div>
+          <div class="form-group">
+            <label>Output Filename Prefix (Optional):</label>
+            <input type="text" id="pdf-split-prefix" class="pane-quick-filter" style="width: 100%;" placeholder="e.g. chapter" />
+          </div>
+        </div>
+
+        <!-- Tab 3: Reorder & Rotate -->
+        <div id="pdf-tab-reorder" class="pdf-tab-content" style="display: none;">
+          <div class="form-group">
+            <label>Source PDF:</label>
+            <div style="display: flex; gap: 8px;">
+              <input type="text" id="pdf-reorder-source" class="pane-quick-filter" style="flex: 1;" placeholder="/path/to/document.pdf" onchange="loadPdfPagesOrganizer(this.value)" />
+              <button class="btn btn-sm" onclick="useActivePaneSelectedPdf('reorder')">Use Current</button>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label style="display: flex; justify-content: space-between; align-items: center;">
+              <span>Pages Organizer (Click ↻ to Rotate, Drag or ✕ to Remove):</span>
+              <span id="pdf-reorder-page-count" style="font-size: 11px; color: var(--accent); font-family: var(--font-mono);"></span>
+            </label>
+            <div id="pdf-page-organizer-grid" style="min-height: 120px; max-height: 240px; overflow-y: auto; padding: 8px; background: var(--bg-dark); border: 1px solid var(--border); border-radius: 4px; display: grid; grid-template-columns: repeat(auto-fill, minmax(85px, 1fr)); gap: 8px;">
+              <div style="grid-column: 1 / -1; color: var(--text-muted); text-align: center; padding: 24px;">Enter a PDF path or click "Use Current" to load pages.</div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Destination Output PDF:</label>
+            <input type="text" id="pdf-reorder-dest" class="pane-quick-filter" style="width: 100%;" placeholder="/path/to/reordered_document.pdf" />
+          </div>
+        </div>
+
+        <div id="pdf-tool-status-box" style="display: none; padding: 10px; background: var(--bg-dark); border-radius: 4px; border: 1px solid var(--border); font-size: 11px;"></div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn" onclick="closeModal('pdf-tool-modal')">Cancel</button>
+        <button class="btn btn-accent" id="btn-pdf-execute" onclick="executePdfActiveTab()"><i data-lucide="check"></i> Execute</button>
       </div>
     </div>
   </div>

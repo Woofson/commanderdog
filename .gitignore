@@ -77,6 +77,8 @@ tmp/
 # --- Editor & OS Temp Files ---
 .DS_Store
 Thumbs.db
+desktop.ini
+Desktop.ini
 *~
 *.swp
 *.swo

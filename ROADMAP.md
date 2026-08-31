@@ -7,6 +7,53 @@ This roadmap outlines completed capabilities, active architectural enhancements,
 
 ---
 
+## 🦴 The Ultimate Replacement Vision: One Commander ("ChewToys")
+
+> *"Replace a scattered suite of 10+ disconnected utilities with a single, ultra-fast, unified Commander and a suite of built-in power-tools ('ChewToys')."*
+
+```
+┌────────────────────────────────────────────────────────────────────────────────────────────┐
+│ 🦴 The CommanderDog "ChewToy" Replacement Matrix                                           │
+├────────────────────────┬─────────────────────────────┬─────────────────────────────────────┤
+│ Legacy / External App  │ CommanderDog Native ChewToy │ Replaced Capabilities               │
+├────────────────────────┼─────────────────────────────┼─────────────────────────────────────┤
+│ FileZilla & Mountain D │ 🌐 Native Multi-Protocol VFS│ SFTP/SSH, SMB/CIFS, NFS, WebDAV,    │
+│                        │                             │ Hetzner Storage Box, Proton Drive,  │
+│                        │                             │ Google Drive & S3 Object Storage    │
+├────────────────────────┼─────────────────────────────┼─────────────────────────────────────┤
+│ rclone & rsync         │ ⚡ DeltaCopy / RoboCopy     │ Differential delta streaming,       │
+│                        │ Engine & Background Tasks   │ bandwidth throttling & auto-retry   │
+├────────────────────────┼─────────────────────────────┼─────────────────────────────────────┤
+│ Bvckup 2 & SyncToy     │ 🔄 Delta Backup & Sync      │ Two-Way Sync, Echo/Mirror,          │
+│                        │ Engine (v0.6.8)             │ Contribute, Archive/Versioning,     │
+│                        │                             │ USN Journal change indexing         │
+├────────────────────────┼─────────────────────────────┼─────────────────────────────────────┤
+│ Syncthing              │ 🔄 Live Syncthing Dashboard │ Peer status, throughput charts,     │
+│                        │ & Direct Local/LAN Sync     │ folder scan triggers, P2P sync      │
+├────────────────────────┼─────────────────────────────┼─────────────────────────────────────┤
+│ PuTTY & OpenSSH SCP    │ 💻 Slide-Up PTY Web Terminal│ Embedded WebSocket pseudo-terminal  │
+│                        │ & Secure File Pipeline      │ (bash/sh/powershell) in active path │
+├────────────────────────┼─────────────────────────────┼─────────────────────────────────────┤
+│ Total / Multi / MC /   │ 🗂️ 1-to-4 Multi-Tab Dynamic │ Orthodox keyboard shortcuts, dual-  │
+│ XYplorer / Directory O │ Panes & Orthodox Suite      │ pane power diff, batch rename,      │
+│                        │                             │ branch view, rich MIME icon suite   │
+├────────────────────────┼─────────────────────────────┼─────────────────────────────────────┤
+│ Cryptomator / VeraCrypt│ 🔒 AES-256-GCM Vaults       │ Zero-leakage in-memory containers   │
+│                        │ (.cdvault)                  │ (Argon2id + AES-GCM RAM-only VFS)   │
+├────────────────────────┼─────────────────────────────┼─────────────────────────────────────┤
+│ HandBrake / FFmpeg GUI │ 🔄 ConvertX Transcoder      │ Browser-native image/audio/video/   │
+│                        │                             │ document conversion engine          │
+├────────────────────────┼─────────────────────────────┼─────────────────────────────────────┤
+│ PDFsam / Acrobat Split │ 📄 PDF Power Studio         │ Pure-Rust visual merge, split,      │
+│                        │ (v0.6.5)                    │ page reordering & rotation grid     │
+├────────────────────────┼─────────────────────────────┼─────────────────────────────────────┤
+│ FastStone / Feh Viewer │ 🖼️ High-DPI Image Viewer    │ Mouse wheel browse, focal zoom,     │
+│                        │                             │ slideshow, format conversion        │
+└────────────────────────┴─────────────────────────────┴─────────────────────────────────────┘
+```
+
+---
+
 ## 🚀 1. Completed Milestones (v0.1.0 — v0.6.0)
 
 ### 🪟 Windows Native Desktop, Installers & Packaging (`v0.6.0`)
@@ -53,7 +100,7 @@ graph TD
     A["v0.6.0 (Live: Windows Native Desktop, WebView2, MSI/EXE Installers, Winget, Scoop, Portable ZIP)"] --> B["1. 📄 PDF Split/Merger, Mouse-Wheel Image Viewer & Dynamic Statusbar (v0.6.5)"]
     B --> C["2. 🪟 Windows NT Service, Autostart & Rich Filetype Icon Suite (v0.6.6)"]
     C --> D["3. 🗂️ View Modes, Resizable Columns, Custom Context Menus & Open-With (v0.6.7)"]
-    D --> E["4. ⚙️ Folder Automation Watchers & Webhooks (v0.6.8)"]
+    D --> E["4. 🔄 Bvckup 2 & SyncToy Engine, Background Daemons & Folder Watchers (v0.6.8)"]
     E --> F["5. 👑 Orthodox Commander Power Tools Inspiration Suite (v0.7.0)"]
     F --> G["6. 🌐 Enterprise OIDC SSO & Collaborative Office (v0.8.0)"]
 ```
@@ -135,18 +182,36 @@ graph TD
 
 ---
 
-### ⚙️ Milestone 4: Folder Automation Watchers & Webhooks (`v0.6.8`)
-- **Real-Time Directory Watchers**: Inotify / notify-rs backend tracking specified directories.
-- **Rule Engine**:
-  - Automatically convert incoming images/media using ConvertX.
-  - Automatically extract downloaded `.zip`/`.tar.gz`/`.7z` files.
-  - Automatically trigger two-way sync or backup to remote S3/SMB/SFTP shares.
-  - Execute custom user shell scripts or webhooks upon file creation/modification.
+### 🔄 Milestone 4: Bvckup 2 & SyncToy Delta Backup Engine, Background Tasks & Automation (`v0.6.8`)
+- **🔄 Bvckup 2 & SyncToy Backup & Sync Engine**:
+  - **Flexible Synchronization Profiles**:
+    - **Synchronize (Two-Way Sync)**: Bi-directional replication with automatic collision detection and smart conflict resolution.
+    - **Echo / Mirror (One-Way Backup)**: Make Destination an exact mirror of Source (left-to-right), propagating additions, edits, and deletions.
+    - **Contribute / Additive Backup**: Replicate additions and modifications from Source to Destination without deleting destination files that no longer exist on Source.
+    - **Subscribe / Historical Versioning**: Retain file version history, moving modified and deleted files into timestamped `_archive/` snapshots or `.trash/` containers with retention policies (e.g. keep $N$ versions or purge after 30 days).
+  - **⚡ Block-Level Delta Copy Engine (Bvckup 2 Speed)**:
+    - **In-Place Delta Patching**: Scans large modified files (databases, virtual disks, video projects, logs) and transfers only modified byte chunks rather than copying whole files.
+    - **Fast Change Indexing**: Leverages filesystem change journals (Windows USN Journal / Change Notifications) and Linux inotify / fanotify to detect changes in milliseconds without crawling million-file trees.
+    - **Integrity Validation**: Optional post-transfer cryptographic verification (CRC32, SHA-256) ensuring bit-perfect backups.
+- **🕒 Background Daemons & Scheduled Tasks**:
+  - **Windows Service & Task Scheduler**:
+    - Execute scheduled backup jobs headlessly via Windows Task Scheduler (`schtasks.exe`) or the background Windows NT Service (`commanderdog.exe service`).
+    - Run tasks silently on system boot before user login.
+  - **Linux Systemd & Cron Integration**:
+    - Manage background backup daemons via `systemctl --user` timers, cron jobs, or embedded Tokio worker tasks.
+  - **Smart Automated Triggers**:
+    - **Real-Time Continuous**: Trigger backup immediately upon file modification.
+    - **Periodic / Cron Schedules**: Custom recurrence (e.g. every 15 minutes, hourly, daily at 02:00 AM, or weekly).
+    - **On Device / Network Share Connect**: Automatically run backup tasks when an external USB drive, SSD, or network share (`smb://`, `sftp://`, `nfs://`, `s3://`) is mounted or detected.
+- **⚙️ Folder Automation Watchers & Webhooks**:
+  - Automatically convert incoming media using ConvertX.
+  - Automatically extract downloaded `.zip`/`.tar.gz`/`.7z` archives.
+  - Dispatch webhook notifications (Discord, Slack, Telegram, Matrix, email) on backup success or failure.
 
 ---
 
 ### 👑 Milestone 5: Orthodox Commander Power Inspiration Suite (`v0.7.0`)
-*(Curated pick-and-mix power tool catalog inspired by Total Commander, Multi Commander, XYplorer, Directory Opus, and Next Explorer)*
+*(Curated pick-and-mix power tool catalog inspired by Total Commander, Multi Commander, XYplorer, Bvckup 2, SyncToy, Directory Opus, and Next Explorer)*
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -158,6 +223,11 @@ graph TD
 │                      │ • Side-by-Side Directory Compare & Synchronize Dirs  │
 │                      │ • Treat Archives as Folders (virtual archive VFS)    │
 │                      │ • Type-Ahead Quick Search Bar with regex filter      │
+├──────────────────────┼──────────────────────────────────────────────────────┤
+│ Bvckup 2 & SyncToy   │ • Block-Level Delta Backup (In-place binary diffs)   │
+│                      │ • Two-Way Sync, Echo/Mirror, Contribute & Archive    │
+│                      │ • Background Daemon & Scheduled Tasks (Win/Linux)    │
+│                      │ • On-Device Connect & Real-time change triggers      │
 ├──────────────────────┼──────────────────────────────────────────────────────┤
 │ Multi Commander      │ • Multi-Tab Session Workspaces (Save/Restore setups) │
 │                      │ • Hash Checksum Generator & .sha256/.sfv Validator   │
@@ -212,10 +282,10 @@ graph TD
 | **`v0.4.2`** | Multi-Tier SSH/SFTP Auth, Dynamic PAM Zero-Dependency Engine, SFTP $HOME Resolution | **Released** |
 | **`v0.5.0`** | **Zero-Leakage In-Memory Credentials, Leftmost Unified Pane Customizer, Modern Navbar, Tauri Tray** | **Released** |
 | **`v0.5.5`** | **Transparent Encrypted Vaults (AES-256-GCM / Argon2id), Cross-Mount Deletion Engine** | **Released** |
-| **`v0.6.0`** | **🪟 Windows Native Build & Release (MSI, Portable ZIP, Winget, Scoop, WebView2)** | **Released (Current)** |
-| **`v0.6.5`** | **📄 PDF Split/Merger, Mouse-Wheel Image Navigation & Dynamic Statusbar Selection** | *Next Up* |
-| **`v0.6.6`** | **🪟 Windows Service, Autostart Management & Rich Filetype Icon Suite** | *Planned* |
-| **`v0.6.7`** | **🗂️ Resizable Columns, Alternate View Modes, "Open With" App Config & Context Menus** | *Planned* |
-| **`v0.6.8`** | **⚙️ Folder Automation Watchers & Webhook Rules** | *Planned* |
+| **`v0.6.0`** | **🪟 Windows Native Build & Release (MSI, Portable ZIP, Winget, Scoop, WebView2)** | **Released** |
+| **`v0.6.5`** | **📄 PDF Split/Merger, Mouse-Wheel Image Navigation & Dynamic Statusbar Selection** | **Released** |
+| **`v0.6.6`** | **🪟 Windows Service, Autostart Management & Rich Filetype Icon Suite** | **Released (Current)** |
+| **`v0.6.7`** | **🗂️ Resizable Columns, Alternate View Modes, "Open With" App Config & Context Menus** | *Next Up* |
+| **`v0.6.8`** | **🔄 Bvckup 2 & SyncToy Delta Backup, Background Daemons, Scheduled Tasks & Automation** | *Planned* |
 | **`v0.7.0`** | **👑 Orthodox Commander Power Tools (Multi-Rename, Dir Sync, Workspaces, Quick Filter)** | *Planned* |
 | **`v0.8.0`** | **🌐 Enterprise OIDC SSO, Collaborative Office (WOPI) & Automation Engine** | *Planned* |
