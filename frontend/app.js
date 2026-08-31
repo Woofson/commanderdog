@@ -753,26 +753,26 @@ function createPaneElement(pane, index) {
     };
 
     // Mobile Pull-to-Refresh
+    const mainView = el.querySelector(`#pane-main-${index}`) || content;
     let pullStartY = 0;
     let isPulling = false;
     let pullDistance = 0;
 
-    content.addEventListener('touchstart', (e) => {
-      if (content.scrollTop <= 0 && e.touches.length === 1) {
+    mainView.addEventListener('touchstart', (e) => {
+      if (mainView.scrollTop <= 0 && e.touches.length === 1) {
         pullStartY = e.touches[0].clientY;
-        isPulling = true;
-        pullDistance = 0;
-      } else {
         isPulling = false;
+        pullDistance = 0;
       }
     }, { passive: true });
 
-    content.addEventListener('touchmove', (e) => {
-      if (!isPulling || e.touches.length !== 1) return;
+    mainView.addEventListener('touchmove', (e) => {
+      if (e.touches.length !== 1) return;
       const currentY = e.touches[0].clientY;
       const diffY = currentY - pullStartY;
-      if (diffY > 0 && content.scrollTop <= 0) {
-        pullDistance = Math.min(80, diffY * 0.45);
+      if (mainView.scrollTop <= 0 && diffY > 20) {
+        isPulling = true;
+        pullDistance = Math.min(80, (diffY - 20) * 0.45);
         const indicator = document.getElementById(`pull-refresh-${index}`);
         if (indicator) {
           indicator.style.display = 'flex';
@@ -788,16 +788,19 @@ function createPaneElement(pane, index) {
           }
         }
       } else {
-        pullDistance = 0;
-        const indicator = document.getElementById(`pull-refresh-${index}`);
-        if (indicator) {
-          indicator.style.display = 'none';
-          indicator.style.height = '0px';
+        if (isPulling) {
+          pullDistance = 0;
+          const indicator = document.getElementById(`pull-refresh-${index}`);
+          if (indicator) {
+            indicator.style.display = 'none';
+            indicator.style.height = '0px';
+          }
+          isPulling = false;
         }
       }
     }, { passive: true });
 
-    content.addEventListener('touchend', () => {
+    mainView.addEventListener('touchend', () => {
       if (isPulling && pullDistance > 45) {
         const indicator = document.getElementById(`pull-refresh-${index}`);
         if (indicator) {
@@ -826,7 +829,7 @@ function createPaneElement(pane, index) {
       }
       isPulling = false;
       pullDistance = 0;
-    });
+    }, { passive: true });
   }
 
   return el;
@@ -1532,7 +1535,69 @@ function renderPaneTable(paneIndex) {
         <div class="grid-card-meta">${entry.is_dir ? '&lt;DIR&gt;' : formatBytes(entry.size)}</div>
       `;
 
+      let cTouchStart = 0;
+      let cTouchStartX = 0;
+      let cTouchStartY = 0;
+      let cIsScrolling = false;
+      let cTouchTimer = null;
+
+      card.ontouchstart = (e) => {
+        if (!e.touches || e.touches.length === 0) return;
+        cTouchStart = Date.now();
+        cTouchStartX = e.touches[0].clientX;
+        cTouchStartY = e.touches[0].clientY;
+        cIsScrolling = false;
+
+        cTouchTimer = setTimeout(() => {
+          if (cIsScrolling) return;
+          setActivePane(paneIndex);
+          if (pane.selected.has(entry.path)) {
+            pane.selected.delete(entry.path);
+          } else {
+            pane.selected.add(entry.path);
+          }
+          pane.cursorIndex = idx;
+          renderPaneTable(paneIndex);
+          updateMobileBottomBar();
+          if (navigator.vibrate) navigator.vibrate(40);
+        }, 450);
+      };
+
+      card.ontouchmove = (e) => {
+        if (!e.touches || e.touches.length === 0) return;
+        const dx = Math.abs(e.touches[0].clientX - cTouchStartX);
+        const dy = Math.abs(e.touches[0].clientY - cTouchStartY);
+        if (dx > 6 || dy > 6) {
+          cIsScrolling = true;
+          if (cTouchTimer) {
+            clearTimeout(cTouchTimer);
+            cTouchTimer = null;
+          }
+        }
+      };
+
+      card.ontouchend = (e) => {
+        if (cTouchTimer) {
+          clearTimeout(cTouchTimer);
+          cTouchTimer = null;
+        }
+        if (cIsScrolling) return;
+        if (Date.now() - cTouchStart < 350) {
+          setActivePane(paneIndex);
+          if (pane.selected.size > 0) {
+            if (pane.selected.has(entry.path)) pane.selected.delete(entry.path);
+            else pane.selected.add(entry.path);
+            renderPaneTable(paneIndex);
+            updateMobileBottomBar();
+            return;
+          }
+          openFileByType(entry, paneIndex);
+        }
+      };
+
       card.onclick = (e) => {
+        const isTouch = window.innerWidth <= 768 || window.matchMedia('(pointer: coarse)').matches;
+        if (isTouch) return;
         setActivePane(paneIndex);
         if (e.shiftKey || e.ctrlKey) {
           if (pane.selected.has(entry.path)) pane.selected.delete(entry.path);
@@ -1575,7 +1640,40 @@ function renderPaneTable(paneIndex) {
         <img src="assets/folder-open.png" style="width: 15px; height: 15px; object-fit: contain;">
         <span style="font-weight: 700; color: var(--accent);">..</span>
       `;
-      pItem.onclick = () => { setActivePane(paneIndex); navPaneUp(paneIndex); };
+
+      let pTouchStart = 0;
+      let pTouchStartX = 0;
+      let pTouchStartY = 0;
+      let pIsScrolling = false;
+
+      pItem.ontouchstart = (e) => {
+        if (!e.touches || e.touches.length === 0) return;
+        pTouchStart = Date.now();
+        pTouchStartX = e.touches[0].clientX;
+        pTouchStartY = e.touches[0].clientY;
+        pIsScrolling = false;
+      };
+      pItem.ontouchmove = (e) => {
+        if (!e.touches || e.touches.length === 0) return;
+        const dx = Math.abs(e.touches[0].clientX - pTouchStartX);
+        const dy = Math.abs(e.touches[0].clientY - pTouchStartY);
+        if (dx > 6 || dy > 6) pIsScrolling = true;
+      };
+      pItem.ontouchend = (e) => {
+        if (pIsScrolling) return;
+        if (Date.now() - pTouchStart < 350) {
+          e.preventDefault();
+          setActivePane(paneIndex);
+          navPaneUp(paneIndex);
+        }
+      };
+
+      pItem.onclick = () => {
+        const isTouch = window.innerWidth <= 768 || window.matchMedia('(pointer: coarse)').matches;
+        if (isTouch) return;
+        setActivePane(paneIndex);
+        navPaneUp(paneIndex);
+      };
       compactEl.appendChild(pItem);
     }
 
@@ -1598,7 +1696,44 @@ function renderPaneTable(paneIndex) {
         <span class="compact-item-name" title="${escapeHtml(entry.name)}" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(entry.name)}</span>
       `;
 
+      let iTouchStart = 0;
+      let iTouchStartX = 0;
+      let iTouchStartY = 0;
+      let iIsScrolling = false;
+
+      item.ontouchstart = (e) => {
+        if (!e.touches || e.touches.length === 0) return;
+        iTouchStart = Date.now();
+        iTouchStartX = e.touches[0].clientX;
+        iTouchStartY = e.touches[0].clientY;
+        iIsScrolling = false;
+      };
+
+      item.ontouchmove = (e) => {
+        if (!e.touches || e.touches.length === 0) return;
+        const dx = Math.abs(e.touches[0].clientX - iTouchStartX);
+        const dy = Math.abs(e.touches[0].clientY - iTouchStartY);
+        if (dx > 6 || dy > 6) iIsScrolling = true;
+      };
+
+      item.ontouchend = (e) => {
+        if (iIsScrolling) return;
+        if (Date.now() - iTouchStart < 350) {
+          setActivePane(paneIndex);
+          if (pane.selected.size > 0) {
+            if (pane.selected.has(entry.path)) pane.selected.delete(entry.path);
+            else pane.selected.add(entry.path);
+            renderPaneTable(paneIndex);
+            updateMobileBottomBar();
+            return;
+          }
+          openFileByType(entry, paneIndex);
+        }
+      };
+
       item.onclick = (e) => {
+        const isTouch = window.innerWidth <= 768 || window.matchMedia('(pointer: coarse)').matches;
+        if (isTouch) return;
         setActivePane(paneIndex);
         if (e.shiftKey || e.ctrlKey) {
           if (pane.selected.has(entry.path)) pane.selected.delete(entry.path);
@@ -1639,9 +1774,30 @@ function renderPaneTable(paneIndex) {
       parentTr.draggable = !isTouchDevice;
 
       let parentTouchStart = 0;
-      parentTr.ontouchstart = () => { parentTouchStart = Date.now(); };
+      let parentTouchStartX = 0;
+      let parentTouchStartY = 0;
+      let parentIsScrolling = false;
+
+      parentTr.ontouchstart = (e) => {
+        if (!e.touches || e.touches.length === 0) return;
+        parentTouchStart = Date.now();
+        parentTouchStartX = e.touches[0].clientX;
+        parentTouchStartY = e.touches[0].clientY;
+        parentIsScrolling = false;
+      };
+
+      parentTr.ontouchmove = (e) => {
+        if (!e.touches || e.touches.length === 0) return;
+        const dx = Math.abs(e.touches[0].clientX - parentTouchStartX);
+        const dy = Math.abs(e.touches[0].clientY - parentTouchStartY);
+        if (dx > 6 || dy > 6) {
+          parentIsScrolling = true;
+        }
+      };
+
       parentTr.ontouchend = (e) => {
-        if (Date.now() - parentTouchStart < 400) {
+        if (parentIsScrolling) return;
+        if (Date.now() - parentTouchStart < 350) {
           e.preventDefault();
           setActivePane(paneIndex);
           navPaneUp(paneIndex);
@@ -1649,15 +1805,13 @@ function renderPaneTable(paneIndex) {
       };
 
       parentTr.onclick = (e) => {
+        const isTouch = window.innerWidth <= 768 || window.matchMedia('(pointer: coarse)').matches;
+        if (isTouch) return;
         e.stopPropagation();
         setActivePane(paneIndex);
-        if (isTouchDevice) {
-          navPaneUp(paneIndex);
-        } else {
-          pane.selected.clear();
-          pane.cursorIndex = -1;
-          renderPaneTable(paneIndex);
-        }
+        pane.selected.clear();
+        pane.cursorIndex = -1;
+        renderPaneTable(paneIndex);
       };
 
       parentTr.ondblclick = (e) => {
@@ -1793,7 +1947,7 @@ function renderPaneTable(paneIndex) {
         if (!e.touches || e.touches.length === 0) return;
         const dx = Math.abs(e.touches[0].clientX - touchStartX);
         const dy = Math.abs(e.touches[0].clientY - touchStartY);
-        if (dx > 8 || dy > 8) {
+        if (dx > 5 || dy > 5) {
           isScrolling = true;
           if (touchTimer) {
             clearTimeout(touchTimer);
@@ -1809,7 +1963,7 @@ function renderPaneTable(paneIndex) {
         }
         if (isLongPress || isScrolling) return;
         const pressDuration = Date.now() - touchStartTime;
-        if (pressDuration < 400) {
+        if (pressDuration < 350) {
           e.preventDefault();
           setActivePane(paneIndex);
           if (pane.selected.size > 0) {

@@ -406,9 +406,13 @@ body {
 /* File Table View */
 .pane-content {
   flex: 1;
-  overflow-y: auto;
+  overflow: hidden;
   position: relative;
   background-color: var(--bg-panel);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
 }
 
 .file-table {
@@ -416,6 +420,7 @@ body {
   border-collapse: collapse;
   font-size: 12px;
   text-align: left;
+  touch-action: pan-y;
 }
 
 .file-table th {
@@ -429,6 +434,8 @@ body {
   font-size: 11px;
   cursor: pointer;
   z-index: 10;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .file-table th:hover {
@@ -439,6 +446,9 @@ body {
   border-bottom: 1px solid rgba(255, 255, 255, 0.03);
   cursor: pointer;
   transition: background-color 0.1s ease;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .file-row:hover {
@@ -6623,6 +6633,8 @@ body.is-col-resizing {
   width: 100%;
   overflow: hidden;
   position: relative;
+  min-height: 0;
+  min-width: 0;
 }
 
 .pane-tree-sidebar {
@@ -6634,12 +6646,15 @@ body.is-col-resizing {
   border-right: 1px solid var(--border);
   overflow-y: auto;
   overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
   padding: 6px 4px;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
   user-select: none;
+  -webkit-user-select: none;
 }
 
 .pane-tree-resizer {
@@ -6660,10 +6675,14 @@ body.is-col-resizing {
 .pane-main-view {
   flex: 1;
   height: 100%;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
+  width: 100%;
+  overflow-y: auto;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pan-y;
   position: relative;
+  min-height: 0;
+  min-width: 0;
 }
 
 .tree-node-row {
