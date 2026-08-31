@@ -1,4 +1,4 @@
-# <img src="assets/logo.png" alt="CommanderDog Logo" width="32" height="32" style="vertical-align: middle; margin-right: 8px;" /> CommanderDog Product Roadmap
+# <img src="assets/logo.png" alt="CommanderDog Logo" height="40" style="vertical-align: -6px; margin-right: 8px;" /> CommanderDog Product Roadmap
 
 > **Slogan**: *Multi-Tab File Commander for Web & Native Desktop — By Woofson*  
 > **Current Version**: `v0.6.6-rc1 (Desktop & Web)`

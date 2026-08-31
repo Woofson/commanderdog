@@ -1,4 +1,4 @@
-# <img src="assets/logo.png" alt="CommanderDog Logo" width="32" height="32" style="vertical-align: middle; margin-right: 8px;" /> CommanderDog for Windows
+# <img src="assets/logo.png" alt="CommanderDog Logo" height="40" style="vertical-align: -6px; margin-right: 8px;" /> CommanderDog for Windows
 
 <div align="center">
   <img src="assets/CommanderDogWin.png" alt="CommanderDog Windows Desktop Edition" width="800" style="border-radius: 8px; box-shadow: 0 12px 32px rgba(0,0,0,0.6); margin: 12px 0;" />
