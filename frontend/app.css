@@ -2926,10 +2926,90 @@ body {
   border: 1px solid rgba(239, 68, 68, 0.4);
 }
 
+.sync-action-badge.action-update-delta {
+  background: rgba(245, 158, 11, 0.2);
+  color: var(--accent);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+}
+
+.sync-action-badge.action-archive {
+  background: rgba(168, 85, 247, 0.2);
+  color: #c084fc;
+  border: 1px solid rgba(168, 85, 247, 0.4);
+}
+
 .sync-action-badge.action-skip {
   background: rgba(255, 255, 255, 0.05);
   color: var(--text-dim);
   border: 1px solid var(--border);
+}
+
+.sync-profile-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.sync-profile-card:hover {
+  border-color: var(--accent);
+  background: var(--bg-hover);
+}
+
+.sync-profile-card input[type="radio"] {
+  margin-top: 3px;
+  accent-color: var(--accent);
+}
+
+.sync-profile-card:has(input[type="radio"]:checked) {
+  border-color: var(--accent);
+  background: rgba(245, 158, 11, 0.08);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.sync-card-title {
+  font-weight: 700;
+  font-size: 11px;
+  color: var(--text-main);
+  margin-bottom: 2px;
+}
+
+.sync-card-desc {
+  font-size: 10px;
+  color: var(--text-dim);
+  line-height: 1.3;
+}
+
+.sync-tab-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+
+.sync-tab-btn:hover {
+  color: var(--text-main);
+  background: var(--bg-hover);
+}
+
+.sync-tab-btn.active {
+  color: var(--accent);
+  background: rgba(245, 158, 11, 0.15);
+  border-color: rgba(245, 158, 11, 0.3);
+  font-weight: 600;
 }
 
 /* ---------------- VISUAL DISK USAGE TREEMAP & BAR ANALYZER ---------------- */

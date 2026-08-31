@@ -92,7 +92,18 @@ fn default_upload_max_mb() -> usize { 10240 } // 10 GB
 fn default_true() -> bool { true }
 fn default_jwt_secret() -> String { "commanderdog-super-secret-jwt-key-2026".to_string() }
 fn default_session_hours() -> u64 { 72 }
-fn default_db_path() -> String { "commanderdog.db".to_string() }
+fn default_db_path() -> String {
+    if let Ok(env_path) = std::env::var("CD_DATABASE_PATH") {
+        if !env_path.trim().is_empty() {
+            return env_path;
+        }
+    }
+    if Path::new("/data").is_dir() {
+        "/data/commanderdog.db".to_string()
+    } else {
+        "commanderdog.db".to_string()
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuthConfig {
@@ -671,6 +682,28 @@ impl ConfigManager {
 
         // Discover and load external themes from themes/ directories
         Self::load_external_themes(&mut config);
+
+        // Environment Variable Overrides for Docker & Cloud Deployments
+        if let Ok(p) = std::env::var("CD_PORT").or_else(|_| std::env::var("PORT")) {
+            if let Ok(port_num) = p.parse::<u16>() {
+                config.server.port = port_num;
+            }
+        }
+        if let Ok(h) = std::env::var("CD_BIND").or_else(|_| std::env::var("CD_HOST")).or_else(|_| std::env::var("HOST")) {
+            if !h.trim().is_empty() {
+                config.server.host = h.trim().to_string();
+            }
+        }
+        if let Ok(db) = std::env::var("CD_DATABASE_PATH").or_else(|_| std::env::var("DATABASE_PATH")) {
+            if !db.trim().is_empty() {
+                config.server.database_path = db.trim().to_string();
+            }
+        }
+        if let Ok(jwt) = std::env::var("CD_JWT_SECRET").or_else(|_| std::env::var("JWT_SECRET")) {
+            if !jwt.trim().is_empty() {
+                config.server.jwt_secret = jwt.trim().to_string();
+            }
+        }
 
         config
     }

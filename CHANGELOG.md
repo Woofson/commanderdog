@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.6.9-rc1] - 2026-08-31
+
+### ⚡ Bvckup 2 & SyncToy Delta Backup Engine, Background Daemons & Folder Watchers
+- **4 Core Replication Profiles (SyncToy & Bvckup 2)**:
+  - **🔄 Synchronize (Two-Way Sync)**: Bi-directional replication with collision and conflict detection, syncing newer files across both left and right panes.
+  - **🪞 Echo / Mirror (One-Way Backup)**: Makes Destination an exact 1:1 replica of Source (left-to-right), updating modified files and automatically deleting destination orphans.
+  - **➕ Contribute / Additive Backup**: Replicates additions and modifications from Source to Destination without deleting any destination files.
+  - **🕰️ Subscribe / Historical Versioning**: Retains older versions of modified and deleted files in timestamped `_archive/YYYY-MM-DD_HHmmss/` snapshot trees with automatic retention pruning (e.g. 30 days).
+- **Block-Level In-Place Binary Delta Copy Engine (Bvckup 2 Speed)**:
+  - **Fine-Grained 64KB Chunk Hashing**: Compares source and destination blocks using CRC32 checksums, skipping identical blocks and writing *only* modified byte blocks in-place directly on disk.
+  - **High-Speed Differential Patching**: Massive speedup for large databases, virtual disk images, video projects, and log files with zero redundant transfers.
+  - **Cryptographic Verification**: Post-transfer bit-perfect integrity validation supporting CRC32 and SHA-256 signatures.
+- **Automated Backup Profiles & Background Scheduler**:
+  - **Persistent SQLite Backup Profile Manager**: Create, edit, toggle, and delete named backup jobs stored securely in the database.
+  - **Background Tokio Scheduler Daemon**: Periodic automated execution for intervals (every X minutes/hours) and daily scheduled times (e.g. `02:00`).
+  - **⚡ Real-Time Continuous Watchers**: Automated folder monitoring triggers syncing changes as soon as files are modified.
+  - **Webhook Notifications**: Automated JSON POST webhook alerts on backup completion/failure for Discord, Slack, Telegram, Matrix, or custom servers.
+  - **Execution History & Audit Log**: Audit log tracking timestamp, profile name, status (Success/Failed), files copied/updated/deleted/archived, and elapsed duration.
+- **Upgraded Sync & Backup Studio UI**:
+  - **3-Tab Navigation**: Seamless switching between *Live Diff & Replication*, *Backup Jobs & Scheduler*, and *Run History & Logs*.
+  - **Interactive Profile Selection Cards**: Visual cards with descriptive summaries for Synchronize, Echo, Contribute, and Subscribe.
+  - **Rich Action Badges & Filters**: Clear visual status indicators (`➔ Copy Right`, `⬅ Copy Left`, `⚡ Delta Patch`, `📦 Archive Old`, `🗑 Delete`, `✔ Equal`).
+  - **1-Click Profile Creation**: Pre-fill and save any active diff comparison into a reusable automated backup job.
+
+---
+
 ## [0.6.8] - 2026-08-31
 
 ### 📐 Resizable Columns, Custom Column Chooser, Multi-Size Grid & Folder Tree Sidebar

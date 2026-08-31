@@ -86,7 +86,7 @@
           <div class="dropdown-item" onclick="triggerDiff()"><i data-lucide="git-compare"></i> Compare / Diff (F9)</div>
           <div class="dropdown-item" onclick="openSearchModal()"><i data-lucide="search"></i> Deep File Search (Ctrl+F)</div>
           <div class="dropdown-item" onclick="openSharesManager()"><i data-lucide="share-2"></i> Active Shares & Dropboxes</div>
-          <div class="dropdown-item" onclick="openSyncModal()"><i data-lucide="refresh-cw"></i> Two-Way Directory Sync</div>
+          <div class="dropdown-item" onclick="openSyncModal()"><i data-lucide="refresh-cw" style="color: #22c55e;"></i> Delta Backup & Sync Studio (SyncToy / Bvckup 2)</div>
           <div class="dropdown-item" onclick="openDiskUsageModal()"><i data-lucide="pie-chart" style="color: var(--accent);"></i> Disk Usage & Treemap Analyzer</div>
           <div class="dropdown-item" onclick="openSyncthingModal()"><i data-lucide="repeat"></i> Syncthing Dashboard</div>
           <div class="dropdown-item" onclick="openConverterModal()"><i data-lucide="file-output"></i> ConvertX Converters</div>
@@ -2152,75 +2152,273 @@
     </div>
   </div>
 
-  <!-- Two-Way Visual Directory Synchronizer Modal -->
+  <!-- SyncToy & Bvckup 2 Delta Backup & Replication Studio Modal -->
   <div class="modal-overlay" id="sync-modal" style="z-index: 2850;">
-    <div class="modal-box sync-modal-box" id="sync-modal-box">
+    <div class="modal-box sync-modal-box" id="sync-modal-box" style="max-width: 1060px; width: 95vw; max-height: 90vh; display: flex; flex-direction: column;">
       <!-- Header -->
-      <div class="modal-header" style="padding: 10px 16px; background: var(--bg-header); border-bottom: 1px solid var(--border);">
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <i data-lucide="refresh-cw" style="color: var(--accent); width: 16px;"></i>
-          <span style="font-weight: 700; font-size: 13px;">Two-Way Visual Directory Synchronizer</span>
+      <div class="modal-header" style="padding: 10px 16px; background: var(--bg-header); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <i data-lucide="refresh-cw" style="color: var(--accent); width: 18px; height: 18px;"></i>
+            <span style="font-weight: 700; font-size: 14px;">SyncToy & Bvckup 2 Delta Backup Studio</span>
+            <span class="badge" style="background: rgba(34, 197, 94, 0.15); color: #22c55e; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px;">v0.6.9-rc1</span>
+          </div>
+          <div class="sync-nav-tabs" style="display: flex; gap: 4px; margin-left: 12px;">
+            <button class="btn btn-sm sync-tab-btn active" id="sync-tab-btn-diff" onclick="switchSyncTab('diff')"><i data-lucide="split"></i> Live Diff & Replication</button>
+            <button class="btn btn-sm sync-tab-btn" id="sync-tab-btn-profiles" onclick="switchSyncTab('profiles')"><i data-lucide="layers"></i> Backup Jobs & Scheduler</button>
+            <button class="btn btn-sm sync-tab-btn" id="sync-tab-btn-history" onclick="switchSyncTab('history')"><i data-lucide="history"></i> Run History & Logs</button>
+          </div>
         </div>
         <button class="btn btn-icon" onclick="closeModal('sync-modal')"><i data-lucide="x"></i></button>
       </div>
 
-      <!-- Paths and Mode Bar -->
-      <div class="sync-top-bar">
-        <div class="sync-path-selector-row">
-          <div class="sync-path-input-group">
-            <span class="sync-pane-badge">Left (Pane 1)</span>
-            <input type="text" id="sync-src-input" class="pane-quick-filter" placeholder="/path/to/source">
+      <!-- TAB 1: Live Diff & Replication Studio -->
+      <div id="sync-tab-content-diff" class="sync-tab-pane" style="display: flex; flex-direction: column; flex: 1; overflow: hidden;">
+        <!-- Paths and Mode Bar -->
+        <div class="sync-top-bar" style="padding: 12px 16px; background: var(--bg-panel); border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 10px;">
+          <div class="sync-path-selector-row" style="display: flex; align-items: center; gap: 8px;">
+            <div class="sync-path-input-group" style="flex: 1; display: flex; align-items: center; gap: 6px; background: var(--bg-input); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px;">
+              <span class="sync-pane-badge" style="font-size: 10px; font-weight: 700; background: rgba(59, 130, 246, 0.2); color: #60a5fa; padding: 2px 6px; border-radius: 4px;">Source (Left)</span>
+              <input type="text" id="sync-src-input" class="pane-quick-filter" style="flex: 1; border: none; background: transparent; outline: none; font-size: 12px; font-family: var(--font-mono);" placeholder="/path/to/source">
+              <button class="btn btn-xs" onclick="useActivePanePath('sync-src-input')" title="Use Active Pane Path" style="font-size: 10px; padding: 2px 6px;">Current</button>
+            </div>
+            <button class="btn btn-icon" onclick="swapSyncPaths()" title="Swap Left & Right Directories" style="padding: 6px;"><i data-lucide="arrow-left-right"></i></button>
+            <div class="sync-path-input-group" style="flex: 1; display: flex; align-items: center; gap: 6px; background: var(--bg-input); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px;">
+              <span class="sync-pane-badge" style="font-size: 10px; font-weight: 700; background: rgba(168, 85, 247, 0.2); color: #c084fc; padding: 2px 6px; border-radius: 4px;">Destination (Right)</span>
+              <input type="text" id="sync-dest-input" class="pane-quick-filter" style="flex: 1; border: none; background: transparent; outline: none; font-size: 12px; font-family: var(--font-mono);" placeholder="/path/to/destination">
+              <button class="btn btn-xs" onclick="useInactivePanePath('sync-dest-input')" title="Use Inactive Pane Path" style="font-size: 10px; padding: 2px 6px;">Target</button>
+            </div>
           </div>
-          <button class="btn btn-icon" onclick="swapSyncPaths()" title="Swap Left & Right Directories"><i data-lucide="arrow-left-right"></i></button>
-          <div class="sync-path-input-group">
-            <span class="sync-pane-badge">Right (Pane 2)</span>
-            <input type="text" id="sync-dest-input" class="pane-quick-filter" placeholder="/path/to/destination">
+
+          <!-- 4 Core Replication Profile Radio Cards -->
+          <div class="sync-mode-cards" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;">
+            <label class="sync-profile-card" id="card-mode-sync">
+              <input type="radio" name="sync-mode" value="synchronize" checked onchange="handleSyncModeChange()">
+              <div class="sync-card-body">
+                <div class="sync-card-title">🔄 Synchronize</div>
+                <div class="sync-card-desc">Two-Way Sync: Reconciles additions, modifications & deletes bidirectionally.</div>
+              </div>
+            </label>
+            <label class="sync-profile-card" id="card-mode-echo">
+              <input type="radio" name="sync-mode" value="echo" onchange="handleSyncModeChange()">
+              <div class="sync-card-body">
+                <div class="sync-card-title">🪞 Echo / Mirror</div>
+                <div class="sync-card-desc">One-Way Mirror: Exact replica, deleting orphan files from destination.</div>
+              </div>
+            </label>
+            <label class="sync-profile-card" id="card-mode-contribute">
+              <input type="radio" name="sync-mode" value="contribute" onchange="handleSyncModeChange()">
+              <div class="sync-card-body">
+                <div class="sync-card-title">➕ Contribute</div>
+                <div class="sync-card-desc">Additive Backup: Replicates new & updated files, never deleting destination.</div>
+              </div>
+            </label>
+            <label class="sync-profile-card" id="card-mode-subscribe">
+              <input type="radio" name="sync-mode" value="subscribe" onchange="handleSyncModeChange()">
+              <div class="sync-card-body">
+                <div class="sync-card-title">🕰️ Subscribe (Archive)</div>
+                <div class="sync-card-desc">Versioning: Archives modified/deleted files to timestamped snapshot trees.</div>
+              </div>
+            </label>
+          </div>
+
+          <!-- Engine Options & Filters Bar -->
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 11px;">
+            <div style="display: flex; align-items: center; gap: 14px;">
+              <label style="display: flex; align-items: center; gap: 4px; cursor: pointer; font-weight: 600; color: var(--accent);">
+                <input type="checkbox" id="sync-opt-delta" checked> ⚡ Block-Level Delta (Bvckup 2)
+              </label>
+              <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+                <input type="checkbox" id="sync-opt-verify" checked> 🔒 Verify Checksums
+              </label>
+              <div id="sync-archive-settings" style="display: flex; align-items: center; gap: 6px;">
+                <span style="color: var(--text-dim);">Archive:</span>
+                <input type="text" id="sync-opt-archive-dir" value="_archive" style="width: 70px; padding: 2px 4px; font-size: 11px; background: var(--bg-input); border: 1px solid var(--border); border-radius: 4px;">
+                <span style="color: var(--text-dim);">Keep:</span>
+                <input type="number" id="sync-opt-retention" value="30" style="width: 45px; padding: 2px 4px; font-size: 11px; background: var(--bg-input); border: 1px solid var(--border); border-radius: 4px;"> <span style="color: var(--text-dim);">days</span>
+              </div>
+            </div>
+            <div class="sync-filter-toggles" style="display: flex; gap: 4px;">
+              <button class="btn btn-xs sync-filter-btn active" id="btn-sync-filter-all" onclick="filterSyncGrid('all')">All (<span id="sync-cnt-all">0</span>)</button>
+              <button class="btn btn-xs sync-filter-btn" id="btn-sync-filter-left" onclick="filterSyncGrid('left')">➔ Right (<span id="sync-cnt-left">0</span>)</button>
+              <button class="btn btn-xs sync-filter-btn" id="btn-sync-filter-right" onclick="filterSyncGrid('right')">⬅ Left (<span id="sync-cnt-right">0</span>)</button>
+              <button class="btn btn-xs sync-filter-btn" id="btn-sync-filter-mod" onclick="filterSyncGrid('modified')">⚡ Diff (<span id="sync-cnt-mod">0</span>)</button>
+              <button class="btn btn-xs sync-filter-btn" id="btn-sync-filter-archive" onclick="filterSyncGrid('archive')">📦 Archive (<span id="sync-cnt-archive">0</span>)</button>
+              <button class="btn btn-xs sync-filter-btn" id="btn-sync-filter-eq" onclick="filterSyncGrid('identical')">✔ Equal (<span id="sync-cnt-eq">0</span>)</button>
+            </div>
           </div>
         </div>
 
-        <div class="sync-options-row">
-          <div class="sync-mode-selector">
-            <label class="sync-mode-radio"><input type="radio" name="sync-mode" value="mirror_left_to_right" checked onchange="handleSyncModeChange()"> <b>🪞 Mirror Left ➔ Right</b></label>
-            <label class="sync-mode-radio"><input type="radio" name="sync-mode" value="mirror_right_to_left" onchange="handleSyncModeChange()"> <b>🪞 Mirror Right ➔ Left</b></label>
-            <label class="sync-mode-radio"><input type="radio" name="sync-mode" value="bidirectional_newer" onchange="handleSyncModeChange()"> <b>🔄 Smart 2-Way (Newer)</b></label>
+        <!-- Diff Comparison Table -->
+        <div class="sync-grid-container" style="flex: 1; overflow-y: auto; background: var(--bg-main);">
+          <table class="sync-diff-table" id="sync-diff-table" style="width: 100%; border-collapse: collapse; font-size: 12px;">
+            <thead>
+              <tr style="position: sticky; top: 0; background: var(--bg-header); border-bottom: 1px solid var(--border); z-index: 10;">
+                <th style="width: 90px; text-align: right; padding: 6px 10px;">Left Size</th>
+                <th style="width: 38%; padding: 6px 10px; text-align: left;">Source File</th>
+                <th style="width: 60px; text-align: center; padding: 6px 4px;">Action</th>
+                <th style="width: 38%; padding: 6px 10px; text-align: left;">Destination File</th>
+                <th style="width: 90px; text-align: left; padding: 6px 10px;">Right Size</th>
+              </tr>
+            </thead>
+            <tbody id="sync-diff-body">
+              <tr><td colspan="5" style="text-align: center; padding: 40px; color: var(--text-dim);">Click <b>Compare & Analyze</b> to inspect directory differences.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Footer Bar -->
+        <div class="modal-footer" style="padding: 10px 16px; background: var(--bg-header); border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+          <div id="sync-footer-stats" style="font-size: 11px; font-family: var(--font-mono); color: var(--text-muted);">
+            Ready to compare directories.
           </div>
-          <div class="sync-filter-toggles">
-            <button class="btn btn-sm sync-filter-btn active" id="btn-sync-filter-all" onclick="filterSyncGrid('all')">All (<span id="sync-cnt-all">0</span>)</button>
-            <button class="btn btn-sm sync-filter-btn" id="btn-sync-filter-left" onclick="filterSyncGrid('left')">➔ Left (<span id="sync-cnt-left">0</span>)</button>
-            <button class="btn btn-sm sync-filter-btn" id="btn-sync-filter-right" onclick="filterSyncGrid('right')">⬅ Right (<span id="sync-cnt-right">0</span>)</button>
-            <button class="btn btn-sm sync-filter-btn" id="btn-sync-filter-mod" onclick="filterSyncGrid('modified')">⚠️ Diff (<span id="sync-cnt-mod">0</span>)</button>
-            <button class="btn btn-sm sync-filter-btn" id="btn-sync-filter-eq" onclick="filterSyncGrid('identical')">✔ Equal (<span id="sync-cnt-eq">0</span>)</button>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-sm" onclick="openSaveCurrentSyncAsProfile()"><i data-lucide="bookmark"></i> Save Profile</button>
+            <button class="btn btn-sm" onclick="analyzeSync()"><i data-lucide="search"></i> Compare & Analyze</button>
+            <button class="btn btn-sm btn-accent" id="btn-run-sync" onclick="executeSync()"><i data-lucide="refresh-cw"></i> Synchronize Now</button>
           </div>
         </div>
       </div>
 
-      <!-- Diff Comparison Table -->
-      <div class="sync-grid-container">
-        <table class="sync-diff-table" id="sync-diff-table">
-          <thead>
-            <tr>
-              <th style="width: 85px; text-align: right;">Left Size</th>
-              <th style="width: 40%;">Left File</th>
-              <th style="width: 50px; text-align: center;">Action</th>
-              <th style="width: 40%;">Right File</th>
-              <th style="width: 85px; text-align: left;">Right Size</th>
-            </tr>
-          </thead>
-          <tbody id="sync-diff-body">
-            <tr><td colspan="5" style="text-align: center; padding: 40px; color: var(--text-dim);">Click <b>Compare & Analyze</b> to inspect differences.</td></tr>
-          </tbody>
-        </table>
+      <!-- TAB 2: Saved Backup Profiles & Scheduler -->
+      <div id="sync-tab-content-profiles" class="sync-tab-pane" style="display: none; flex-direction: column; flex: 1; overflow: hidden; padding: 16px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <div>
+            <span style="font-weight: 700; font-size: 14px;">Automated Backup Jobs & Schedules</span>
+            <div style="font-size: 11px; color: var(--text-dim);">Define continuous background replication profiles with cron, intervals, real-time watchers & webhooks.</div>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-sm" onclick="loadBackupProfiles()"><i data-lucide="rotate-cw"></i> Refresh</button>
+            <button class="btn btn-sm btn-accent" onclick="openCreateBackupProfileModal()"><i data-lucide="plus"></i> New Backup Job</button>
+          </div>
+        </div>
+
+        <!-- Profiles List Table -->
+        <div style="flex: 1; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-main);">
+          <table style="width: 100%; border-collapse: collapse; font-size: 12px;" id="backup-profiles-table">
+            <thead>
+              <tr style="position: sticky; top: 0; background: var(--bg-header); border-bottom: 1px solid var(--border);">
+                <th style="padding: 8px 12px; text-align: left;">Job Name</th>
+                <th style="padding: 8px 12px; text-align: left;">Source ➔ Destination</th>
+                <th style="padding: 8px 10px; text-align: center;">Mode</th>
+                <th style="padding: 8px 10px; text-align: center;">Trigger / Schedule</th>
+                <th style="padding: 8px 10px; text-align: center;">Active</th>
+                <th style="padding: 8px 12px; text-align: left;">Last Run</th>
+                <th style="padding: 8px 12px; text-align: right;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="backup-profiles-body">
+              <tr><td colspan="7" style="text-align: center; padding: 30px; color: var(--text-dim);">Loading saved backup profiles...</td></tr>
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      <!-- Footer Bar -->
-      <div class="modal-footer" style="padding: 10px 16px; background: var(--bg-header); border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
-        <div id="sync-footer-stats" style="font-size: 11px; font-family: var(--font-mono); color: var(--text-muted);">
-          Ready to compare directories.
+      <!-- TAB 3: Run History & Logs -->
+      <div id="sync-tab-content-history" class="sync-tab-pane" style="display: none; flex-direction: column; flex: 1; overflow: hidden; padding: 16px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <div>
+            <span style="font-weight: 700; font-size: 14px;">Backup & Synchronization Run History</span>
+            <div style="font-size: 11px; color: var(--text-dim);">Audit log of all manual and scheduled replication executions.</div>
+          </div>
+          <button class="btn btn-sm" onclick="loadBackupHistory()"><i data-lucide="rotate-cw"></i> Refresh</button>
         </div>
-        <div style="display: flex; gap: 8px;">
-          <button class="btn" onclick="analyzeSync()"><i data-lucide="search"></i> Compare & Analyze</button>
-          <button class="btn btn-accent" id="btn-run-sync" onclick="executeSync()"><i data-lucide="refresh-cw"></i> Synchronize</button>
+
+        <div style="flex: 1; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-main);">
+          <table style="width: 100%; border-collapse: collapse; font-size: 12px;" id="backup-history-table">
+            <thead>
+              <tr style="position: sticky; top: 0; background: var(--bg-header); border-bottom: 1px solid var(--border);">
+                <th style="padding: 8px 12px; text-align: left;">Timestamp</th>
+                <th style="padding: 8px 12px; text-align: left;">Job / Profile</th>
+                <th style="padding: 8px 10px; text-align: center;">Status</th>
+                <th style="padding: 8px 10px; text-align: right;">Copied</th>
+                <th style="padding: 8px 10px; text-align: right;">Archived</th>
+                <th style="padding: 8px 10px; text-align: right;">Deleted</th>
+                <th style="padding: 8px 10px; text-align: right;">Duration</th>
+                <th style="padding: 8px 12px; text-align: left;">Details</th>
+              </tr>
+            </thead>
+            <tbody id="backup-history-body">
+              <tr><td colspan="8" style="text-align: center; padding: 30px; color: var(--text-dim);">Loading execution history...</td></tr>
+            </tbody>
+          </table>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Backup Profile Form Modal -->
+  <div class="modal-overlay" id="backup-profile-modal" style="z-index: 2870;">
+    <div class="modal-box" style="max-width: 520px; width: 90vw;">
+      <div class="modal-header" style="padding: 10px 16px; background: var(--bg-header); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+        <span style="font-weight: 700; font-size: 13px;" id="backup-profile-modal-title">Create Backup Profile</span>
+        <button class="btn btn-icon" onclick="closeModal('backup-profile-modal')"><i data-lucide="x"></i></button>
+      </div>
+      <div style="padding: 16px; display: flex; flex-direction: column; gap: 12px; font-size: 12px;">
+        <input type="hidden" id="bp-id" value="">
+        <div>
+          <label style="font-weight: 600; display: block; margin-bottom: 4px;">Job / Profile Name</label>
+          <input type="text" id="bp-name" class="pane-quick-filter" style="width: 100%; padding: 6px 8px;" placeholder="e.g. Daily Project Mirror">
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+          <div>
+            <label style="font-weight: 600; display: block; margin-bottom: 4px;">Source Directory</label>
+            <input type="text" id="bp-source" class="pane-quick-filter" style="width: 100%; padding: 6px 8px; font-family: var(--font-mono);" placeholder="/path/to/source">
+          </div>
+          <div>
+            <label style="font-weight: 600; display: block; margin-bottom: 4px;">Destination Directory</label>
+            <input type="text" id="bp-dest" class="pane-quick-filter" style="width: 100%; padding: 6px 8px; font-family: var(--font-mono);" placeholder="/path/to/destination">
+          </div>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+          <div>
+            <label style="font-weight: 600; display: block; margin-bottom: 4px;">Replication Mode</label>
+            <select id="bp-mode" class="pane-quick-filter" style="width: 100%; padding: 6px 8px;">
+              <option value="synchronize">🔄 Synchronize (Two-Way)</option>
+              <option value="echo">🪞 Echo / Mirror (One-Way)</option>
+              <option value="contribute">➕ Contribute (Additive)</option>
+              <option value="subscribe" selected>🕰️ Subscribe (Versioning Archive)</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-weight: 600; display: block; margin-bottom: 4px;">Automation Trigger</label>
+            <select id="bp-schedule-type" class="pane-quick-filter" style="width: 100%; padding: 6px 8px;" onchange="handleScheduleTypeChange()">
+              <option value="manual">Manual Only</option>
+              <option value="interval">⏰ Periodic Interval</option>
+              <option value="daily">📅 Daily at Specific Time</option>
+              <option value="realtime">⚡ Real-Time Watcher (Continuous)</option>
+            </select>
+          </div>
+        </div>
+        <div id="bp-interval-row" style="display: none; grid-template-columns: 1fr 1fr; gap: 8px;">
+          <div>
+            <label style="font-weight: 600; display: block; margin-bottom: 4px;">Interval (Minutes)</label>
+            <input type="number" id="bp-interval-mins" class="pane-quick-filter" style="width: 100%; padding: 6px 8px;" value="60" min="1">
+          </div>
+          <div>
+            <label style="font-weight: 600; display: block; margin-bottom: 4px;">Daily Run Time (HH:MM)</label>
+            <input type="text" id="bp-daily-time" class="pane-quick-filter" style="width: 100%; padding: 6px 8px;" value="02:00" placeholder="02:00">
+          </div>
+        </div>
+        <div style="display: flex; gap: 14px;">
+          <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+            <input type="checkbox" id="bp-block-delta" checked> ⚡ Block-Level Delta
+          </label>
+          <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+            <input type="checkbox" id="bp-verify" checked> 🔒 Verify Checksums
+          </label>
+          <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+            <input type="checkbox" id="bp-enabled" checked> Enable Automation
+          </label>
+        </div>
+        <div>
+          <label style="font-weight: 600; display: block; margin-bottom: 4px;">Webhook Alert URL (Optional: Discord/Slack/Telegram)</label>
+          <input type="text" id="bp-webhook" class="pane-quick-filter" style="width: 100%; padding: 6px 8px;" placeholder="https://discord.com/api/webhooks/...">
+        </div>
+      </div>
+      <div class="modal-footer" style="padding: 10px 16px; background: var(--bg-header); border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px;">
+        <button class="btn" onclick="closeModal('backup-profile-modal')">Cancel</button>
+        <button class="btn btn-accent" onclick="saveBackupProfileForm()"><i data-lucide="check"></i> Save Backup Job</button>
       </div>
     </div>
   </div>

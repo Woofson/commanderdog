@@ -17,6 +17,8 @@ use walkdir::WalkDir;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeltaCopyOptions {
     pub overwrite_mode: String, // "delta_mtime_size" (default), "always", "if_newer", "never"
+    #[serde(default = "default_true")]
+    pub block_delta: bool,       // In-place binary block-level delta patching (Bvckup 2 speed)
     pub verify_checksum: bool,   // TeraCopy signature verification
     pub verify_algo: String,     // "crc32" or "sha256"
     pub retry_count: u32,        // Robocopy /R:3
@@ -27,10 +29,15 @@ pub struct DeltaCopyOptions {
     pub delete_orphans: bool,    // Robocopy /MIR mirror mode
 }
 
+fn default_true() -> bool {
+    true
+}
+
 impl Default for DeltaCopyOptions {
     fn default() -> Self {
         Self {
             overwrite_mode: "delta_mtime_size".to_string(),
+            block_delta: true,
             verify_checksum: true,
             verify_algo: "crc32".to_string(),
             retry_count: 3,
@@ -57,72 +64,26 @@ pub struct DeltaCopyStats {
     pub eta_seconds: u64,
     pub verified_count: usize,
     pub is_completed: bool,
+    pub blocks_transferred: usize,
+    pub blocks_matched: usize,
+    pub bytes_saved: u64,
     pub error_log: Vec<String>,
 }
 
 pub struct DeltaCopyEngine;
 
 impl DeltaCopyEngine {
-    pub async fn run_deltacopy(
+    pub async fn run_deltacopy_pairs(
         task_manager: Arc<TaskManager>,
-        sources: Vec<String>,
-        destination: String,
+        file_pairs: Vec<(PathBuf, PathBuf)>,
+        job_label: &str,
         options: DeltaCopyOptions,
         cancel_token: Arc<AtomicBool>,
     ) -> Result<DeltaCopyStats, String> {
-        let dest_path = Path::new(&destination);
-        if !dest_path.exists() {
-            fs::create_dir_all(dest_path)
-                .map_err(|e| format!("Failed to create destination directory: {}", e))?;
-        }
-
-        // 1. Pre-scan total files and byte counts
-        let mut file_pairs: Vec<(PathBuf, PathBuf)> = Vec::new();
         let mut total_bytes = 0u64;
-
-        for src_str in &sources {
-            let src_p = Path::new(src_str);
-            if !src_p.exists() {
-                continue;
-            }
-
-            if src_p.is_file() {
-                let file_name = src_p.file_name().unwrap();
-                let target = if dest_path.is_dir() {
-                    dest_path.join(file_name)
-                } else {
-                    dest_path.to_path_buf()
-                };
-                if let Ok(meta) = src_p.metadata() {
-                    total_bytes += meta.len();
-                }
-                file_pairs.push((src_p.to_path_buf(), target));
-            } else if src_p.is_dir() {
-                let base_name = src_p.file_name().unwrap();
-                let target_root = dest_path.join(base_name);
-
-                // Prevent copying folder into itself or its own subfolder
-                if let (Ok(can_src), Ok(can_dest)) = (src_p.canonicalize(), dest_path.canonicalize()) {
-                    let can_target = can_dest.join(base_name);
-                    if can_target == can_src || can_target.starts_with(&can_src) {
-                        continue;
-                    }
-                }
-
-                for entry in WalkDir::new(src_p).into_iter().filter_map(|e| e.ok()) {
-                    if entry.path() == src_p {
-                        continue;
-                    }
-                    if entry.file_type().is_file() {
-                        if let Ok(rel) = entry.path().strip_prefix(src_p) {
-                            let target = target_root.join(rel);
-                            if let Ok(meta) = entry.metadata() {
-                                total_bytes += meta.len();
-                            }
-                            file_pairs.push((entry.path().to_path_buf(), target));
-                        }
-                    }
-                }
+        for (src, _) in &file_pairs {
+            if let Ok(meta) = src.metadata() {
+                total_bytes += meta.len();
             }
         }
 
@@ -130,8 +91,8 @@ impl DeltaCopyEngine {
         let task_id = task_manager.create_task(
             &format!("⚡ DeltaCopy ({} items)", total_files),
             "deltacopy",
-            &sources.join(", "),
-            &destination,
+            job_label,
+            "Replication Destination",
             total_bytes,
         ).await;
 
@@ -148,6 +109,9 @@ impl DeltaCopyEngine {
             eta_seconds: 0,
             verified_count: 0,
             is_completed: false,
+            blocks_transferred: 0,
+            blocks_matched: 0,
+            bytes_saved: 0,
             error_log: Vec::new(),
         };
 
@@ -181,7 +145,7 @@ impl DeltaCopyEngine {
 
             task_manager.add_log_entry(&task_id, &format!("📥 Copying: {}", stats.current_file)).await;
 
-            // Perform robust copy with Robocopy retry logic
+            // Perform robust copy with retry logic
             let copy_res = copy_file_robust(&src, &dest, &options, &mut stats, &task_manager, &task_id, &start_time, &mut last_speed_calc, &mut last_bytes_marker).await;
 
             match copy_res {
@@ -217,6 +181,66 @@ impl DeltaCopyEngine {
         }
 
         Ok(stats)
+    }
+
+    pub async fn run_deltacopy(
+        task_manager: Arc<TaskManager>,
+        sources: Vec<String>,
+        destination: String,
+        options: DeltaCopyOptions,
+        cancel_token: Arc<AtomicBool>,
+    ) -> Result<DeltaCopyStats, String> {
+        let dest_path = Path::new(&destination);
+        if !dest_path.exists() {
+            fs::create_dir_all(dest_path)
+                .map_err(|e| format!("Failed to create destination directory: {}", e))?;
+        }
+
+        // 1. Pre-scan total files and build pairs
+        let mut file_pairs: Vec<(PathBuf, PathBuf)> = Vec::new();
+
+        for src_str in &sources {
+            let src_p = Path::new(src_str);
+            if !src_p.exists() {
+                continue;
+            }
+
+            if src_p.is_file() {
+                let file_name = src_p.file_name().unwrap();
+                let target = if dest_path.is_dir() {
+                    dest_path.join(file_name)
+                } else {
+                    dest_path.to_path_buf()
+                };
+                file_pairs.push((src_p.to_path_buf(), target));
+            } else if src_p.is_dir() {
+                let base_name = src_p.file_name().unwrap();
+                let target_root = dest_path.join(base_name);
+
+                // Prevent copying folder into itself or its own subfolder
+                if let (Ok(can_src), Ok(can_dest)) = (src_p.canonicalize(), dest_path.canonicalize()) {
+                    let can_target = can_dest.join(base_name);
+                    if can_target == can_src || can_target.starts_with(&can_src) {
+                        continue;
+                    }
+                }
+
+                for entry in WalkDir::new(src_p).into_iter().filter_map(|e| e.ok()) {
+                    if entry.path() == src_p {
+                        continue;
+                    }
+                    if entry.file_type().is_file() {
+                        if let Ok(rel) = entry.path().strip_prefix(src_p) {
+                            let target = target_root.join(rel);
+                            file_pairs.push((entry.path().to_path_buf(), target));
+                        }
+                    }
+                }
+            }
+        }
+
+        let label = format!("{} ➔ {}", sources.join(", "), destination);
+        Self::run_deltacopy_pairs(task_manager, file_pairs, &label, options, cancel_token).await
     }
 }
 
@@ -278,7 +302,13 @@ async fn copy_file_robust(
 
     loop {
         attempts += 1;
-        match copy_stream_chunked(src, dest, options, stats, task_manager, task_id, start_time, last_speed_calc, last_bytes_marker).await {
+        let copy_res = if options.block_delta && dest.exists() {
+            copy_stream_block_delta(src, dest, options, stats, task_manager, task_id, start_time, last_speed_calc, last_bytes_marker).await
+        } else {
+            copy_stream_chunked(src, dest, options, stats, task_manager, task_id, start_time, last_speed_calc, last_bytes_marker).await
+        };
+
+        match copy_res {
             Ok(bytes) => return Ok(bytes),
             Err(e) => {
                 if attempts >= max_attempts {
@@ -289,6 +319,129 @@ async fn copy_file_robust(
             }
         }
     }
+}
+
+async fn copy_stream_block_delta(
+    src: &Path,
+    dest: &Path,
+    options: &DeltaCopyOptions,
+    stats: &mut DeltaCopyStats,
+    task_manager: &Arc<TaskManager>,
+    task_id: &str,
+    _start_time: &Instant,
+    last_speed_calc: &mut Instant,
+    last_bytes_marker: &mut u64,
+) -> Result<u64, std::io::Error> {
+    let mut src_file = File::open(src)?;
+    let src_meta = src_file.metadata()?;
+    let src_len = src_meta.len();
+
+    let mut dest_file = match OpenOptions::new().read(true).write(true).open(dest) {
+        Ok(f) => f,
+        Err(_) => return copy_stream_chunked(src, dest, options, stats, task_manager, task_id, _start_time, last_speed_calc, last_bytes_marker).await,
+    };
+    let dest_len = dest_file.metadata()?.len();
+
+    const BLOCK_SIZE: usize = 64 * 1024; // 64 KB block size
+    let mut src_buf = vec![0u8; BLOCK_SIZE];
+    let mut dest_buf = vec![0u8; BLOCK_SIZE];
+
+    let mut offset = 0u64;
+    let mut actual_bytes_written = 0u64;
+
+    while offset < src_len {
+        let to_read = ((src_len - offset).min(BLOCK_SIZE as u64)) as usize;
+        src_file.seek(SeekFrom::Start(offset))?;
+        src_file.read_exact(&mut src_buf[..to_read])?;
+
+        let is_block_match = if offset + (to_read as u64) <= dest_len {
+            dest_file.seek(SeekFrom::Start(offset))?;
+            match dest_file.read_exact(&mut dest_buf[..to_read]) {
+                Ok(_) => {
+                    let mut src_hasher = Crc32Hasher::new();
+                    src_hasher.update(&src_buf[..to_read]);
+                    let mut dest_hasher = Crc32Hasher::new();
+                    dest_hasher.update(&dest_buf[..to_read]);
+                    src_hasher.finalize() == dest_hasher.finalize()
+                }
+                Err(_) => false,
+            }
+        } else {
+            false
+        };
+
+        if is_block_match {
+            stats.blocks_matched += 1;
+            stats.bytes_saved += to_read as u64;
+        } else {
+            dest_file.seek(SeekFrom::Start(offset))?;
+            dest_file.write_all(&src_buf[..to_read])?;
+            actual_bytes_written += to_read as u64;
+            stats.blocks_transferred += 1;
+        }
+
+        offset += to_read as u64;
+        stats.bytes_copied += to_read as u64;
+
+        let now = Instant::now();
+        if now.duration_since(*last_speed_calc).as_millis() >= 500 {
+            let elapsed_sec = now.duration_since(*last_speed_calc).as_secs_f64();
+            let delta_bytes = stats.bytes_copied.saturating_sub(*last_bytes_marker);
+            let speed = if elapsed_sec > 0.0 { (delta_bytes as f64 / elapsed_sec) as u64 } else { 0 };
+
+            stats.speed_bytes_per_sec = speed;
+            if speed > 0 && stats.total_bytes > stats.bytes_copied {
+                stats.eta_seconds = (stats.total_bytes - stats.bytes_copied) / speed;
+            }
+
+            task_manager.update_task_details(
+                task_id,
+                Some(&stats.current_file),
+                offset,
+                src_len,
+                stats.files_copied as u64,
+                stats.total_files as u64,
+                stats.bytes_copied,
+                speed,
+                Some(stats.verified_count as u64),
+                None,
+                None,
+            ).await;
+
+            *last_speed_calc = now;
+            *last_bytes_marker = stats.bytes_copied;
+        }
+    }
+
+    // Truncate destination if source was smaller than existing destination
+    if dest_len > src_len {
+        dest_file.set_len(src_len)?;
+    }
+
+    dest_file.flush()?;
+
+    // Preserve permissions
+    if options.preserve_permissions {
+        #[cfg(unix)]
+        {
+            let perm = src_meta.permissions().mode();
+            let _ = fs::set_permissions(dest, fs::Permissions::from_mode(perm));
+        }
+        #[cfg(not(unix))]
+        {
+            let _ = fs::set_permissions(dest, src_meta.permissions());
+        }
+    }
+
+    // Preserve timestamps
+    if options.preserve_timestamps {
+        if let Ok(mtime) = src_meta.modified() {
+            let ft = FileTime::from_system_time(mtime);
+            let _ = set_file_times(dest, ft, ft);
+        }
+    }
+
+    Ok(actual_bytes_written)
 }
 
 async fn copy_stream_chunked(
@@ -323,7 +476,7 @@ async fn copy_stream_chunked(
         File::create(dest)?
     };
 
-    let mut buffer = [0u8; 128 * 1024]; // 128 KB high-throughput buffer
+    let mut buffer = vec![0u8; 64 * 1024]; // 64 KB heap buffer
     let mut written = resume_offset;
 
     loop {
@@ -398,8 +551,8 @@ fn verify_file_checksum(src: &Path, dest: &Path, algo: &str) -> bool {
         let mut h2 = Crc32Hasher::new();
 
         if let (Ok(mut f1), Ok(mut f2)) = (File::open(src), File::open(dest)) {
-            let mut b1 = [0u8; 64 * 1024];
-            let mut b2 = [0u8; 64 * 1024];
+            let mut b1 = vec![0u8; 64 * 1024];
+            let mut b2 = vec![0u8; 64 * 1024];
 
             while let Ok(n) = f1.read(&mut b1) {
                 if n == 0 { break; }
@@ -416,8 +569,8 @@ fn verify_file_checksum(src: &Path, dest: &Path, algo: &str) -> bool {
         let mut h2 = Sha256::new();
 
         if let (Ok(mut f1), Ok(mut f2)) = (File::open(src), File::open(dest)) {
-            let mut b1 = [0u8; 64 * 1024];
-            let mut b2 = [0u8; 64 * 1024];
+            let mut b1 = vec![0u8; 64 * 1024];
+            let mut b2 = vec![0u8; 64 * 1024];
 
             while let Ok(n) = f1.read(&mut b1) {
                 if n == 0 { break; }

@@ -25,13 +25,19 @@ pub fn create_app_state(config: &AppConfig) -> Result<AppState, Box<dyn std::err
     let task_mgr = tools::tasks::TaskManager::new();
     let tag_mgr = tools::tags::TagManager::new(auth_mgr.db())?;
     let vault_mgr = vfs::vault::VaultManager::new();
+    let backup_mgr = tools::sync::BackupManager::new(auth_mgr.db())?;
+
+    let backup_mgr_arc = Arc::new(backup_mgr);
+    let task_mgr_arc = Arc::new(task_mgr);
+    backup_mgr_arc.clone().start_scheduler(task_mgr_arc.clone());
 
     Ok(AppState {
         config: Arc::new(config.clone()),
         auth: Arc::new(auth_mgr),
-        tasks: Arc::new(task_mgr),
+        tasks: task_mgr_arc,
         tags: Arc::new(tag_mgr),
         vaults: Arc::new(vault_mgr),
+        backup: backup_mgr_arc,
     })
 }
 

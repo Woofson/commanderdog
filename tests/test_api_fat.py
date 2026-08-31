@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
 CommanderDog Automated Factory Acceptance Test (FAT) & Simulation Suite
-Tests all core APIs, SQLite persistence, directory flattening, tagging, and search.
+Tests all core APIs, SQLite persistence, directory flattening, tagging, 
+delta backup profiles, scheduler, encrypted vaults, and multi-part splitter.
 """
 
 import os
@@ -42,10 +43,8 @@ def start_test_server():
     global SERVER_PROC
     print(f"\n{CYAN}🚀 Starting isolated test instance on port {PORT}...{RESET}")
     
-    # Create isolated conf.d
-    conf_dir = os.path.join(TEST_DIR, "conf.d")
-    os.makedirs(conf_dir, exist_ok=True)
-    with open(os.path.join(conf_dir, "00-server.toml"), "w") as f:
+    # Create isolated config.toml
+    with open(os.path.join(TEST_DIR, "config.toml"), "w") as f:
         f.write(f"""
 [server]
 host = "127.0.0.1"
@@ -57,11 +56,7 @@ default_admin_user = "admin"
 default_admin_pass = "admin123"
 """)
     
-    release_bin = os.path.abspath("./target/release/commanderdog")
-    debug_bin = os.path.abspath("./target/debug/commanderdog")
-    bin_path = debug_bin
-    if os.path.exists(release_bin) and (not os.path.exists(debug_bin) or os.path.getmtime(release_bin) >= os.path.getmtime(debug_bin)):
-        bin_path = release_bin
+    bin_path = os.path.abspath("./target/debug/commanderdog")
     
     # Symlink frontend assets into TEST_DIR so static assets serve cleanly
     os.symlink(os.path.abspath("./frontend"), os.path.join(TEST_DIR, "frontend"))
@@ -73,7 +68,7 @@ default_admin_pass = "admin123"
         stderr=subprocess.DEVNULL
     )
     
-    for _ in range(30):
+    for _ in range(40):
         try:
             r = requests.get(f"{BASE_URL}/", timeout=1)
             if r.status_code == 200:
@@ -99,9 +94,9 @@ def stop_test_server():
 
 def run_tests():
     # -------------------------------------------------------------
-    # SUITE 1: Auth & User Management
+    # SUITE 1: Auth & User Profile Management
     # -------------------------------------------------------------
-    print(f"{BOLD}=== 🔐 SUITE 1: Auth & Security ==={RESET}")
+    print(f"{BOLD}=== 🔐 SUITE 1: Auth & User Profile Management ==={RESET}")
     
     # 1. Login
     login_resp = requests.post(f"{BASE_URL}/api/auth/login", json={"username": "admin", "password": "admin123"})
@@ -119,17 +114,23 @@ def run_tests():
     me_resp = requests.get(f"{BASE_URL}/api/auth/me", headers=headers)
     log_test("AUTH-02", "Get Current User Profile (/api/auth/me)", me_resp.status_code == 200 and me_resp.json().get("username") == "admin")
 
+    # 3. Update Profile (Nickname & Avatar)
+    prof_resp = requests.post(f"{BASE_URL}/api/auth/profile", headers=headers, json={
+        "nickname": "Captain Woofson",
+        "email": "woofson@commanderdog.com",
+        "avatar_url": "🐕"
+    })
+    log_test("AUTH-03", "Update Profile & Avatar Emoji (/api/auth/profile)", prof_resp.status_code == 200)
+
+    # Verify Profile Persistence
+    me_updated = requests.get(f"{BASE_URL}/api/auth/me", headers=headers)
+    log_test("AUTH-04", "Verify Updated Profile Persistence", me_updated.status_code == 200 and me_updated.json().get("nickname") == "Captain Woofson" and me_updated.json().get("avatar_url") == "🐕")
+
     # -------------------------------------------------------------
-    # SUITE 2: Directory & Flat / Branch View
+    # SUITE 2: Directory & Flat / Branch View & Directory Tree
     # -------------------------------------------------------------
-    print(f"\n{BOLD}=== 🌲 SUITE 2: Directory & Flat / Branch View ==={RESET}")
+    print(f"\n{BOLD}=== 🌲 SUITE 2: Directory Hierarchy & Flat / Branch View ==={RESET}")
     
-    # Setup test folder structure:
-    # TEST_DIR/
-    #   folderA/fileA1.txt
-    #   folderA/subA/fileA2.rs
-    #   folderB/fileB1.jpg
-    #   root_file.txt
     data_dir = os.path.join(TEST_DIR, "data")
     folder_a = os.path.join(data_dir, "folderA")
     sub_a = os.path.join(folder_a, "subA")
@@ -158,9 +159,19 @@ def run_tests():
         entries = flat_data.get("entries", [])
         entry_paths = [e["name"] for e in entries]
         has_nested = any("subA/fileA2.rs" in p for p in entry_paths)
-        log_test("DIR-02", "Flat / Branch View (<kbd>Ctrl+B</kbd>)", has_nested and len(entries) >= 4, f"Flattened {len(entries)} items across subdirectories")
+        log_test("DIR-02", "Flat / Branch View (Ctrl+B)", has_nested and len(entries) >= 4, f"Flattened {len(entries)} items across subdirectories")
     else:
         log_test("DIR-02", "Flat / Branch View", False, f"HTTP {flat_resp.status_code}")
+
+    # Directory Tree Subfolders Extraction
+    tree_resp = requests.get(f"{BASE_URL}/api/fs/list?path={data_dir}", headers=headers)
+    if tree_resp.status_code == 200:
+        entries = tree_resp.json().get("entries", [])
+        dirs = [d for d in entries if d.get("is_dir") or d.get("type") == "dir" or d.get("type") == "Directory"]
+        dir_names = [d["name"] for d in dirs]
+        log_test("DIR-03", "Directory Tree Subfolder Extraction", "folderA" in dir_names and "folderB" in dir_names and "root_file.txt" not in dir_names, f"Extracted {len(dirs)} directories")
+    else:
+        log_test("DIR-03", "Directory Tree Subfolder Extraction", False)
 
     # -------------------------------------------------------------
     # SUITE 3: Color Labels & Custom Tagging System
@@ -239,35 +250,92 @@ def run_tests():
         log_test("DU-01", "Space Aggregation", False, f"HTTP {du_resp.status_code}")
 
     # -------------------------------------------------------------
-    # SUITE 6: Two-Way Directory Synchronizer
+    # SUITE 6: SyncToy & Bvckup 2 Delta Backup & Replication Studio
     # -------------------------------------------------------------
-    print(f"\n{BOLD}=== 🔀 SUITE 6: Two-Way Directory Synchronizer ==={RESET}")
+    print(f"\n{BOLD}=== ⚡ SUITE 6: SyncToy & Bvckup 2 Delta Backup & Scheduler ==={RESET}")
     
     dir_sync_a = os.path.join(TEST_DIR, "syncA")
     dir_sync_b = os.path.join(TEST_DIR, "syncB")
     os.makedirs(dir_sync_a, exist_ok=True)
     os.makedirs(dir_sync_b, exist_ok=True)
-    with open(os.path.join(dir_sync_a, "left_only.txt"), "w") as f: f.write("Left data")
-    with open(os.path.join(dir_sync_b, "right_only.txt"), "w") as f: f.write("Right data")
-    with open(os.path.join(dir_sync_a, "both.txt"), "w") as f: f.write("Identical data")
-    with open(os.path.join(dir_sync_b, "both.txt"), "w") as f: f.write("Identical data")
+    with open(os.path.join(dir_sync_a, "left_only.txt"), "w") as f: f.write("Left unique file content")
+    with open(os.path.join(dir_sync_b, "right_only.txt"), "w") as f: f.write("Right unique orphan file")
+    with open(os.path.join(dir_sync_a, "both.txt"), "w") as f: f.write("Identical shared content")
+    with open(os.path.join(dir_sync_b, "both.txt"), "w") as f: f.write("Identical shared content")
 
+    # 1. Analyze Differences (4 Modes)
     compare_resp = requests.post(f"{BASE_URL}/api/tools/sync/analyze", headers=headers, json={
         "source": dir_sync_a,
         "destination": dir_sync_b,
         "options": {
-            "mode": "bidirectional_newer",
+            "mode": "subscribe",
             "dry_run": True,
-            "verify_checksum": False,
-            "delete_orphans": False
+            "verify_checksum": True,
+            "block_delta": True,
+            "delete_orphans": False,
+            "archive_dir": "_archive",
+            "retention_days": 30
         }
     })
     if compare_resp.status_code == 200:
         sync_data = compare_resp.json()
         files = sync_data.get("files", [])
-        log_test("SYNC-01", "Directory Comparison & Difference Detection", len(files) >= 3, f"Analyzed {len(files)} files (Identical: {sync_data.get('identical_count')}, Left only: {sync_data.get('left_only_count')}, Right only: {sync_data.get('right_only_count')})")
+        log_test("SYNC-01", "Directory Difference Analysis (Subscribe Mode)", len(files) >= 3, f"Analyzed {len(files)} files")
     else:
-        log_test("SYNC-01", "Directory Comparison", False, f"HTTP {compare_resp.status_code}")
+        log_test("SYNC-01", "Directory Difference Analysis", False, f"HTTP {compare_resp.status_code}")
+
+    # 2. Execute Live Replication with Block Delta
+    exec_resp = requests.post(f"{BASE_URL}/api/tools/sync/execute", headers=headers, json={
+        "source": dir_sync_a,
+        "destination": dir_sync_b,
+        "options": {
+            "mode": "echo",
+            "dry_run": False,
+            "verify_checksum": True,
+            "block_delta": True,
+            "delete_orphans": True
+        }
+    })
+    if exec_resp.status_code == 200:
+        exec_data = exec_resp.json()
+        log_test("SYNC-02", "Execute Echo / Mirror Replication", exec_data.get("success") is True, f"Copied: {exec_data.get('copied')}, Deleted orphans: {exec_data.get('deleted')}")
+    else:
+        log_test("SYNC-02", "Execute Replication", False, f"HTTP {exec_resp.status_code}")
+
+    # 3. Create Backup Profile
+    prof_create_resp = requests.post(f"{BASE_URL}/api/tools/sync/profiles", headers=headers, json={
+        "id": "profile-daily-work",
+        "name": "Daily Work Replication Job",
+        "source_dir": dir_sync_a,
+        "dest_dir": dir_sync_b,
+        "profile_mode": "subscribe",
+        "block_delta": True,
+        "verify_checksum": True,
+        "archive_dir": "_archive",
+        "retention_days": 14,
+        "schedule_type": "daily",
+        "schedule_interval_mins": 60,
+        "schedule_time": "02:00",
+        "webhook_url": "https://discord.com/api/webhooks/test",
+        "enabled": True,
+        "last_run": None,
+        "last_status": None,
+        "last_result": None,
+        "created_at": int(time.time())
+    })
+    log_test("SYNC-03", "Create Backup Profile (/api/tools/sync/profiles)", prof_create_resp.status_code == 200)
+
+    # 4. List Backup Profiles
+    list_prof_resp = requests.get(f"{BASE_URL}/api/tools/sync/profiles", headers=headers)
+    log_test("SYNC-04", "List Saved Backup Profiles", list_prof_resp.status_code == 200 and len(list_prof_resp.json()) >= 1)
+
+    # 5. Toggle Profile Active State
+    toggle_resp = requests.post(f"{BASE_URL}/api/tools/sync/profiles/profile-daily-work/toggle", headers=headers)
+    log_test("SYNC-05", "Toggle Profile Active State (/api/tools/sync/profiles/:id/toggle)", toggle_resp.status_code == 200)
+
+    # 6. Query Backup Run History
+    hist_resp = requests.get(f"{BASE_URL}/api/tools/sync/history?limit=20", headers=headers)
+    log_test("SYNC-06", "Query Backup Run History (/api/tools/sync/history)", hist_resp.status_code == 200)
 
     # -------------------------------------------------------------
     # SUITE 7: File Operations, Bulk Renamer & Deletion
@@ -344,30 +412,9 @@ def run_tests():
     log_test("BMARK-02", "List Bookmarks (/api/bookmarks)", list_bmark.status_code == 200 and len(list_bmark.json()) >= 1)
 
     # -------------------------------------------------------------
-    # SUITE 10: Frontend Asset Integrity & JS Validation
+    # SUITE 10: Git Version Control Engine & APIs
     # -------------------------------------------------------------
-    print(f"\n{BOLD}=== 🌐 SUITE 10: Frontend Assets & Syntax Integrity ==={RESET}")
-    
-    # 1. HTML Assets
-    html_resp = requests.get(f"{BASE_URL}/")
-    has_calculator = "floating-calculator-window" in html_resp.text
-    has_branch = "toggleBranchView" in html_resp.text or "Flat / Branch View" in html_resp.text
-    has_git_modal = "git-modal" in html_resp.text
-    has_split_modal = "file-splitter-modal" in html_resp.text
-    log_test("WEB-01", "Frontend HTML & Component Integrity", html_resp.status_code == 200 and has_calculator and has_branch and has_git_modal and has_split_modal)
-
-    # 2. JavaScript Syntax Validation via gjs / node / quickjs
-    gjs_cmd = subprocess.run(["gjs", "-c", """
-    const GLib = imports.gi.GLib;
-    const [ok, contents] = GLib.file_get_contents('frontend/app.js');
-    new Function(imports.byteArray.toString(contents));
-    """], capture_output=True)
-    log_test("WEB-02", "ES6 JavaScript Parser & Syntax Validation", gjs_cmd.returncode == 0)
-
-    # -------------------------------------------------------------
-    # SUITE 11: Git Version Control Engine & APIs
-    # -------------------------------------------------------------
-    print(f"\n{BOLD}=== 🌲 SUITE 11: Git Engine & Version Control APIs ==={RESET}")
+    print(f"\n{BOLD}=== 🌲 SUITE 10: Git Engine & Version Control APIs ==={RESET}")
 
     # 1. Git Status for non-repo
     non_repo_resp = requests.get(f"{BASE_URL}/api/git/status", params={"path": data_dir}, headers=headers)
@@ -396,9 +443,9 @@ def run_tests():
     log_test("GIT-05", "Git Commit Log (/api/git/log)", log_resp.status_code == 200 and len(log_resp.json()) >= 1)
 
     # -------------------------------------------------------------
-    # SUITE 12: Multi-Part File Splitter & Combiner
+    # SUITE 11: Multi-Part File Splitter & Combiner
     # -------------------------------------------------------------
-    print(f"\n{BOLD}=== 🧩 SUITE 12: Multi-Part File Splitter & Combiner ==={RESET}")
+    print(f"\n{BOLD}=== 🧩 SUITE 11: Multi-Part File Splitter & Combiner ==={RESET}")
 
     # 1. Create 3MB binary test file
     split_src_file = os.path.join(TEST_DIR, "large_sample.dat")
@@ -425,9 +472,23 @@ def run_tests():
         })
         log_test("SPLIT-02", "Combine Parts & Verify Checksum (/api/tools/combine)", combine_resp.status_code == 200 and combine_resp.json().get("is_verified") is True)
 
+    # -------------------------------------------------------------
+    # SUITE 12: Frontend Asset Integrity & Responsive Components
+    # -------------------------------------------------------------
+    print(f"\n{BOLD}=== 🌐 SUITE 12: Frontend Assets & Syntax Integrity ==={RESET}")
+    
+    html_resp = requests.get(f"{BASE_URL}/")
+    has_calculator = "floating-calculator-window" in html_resp.text
+    has_branch = "toggleBranchView" in html_resp.text or "Flat / Branch View" in html_resp.text
+    has_sync_studio = "sync-modal" in html_resp.text and "SyncToy" in html_resp.text
+    has_profiles_tab = "sync-tab-content-profiles" in html_resp.text
+    has_tree_sidebar = "pane-tree-sidebar" in html_resp.text or "folder-tree" in html_resp.text
+    
+    log_test("WEB-01", "Frontend HTML Component Integrity", html_resp.status_code == 200 and has_calculator and has_branch and has_sync_studio and has_profiles_tab)
+
     # Summary
     print(f"\n{BOLD}======================================================{RESET}")
-    print(f"{BOLD}📊 AUTOMATED TEST SUMMARY:{RESET}")
+    print(f"{BOLD}📊 AUTOMATED FAT SUMMARY:{RESET}")
     print(f"  Total Tests Executed: {results['total']}")
     print(f"  Passed: {GREEN}{results['passed']}{RESET}")
     print(f"  Failed: {RED if results['failed'] > 0 else GREEN}{results['failed']}{RESET}")

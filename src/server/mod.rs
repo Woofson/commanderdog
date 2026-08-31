@@ -40,6 +40,7 @@ pub struct AppState {
     pub tasks: Arc<TaskManager>,
     pub tags: Arc<crate::tools::tags::TagManager>,
     pub vaults: Arc<crate::vfs::vault::VaultManager>,
+    pub backup: Arc<crate::tools::sync::BackupManager>,
 }
 
 pub fn create_router(state: AppState) -> Router {
@@ -115,6 +116,11 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/tools/paranoid/dry-run", post(handle_paranoid_dry_run))
         .route("/api/tools/sync/analyze", post(handle_sync_analyze))
         .route("/api/tools/sync/execute", post(handle_sync_execute))
+        .route("/api/tools/sync/profiles", get(handle_list_backup_profiles).post(handle_save_backup_profile))
+        .route("/api/tools/sync/profiles/:id", delete(handle_delete_backup_profile))
+        .route("/api/tools/sync/profiles/:id/run", post(handle_run_backup_profile))
+        .route("/api/tools/sync/profiles/:id/toggle", post(handle_toggle_backup_profile))
+        .route("/api/tools/sync/history", get(handle_get_backup_history))
         .route("/api/tools/disk-usage", get(handle_disk_usage))
         .route("/api/tools/split", post(handle_split_file))
         .route("/api/tools/combine", post(handle_combine_files))
@@ -2853,6 +2859,69 @@ async fn handle_sync_execute(
     ).await
     .map(Json)
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Sync execution failed: {}", e)))
+}
+
+async fn handle_list_backup_profiles(
+    State(state): State<AppState>,
+) -> Json<Vec<crate::tools::sync::BackupProfile>> {
+    Json(state.backup.list_profiles())
+}
+
+async fn handle_save_backup_profile(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(profile): Json<crate::tools::sync::BackupProfile>,
+) -> Result<Json<crate::tools::sync::BackupProfile>, (StatusCode, String)> {
+    validate_path_access(&state, &headers, &profile.source_dir, false)?;
+    validate_path_access(&state, &headers, &profile.dest_dir, true)?;
+
+    state.backup.save_profile(profile)
+        .map(Json)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to save backup profile: {}", e)))
+}
+
+async fn handle_delete_backup_profile(
+    State(state): State<AppState>,
+    AxumPath(id): AxumPath<String>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    state.backup.delete_profile(&id)
+        .map(|_| Json(serde_json::json!({ "success": true })))
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to delete backup profile: {}", e)))
+}
+
+async fn handle_run_backup_profile(
+    State(state): State<AppState>,
+    AxumPath(id): AxumPath<String>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let mgr = state.backup.clone();
+    let tasks = state.tasks.clone();
+    
+    // Run in background Tokio task
+    tokio::spawn(async move {
+        if let Err(e) = mgr.execute_profile_job(&id, tasks).await {
+            tracing::error!("Manual backup profile execution error for '{}': {}", id, e);
+        }
+    });
+
+    Ok(Json(serde_json::json!({ "success": true, "message": "Backup job initiated in background" })))
+}
+
+async fn handle_toggle_backup_profile(
+    State(state): State<AppState>,
+    AxumPath(id): AxumPath<String>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    state.backup.toggle_profile(&id)
+        .map(|new_enabled| Json(serde_json::json!({ "success": true, "enabled": new_enabled })))
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to toggle backup profile: {}", e)))
+}
+
+async fn handle_get_backup_history(
+    State(state): State<AppState>,
+    Query(query): Query<HashMap<String, String>>,
+) -> Json<Vec<crate::tools::sync::BackupHistoryItem>> {
+    let profile_id = query.get("profile_id").map(|s| s.as_str());
+    let limit = query.get("limit").and_then(|l| l.parse::<usize>().ok()).unwrap_or(50);
+    Json(state.backup.list_history(profile_id, limit))
 }
 
 async fn handle_disk_usage(

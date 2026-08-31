@@ -6430,7 +6430,7 @@ function showContextMenu(x, y) {
         <div class="context-item" onclick="openPdfToolModal(App.contextItem ? App.contextItem.path : null)"><i data-lucide="file-text" style="width: 13px; color: #ef4444;"></i> PDFDog (Split & Merge)</div>
         <div class="context-item" onclick="triggerFileSplit()"><i data-lucide="scissors" style="width: 13px;"></i> Split Large File...</div>
         <div class="context-item" onclick="triggerFileCombine()"><i data-lucide="merge" style="width: 13px;"></i> Combine Part Files (.001, .002)...</div>
-        <div class="context-item" onclick="openSyncModal()"><i data-lucide="refresh-cw" style="width: 13px;"></i> Sync / Backup Engine...</div>
+        <div class="context-item" onclick="openSyncModal()"><i data-lucide="refresh-cw" style="width: 13px; color: #22c55e;"></i> Delta Backup & Sync Studio (SyncToy / Bvckup 2)...</div>
         <div class="context-item" onclick="openDiskUsageModal()"><i data-lucide="pie-chart" style="width: 13px;"></i> Disk Usage & Space Analyzer</div>
         <div class="context-item" onclick="triggerGitManager()"><i data-lucide="git-branch" style="width: 13px;"></i> Git Manager & Diff</div>
       </div>
@@ -6942,7 +6942,7 @@ function showEmptySpaceContextMenu(x, y, paneIndex) {
     <div class="context-sep"></div>
     <div class="context-item" onclick="openTerminalInPath('${escapeHtml(pane.path)}')"><i data-lucide="terminal" style="width: 14px; color: var(--accent);"></i> Open in Terminal (\`)</div>
     <div class="context-item" onclick="openSearchModal()"><i data-lucide="search" style="width: 14px;"></i> Deep Search in Directory (Ctrl+F)</div>
-    <div class="context-item" onclick="openSyncModal()"><i data-lucide="refresh-cw" style="width: 14px;"></i> Two-Way Directory Sync...</div>
+    <div class="context-item" onclick="openSyncModal()"><i data-lucide="refresh-cw" style="width: 14px; color: #22c55e;"></i> Delta Backup & Sync Studio (SyncToy / Bvckup 2)...</div>
     <div class="context-item" onclick="openDiskUsageModal('${escapeHtml(pane.path)}')"><i data-lucide="pie-chart" style="width: 14px; color: var(--accent);"></i> Disk Usage & Treemap Analyzer...</div>
     <div class="context-item" onclick="openRemoteModal(${paneIndex})"><i data-lucide="network" style="width: 14px;"></i> Mount Remote Storage Here...</div>
     ${pane.path.includes('://') ? `<div class="context-item" onclick="disconnectPaneRemote(${paneIndex})" style="color: var(--danger, #ef4444);"><i data-lucide="log-out" style="width: 14px; color: var(--danger, #ef4444);"></i> Disconnect Remote Storage</div>` : ''}
@@ -12670,9 +12670,53 @@ function openSyncModal() {
   const footerStats = document.getElementById('sync-footer-stats');
   if (footerStats) footerStats.textContent = 'Ready to compare directories.';
 
+  switchSyncTab('diff');
   showModal('sync-modal');
   if (srcPane.path && destPane.path && srcPane.path !== destPane.path) {
     analyzeSync();
+  }
+}
+
+function switchSyncTab(tab) {
+  document.querySelectorAll('.sync-tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.sync-tab-pane').forEach(p => p.style.display = 'none');
+
+  const btn = document.getElementById(`sync-tab-btn-${tab}`);
+  const pane = document.getElementById(`sync-tab-content-${tab}`);
+  if (btn) btn.classList.add('active');
+  if (pane) pane.style.display = 'flex';
+
+  if (tab === 'profiles') {
+    loadBackupProfiles();
+  } else if (tab === 'history') {
+    loadBackupHistory();
+  }
+}
+
+function useActivePanePath(inputId) {
+  const activePane = panes[activePaneIndex];
+  if (activePane && activePane.path) {
+    const input = document.getElementById(inputId);
+    if (input) {
+      input.value = activePane.path;
+      if (document.getElementById('sync-src-input')?.value && document.getElementById('sync-dest-input')?.value) {
+        analyzeSync();
+      }
+    }
+  }
+}
+
+function useInactivePanePath(inputId) {
+  const otherIdx = (activePaneIndex === 0) ? 1 : 0;
+  const otherPane = panes[otherIdx] || panes[0];
+  if (otherPane && otherPane.path) {
+    const input = document.getElementById(inputId);
+    if (input) {
+      input.value = otherPane.path;
+      if (document.getElementById('sync-src-input')?.value && document.getElementById('sync-dest-input')?.value) {
+        analyzeSync();
+      }
+    }
   }
 }
 
@@ -12688,29 +12732,44 @@ function swapSyncPaths() {
 }
 
 function handleSyncModeChange() {
-  if (syncAnalysisData) {
+  const mode = document.querySelector('input[name="sync-mode"]:checked')?.value || 'synchronize';
+  const archiveSettings = document.getElementById('sync-archive-settings');
+  if (archiveSettings) {
+    archiveSettings.style.display = (mode === 'subscribe') ? 'flex' : 'none';
+  }
+  if (document.getElementById('sync-src-input')?.value && document.getElementById('sync-dest-input')?.value) {
     analyzeSync();
   }
 }
 
-function updateSyncCounters(all, left, right, mod, eq) {
+function updateSyncCounters(all, left, right, mod, archive, eq) {
   const cAll = document.getElementById('sync-cnt-all');
   const cLeft = document.getElementById('sync-cnt-left');
   const cRight = document.getElementById('sync-cnt-right');
   const cMod = document.getElementById('sync-cnt-mod');
+  const cArchive = document.getElementById('sync-cnt-archive');
   const cEq = document.getElementById('sync-cnt-eq');
 
   if (cAll) cAll.textContent = all;
   if (cLeft) cLeft.textContent = left;
   if (cRight) cRight.textContent = right;
   if (cMod) cMod.textContent = mod;
+  if (cArchive) cArchive.textContent = archive;
   if (cEq) cEq.textContent = eq;
 }
 
 function filterSyncGrid(mode) {
   syncCurrentFilter = mode;
   document.querySelectorAll('.sync-filter-btn').forEach(b => b.classList.remove('active'));
-  const activeBtn = document.getElementById(`btn-sync-filter-${mode === 'all' ? 'all' : (mode === 'left' ? 'left' : (mode === 'right' ? 'right' : (mode === 'modified' ? 'mod' : 'eq')))}`);
+  const btnMap = {
+    'all': 'btn-sync-filter-all',
+    'left': 'btn-sync-filter-left',
+    'right': 'btn-sync-filter-right',
+    'modified': 'btn-sync-filter-mod',
+    'archive': 'btn-sync-filter-archive',
+    'identical': 'btn-sync-filter-eq'
+  };
+  const activeBtn = document.getElementById(btnMap[mode] || 'btn-sync-filter-all');
   if (activeBtn) activeBtn.classList.add('active');
   renderSyncDiffTable();
 }
@@ -12718,7 +12777,11 @@ function filterSyncGrid(mode) {
 async function analyzeSync() {
   const source = document.getElementById('sync-src-input')?.value.trim();
   const destination = document.getElementById('sync-dest-input')?.value.trim();
-  const mode = document.querySelector('input[name="sync-mode"]:checked')?.value || 'mirror_left_to_right';
+  const mode = document.querySelector('input[name="sync-mode"]:checked')?.value || 'synchronize';
+  const blockDelta = document.getElementById('sync-opt-delta')?.checked ?? true;
+  const verifyChecksum = document.getElementById('sync-opt-verify')?.checked ?? true;
+  const archiveDir = document.getElementById('sync-opt-archive-dir')?.value.trim() || '_archive';
+  const retentionDays = parseInt(document.getElementById('sync-opt-retention')?.value || '30', 10);
 
   if (!source || !destination) {
     showToast('Please specify source and destination directories', 'warning');
@@ -12727,14 +12790,26 @@ async function analyzeSync() {
 
   const tbody = document.getElementById('sync-diff-body');
   const footerStats = document.getElementById('sync-footer-stats');
-  if (tbody) tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 40px; color: var(--accent);"><i data-lucide="loader"></i> Analyzing directory differences...</td></tr>`;
+  if (tbody) tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 40px; color: var(--accent);"><i data-lucide="loader"></i> Analyzing directory differences & delta blocks...</td></tr>`;
   if (window.lucide) lucide.createIcons();
 
   try {
     const resp = await fetch('/api/tools/sync/analyze', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
-      body: JSON.stringify({ source, destination, options: { mode, dry_run: true, verify_checksum: true, delete_orphans: mode.includes('mirror') } })
+      body: JSON.stringify({
+        source,
+        destination,
+        options: {
+          mode,
+          dry_run: true,
+          verify_checksum: verifyChecksum,
+          block_delta: blockDelta,
+          delete_orphans: mode === 'echo',
+          archive_dir: archiveDir,
+          retention_days: retentionDays,
+        }
+      })
     });
 
     if (!resp.ok) {
@@ -12745,15 +12820,17 @@ async function analyzeSync() {
     syncAnalysisData = await resp.json();
     const files = syncAnalysisData.files || [];
 
-    const leftCnt = files.filter(f => f.status === 'left_only' || f.status === 'modified_newer_left').length;
-    const rightCnt = files.filter(f => f.status === 'right_only' || f.status === 'modified_newer_right').length;
-    const modCnt = files.filter(f => f.status.startsWith('modified_') || f.status === 'size_conflict').length;
+    const leftCnt = files.filter(f => f.suggested_action === 'copy_right' || f.suggested_action === 'delta_update_right' || f.suggested_action === 'archive_and_update').length;
+    const rightCnt = files.filter(f => f.suggested_action === 'copy_left' || f.suggested_action === 'delta_update_left').length;
+    const modCnt = files.filter(f => f.suggested_action.startsWith('delta_update_') || f.status.startsWith('modified_')).length;
+    const archiveCnt = files.filter(f => f.suggested_action.startsWith('archive_')).length;
     const eqCnt = files.filter(f => f.status === 'identical').length;
 
-    updateSyncCounters(files.length, leftCnt, rightCnt, modCnt, eqCnt);
+    updateSyncCounters(files.length, leftCnt, rightCnt, modCnt, archiveCnt, eqCnt);
 
     if (footerStats) {
-      footerStats.textContent = `Found ${files.length} total files: ${leftCnt} left-only/newer, ${rightCnt} right-only/newer, ${modCnt} modified, ${eqCnt} identical (${formatFileSize(syncAnalysisData.total_transfer_bytes)} to transfer).`;
+      const savedStr = syncAnalysisData.bytes_saved_estimate > 0 ? ` • Est. Delta Savings: ~${formatFileSize(syncAnalysisData.bytes_saved_estimate)}` : '';
+      footerStats.textContent = `Scanned ${files.length} items: ${leftCnt} to copy/update ➔, ${rightCnt} to copy ⬅, ${archiveCnt} to archive 📦, ${eqCnt} identical (${formatFileSize(syncAnalysisData.total_transfer_bytes)} total)${savedStr}.`;
     }
 
     renderSyncDiffTable();
@@ -12765,7 +12842,7 @@ async function analyzeSync() {
 function toggleFileAction(index) {
   if (!syncAnalysisData || !syncAnalysisData.files[index]) return;
   const item = syncAnalysisData.files[index];
-  const cycle = ['copy_right', 'copy_left', 'skip'];
+  const cycle = ['copy_right', 'copy_left', 'delta_update_right', 'skip'];
   const curIdx = cycle.indexOf(item.suggested_action);
   item.suggested_action = cycle[(curIdx + 1) % cycle.length];
   renderSyncDiffTable();
@@ -12779,11 +12856,13 @@ function renderSyncDiffTable() {
   let filtered = files;
 
   if (syncCurrentFilter === 'left') {
-    filtered = files.filter(f => f.status === 'left_only' || f.status === 'modified_newer_left');
+    filtered = files.filter(f => f.suggested_action === 'copy_right' || f.suggested_action === 'delta_update_right' || f.suggested_action === 'archive_and_update');
   } else if (syncCurrentFilter === 'right') {
-    filtered = files.filter(f => f.status === 'right_only' || f.status === 'modified_newer_right');
+    filtered = files.filter(f => f.suggested_action === 'copy_left' || f.suggested_action === 'delta_update_left');
   } else if (syncCurrentFilter === 'modified') {
-    filtered = files.filter(f => f.status.startsWith('modified_') || f.status === 'size_conflict');
+    filtered = files.filter(f => f.suggested_action.startsWith('delta_update_') || f.status.startsWith('modified_'));
+  } else if (syncCurrentFilter === 'archive') {
+    filtered = files.filter(f => f.suggested_action.startsWith('archive_'));
   } else if (syncCurrentFilter === 'identical') {
     filtered = files.filter(f => f.status === 'identical');
   }
@@ -12799,6 +12878,14 @@ function renderSyncDiffTable() {
       actionBadge = `<span class="sync-action-badge action-copy-right" title="Copy Left ➔ Right (Click to change)" onclick="toggleFileAction(${files.indexOf(f)})">➔</span>`;
     } else if (f.suggested_action === 'copy_left') {
       actionBadge = `<span class="sync-action-badge action-copy-left" title="Copy Right ➔ Left (Click to change)" onclick="toggleFileAction(${files.indexOf(f)})">⬅</span>`;
+    } else if (f.suggested_action === 'delta_update_right') {
+      actionBadge = `<span class="sync-action-badge action-update-delta" title="⚡ Delta Patch ➔ Right (Click to change)" onclick="toggleFileAction(${files.indexOf(f)})">⚡➔</span>`;
+    } else if (f.suggested_action === 'delta_update_left') {
+      actionBadge = `<span class="sync-action-badge action-update-delta" title="⚡ Delta Patch ➔ Left (Click to change)" onclick="toggleFileAction(${files.indexOf(f)})">⚡⬅</span>`;
+    } else if (f.suggested_action === 'archive_and_update') {
+      actionBadge = `<span class="sync-action-badge action-archive" title="📦 Archive Old Version & Update" onclick="toggleFileAction(${files.indexOf(f)})">📦⚡</span>`;
+    } else if (f.suggested_action === 'archive_and_delete') {
+      actionBadge = `<span class="sync-action-badge action-archive" title="📦 Archive Orphan & Remove from Dest" onclick="toggleFileAction(${files.indexOf(f)})">📦✕</span>`;
     } else if (f.suggested_action === 'delete_right') {
       actionBadge = `<span class="sync-action-badge action-delete-right" title="Delete from Target (Mirror mode)" onclick="toggleFileAction(${files.indexOf(f)})">✕</span>`;
     } else if (f.suggested_action === 'identical') {
@@ -12829,7 +12916,11 @@ function renderSyncDiffTable() {
 async function executeSync() {
   const source = document.getElementById('sync-src-input')?.value.trim();
   const destination = document.getElementById('sync-dest-input')?.value.trim();
-  const mode = document.querySelector('input[name="sync-mode"]:checked')?.value || 'mirror_left_to_right';
+  const mode = document.querySelector('input[name="sync-mode"]:checked')?.value || 'synchronize';
+  const blockDelta = document.getElementById('sync-opt-delta')?.checked ?? true;
+  const verifyChecksum = document.getElementById('sync-opt-verify')?.checked ?? true;
+  const archiveDir = document.getElementById('sync-opt-archive-dir')?.value.trim() || '_archive';
+  const retentionDays = parseInt(document.getElementById('sync-opt-retention')?.value || '30', 10);
 
   if (!source || !destination) {
     showToast('Please specify source and destination directories', 'warning');
@@ -12842,11 +12933,25 @@ async function executeSync() {
     const resp = await fetch('/api/tools/sync/execute', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
-      body: JSON.stringify({ source, destination, options: { mode, dry_run: false, verify_checksum: true, delete_orphans: mode.includes('mirror') } })
+      body: JSON.stringify({
+        source,
+        destination,
+        options: {
+          mode,
+          dry_run: false,
+          verify_checksum: verifyChecksum,
+          block_delta: blockDelta,
+          delete_orphans: mode === 'echo',
+          archive_dir: archiveDir,
+          retention_days: retentionDays,
+        }
+      })
     });
 
     if (resp.ok) {
-      showToast('⚡ Synchronization completed successfully', 'success');
+      const data = await resp.json();
+      const snapMsg = data.snapshot_dir ? ` (Snapshot: ${data.snapshot_dir})` : '';
+      showToast(`⚡ Replication completed: ${data.copied || 0} copied, ${data.archived || 0} archived, ${data.deleted || 0} deleted${snapMsg}`, 'success');
       for (let i = 0; i < getVisiblePaneCount(); i++) refreshPane(i);
       openFloatingTaskManager();
     } else {
@@ -12854,6 +12959,294 @@ async function executeSync() {
     }
   } catch (e) {
     showToast('Sync execution failed: ' + String(e), 'error');
+  }
+}
+
+// ---------------- BACKUP PROFILES & SCHEDULER JS ----------------
+
+function openSaveCurrentSyncAsProfile() {
+  const src = document.getElementById('sync-src-input')?.value.trim();
+  const dest = document.getElementById('sync-dest-input')?.value.trim();
+  const mode = document.querySelector('input[name="sync-mode"]:checked')?.value || 'synchronize';
+
+  openCreateBackupProfileModal({
+    id: '',
+    name: 'Backup Job ' + new Date().toLocaleDateString(),
+    source_dir: src,
+    dest_dir: dest,
+    profile_mode: mode,
+    block_delta: document.getElementById('sync-opt-delta')?.checked ?? true,
+    verify_checksum: document.getElementById('sync-opt-verify')?.checked ?? true,
+    archive_dir: document.getElementById('sync-opt-archive-dir')?.value || '_archive',
+    retention_days: parseInt(document.getElementById('sync-opt-retention')?.value || '30', 10),
+    schedule_type: 'daily',
+    schedule_interval_mins: 60,
+    schedule_time: '02:00',
+    webhook_url: '',
+    enabled: true
+  });
+}
+
+function openCreateBackupProfileModal(profile) {
+  document.getElementById('bp-id').value = profile?.id || '';
+  document.getElementById('bp-name').value = profile?.name || '';
+  document.getElementById('bp-source').value = profile?.source_dir || (panes[0]?.path || '');
+  document.getElementById('bp-dest').value = profile?.dest_dir || (panes[1]?.path || '');
+  document.getElementById('bp-mode').value = profile?.profile_mode || 'subscribe';
+  document.getElementById('bp-schedule-type').value = profile?.schedule_type || 'manual';
+  document.getElementById('bp-interval-mins').value = profile?.schedule_interval_mins || 60;
+  document.getElementById('bp-daily-time').value = profile?.schedule_time || '02:00';
+  document.getElementById('bp-block-delta').checked = profile?.block_delta ?? true;
+  document.getElementById('bp-verify').checked = profile?.verify_checksum ?? true;
+  document.getElementById('bp-enabled').checked = profile?.enabled ?? true;
+  document.getElementById('bp-webhook').value = profile?.webhook_url || '';
+
+  document.getElementById('backup-profile-modal-title').textContent = profile?.id ? 'Edit Backup Profile' : 'Create Backup Profile';
+  handleScheduleTypeChange();
+  showModal('backup-profile-modal');
+  if (window.lucide) lucide.createIcons();
+}
+
+function handleScheduleTypeChange() {
+  const type = document.getElementById('bp-schedule-type')?.value;
+  const intervalRow = document.getElementById('bp-interval-row');
+  if (intervalRow) {
+    intervalRow.style.display = (type === 'interval' || type === 'daily') ? 'grid' : 'none';
+  }
+}
+
+async function saveBackupProfileForm() {
+  const id = document.getElementById('bp-id')?.value.trim() || '';
+  const name = document.getElementById('bp-name')?.value.trim();
+  const source_dir = document.getElementById('bp-source')?.value.trim();
+  const dest_dir = document.getElementById('bp-dest')?.value.trim();
+  const profile_mode = document.getElementById('bp-mode')?.value || 'subscribe';
+  const schedule_type = document.getElementById('bp-schedule-type')?.value || 'manual';
+  const schedule_interval_mins = parseInt(document.getElementById('bp-interval-mins')?.value || '60', 10);
+  const schedule_time = document.getElementById('bp-daily-time')?.value.trim() || '02:00';
+  const block_delta = document.getElementById('bp-block-delta')?.checked ?? true;
+  const verify_checksum = document.getElementById('bp-verify')?.checked ?? true;
+  const enabled = document.getElementById('bp-enabled')?.checked ?? true;
+  const webhook_url = document.getElementById('bp-webhook')?.value.trim() || null;
+
+  if (!name || !source_dir || !dest_dir) {
+    showToast('Please provide a name, source directory, and destination directory', 'warning');
+    return;
+  }
+
+  try {
+    const resp = await fetch('/api/tools/sync/profiles', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
+      body: JSON.stringify({
+        id,
+        name,
+        source_dir,
+        dest_dir,
+        profile_mode,
+        block_delta,
+        verify_checksum,
+        archive_dir: '_archive',
+        retention_days: 30,
+        schedule_type,
+        schedule_interval_mins,
+        schedule_time,
+        webhook_url,
+        enabled,
+        last_run: null,
+        last_status: null,
+        last_result: null,
+        created_at: 0
+      })
+    });
+
+    if (resp.ok) {
+      showToast('Backup profile saved successfully', 'success');
+      closeModal('backup-profile-modal');
+      loadBackupProfiles();
+    } else {
+      showToast('Failed to save profile: ' + await resp.text(), 'error');
+    }
+  } catch (e) {
+    showToast('Save error: ' + String(e), 'error');
+  }
+}
+
+async function loadBackupProfiles() {
+  const tbody = document.getElementById('backup-profiles-body');
+  if (tbody) tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 30px; color: var(--accent);"><i data-lucide="loader"></i> Loading profiles...</td></tr>`;
+  if (window.lucide) lucide.createIcons();
+
+  try {
+    const resp = await fetch('/api/tools/sync/profiles', {
+      headers: { 'Authorization': `Bearer ${App.token}` }
+    });
+
+    if (!resp.ok) {
+      if (tbody) tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 30px; color: var(--danger);">Failed to load profiles.</td></tr>`;
+      return;
+    }
+
+    const profiles = await resp.json();
+    if (profiles.length === 0) {
+      if (tbody) tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 40px; color: var(--text-dim);">No backup jobs configured yet. Click <b>New Backup Job</b> to create one.</td></tr>`;
+      return;
+    }
+
+    if (tbody) {
+      tbody.innerHTML = profiles.map(p => {
+        const modeBadge = {
+          'synchronize': '<span class="badge" style="background: rgba(59,130,246,0.15); color: #60a5fa;">2-Way Sync</span>',
+          'echo': '<span class="badge" style="background: rgba(239,68,68,0.15); color: #f87171;">Mirror (Echo)</span>',
+          'contribute': '<span class="badge" style="background: rgba(34,197,94,0.15); color: #4ade80;">Contribute</span>',
+          'subscribe': '<span class="badge" style="background: rgba(168,85,247,0.15); color: #c084fc;">Archive Versioning</span>'
+        }[p.profile_mode] || `<span class="badge">${escapeHtml(p.profile_mode)}</span>`;
+
+        let schedBadge = '';
+        if (p.schedule_type === 'realtime') {
+          schedBadge = '<span class="badge" style="background: rgba(245,158,11,0.2); color: #fbbf24;">⚡ Real-Time Watcher</span>';
+        } else if (p.schedule_type === 'interval') {
+          schedBadge = `<span class="badge" style="background: rgba(14,165,233,0.15); color: #38bdf8;">⏰ Every ${p.schedule_interval_mins}m</span>`;
+        } else if (p.schedule_type === 'daily') {
+          schedBadge = `<span class="badge" style="background: rgba(139,92,246,0.15); color: #a78bfa;">📅 Daily @ ${p.schedule_time || '02:00'}</span>`;
+        } else {
+          schedBadge = '<span class="badge" style="background: rgba(255,255,255,0.05); color: var(--text-dim);">Manual</span>';
+        }
+
+        const activeSwitch = `
+          <button class="btn btn-xs" onclick="toggleBackupProfileActive('${p.id}')" style="background: ${p.enabled ? 'rgba(34,197,94,0.2); color: #4ade80;' : 'rgba(255,255,255,0.05); color: var(--text-dim);'}">
+            ${p.enabled ? '● Active' : '○ Paused'}
+          </button>
+        `;
+
+        const lastRunStr = p.last_run ? new Date(p.last_run * 1000).toLocaleString() : '<span style="color: var(--text-dim);">Never</span>';
+        const statusPill = p.last_status === 'success' ? '✓' : (p.last_status === 'failed' ? '❌' : '');
+
+        return `
+          <tr style="border-bottom: 1px solid var(--border);">
+            <td style="padding: 8px 12px; font-weight: 600;">${escapeHtml(p.name)}</td>
+            <td style="padding: 8px 12px; font-family: var(--font-mono); font-size: 11px; max-width: 280px; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(p.source_dir)} ➔ ${escapeHtml(p.dest_dir)}">
+              <span style="color: var(--info);">${escapeHtml(p.source_dir)}</span> ➔ <span style="color: #c084fc;">${escapeHtml(p.dest_dir)}</span>
+            </td>
+            <td style="padding: 8px 10px; text-align: center;">${modeBadge}</td>
+            <td style="padding: 8px 10px; text-align: center;">${schedBadge}</td>
+            <td style="padding: 8px 10px; text-align: center;">${activeSwitch}</td>
+            <td style="padding: 8px 12px; font-size: 11px; color: var(--text-muted);">${statusPill} ${lastRunStr}</td>
+            <td style="padding: 8px 12px; text-align: right; white-space: nowrap;">
+              <button class="btn btn-xs btn-accent" onclick="runBackupProfileNow('${p.id}')" title="Run Backup Now"><i data-lucide="play"></i></button>
+              <button class="btn btn-xs" onclick='openCreateBackupProfileModal(${JSON.stringify(p)})' title="Edit Profile"><i data-lucide="edit"></i></button>
+              <button class="btn btn-xs" onclick="deleteBackupProfile('${p.id}')" title="Delete Profile" style="color: var(--danger);"><i data-lucide="trash-2"></i></button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+      if (window.lucide) lucide.createIcons();
+    }
+  } catch (e) {
+    if (tbody) tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 30px; color: var(--danger);">Error loading profiles: ${escapeHtml(String(e))}</td></tr>`;
+  }
+}
+
+async function runBackupProfileNow(id) {
+  try {
+    const resp = await fetch(`/api/tools/sync/profiles/${encodeURIComponent(id)}/run`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${App.token}` }
+    });
+
+    if (resp.ok) {
+      showToast('⚡ Backup job started in background', 'info');
+      openFloatingTaskManager();
+    } else {
+      showToast('Failed to start backup job: ' + await resp.text(), 'error');
+    }
+  } catch (e) {
+    showToast('Run error: ' + String(e), 'error');
+  }
+}
+
+async function toggleBackupProfileActive(id) {
+  try {
+    const resp = await fetch(`/api/tools/sync/profiles/${encodeURIComponent(id)}/toggle`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${App.token}` }
+    });
+
+    if (resp.ok) {
+      loadBackupProfiles();
+    }
+  } catch (e) {
+    showToast('Toggle error: ' + String(e), 'error');
+  }
+}
+
+async function deleteBackupProfile(id) {
+  if (!confirm('Are you sure you want to delete this backup profile?')) return;
+
+  try {
+    const resp = await fetch(`/api/tools/sync/profiles/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${App.token}` }
+    });
+
+    if (resp.ok) {
+      showToast('Backup profile deleted', 'info');
+      loadBackupProfiles();
+    } else {
+      showToast('Delete failed: ' + await resp.text(), 'error');
+    }
+  } catch (e) {
+    showToast('Delete error: ' + String(e), 'error');
+  }
+}
+
+async function loadBackupHistory() {
+  const tbody = document.getElementById('backup-history-body');
+  if (tbody) tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 30px; color: var(--accent);"><i data-lucide="loader"></i> Loading history...</td></tr>`;
+  if (window.lucide) lucide.createIcons();
+
+  try {
+    const resp = await fetch('/api/tools/sync/history?limit=50', {
+      headers: { 'Authorization': `Bearer ${App.token}` }
+    });
+
+    if (!resp.ok) {
+      if (tbody) tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 30px; color: var(--danger);">Failed to load history.</td></tr>`;
+      return;
+    }
+
+    const items = await resp.json();
+    if (items.length === 0) {
+      if (tbody) tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 40px; color: var(--text-dim);">No backup executions recorded yet.</td></tr>`;
+      return;
+    }
+
+    if (tbody) {
+      tbody.innerHTML = items.map(h => {
+        const dateStr = new Date(h.started_at * 1000).toLocaleString();
+        const statusBadge = h.status === 'success'
+          ? '<span class="badge" style="background: rgba(34,197,94,0.15); color: #4ade80;">Success</span>'
+          : '<span class="badge" style="background: rgba(239,68,68,0.15); color: #f87171;">Failed</span>';
+
+        const durSec = (h.duration_ms / 1000).toFixed(1) + 's';
+        const errDetails = h.error_message ? `<span style="color: var(--danger); font-size: 10px;">${escapeHtml(h.error_message)}</span>` : '<span style="color: var(--text-dim);">Clean execution</span>';
+
+        return `
+          <tr style="border-bottom: 1px solid var(--border);">
+            <td style="padding: 8px 12px; font-size: 11px; color: var(--text-muted);">${dateStr}</td>
+            <td style="padding: 8px 12px; font-weight: 600;">${escapeHtml(h.profile_name)}</td>
+            <td style="padding: 8px 10px; text-align: center;">${statusBadge}</td>
+            <td style="padding: 8px 10px; text-align: right; color: #4ade80;">${h.files_copied}</td>
+            <td style="padding: 8px 10px; text-align: right; color: #c084fc;">${h.files_archived}</td>
+            <td style="padding: 8px 10px; text-align: right; color: #f87171;">${h.files_deleted}</td>
+            <td style="padding: 8px 10px; text-align: right; font-family: var(--font-mono); font-size: 11px;">${durSec}</td>
+            <td style="padding: 8px 12px; font-size: 11px;">${errDetails}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+  } catch (e) {
+    if (tbody) tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 30px; color: var(--danger);">Error loading history: ${escapeHtml(String(e))}</td></tr>`;
   }
 }
 
@@ -13759,7 +14152,7 @@ const SPOTLIGHT_STATIC_ACTIONS = [
   { id: 'diff', title: 'File & Folder Diff', sub: 'Compare files or directories side-by-side (F9)', icon: 'git-compare', cat: 'actions', action: () => triggerDiff() },
   { id: 'search', title: 'Deep File Search', sub: 'Search files and folders recursively (Ctrl+F)', icon: 'search', cat: 'actions', action: () => openSearchModal() },
   { id: 'shares', title: 'Active Shares & Dropboxes', sub: 'Manage public share links and guest upload dropboxes', icon: 'share-2', cat: 'actions', action: () => openSharesManager() },
-  { id: 'sync', title: 'Directory Sync & Mirror', sub: 'Compare and sync two directories bidirectionally', icon: 'refresh-cw', cat: 'actions', action: () => openSyncModal() },
+  { id: 'sync', title: 'Delta Backup & Sync Studio (SyncToy & Bvckup 2)', sub: 'Two-Way Sync, Mirror, Contribute, Versioning Archive & Scheduler', icon: 'refresh-cw', cat: 'actions', action: () => openSyncModal() },
   { id: 'du', title: 'Disk Usage & Storage Treemap Analyzer', sub: 'Inspect space consumption, largest folders & files', icon: 'pie-chart', cat: 'actions', action: () => openDiskUsageModal() },
   { id: 'syncthing', title: 'Syncthing Dashboard', sub: 'Continuous peer-to-peer file synchronization', icon: 'repeat', cat: 'actions', action: () => openSyncthingModal() },
   { id: 'convert', title: 'ConvertX File Converter', sub: 'Batch convert images, documents, audio, videos', icon: 'file-output', cat: 'actions', action: () => openConverterModal() },

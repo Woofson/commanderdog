@@ -1,7 +1,7 @@
 # <img src="assets/logo.png" alt="CommanderDog Logo" height="40" style="vertical-align: -6px; margin-right: 8px;" /> CommanderDog Product Roadmap
 
 > **Slogan**: *Multi-Tab File Commander for Web & Native Desktop — By Woofson*  
-> **Current Version**: `v0.6.8-rc1 (Desktop & Web)`
+> **Current Version**: `v0.6.9-rc1 (Desktop & Web)`
 
 This roadmap outlines completed capabilities, active architectural enhancements, and future milestones for CommanderDog, combining orthodox two-pane file commander power tools (Total Commander, Double Commander, Krusader, Directory Opus) with modern responsive web and native standalone desktop architecture.
 
@@ -24,9 +24,8 @@ This roadmap outlines completed capabilities, active architectural enhancements,
 │ rclone & rsync         │ DeltaCopy / RoboCopy        │ Differential delta streaming,       │
 │                        │ Engine & Background Tasks   │ bandwidth throttling & auto-retry   │
 ├────────────────────────┼─────────────────────────────┼─────────────────────────────────────┤
-│ Bvckup 2 & SyncToy     │ Delta Backup & Sync         │ Two-Way Sync, Echo/Mirror,          │
-│                        │ Engine (v0.6.9)             │ Contribute, Archive/Versioning,     │
-│                        │                             │ USN Journal change indexing         │
+│ Bvckup 2 & SyncToy     │ Delta Backup & Sync Studio  │ 4 replication profiles, in-place    │
+│                        │ (v0.6.9-rc1)                │ block deltas, snapshots & scheduler │
 ├────────────────────────┼─────────────────────────────┼─────────────────────────────────────┤
 │ Syncthing              │ Live Syncthing Dashboard    │ Peer status, throughput charts,     │
 │                        │ & Direct Local/LAN Sync     │ folder scan triggers, P2P sync      │
@@ -54,7 +53,23 @@ This roadmap outlines completed capabilities, active architectural enhancements,
 
 ---
 
-## 1. Completed Milestones (v0.1.0 — v0.6.8)
+## 1. Completed Milestones (v0.1.0 — v0.6.9-rc1)
+
+### Bvckup 2 & SyncToy Delta Backup Engine, Background Daemons & Folder Watchers (`v0.6.9-rc1`)
+- [x] **4 Core Replication Profiles (SyncToy & Bvckup 2)**:
+  - `synchronize`: Smart bidirectional 2-way sync with newer-file conflict resolution.
+  - `echo`: 1-way mirror making destination an exact replica, deleting destination orphans.
+  - `contribute`: Additive replication copying additions & modifications, keeping destination orphans.
+  - `subscribe`: Historical versioning archiving modified/deleted files into timestamped `_archive/` snapshot trees with automated retention pruning.
+- [x] **Block-Level In-Place Binary Delta Copy Engine (Bvckup 2 Speed)**:
+  - 64KB CRC32 chunk hashing skipping unmodified blocks and patching modified byte blocks in-place directly on disk.
+  - Post-transfer cryptographic verification (CRC32/SHA-256).
+- [x] **Automated Backup Profiles, Scheduler & Webhooks**:
+  - SQLite persistent profile management with interval, daily (HH:MM), and continuous real-time triggers.
+  - Webhook dispatchers (Discord/Slack/Telegram/generic JSON POST) alerting on completion or failure.
+  - Execution history & audit logs tracking files copied, archived, deleted, and duration.
+- [x] **Sync & Backup Studio Modal**:
+  - 3-tab layout (Live Diff & Replication, Backup Jobs & Scheduler, Run History & Logs) with interactive mode cards and action filters.
 
 ### Resizable Columns, Custom Column Chooser, Multi-Size Grid & Folder Tree Sidebar (`v0.6.8`)
 - [x] **Interactive Drag-to-Resize Table Columns**:
@@ -120,24 +135,23 @@ This roadmap outlines completed capabilities, active architectural enhancements,
 
 ```mermaid
 graph TD
-    A["v0.6.8 (Current: Resizable Columns, Custom Chooser, Multi-Size Grid & Tree Sidebar)"] --> B["1. Bvckup 2 & SyncToy Delta Backup Engine (v0.6.9)"]
-    B --> C["2. Orthodox Commander Power Tools Inspiration Suite (v0.7.0)"]
-    C --> D["3. Enterprise OIDC SSO & Collaborative Office (v0.8.0)"]
+    A["v0.6.9-rc1 (Current: Bvckup 2 & SyncToy Delta Backup Engine, Daemons & Snapshots)"] --> B["1. Orthodox Commander Power Tools Inspiration Suite (v0.7.0)"]
+    B --> C["2. Enterprise OIDC SSO & Collaborative Office (v0.8.0)"]
+    C --> D["3. High-Performance P2P Cluster & Distributed Virtual Storage (v1.0.0)"]
 ```
 
 ---
 
-### Milestone 1: Bvckup 2 & SyncToy Delta Backup & Sync Engine (`v0.6.9`)
-- **4 Core Replication Profiles**:
-  - **Synchronize (Two-Way Sync)**: Bi-directional reconciliation with conflict detection.
-  - **Echo / Mirror (One-Way Backup)**: Make Destination an exact mirror of Source (left-to-right).
-  - **Contribute / Additive**: Replicate additions and modifications without deleting destination files.
-  - **Subscribe / Versioning**: Preserve previous versions of modified and deleted files in timestamped `_archive/` snapshot trees.
-- **Block-Level Delta Copy Engine**:
-  - In-place binary delta calculation and patching for large modified files (transferring only changed blocks).
-  - Fast change indexing via filesystem journals (Windows USN Journal & Linux `inotify`).
-- **Background Tasks, Automation & Watchers**:
-  - Continuous real-time folder watching, periodic cron/timer schedules, and triggers on external USB/storage connection.
+### Milestone 1: Orthodox Commander Power Tools Inspiration Suite (`v0.7.0`)
+- **Total Commander & Double Commander Power Tools**:
+  - **Directory Synchronization 2.0**: Advanced regex path matching, ignore lists (`.syncignore`, `.gitignore`), and interactive visual side-by-side binary diff viewer inside diff rows.
+  - **Advanced Multi-Rename Tool (MRT 2.0)**: Extended regex capture groups, Exif date/camera variables, MP3 ID3 audio metadata tokens, counter sequences, and 1-click batch undo.
+  - **Enhanced Archive Packer Plugins**: In-browser ISO extraction/mounting, DMG reading, multi-volume 7z splitting/joining, and zstd/tar.xz compression presets.
+  - **Wcx / Wdx Content Plugins Subsystem**: Custom metadata column extractors and external helper integrations.
+
+### Milestone 2: Enterprise OIDC SSO & Collaborative Office (`v0.8.0`)
+- **Enterprise Identity Providers**: OpenID Connect (OIDC), OAuth2, SAML 2.0, Keycloak, Authentik, Okta, Azure AD.
+- **Collaborative Document Editing**: In-browser real-time collaborative editing for markdown, code, and Office documents (Collabora / OnlyOffice WOPI integration).
 
 ### Windows Native Desktop, Installers & Packaging (`v0.6.0`)
 - [x] **Native Windows Desktop Integration (`CommanderDog.exe`)**:
