@@ -65,6 +65,7 @@ class PaneState {
     this.selected = new Set();
     this.cursorIndex = 0;
     this.filterText = '';
+    this.showFilter = false;
     this.history = [this.path];
     this.historyIndex = 0;
     this.sortBy = 'name';
@@ -619,7 +620,7 @@ function createPaneElement(pane, index) {
         <button onclick="navPaneHistory(${index}, -1)" title="Back"><i data-lucide="arrow-left"></i></button>
         <button onclick="navPaneHistory(${index}, 1)" title="Forward"><i data-lucide="arrow-right"></i></button>
         <button onclick="navPaneUp(${index})" title="Parent Directory (Backspace)"><i data-lucide="arrow-up"></i></button>
-        <button onclick="refreshPane(${index})" title="Refresh"><i data-lucide="rotate-cw"></i></button>
+        <button class="btn btn-icon pane-filter-toggle-btn ${App.panes[index]?.showFilter ? 'active' : ''}" id="btn-filter-toggle-${index}" onclick="event.stopPropagation(); togglePaneFilter(${index})" title="Toggle Quick Filter (/ or Ctrl+F)"><i data-lucide="filter"></i></button>
         <button class="btn btn-icon pane-tree-btn desktop-header-tool ${App.panes[index]?.showTree ? 'active' : ''}" id="btn-tree-${index}" onclick="event.stopPropagation(); togglePaneTree(${index});" title="Toggle Folder Tree Sidebar"><i data-lucide="folder-tree"></i></button>
         <button onclick="openRemoteModal(${index})" class="desktop-header-tool" title="Connect Remote SFTP / WebDAV Server"><i data-lucide="network"></i></button>
       </div>
@@ -662,7 +663,11 @@ function createPaneElement(pane, index) {
         <button class="btn btn-icon desktop-header-tool" onclick="openColumnHeaderContextMenu(event, ${index})" title="Configure Table Columns & Auto-Fit"><i data-lucide="sliders-horizontal" style="width: 13px; height: 13px; color: var(--accent);"></i></button>
       </div>
 
-      <input type="text" class="pane-quick-filter" placeholder="Filter (/)..." id="pane-filter-${index}" oninput="handleFilterInput(${index}, this.value)">
+      <div class="pane-filter-wrapper" id="pane-filter-wrap-${index}" style="display: ${App.panes[index]?.showFilter ? 'flex' : 'none'};">
+        <i data-lucide="search" class="pane-filter-icon"></i>
+        <input type="text" class="pane-quick-filter" placeholder="Filter (/)..." id="pane-filter-${index}" value="${escapeHtml(App.panes[index]?.filterText || '')}" oninput="handleFilterInput(${index}, this.value)" onkeydown="handleFilterKey(event, ${index})">
+        <button class="pane-filter-clear-btn" onclick="clearPaneFilter(${index})" title="Clear filter (Esc)">✕</button>
+      </div>
     </div>
 
     <div class="pane-content" id="pane-content-${index}">
@@ -3657,6 +3662,10 @@ function setupKeyboardNavigation() {
           if (pane.cursorIndex < pane.entries.length - 1) pane.cursorIndex++;
           renderPaneTable(App.activePaneIndex);
         }
+        break;
+      case '/':
+        e.preventDefault();
+        togglePaneFilter(App.activePaneIndex);
         break;
     }
 
@@ -9302,6 +9311,57 @@ function handlePathKey(e, index) {
     disablePathInput(index);
   } else if (e.key === 'Escape') {
     disablePathInput(index);
+  }
+}
+
+function togglePaneFilter(index) {
+  const pane = App.panes[index];
+  if (!pane) return;
+  pane.showFilter = !pane.showFilter;
+
+  const wrap = document.getElementById(`pane-filter-wrap-${index}`);
+  const btn = document.getElementById(`btn-filter-toggle-${index}`);
+  const input = document.getElementById(`pane-filter-${index}`);
+
+  if (wrap) {
+    wrap.style.display = pane.showFilter ? 'flex' : 'none';
+  }
+  if (btn) {
+    if (pane.showFilter) btn.classList.add('active');
+    else btn.classList.remove('active');
+  }
+
+  if (pane.showFilter) {
+    if (input) {
+      input.focus();
+      input.select();
+    }
+  } else {
+    if (pane.filterText) {
+      pane.filterText = '';
+      if (input) input.value = '';
+      renderPaneTable(index);
+    }
+  }
+}
+
+function clearPaneFilter(index) {
+  const pane = App.panes[index];
+  if (!pane) return;
+  pane.filterText = '';
+  const input = document.getElementById(`pane-filter-${index}`);
+  if (input) {
+    input.value = '';
+    input.focus();
+  }
+  renderPaneTable(index);
+}
+
+function handleFilterKey(e, index) {
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    e.stopPropagation();
+    togglePaneFilter(index);
   }
 }
 

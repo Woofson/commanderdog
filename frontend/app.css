@@ -388,19 +388,69 @@ body {
   font-size: 11px;
 }
 
-.pane-quick-filter {
-  width: 110px;
+.pane-filter-wrapper {
+  display: flex;
+  align-items: center;
+  position: relative;
+  gap: 4px;
   background: var(--bg-dark);
   border: 1px solid var(--border);
   border-radius: 4px;
-  padding: 3px 6px;
+  padding: 1px 6px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  animation: fadeIn 0.1s ease-out;
+}
+
+.pane-filter-wrapper:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.25);
+}
+
+.pane-filter-icon {
+  width: 12px;
+  height: 12px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.pane-quick-filter {
+  width: 110px;
+  background: transparent;
+  border: none;
+  padding: 3px 2px;
   color: var(--text-main);
   font-size: 11px;
   outline: none;
 }
 
 .pane-quick-filter:focus {
-  border-color: var(--accent);
+  outline: none;
+}
+
+.pane-filter-clear-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+  transition: color 0.1s ease, background 0.1s ease;
+}
+
+.pane-filter-clear-btn:hover {
+  color: var(--text-main);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.pane-filter-toggle-btn.active {
+  background: rgba(245, 158, 11, 0.2) !important;
+  color: var(--accent) !important;
+  border-color: var(--accent) !important;
 }
 
 /* File Table View */
