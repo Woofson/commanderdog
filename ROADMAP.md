@@ -50,14 +50,17 @@ This roadmap outlines completed capabilities, active architectural enhancements,
 
 ```mermaid
 graph TD
-    A["v0.6.0 (Live: Windows Native Desktop, WebView2, MSI/EXE Installers, Winget, Scoop, Portable ZIP)"] --> B["1. 📄 PDF Split & Merger Tool (Page Reorder, Rotate & Extract)"]
-    B --> C["2. 🪟 Windows Service & Autostart Management (NT Service, Tray Auto-Launch)"]
-    C --> D["3. ⚙️ Folder Automation Watchers & Webhooks (notify-rs)"]
-    D --> E["4. 🌐 Enterprise OIDC SSO (Authentik, Keycloak, Okta)"]
-    E --> F["5. 📝 Collaborative Office Live Editing (WOPI / ONLYOFFICE / Collabora)"]
+    A["v0.6.0 (Live: Windows Native Desktop, WebView2, MSI/EXE Installers, Winget, Scoop, Portable ZIP)"] --> B["1. 📄 PDF Split/Merger, Mouse-Wheel Image Viewer & Dynamic Statusbar (v0.6.5)"]
+    B --> C["2. 🪟 Windows NT Service, Autostart & Rich Filetype Icon Suite (v0.6.6)"]
+    C --> D["3. 🗂️ View Modes, Resizable Columns, Custom Context Menus & Open-With (v0.6.7)"]
+    D --> E["4. ⚙️ Folder Automation Watchers & Webhooks (v0.6.8)"]
+    E --> F["5. 👑 Orthodox Commander Power Tools Inspiration Suite (v0.7.0)"]
+    F --> G["6. 🌐 Enterprise OIDC SSO & Collaborative Office (v0.8.0)"]
 ```
 
-### 📄 Milestone 1: PDF Split & Merger Tool & Enhanced Media Viewer (`v0.6.5`)
+---
+
+### 📄 Milestone 1: PDF Split/Merger, Mouse-Wheel Image Viewer & Dynamic Statusbar (`v0.6.5`)
 - **Multi-File PDF Merger**:
   - Combine multiple selected PDF documents into a single unified PDF with 1-click from pane selection.
   - Interactive drag-and-drop page and document reordering table.
@@ -77,19 +80,23 @@ graph TD
   - **Configurable Wheel Behavior**: 1-Click toggle in Viewer settings: *Scroll to Browse Images* vs. *Scroll to Zoom*.
   - **<kbd>Ctrl</kbd> + Wheel Precision Zoom**: Smooth cursor-centered focal zoom with double-click reset to fit-to-screen.
   - **Intelligent Preload Cache**: Preload neighboring images in background for instant, zero-latency slideshow navigation.
-- **Dockable Tool & Floating Modal**:
-  - Launch from App Launcher, F-key toolbar, or right-click context menu on `.pdf` and image files.
+- **📊 Dynamic Selection Statusbar in Each Tab/Pane**:
+  - Real-time selection counters in pane footer: e.g. `3 / 142 items selected (45.2 MB of 1.8 GB)`.
+  - Detailed breakdown on multi-select: shows count of selected folders vs. files and total calculated byte size.
+- **⌨️ Function Keys Bar Customizer**:
+  - Settings toggle to show/hide the bottom <kbd>F1</kbd>..<kbd>F10</kbd> function bar.
+  - Configurable button labels and keybind reassignments.
 
 ---
 
-### 🪟 Milestone 2: Windows Background Service, Autostart & High-DPI Icons (`v0.6.6`)
-- **🎨 Windows Icon Suite & Shell Associations**:
-  - **Multi-Resolution High-DPI `.ico` Bundle**: Crisp 16x16, 24x24, 32x32, 48x48, 64x64, 128x128, 256x256 icons crafted for Windows 10/11 taskbar, Start Menu tiles, and Explorer.
-  - **System Tray State Badges**: Dynamic overlay badges in the Windows notification area (e.g. active background tasks, locked/unlocked vault indicators).
-  - **File Type Icons (`.cdvault` / `.cdv`)**: Native Windows shell icon registration for encrypted vault containers.
+### 🪟 Milestone 2: Windows Background Service, Autostart & Rich Filetype Icon Suite (`v0.6.6`)
+- **🎨 Rich File & Folder Icon Suite**:
+  - **Native System Shell Icon Extraction**: On Windows and Linux, dynamically query file associations and display crisp native application icons for `.exe`, `.docx`, `.pdf`, `.psd`, etc.
+  - **Expanded MIME Vector Icons**: Over 100+ specialized high-DPI vector icons for programming languages, 3D models (`.stl`, `.obj`), disc images (`.iso`), database files (`.sqlite`, `.db`), audio/video codecs, and configuration formats.
+  - **Custom Folder Badging & Color Coding**: Color-code individual folders or assign custom badge icons (e.g. Git repo, Project, Archive, Vault).
+  - **Multi-Resolution Windows `.ico` Bundle**: Crisp 16x16, 24x24, 32x32, 48x48, 64x64, 128x128, 256x256 icons crafted for Windows taskbar, Start Menu, and Explorer.
 - **Official Windows NT Service Architecture (`windows-service`)**:
   - Run CommanderDog server headlessly in the background as a registered Windows Service (`services.msc`).
-  - Ideal for Windows Server, NAS, home labs, and multi-user environments without requiring active user logon.
   - CLI management commands:
     ```powershell
     commanderdog.exe service install   # Registers CommanderDog NT Service
@@ -101,16 +108,34 @@ graph TD
   - Native Windows Event Log (`eventvwr.msc`) integration for audit and error tracking.
 - **User Logon Autostart & System Tray Minimization**:
   - 1-Click toggle in Settings / Tray: *"Start on Windows Startup"*.
-  - Managed via `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` and Startup folder.
   - Configurable start mode: Launch minimized directly into the System Tray with web server active (`--minimized` / `--tray-only`).
-- **Windows Task Scheduler Integration (`schtasks`)**:
-  - Helper scripts and manifest presets for scheduled starts on system boot, user idle, or wake-from-sleep.
-- **In-App Service Manager Panel**:
-  - View running service status, port bindings, memory usage, and restart service directly from the Settings UI.
 
 ---
 
-### ⚙️ Milestone 3: Folder Automation Watchers & Webhooks (`v0.6.8`)
+### 🗂️ Milestone 3: View Modes, Resizable Columns, Custom Context Menus & Open-With (`v0.6.7`)
+- **📐 Interactive Resizable & Customizable Table Columns**:
+  - **Drag-to-Resize Dividers**: Grab column header borders to dynamically resize Name, Size, Modified, Permissions, Owner, etc.
+  - **Custom Column Builder**: Choose which columns to display or hide per pane:
+    - *Standard*: Name, Extension, File Size, Date Modified, Date Created.
+    - *Security / Unix*: Permissions (Octal / POSIX), Owner, Group, Attributes.
+    - *Integrity & Version Control*: SHA-256 Checksum, Git Status Badge, Color Tags.
+  - **Sticky Widths & Layout Persistence**: Save column widths to browser localStorage or global `config.toml`.
+- **🖼️ Multiple Pane View Modes**:
+  - **Detailed List Table (Default)**: Full orthodox metadata view.
+  - **Thumbnail Gallery / Grid View**: Adjustable-size preview cards (Small, Medium, Large, Extra Large) with live image/video/PDF thumbnails.
+  - **Compact Multi-Column List**: Classic Commander high-density layout fitting maximum files per screen.
+  - **Togglable Directory Tree Pane**: Optional collapsible folder tree sidebar on the left side of any pane for hierarchical drive/directory navigation without pinned shortcuts.
+- **🚀 Custom "Open With..." & Default Application Configurator**:
+  - Configure default external programs in Settings per file extension (e.g. Video $\rightarrow$ `vlc "%1"`, Images $\rightarrow$ `fsviewer.exe` / `feh "%1"`, Code $\rightarrow$ `code "%1"` / `notepad++`).
+  - Right-click *"Open With..."* submenu listing configured external apps and system default handler.
+- **🖱️ Fully Customizable Right-Click Context Menu**:
+  - **Context Menu Editor in Settings**: Enable, disable, or reorder context menu actions.
+  - **Custom Shell Actions Builder**: Define custom commands and scripts with parameter tokens (`{file}`, `{dir}`, `{selection}`, `{target_pane}`).
+  - **Submenu Organizer**: Group custom scripts into custom nested submenus (e.g. *Git Tools*, *Media Tools*, *Development*).
+
+---
+
+### ⚙️ Milestone 4: Folder Automation Watchers & Webhooks (`v0.6.8`)
 - **Real-Time Directory Watchers**: Inotify / notify-rs backend tracking specified directories.
 - **Rule Engine**:
   - Automatically convert incoming images/media using ConvertX.
@@ -120,7 +145,56 @@ graph TD
 
 ---
 
-### 🌐 Milestone 4: Enterprise OIDC SSO & Collaborative Office (`v0.7.0`)
+### 👑 Milestone 5: Orthodox Commander Power Inspiration Suite (`v0.7.0`)
+*(Curated pick-and-mix power tool catalog inspired by Total Commander, Multi Commander, XYplorer, Directory Opus, and Next Explorer)*
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 🌟 CommanderDog Power Tools Inspiration Catalog (Pick & Mix)               │
+├──────────────────────┬──────────────────────────────────────────────────────┤
+│ Source Inspiration   │ Proposed CommanderDog Feature                        │
+├──────────────────────┼──────────────────────────────────────────────────────┤
+│ Total Commander      │ • Advanced Multi-Rename Tool (EXIF/ID3/Regex tokens) │
+│                      │ • Side-by-Side Directory Compare & Synchronize Dirs  │
+│                      │ • Treat Archives as Folders (virtual archive VFS)    │
+│                      │ • Type-Ahead Quick Search Bar with regex filter      │
+├──────────────────────┼──────────────────────────────────────────────────────┤
+│ Multi Commander      │ • Multi-Tab Session Workspaces (Save/Restore setups) │
+│                      │ • Hash Checksum Generator & .sha256/.sfv Validator   │
+│                      │ • Color-Coded File Extension Rules                   │
+│                      │ • Command Line Bar with user aliases                 │
+├──────────────────────┼──────────────────────────────────────────────────────┤
+│ XYplorer             │ • Dual Breadcrumb Bar with Drive/History Dropdowns   │
+│                      │ • Visual Filters (Show only modified today, images)  │
+│                      │ • Mini-Tree (auto-collapses unused tree branches)    │
+│                      │ • Portable File Associations & Custom Actions        │
+├──────────────────────┼──────────────────────────────────────────────────────┤
+│ Next Explorer & Opus │ • Flat / Branch View with recursive grouping         │
+│                      │ • Synchronized Dual Scrolling                        │
+│                      │ • Live Content Search with in-table match highlight  │
+│                      │ • Built-in Byte Calculator with Hex Conversion       │
+└──────────────────────┴──────────────────────────────────────────────────────┘
+```
+
+1. **🏷️ Advanced Multi-Rename Tool (Total Commander Style)**:
+   - Dynamic token builder: `[N]` (name), `[E]` (extension), `[C]` (counter/step), `[YMD]` (date), `[EXIF_Date]`, `[ID3_Artist]`, `[ID3_Title]`.
+   - Real-time side-by-side preview table before applying changes with 1-click Undo.
+2. **🔄 Side-by-Side Directory Synchronizer**:
+   - Compare two directories/panes by size, timestamp, or cryptographic checksum.
+   - Visual diff showing: *Files to copy $\rightarrow$*, *Files to copy $\leftarrow$*, *Equal files*, *Conflicting files*.
+   - One-click bidirectional synchronization.
+3. **📁 Virtual Archive Browsing (Archives as Folders)**:
+   - Seamlessly browse inside `.zip`, `.tar.gz`, `.7z`, `.rar`, `.iso`, and `.cdvault` containers without full extraction.
+4. **💾 Multi-Tab Session & Workspace Management**:
+   - Save entire multi-pane configurations, layouts, and open directory tabs as named Workspaces (e.g. *Dev Setup*, *Photo Editing*, *Server Management*).
+5. **🔍 Type-Ahead Quick Search & Instant Filter**:
+   - Press any alphanumeric key to immediately filter visible rows in real-time with wildcard (`*`, `?`) and regex support.
+6. **📜 Synchronized Dual Scrolling**:
+   - Lock scroll positions across left and right panes to compare directory trees side-by-side synchronously.
+
+---
+
+### 🌐 Milestone 6: Enterprise OIDC SSO & Collaborative Office (`v0.8.0`)
 - **OpenID Connect (OIDC)**: Seamless login via Authentik, Authelia, Keycloak, Okta, and Google Workspace alongside Linux PAM.
 - **Collaborative Office (WOPI)**: In-browser live editing for `.docx`, `.xlsx`, `.pptx`, `.odt`, `.ods` via ONLYOFFICE and Collabora Online integration.
 
@@ -139,7 +213,9 @@ graph TD
 | **`v0.5.0`** | **Zero-Leakage In-Memory Credentials, Leftmost Unified Pane Customizer, Modern Navbar, Tauri Tray** | **Released** |
 | **`v0.5.5`** | **Transparent Encrypted Vaults (AES-256-GCM / Argon2id), Cross-Mount Deletion Engine** | **Released** |
 | **`v0.6.0`** | **🪟 Windows Native Build & Release (MSI, Portable ZIP, Winget, Scoop, WebView2)** | **Released (Current)** |
-| **`v0.6.5`** | **📄 PDF Split & Merger Tool & Mouse Wheel Image Viewer Navigation** | *Next Up* |
-| **`v0.6.6`** | **🪟 Windows Service, Autostart Management & High-DPI Windows Icons** | *Planned* |
+| **`v0.6.5`** | **📄 PDF Split/Merger, Mouse-Wheel Image Navigation & Dynamic Statusbar Selection** | *Next Up* |
+| **`v0.6.6`** | **🪟 Windows Service, Autostart Management & Rich Filetype Icon Suite** | *Planned* |
+| **`v0.6.7`** | **🗂️ Resizable Columns, Alternate View Modes, "Open With" App Config & Context Menus** | *Planned* |
 | **`v0.6.8`** | **⚙️ Folder Automation Watchers & Webhook Rules** | *Planned* |
-| **`v0.7.0`** | **🌐 Enterprise OIDC SSO, Collaborative Office (WOPI) & Automation Engine** | *Planned* |
+| **`v0.7.0`** | **👑 Orthodox Commander Power Tools (Multi-Rename, Dir Sync, Workspaces, Quick Filter)** | *Planned* |
+| **`v0.8.0`** | **🌐 Enterprise OIDC SSO, Collaborative Office (WOPI) & Automation Engine** | *Planned* |
