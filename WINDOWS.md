@@ -1,4 +1,4 @@
-# 🪟 CommanderDog for Windows
+# <img src="assets/logo.png" alt="CommanderDog Logo" width="32" height="32" style="vertical-align: middle; margin-right: 8px;" /> CommanderDog for Windows
 
 <div align="center">
   <img src="assets/CommanderDogWin.png" alt="CommanderDog Windows Desktop Edition" width="800" style="border-radius: 8px; box-shadow: 0 12px 32px rgba(0,0,0,0.6); margin: 12px 0;" />
@@ -9,7 +9,7 @@
 
 ---
 
-## ⚡ 1. Overview & Architecture
+## 1. Overview & Architecture
 
 CommanderDog on Windows is distributed as:
 1. **Standalone Native Desktop Application (`CommanderDog.exe`)**:
@@ -22,7 +22,7 @@ CommanderDog on Windows is distributed as:
 
 ---
 
-## 📥 2. Installation Options
+## 2. Installation Options
 
 ### A. Windows Package Manager (`winget`)
 Install with a single command from PowerShell or Windows Terminal:
@@ -48,7 +48,7 @@ scoop install packaging\windows\scoop\commanderdog.json
 
 ---
 
-## 🖱️ 3. Windows Explorer Context Menu Integration
+## 3. Windows Explorer Context Menu Integration
 
 Add **"Open in CommanderDog"** to the Windows Explorer right-click context menu for any directory, drive, or folder background:
 
@@ -66,7 +66,7 @@ reg import packaging\windows\unregister-context-menu.reg
 
 ---
 
-## 🗂️ 4. Windows Filesystem Features
+## 4. Windows Filesystem Features
 
 - **Drive Letter Navigation**: Switch seamlessly across `C:\`, `D:\`, `E:\`, `Z:\` in breadcrumbs and the quick jump menu.
 - **Environment Variable Expansion**: Navigate directly to `%USERPROFILE%`, `%APPDATA%`, `%LOCALAPPDATA%`, `%TEMP%`, or `~/`.
@@ -76,7 +76,7 @@ reg import packaging\windows\unregister-context-menu.reg
 
 ---
 
-## 🛠️ 5. Building from Source on Windows
+## 5. Building from Source on Windows
 
 ### Prerequisites
 - [Rust & Cargo](https://rustup.rs/) (`stable-x86_64-pc-windows-msvc`)
@@ -99,5 +99,5 @@ Build outputs will be generated in `dist\windows\`:
 
 ---
 
-## 📜 License
+## License
 MIT License — Copyright (c) 2026 Bolt J Woofson <bolt@boop.no>
