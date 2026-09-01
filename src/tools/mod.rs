@@ -12,3 +12,4 @@ pub mod sync;
 pub mod syncthing;
 pub mod tags;
 pub mod tasks;
+pub mod notedog;

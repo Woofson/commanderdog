@@ -27,6 +27,8 @@ pub struct AppConfig {
     pub bookmarks: Vec<BookmarkConfig>,
     #[serde(default)]
     pub syncthing: crate::tools::syncthing::SyncthingConfig,
+    #[serde(default)]
+    pub notedog: NoteDogConfig,
 }
 
 impl Default for AppConfig {
@@ -43,6 +45,7 @@ impl Default for AppConfig {
             open_with: default_open_with(),
             bookmarks: default_bookmarks(),
             syncthing: crate::tools::syncthing::SyncthingConfig::default(),
+            notedog: NoteDogConfig::default(),
         }
     }
 }
@@ -448,6 +451,24 @@ impl Default for UiConfig {
 fn default_pane_count() -> usize { 2 }
 fn default_layout_name() -> String { "dual-vertical".to_string() }
 fn default_view_mode() -> String { "details".to_string() }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NoteDogConfig {
+    #[serde(default = "default_notes_folder")]
+    pub notes_folder: String,
+}
+
+impl Default for NoteDogConfig {
+    fn default() -> Self {
+        Self {
+            notes_folder: default_notes_folder(),
+        }
+    }
+}
+
+pub fn default_notes_folder() -> String {
+    "~/Notes".to_string()
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DesktopConfig {

@@ -80,6 +80,7 @@
           <div class="dropdown-item" onclick="openSpotlightModal()"><i data-lucide="sparkles" style="color: var(--accent);"></i> Spotlight Quick-Switcher (Ctrl+K)</div>
           <div class="dropdown-item" onclick="toggleFolderTree()"><i data-lucide="folder-tree" style="color: var(--accent);"></i> Folder Hierarchy Tree (Ctrl+T)</div>
           <div class="dropdown-item" onclick="toggleBranchView()"><i data-lucide="git-branch" style="color: var(--accent);"></i> Flat / Branch View (Ctrl+B)</div>
+          <div class="dropdown-item" onclick="openFloatingNoteDog()"><i data-lucide="book-open" style="color: var(--accent);"></i> NoteDog Notes & Markdown</div>
           <div class="dropdown-item" onclick="openFloatingCalculator()"><i data-lucide="calculator" style="color: var(--accent);"></i> Calculator</div>
           <div class="dropdown-item" onclick="toggleTerminal()"><i data-lucide="terminal"></i> Terminal Console (`)</div>
           <div class="dropdown-item" onclick="openFloatingEditor()"><i data-lucide="code"></i> EditorDog Multi-Tab (F4)</div>
@@ -360,7 +361,7 @@
       </div>
 
       <!-- Properties Tabs Header -->
-      <div class="settings-tabs" style="border-bottom: 1px solid var(--border); padding: 0 8px;">
+      <div class="settings-tabs">
         <button class="settings-tab-btn active" id="btn-prop-tab-general" onclick="switchPropertiesTab('prop-tab-general')"><i data-lucide="info"></i> General</button>
         <button class="settings-tab-btn" id="btn-prop-tab-security" onclick="switchPropertiesTab('prop-tab-security')"><i data-lucide="shield"></i> Security</button>
         <button class="settings-tab-btn" id="btn-prop-tab-checksums" onclick="switchPropertiesTab('prop-tab-checksums')"><i data-lucide="hash"></i> Checksums</button>
@@ -507,6 +508,7 @@
 
         <!-- Tab 4: Color & Tags -->
         <div class="settings-tab-content" id="prop-tab-tags">
+          <!-- Color Label -->
           <div class="form-group">
             <label style="font-weight: 600; font-size: 12px; margin-bottom: 6px; display: block;">Color Label:</label>
             <div class="context-color-palette" style="display: flex; gap: 8px; margin-top: 4px;">
@@ -520,7 +522,34 @@
             </div>
           </div>
 
-          <div class="form-group" style="margin-top: 16px;">
+          <!-- Custom Folder / File Icon & Emote -->
+          <div class="form-group" style="margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <label style="font-weight: 600; font-size: 12px; margin: 0;">Customize Folder / File Icon & Emote:</label>
+              <div id="prop-current-icon-badge" style="font-size: 11px; color: var(--accent); font-weight: 600; display: inline-flex; align-items: center; gap: 6px;"></div>
+            </div>
+
+            <!-- Quick Category Presets -->
+            <div class="icon-presets-container" style="margin-bottom: 10px;">
+              <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 6px;">Quick Presets (Click to apply):</div>
+              <div id="prop-preset-buttons-container" style="display: flex; flex-wrap: wrap; gap: 6px; max-height: 110px; overflow-y: auto; padding: 4px; background: var(--bg-active); border-radius: 6px; border: 1px solid var(--border);">
+                <!-- Populated dynamically by renderPropTagsTab -->
+              </div>
+            </div>
+
+            <!-- Custom Input Box -->
+            <div style="display: flex; gap: 6px; align-items: center;">
+              <input type="text" id="prop-input-custom-icon" class="pane-quick-filter" placeholder="Paste any emoji (📁, 🚀), Nerd Font (, ), lucide:star, or img:path..." style="flex: 1; padding: 6px 8px; font-family: var(--font-mono), sans-serif; font-size: 12px;">
+              <button class="btn btn-sm btn-accent" onclick="applyPropCustomIconInput()"><i data-lucide="check"></i> Apply</button>
+              <button class="btn btn-sm" onclick="clearPropCustomIcon()"><i data-lucide="rotate-ccw"></i> Reset</button>
+            </div>
+            <div class="form-hint" style="margin-top: 5px; font-size: 11px; color: var(--text-dim);">
+              Custom icon is saved specifically for this path and displayed across tables, compact, grid, and tree views.
+            </div>
+          </div>
+
+          <!-- Custom Tags -->
+          <div class="form-group" style="margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border);">
             <label style="font-weight: 600; font-size: 12px; margin-bottom: 6px; display: block;">Custom Tags:</label>
             <div id="prop-tags-container" style="display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0; min-height: 28px;"></div>
             <div style="display: flex; gap: 6px; margin-top: 6px;">
@@ -750,27 +779,33 @@
 
   <!-- Comprehensive Tabbed Settings Modal -->
   <div class="modal-overlay" id="settings-modal">
-    <div class="modal-box" style="width: 800px; height: 85vh;">
+    <div class="modal-box" style="width: 900px; max-width: 96vw; height: 85vh; display: flex; flex-direction: column;">
       <div class="modal-header">
         <span>⚙️ User Settings & Preferences</span>
         <button class="btn" onclick="closeModal('settings-modal')"><i data-lucide="x"></i></button>
       </div>
       
-      <!-- User Settings Tabs Header -->
+      <!-- User Settings Tabs Header (7 Compact Desktop Tabs) -->
       <div class="settings-tabs">
         <button class="settings-tab-btn active" onclick="switchSettingsTab('tab-general')"><i data-lucide="sliders"></i> General</button>
-        <button class="settings-tab-btn" onclick="switchSettingsTab('tab-columns')"><i data-lucide="columns-3"></i> Columns & Views</button>
+        <button class="settings-tab-btn" onclick="switchSettingsTab('tab-palette')"><i data-lucide="palette"></i> Themes</button>
+        <button class="settings-tab-btn" onclick="switchSettingsTab('tab-icons')"><i data-lucide="sparkles"></i> Icons & Filetypes</button>
         <button class="settings-tab-btn" onclick="switchSettingsTab('tab-openwith')"><i data-lucide="external-link"></i> Open With</button>
         <button class="settings-tab-btn" onclick="switchSettingsTab('tab-context')"><i data-lucide="mouse-pointer"></i> Context Menu</button>
-        <button class="settings-tab-btn" onclick="switchSettingsTab('tab-palette')"><i data-lucide="palette"></i> Themes</button>
-        <button class="settings-tab-btn" onclick="switchSettingsTab('tab-desktop')"><i data-lucide="monitor"></i> Desktop & Tray</button>
         <button class="settings-tab-btn" onclick="switchSettingsTab('tab-bookmarks')"><i data-lucide="bookmark"></i> Bookmarks</button>
         <button class="settings-tab-btn" onclick="switchSettingsTab('tab-keys')"><i data-lucide="keyboard"></i> Keybindings</button>
       </div>
 
-      <div class="modal-body" style="padding: 0;">
-        <!-- Tab 1: General UI & Preferences -->
+      <div class="modal-body" style="padding: 0; flex: 1; overflow-y: auto;">
+        <!-- Tab 1: General UI, View Modes & Desktop Preferences -->
         <div class="settings-tab-content active" id="tab-general">
+          
+          <!-- Section 1: General UI & Behavior -->
+          <div class="settings-section-header" style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+            <i data-lucide="sliders" style="color: var(--accent); width: 16px; height: 16px;"></i>
+            <h4 style="margin: 0; font-size: 13px; font-weight: 700; color: var(--accent);">General UI & Behavior</h4>
+          </div>
+
           <div class="form-group">
             <label>Hidden Files & Dotfiles:</label>
             <div style="display: flex; align-items: center; gap: 8px;">
@@ -779,6 +814,7 @@
             </div>
             <div class="form-hint">Toggle visibility of dotfiles across all active directory panels.</div>
           </div>
+
           <div class="form-group">
             <label>Default Layout:</label>
             <select id="setting-default-layout" class="pane-quick-filter" style="width: 250px;">
@@ -789,6 +825,7 @@
               <option value="layout-quad">4 Panes (2x2 Quad Grid)</option>
             </select>
           </div>
+
           <div class="form-group">
             <label>Confirmations & Safety:</label>
             <div style="display: flex; flex-direction: column; gap: 6px;">
@@ -817,6 +854,18 @@
             </div>
           </div>
 
+          <!-- NoteDog Notes Directory Configuration -->
+          <div class="form-group">
+            <label>🐶 NoteDog Notes Directory:</label>
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <div style="display: flex; gap: 6px; align-items: center; max-width: 540px;">
+                <input type="text" id="setting-notedog-folder" class="pane-quick-filter" style="flex: 1; padding: 5px 8px; font-family: var(--font-mono); font-size: 11px;" placeholder="~/Notes" onchange="saveNoteDogFolderSetting(this.value)">
+                <button class="btn btn-xs btn-outline" onclick="browseNoteDogFolder()" title="Use active pane's current path as notes folder"><i data-lucide="folder-check" style="width: 12px;"></i> Use Active Pane</button>
+              </div>
+              <div class="form-hint">Customize the directory where NoteDog loads and stores notebooks, sections, and notes. Also configurable in <code>config.toml</code> (<code>[notedog] notes_folder</code>) or NoteDog TUI (<code>~/.config/notedog/notedog.toml</code>).</div>
+            </div>
+          </div>
+
           <div class="form-group">
             <label>Transfer Manager & TeraCopy Display Detail:</label>
             <select id="setting-task-verbosity" class="pane-quick-filter" style="width: 280px;" onchange="setTaskVerbosity(this.value)">
@@ -837,15 +886,6 @@
           </div>
 
           <div class="form-group">
-            <label>Native Window Frame & Decorations (Hyprland / Tiling WMs):</label>
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <input type="checkbox" id="setting-window-decorations" checked onchange="toggleWindowDecorations(this.checked)">
-              <span>Show native OS window decorations (title bar & borders)</span>
-            </div>
-            <div class="form-hint">Toggle off for seamless borderless/frameless integration in tiling window managers (Hyprland, Sway, i3). Can also be controlled via <code>~/.config/commanderdog/config.toml</code> or <code>commanderdog --no-decorations</code>.</div>
-          </div>
-
-          <div class="form-group">
             <label>Interface & File Manager Text Size:</label>
             <div class="slider-container">
               <input type="range" min="10" max="18" value="13" class="range-slider" id="setting-font-size-slider" oninput="handleFontSizeChange(this.value)">
@@ -859,11 +899,12 @@
             </div>
             <div class="form-hint">Adjust text size smoothly across file tables, breadcrumbs, and panes.</div>
           </div>
-        </div>
 
-        <!-- Tab: Columns & View Modes -->
-        <div class="settings-tab-content" id="tab-columns">
-          <h4 style="color: var(--accent); margin-bottom: 8px;">Columns & View Modes Configuration</h4>
+          <!-- Section 2: Columns & View Modes (Merged) -->
+          <div class="settings-section-header" style="display: flex; align-items: center; gap: 8px; margin-top: 24px; margin-bottom: 12px; padding-top: 18px; border-top: 1px solid var(--border);">
+            <i data-lucide="columns-3" style="color: var(--accent); width: 16px; height: 16px;"></i>
+            <h4 style="margin: 0; font-size: 13px; font-weight: 700; color: var(--accent);">Columns & View Modes</h4>
+          </div>
           <p style="color: var(--text-muted); font-size: 11px; margin-bottom: 14px;">Customize default file view modes, resizable table column visibility, and widths.</p>
 
           <div class="form-group">
@@ -914,6 +955,47 @@
               <button class="btn btn-sm" onclick="resetAllColumnWidths()"><i data-lucide="rotate-ccw"></i> Reset Widths</button>
             </div>
           </div>
+
+          <!-- Section 3: Desktop, Windowing & System Tray (Merged) -->
+          <div class="settings-section-header" style="display: flex; align-items: center; gap: 8px; margin-top: 24px; margin-bottom: 12px; padding-top: 18px; border-top: 1px solid var(--border);">
+            <i data-lucide="monitor" style="color: var(--accent); width: 16px; height: 16px;"></i>
+            <h4 style="margin: 0; font-size: 13px; font-weight: 700; color: var(--accent);">Desktop, Windowing & System Tray</h4>
+          </div>
+          <p style="color: var(--text-muted); font-size: 11px; margin-bottom: 12px;">Configure native window behavior, system tray integration, and global hotkeys for Linux (Hyprland, X11, Wayland), macOS, and Windows.</p>
+
+          <div class="form-group">
+            <label>System Tray & Minimization:</label>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              <label style="font-weight: normal; display: flex; align-items: center; gap: 8px;">
+                <input type="checkbox" id="setting-minimize-tray" checked onchange="toggleMinimizeToTray(this.checked)">
+                <span><b>Minimize to System Tray on Close:</b> Closing the window keeps CommanderDog running in the background tray</span>
+              </label>
+              <label style="font-weight: normal; display: flex; align-items: center; gap: 8px;">
+                <input type="checkbox" id="setting-start-minimized" onchange="toggleStartMinimized(this.checked)">
+                <span><b>Start Minimized:</b> Launch directly to system tray on system boot / autostart</span>
+              </label>
+            </div>
+            <div class="form-hint">Can also be configured via <code>~/.config/commanderdog/config.toml</code>.</div>
+          </div>
+
+          <div class="form-group">
+            <label>Global Summon / Toggle Hotkey:</label>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <input type="text" id="setting-global-hotkey" class="pane-quick-filter" style="width: 220px; padding: 6px;" value="Super+C" readonly>
+              <span class="user-role-badge" style="background: rgba(245, 158, 11, 0.2); color: var(--accent);">Default: Super+C</span>
+            </div>
+            <div class="form-hint">Pressing this keybind anywhere in your operating system brings CommanderDog to the foreground instantly.</div>
+          </div>
+
+          <div class="form-group">
+            <label>Native Window Frame & Decorations (Hyprland / Sway / i3):</label>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <input type="checkbox" id="setting-desktop-decorations" checked onchange="toggleWindowDecorations(this.checked)">
+              <span><b>Native Window Frame & Decorations:</b> Show OS titlebar and system border</span>
+            </div>
+            <div class="form-hint">Uncheck for a clean frameless window that tiles seamlessly without header waste in Hyprland. Launch with <code>commanderdog --no-decorations</code>.</div>
+          </div>
+
         </div>
 
         <!-- Tab: Open With & External Handlers -->
@@ -1162,46 +1244,7 @@
           </div>
         </div>
 
-        <!-- Tab 3: Desktop & System Tray -->
-        <div class="settings-tab-content" id="tab-desktop">
-          <h4 style="color: var(--accent); margin-bottom: 8px;">🖥️ Standalone Desktop Window & System Tray</h4>
-          <p style="color: var(--text-muted); font-size: 11px; margin-bottom: 12px;">Configure native window behavior, system tray integration, and global hotkeys for Linux (Hyprland, X11, Wayland), macOS, and Windows.</p>
-
-          <div class="form-group">
-            <label>System Tray & Minimization:</label>
-            <div style="display: flex; flex-direction: column; gap: 8px;">
-              <label style="font-weight: normal; display: flex; align-items: center; gap: 8px;">
-                <input type="checkbox" id="setting-minimize-tray" checked onchange="toggleMinimizeToTray(this.checked)">
-                <span><b>Minimize to System Tray on Close:</b> Closing the window keeps CommanderDog running in the background tray</span>
-              </label>
-              <label style="font-weight: normal; display: flex; align-items: center; gap: 8px;">
-                <input type="checkbox" id="setting-start-minimized" onchange="toggleStartMinimized(this.checked)">
-                <span><b>Start Minimized:</b> Launch directly to system tray on system boot / autostart</span>
-              </label>
-            </div>
-            <div class="form-hint">Can also be configured via <code>~/.config/commanderdog/config.toml</code>.</div>
-          </div>
-
-          <div class="form-group">
-            <label>Global Summon / Toggle Hotkey:</label>
-            <div style="display: flex; gap: 8px; align-items: center;">
-              <input type="text" id="setting-global-hotkey" class="pane-quick-filter" style="width: 220px; padding: 6px;" value="Super+C" readonly>
-              <span class="user-role-badge" style="background: rgba(245, 158, 11, 0.2); color: var(--accent);">Default: Super+C</span>
-            </div>
-            <div class="form-hint">Pressing this keybind anywhere in your operating system brings CommanderDog to the foreground instantly.</div>
-          </div>
-
-          <div class="form-group">
-            <label>Tiling Window Managers (Hyprland / Sway / i3):</label>
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <input type="checkbox" id="setting-desktop-decorations" checked onchange="toggleWindowDecorations(this.checked)">
-              <span><b>Native Window Frame & Decorations:</b> Show OS titlebar and system border</span>
-            </div>
-            <div class="form-hint">Uncheck for a clean frameless window that tiles seamlessly without header waste in Hyprland. Launch with <code>commanderdog --no-decorations</code>.</div>
-          </div>
-        </div>
-
-        <!-- Tab 4: Bookmarks & Favorites -->
+        <!-- Tab: Bookmarks & Favorites -->
         <div class="settings-tab-content" id="tab-bookmarks">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
             <span style="font-weight: 600;">Saved Bookmarks & Favorite Paths</span>
@@ -1250,6 +1293,86 @@
             <tr><td><code>Ctrl + A</code></td><td>Select All in Current Pane</td></tr>
             <tr><td><code>Ctrl + P</code></td><td>Toggle Paranoid File Handling Mode</td></tr>
           </table>
+        </div>
+
+        <!-- Tab: Icons & Filetypes Customizer -->
+        <div class="settings-tab-content" id="tab-icons" style="padding: 16px;">
+          <!-- Global Theme Preset -->
+          <div class="form-group">
+            <label style="font-weight: 700; font-size: 12px;">Global Icon Theme:</label>
+            <select id="setting-icon-theme" class="pane-quick-filter" style="width: 340px; padding: 6px;" onchange="changeGlobalIconTheme(this.value)">
+              <option value="default" selected>Default (Woofson Classic Lucide + Assets)</option>
+              <option value="nerdfont">Nerd Font Developer Suite (     )</option>
+              <option value="emoji">Rich Emoji Suite (📁 🦀 🐍 ⚡ 📦 📝 🎬)</option>
+              <option value="custom">Custom Rules (Per-Extension Mappings)</option>
+            </select>
+            <div class="form-hint">Choose between classic graphical icons, developer Nerd Fonts, or rich colorful emojis across all panels.</div>
+          </div>
+
+          <!-- Global Default Folder Icon -->
+          <div class="form-group" style="margin-top: 14px;">
+            <label style="font-weight: 700; font-size: 12px;">Global Default Folder Icon / Emote:</label>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <input type="text" id="setting-global-folder-icon" class="pane-quick-filter" style="width: 240px; padding: 6px 8px; font-family: var(--font-mono), sans-serif;" placeholder="Default folder (e.g. 📁, , assets/folder-open.png)">
+              <button class="btn btn-sm btn-accent" onclick="saveGlobalFolderIcon()"><i data-lucide="check"></i> Save</button>
+              <button class="btn btn-sm" onclick="resetGlobalFolderIcon()"><i data-lucide="rotate-ccw"></i> Reset</button>
+            </div>
+            <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;" id="setting-folder-icon-presets">
+              <span class="icon-preset-chip" onclick="selectGlobalFolderPreset('assets/folder-open.png')">Default (PNG)</span>
+              <span class="icon-preset-chip" onclick="selectGlobalFolderPreset('📁')">📁 Yellow Folder</span>
+              <span class="icon-preset-chip" onclick="selectGlobalFolderPreset('📂')">📂 Open Folder</span>
+              <span class="icon-preset-chip" onclick="selectGlobalFolderPreset('🗂️')">🗂️ Card Dividers</span>
+              <span class="icon-preset-chip" onclick="selectGlobalFolderPreset('')"> Nerd Font Dir</span>
+              <span class="icon-preset-chip" onclick="selectGlobalFolderPreset('')"> Nerd Font Folder</span>
+              <span class="icon-preset-chip" onclick="selectGlobalFolderPreset('📦')">📦 Box Package</span>
+              <span class="icon-preset-chip" onclick="selectGlobalFolderPreset('🚀')">🚀 Rocket Project</span>
+            </div>
+          </div>
+
+          <!-- Per-Filetype & Extension Custom Icon Mapping -->
+          <div class="form-group" style="margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <div>
+                <label style="font-weight: 700; margin: 0;">Per-Filetype & Extension Custom Icons:</label>
+                <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">Map specific file extensions (e.g. <code>rs</code>, <code>py</code>, <code>md</code>, <code>iso</code>) to any custom emoji, emote, or Nerd Font glyph.</div>
+              </div>
+              <div style="display: flex; gap: 6px;">
+                <button class="btn btn-xs" onclick="loadNerdFontPresets()"><i data-lucide="code"></i> Load Nerd Fonts</button>
+                <button class="btn btn-xs" onclick="loadEmojiPresets()"><i data-lucide="smile"></i> Load Emojis</button>
+                <button class="btn btn-xs btn-danger" onclick="clearAllCustomFileIcons()"><i data-lucide="trash-2"></i> Clear All</button>
+              </div>
+            </div>
+
+            <!-- Add new mapping form -->
+            <div style="display: flex; gap: 8px; align-items: center; background: var(--bg-header); padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border); margin-bottom: 10px;">
+              <div style="display: flex; align-items: center; gap: 4px;">
+                <span style="font-size: 11px; color: var(--text-muted);">Ext:</span>
+                <input type="text" id="setting-new-icon-ext" class="pane-quick-filter" placeholder="e.g. rs, py, zip, folder" style="width: 140px; padding: 4px 6px; font-family: var(--font-mono); font-size: 11px;">
+              </div>
+              <div style="display: flex; align-items: center; gap: 4px; flex: 1;">
+                <span style="font-size: 11px; color: var(--text-muted);">Icon/Emote:</span>
+                <input type="text" id="setting-new-icon-val" class="pane-quick-filter" placeholder="e.g. 🦀, 🐍, , , lucide:code" style="flex: 1; padding: 4px 6px; font-family: var(--font-mono), sans-serif; font-size: 11px;">
+              </div>
+              <button class="btn btn-sm btn-accent" onclick="addCustomFileIconRule()"><i data-lucide="plus"></i> Add Rule</button>
+            </div>
+
+            <!-- Custom file icon rules table -->
+            <div style="max-height: 240px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px;">
+              <table class="file-table" style="width: 100%; font-size: 12px;">
+                <thead>
+                  <tr style="background: var(--bg-header); text-align: left;">
+                    <th style="padding: 6px 10px; width: 140px;">Extension / Type</th>
+                    <th style="padding: 6px 10px;">Icon / Glyph</th>
+                    <th style="padding: 6px 10px; width: 80px; text-align: center;">Preview</th>
+                    <th style="padding: 6px 10px; width: 80px; text-align: right;">Action</th>
+                  </tr>
+                </thead>
+                <tbody id="setting-custom-icons-table-body">
+                  <!-- Populated dynamically by JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </div>
       <div class="modal-footer">
@@ -1683,7 +1806,7 @@
         <button class="btn btn-sm btn-icon desktop-only" onclick="dockEditorToActivePane()" title="Dock Editor into Active Pane (Keep browsing on other pane)"><i data-lucide="panel-left-close"></i></button>
         <button class="btn btn-sm btn-icon desktop-only" onclick="minimizeFloatingEditor()" title="Minimize to Pill"><i data-lucide="minus"></i></button>
         <button class="btn btn-sm btn-icon desktop-only" onclick="maximizeFloatingEditor()" title="Maximize / Restore Window"><i data-lucide="maximize-2"></i></button>
-        <button class="btn btn-sm btn-icon btn-danger" onclick="closeEditorModal()" title="Close Editor"><i data-lucide="x"></i></button>
+        <button class="btn btn-sm btn-icon modal-close-btn" onclick="closeEditorModal()" title="Close Editor"><i data-lucide="x"></i></button>
       </div>
     </div>
 
@@ -1874,6 +1997,160 @@
   <div class="calc-pill" id="calc-pill" style="display: none;" onclick="restoreFloatingCalculator()" title="Click to restore Calculator">
     <span>🧮</span>
     <span id="calc-pill-text">Calculator</span>
+  </div>
+
+  <!-- Floating NoteDog Notes & Markdown Studio Window -->
+  <div class="floating-notedog-window" id="floating-notedog-window" style="display: none;" onclick="bringFloatingWindowToFront(this)">
+    <!-- 1. Top Header (Draggable) -->
+    <div class="modal-header notedog-header" id="notedog-header">
+      <div class="notedog-header-left" style="display: flex; align-items: center; gap: 8px;">
+        <span class="notedog-header-drag-handle" style="font-weight: 700; display: flex; align-items: center; gap: 6px; cursor: grab;">
+          <span style="font-size: 15px;">🐶</span>
+          <span style="color: var(--accent); font-weight: 800;">NoteDog</span>
+        </span>
+        <span class="notedog-badge-tag" id="notedog-current-breadcrumb">Personal / General</span>
+      </div>
+
+      <div class="notedog-header-center" style="flex: 1; max-width: 300px; margin: 0 10px; position: relative;">
+        <i data-lucide="search" style="position: absolute; left: 8px; top: 50%; transform: translateY(-50%); width: 13px; height: 13px; color: var(--text-dim);"></i>
+        <input type="text" id="notedog-search-input" class="pane-quick-filter" placeholder="Search notes..." style="width: 100%; padding-left: 26px; font-size: 11px; height: 24px;" oninput="handleNoteDogSearch(this.value)">
+      </div>
+
+      <div class="notedog-header-actions" style="display: flex; align-items: center; gap: 4px;">
+        <button class="btn btn-xs" onclick="openNoteDogNewMenu(event)" title="New Notebook, Section or Note"><i data-lucide="plus" style="width: 12px;"></i> New</button>
+        
+        <div class="notedog-mode-toggle-group" style="display: flex; background: var(--bg-dark); border-radius: 4px; padding: 2px; border: 1px solid var(--border);">
+          <button class="btn btn-xs notedog-mode-btn" id="notedog-mode-edit" onclick="setNoteDogViewMode('edit')" title="Markdown Editor Only"><i data-lucide="edit-3" style="width: 11px;"></i></button>
+          <button class="btn btn-xs notedog-mode-btn active" id="notedog-mode-split" onclick="setNoteDogViewMode('split')" title="Side-by-Side Split View"><i data-lucide="columns" style="width: 11px;"></i></button>
+          <button class="btn btn-xs notedog-mode-btn" id="notedog-mode-preview" onclick="setNoteDogViewMode('preview')" title="Rendered Markdown Preview Only"><i data-lucide="eye" style="width: 11px;"></i></button>
+        </div>
+
+        <button class="btn btn-icon btn-xs" onclick="openNoteDogVersionsModal()" title="Revision History & Live Diffs"><i data-lucide="history" style="width: 13px;"></i></button>
+        <button class="btn btn-icon btn-xs" onclick="dockNoteDogToActivePane()" title="Dock NoteDog into Active Pane"><i data-lucide="panel-left-close" style="width: 13px;"></i></button>
+        <button class="btn btn-icon btn-xs" onclick="minimizeFloatingNoteDog()" title="Minimize to Taskbar"><i data-lucide="minus" style="width: 13px;"></i></button>
+        <button class="btn btn-icon btn-xs" onclick="maximizeFloatingNoteDog()" title="Maximize / Restore Window"><i data-lucide="maximize-2" style="width: 13px;"></i></button>
+        <button class="btn btn-icon btn-xs modal-close-btn" onclick="closeFloatingNoteDog()" title="Close NoteDog"><i data-lucide="x" style="width: 13px;"></i></button>
+      </div>
+    </div>
+
+    <!-- 2. NoteDog Body (3-Tier Hierarchy Explorer + Workspace) -->
+    <div class="notedog-body">
+      <!-- 3-Tier Sidebar Explorer -->
+      <div class="notedog-sidebar" id="notedog-sidebar">
+        <!-- Notebooks Tier -->
+        <div class="notedog-tier notedog-tier-notebooks">
+          <div class="notedog-tier-header">
+            <span style="font-weight: 700; font-size: 10px; color: var(--accent); letter-spacing: 0.5px; text-transform: uppercase;">📚 Notebooks</span>
+            <div style="display: flex; gap: 2px;">
+              <button class="btn btn-icon btn-xs" onclick="promptChangeNoteDogFolder()" title="Change Notes Folder Location"><i data-lucide="folder-cog" style="width: 11px;"></i></button>
+              <button class="btn btn-icon btn-xs" onclick="promptCreateNotebook()" title="Create Notebook"><i data-lucide="folder-plus" style="width: 11px;"></i></button>
+            </div>
+          </div>
+          <div class="notedog-tier-list" id="notedog-notebooks-list"></div>
+        </div>
+
+        <!-- Sections Tier -->
+        <div class="notedog-tier notedog-tier-sections">
+          <div class="notedog-tier-header">
+            <span style="font-weight: 700; font-size: 10px; color: var(--text-dim); letter-spacing: 0.5px; text-transform: uppercase;">📂 Sections</span>
+            <button class="btn btn-icon btn-xs" onclick="promptCreateSection()" title="Create Section in Selected Notebook"><i data-lucide="plus" style="width: 11px;"></i></button>
+          </div>
+          <div class="notedog-tier-list" id="notedog-sections-list"></div>
+        </div>
+
+        <!-- Notes Tier -->
+        <div class="notedog-tier notedog-tier-notes">
+          <div class="notedog-tier-header">
+            <span style="font-weight: 700; font-size: 10px; color: var(--text-dim); letter-spacing: 0.5px; text-transform: uppercase;">📄 Notes</span>
+            <div style="display: flex; gap: 2px;">
+              <button class="btn btn-icon btn-xs" onclick="openNoteDogTemplatePicker(event)" title="New Note from Template"><i data-lucide="file-plus" style="width: 11px;"></i></button>
+            </div>
+          </div>
+          <div class="notedog-tier-list" id="notedog-notes-list"></div>
+        </div>
+      </div>
+
+      <!-- Main Note Workspace -->
+      <div class="notedog-workspace" id="notedog-workspace">
+        <!-- Note Toolbar -->
+        <div class="notedog-workspace-header">
+          <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0;">
+            <input type="text" class="notedog-note-title-input" id="notedog-active-title" placeholder="Untitled Note" onchange="handleNoteDogTitleChange(this.value)" onkeydown="if(event.key==='Enter') this.blur();">
+            <span class="notedog-save-status" id="notedog-save-status">Saved</span>
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 4px;">
+            <button class="btn btn-xs btn-accent" onclick="saveActiveNoteDogNote()" title="Save Note (Ctrl+S)"><i data-lucide="save" style="width: 12px;"></i> Save</button>
+            <button class="btn btn-xs" onclick="openNoteDogTemplatePicker(event)" title="Insert Template"><i data-lucide="layout-template" style="width: 12px;"></i> Template</button>
+            <button class="btn btn-icon btn-xs" onclick="promptDeleteCurrentNote()" title="Delete Current Note"><i data-lucide="trash-2" style="width: 12px;"></i></button>
+          </div>
+        </div>
+
+        <!-- Formatting Helpers Bar -->
+        <div class="notedog-formatting-bar">
+          <button class="btn btn-xs btn-icon" onclick="insertNoteDogMarkdown('**', '**', 'bold text')" title="Bold (Ctrl+B)"><i data-lucide="bold" style="width: 12px;"></i></button>
+          <button class="btn btn-xs btn-icon" onclick="insertNoteDogMarkdown('*', '*', 'italic text')" title="Italic (Ctrl+I)"><i data-lucide="italic" style="width: 12px;"></i></button>
+          <button class="btn btn-xs btn-icon" onclick="insertNoteDogMarkdown('~~', '~~', 'strikethrough')" title="Strikethrough"><i data-lucide="strikethrough" style="width: 12px;"></i></button>
+          <div class="notedog-fmt-sep"></div>
+          <button class="btn btn-xs btn-icon" onclick="insertNoteDogMarkdown('## ', '', 'Heading')" title="Heading 2"><i data-lucide="heading-2" style="width: 12px;"></i></button>
+          <button class="btn btn-xs btn-icon" onclick="insertNoteDogMarkdown('- [ ] ', '', 'Task item')" title="Interactive Task Tickbox"><i data-lucide="check-square" style="width: 12px;"></i></button>
+          <button class="btn btn-xs btn-icon" onclick="insertNoteDogMarkdown('- ', '', 'List item')" title="Bullet List"><i data-lucide="list" style="width: 12px;"></i></button>
+          <button class="btn btn-xs btn-icon" onclick="insertNoteDogMarkdown('> ', '', 'Quote text')" title="Blockquote"><i data-lucide="quote" style="width: 12px;"></i></button>
+          <div class="notedog-fmt-sep"></div>
+          <button class="btn btn-xs btn-icon" onclick="insertNoteDogMarkdown('`', '`', 'code')" title="Inline Code"><i data-lucide="code" style="width: 12px;"></i></button>
+          <button class="btn btn-xs btn-icon" onclick="insertNoteDogMermaid()" title="Insert Mermaid Flowchart Block"><i data-lucide="git-fork" style="width: 12px;"></i></button>
+          <button class="btn btn-xs btn-icon" onclick="insertNoteDogColorTag()" title="Insert Universal Color Span"><i data-lucide="palette" style="width: 12px; color: var(--accent);"></i></button>
+          <button class="btn btn-xs btn-icon" onclick="insertNoteDogTimestamp()" title="Insert Current Timestamp"><i data-lucide="clock" style="width: 12px;"></i></button>
+        </div>
+
+        <!-- Note Editor & Live Preview Panes -->
+        <div class="notedog-panes-wrapper split-mode" id="notedog-panes-wrapper">
+          <!-- Editor Pane -->
+          <div class="notedog-pane notedog-editor-pane" id="notedog-editor-pane">
+            <div class="notedog-editor-gutter" id="notedog-editor-gutter">1</div>
+            <textarea class="notedog-textarea" id="notedog-editor-textarea" spellcheck="false" placeholder="Write markdown notes..." oninput="handleNoteDogInput()" onscroll="syncNoteDogGutter()" onkeydown="handleNoteDogKeyDown(event)"></textarea>
+          </div>
+
+          <!-- Preview Pane -->
+          <div class="notedog-pane notedog-preview-pane" id="notedog-preview-pane">
+            <div class="notedog-preview-content" id="notedog-preview-content"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- NoteDog Minimized Pill -->
+  <div class="notedog-pill" id="notedog-pill" style="display: none;" onclick="restoreFloatingNoteDog()" title="Click to restore NoteDog">
+    <span style="font-size: 14px;">🐶</span>
+    <span id="notedog-pill-text">NoteDog</span>
+    <span class="notedog-pill-dirty" id="notedog-pill-dirty" style="display: none;"></span>
+  </div>
+
+  <!-- NoteDog Version History Modal -->
+  <div class="modal-overlay" id="notedog-versions-modal" style="z-index: 2860;">
+    <div class="modal-box" style="width: 720px; max-width: 95vw; height: 560px; max-height: 90vh; display: flex; flex-direction: column; background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden;">
+      <div class="modal-header" style="padding: 10px 14px; background: var(--bg-dark); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 15px;">📜</span>
+          <span style="font-weight: 700; font-size: 13px;">Note Revision History</span>
+          <span class="notedog-badge-tag" id="notedog-version-note-name">Note.md</span>
+        </div>
+        <button class="btn btn-icon btn-xs modal-close-btn" onclick="closeModal('notedog-versions-modal')"><i data-lucide="x" style="width: 13px;"></i></button>
+      </div>
+      <div class="modal-body" style="flex: 1; display: flex; overflow: hidden; padding: 0;">
+        <div style="width: 220px; border-right: 1px solid var(--border); background: var(--bg-dark); display: flex; flex-direction: column; overflow-y: auto;" id="notedog-versions-list">
+          <!-- Populated dynamically -->
+        </div>
+        <div style="flex: 1; display: flex; flex-direction: column; overflow: hidden; background: #090a0d;">
+          <div style="padding: 6px 12px; border-bottom: 1px solid var(--border); background: var(--bg-panel); display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 11px; color: var(--text-dim);" id="notedog-version-meta-label">Select a revision to preview changes</span>
+            <button class="btn btn-xs btn-accent" id="btn-notedog-restore-version" style="display: none;" onclick="restoreSelectedNoteDogVersion()"><i data-lucide="rotate-ccw" style="width: 11px;"></i> Restore this Version</button>
+          </div>
+          <div style="flex: 1; overflow-y: auto; padding: 12px; font-family: var(--font-mono); font-size: 12px; line-height: 1.4; color: #f1f5f9; white-space: pre-wrap;" id="notedog-version-preview-content"></div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- Diff & Comparison Modal -->
@@ -2828,26 +3105,54 @@
   </div>
 
   <!-- Login Modal -->
-  <div class="modal-overlay" id="login-modal">
-    <div class="modal-box" style="width: 360px;">
-      <div class="modal-header" style="justify-content: center; align-items: center; gap: 8px;">
-        <img src="assets/logo.png" alt="CommanderDog" style="height: 24px; width: auto; object-fit: contain; vertical-align: middle;">
-        <span style="font-size: 16px; color: var(--accent); font-weight: 700;">CommanderDog Login</span>
+  <div class="modal-overlay login-screen-overlay" id="login-modal">
+    <!-- Top-Left Corner Branding Logo -->
+    <div class="login-corner-brand">
+      <img src="assets/logo.png" alt="CommanderDog" class="login-corner-logo">
+      <span class="login-corner-name">CommanderDog</span>
+    </div>
+
+    <!-- Lower-Right Version Badge -->
+    <div class="login-corner-version">
+      <span class="login-version-badge">v0.6.9</span>
+    </div>
+
+    <!-- Login Card -->
+    <div class="login-card">
+      <div class="login-card-header">
+        <div class="login-brand-icon">
+          <img src="assets/commanderdog.png" alt="CommanderDog" class="login-brand-img">
+        </div>
+        <div class="login-header-text">
+          <h2 class="login-title">Hello friend.</h2>
+          <p class="login-subtitle">CommanderDog is ready when you are.</p>
+        </div>
       </div>
       <form id="login-form" onsubmit="event.preventDefault(); handleLoginSubmit();">
-        <div class="modal-body">
-          <div style="margin-bottom: 12px;">
-            <label style="display: block; margin-bottom: 4px; font-size: 11px;">Username:</label>
-            <input type="text" id="login-username" class="pane-quick-filter" style="width: 100%; padding: 8px;" placeholder="Enter username" autocomplete="username" autofocus>
+        <div class="login-card-body">
+          <div class="login-form-group">
+            <label for="login-username" class="login-label">
+              <i data-lucide="user" class="login-label-icon"></i> Who are you?
+            </label>
+            <div class="login-input-wrapper">
+              <input type="text" id="login-username" class="login-input" autocomplete="username" autofocus spellcheck="false">
+            </div>
           </div>
-          <div style="margin-bottom: 12px;">
-            <label style="display: block; margin-bottom: 4px; font-size: 11px;">Password:</label>
-            <input type="password" id="login-password" class="pane-quick-filter" style="width: 100%; padding: 8px;" placeholder="Enter password" autocomplete="current-password">
+          <div class="login-form-group">
+            <label for="login-password" class="login-label">
+              <i data-lucide="lock" class="login-label-icon"></i> Password
+            </label>
+            <div class="login-input-wrapper">
+              <input type="password" id="login-password" class="login-input" autocomplete="current-password">
+            </div>
           </div>
-          <div id="login-error" style="color: var(--danger); font-size: 11px; display: none;"></div>
+          <div id="login-error" class="login-error-msg" style="display: none;"></div>
         </div>
-        <div class="modal-footer" style="justify-content: center;">
-          <button type="submit" class="btn btn-accent" id="btn-submit-login" style="width: 100%;">Log In</button>
+        <div class="login-card-footer">
+          <button type="submit" class="btn btn-accent login-submit-btn" id="btn-submit-login">
+            <i data-lucide="log-in" style="width: 14px; height: 14px;"></i>
+            <span>Log In</span>
+          </button>
         </div>
       </form>
     </div>
@@ -3485,28 +3790,49 @@
 
   <!-- Full-Screen Session Lock Overlay -->
   <div id="session-lock-screen" class="session-lock-screen" style="display: none;">
+    <!-- Top-Left Corner Branding Logo -->
+    <div class="login-corner-brand">
+      <img src="assets/logo.png" alt="CommanderDog" class="login-corner-logo">
+      <span class="login-corner-name">CommanderDog</span>
+    </div>
+
+    <!-- Lower-Right Version Badge -->
+    <div class="login-corner-version">
+      <span class="login-version-badge">v0.6.9</span>
+    </div>
+
+    <!-- Lock Screen Card -->
     <div class="lock-screen-card">
-      <div class="lock-screen-brand">
+      <div class="lock-screen-header">
         <div class="lock-avatar-thumb" id="lock-avatar-thumb">👤</div>
-        <div class="lock-brand-title">CommanderDog</div>
-        <div class="lock-user-label" id="lock-username-label">User</div>
-        <div class="lock-sub-text">Session is locked for your security</div>
+        <div class="lock-header-text">
+          <div class="lock-user-label" id="lock-username-label">CommanderDog User</div>
+          <div class="lock-sub-text">Session is locked!</div>
+        </div>
       </div>
       <form id="unlock-form" onsubmit="event.preventDefault(); submitUnlockSession();">
-        <div class="lock-input-group">
-          <i data-lucide="key-round" class="lock-input-icon"></i>
-          <input type="password" id="unlock-password-input" class="lock-password-input" placeholder="Enter password to resume" required autocomplete="current-password" />
+        <div class="lock-card-body">
+          <div class="login-form-group">
+            <label for="unlock-password-input" class="login-label">
+              <i data-lucide="lock" class="login-label-icon"></i> Password
+            </label>
+            <div class="login-input-wrapper">
+              <input type="password" id="unlock-password-input" class="login-input lock-password-input" autocomplete="current-password" required>
+            </div>
+          </div>
+          <div id="unlock-error-msg" class="login-error-msg lock-error-msg" style="display: none;"></div>
         </div>
-        <div id="unlock-error-msg" class="lock-error-msg" style="display: none;"></div>
-        <button type="submit" class="btn btn-accent btn-block" style="width: 100%; padding: 10px; font-weight: 700; display: flex; justify-content: center; align-items: center; gap: 6px;">
-          <i data-lucide="unlock" style="width: 15px; height: 15px;"></i> Unlock Session
-        </button>
+        <div class="lock-card-footer">
+          <button type="submit" class="btn btn-accent login-submit-btn" id="btn-submit-unlock">
+            <i data-lucide="unlock" style="width: 14px; height: 14px;"></i>
+            <span>Unlock Session</span>
+          </button>
+          <button type="button" class="btn btn-switch-user" onclick="logout()" title="Switch user or log out">
+            <i data-lucide="log-out" style="width: 12px; height: 12px;"></i>
+            <span>Log Out</span>
+          </button>
+        </div>
       </form>
-      <div style="margin-top: 16px; text-align: center;">
-        <button type="button" class="btn btn-link" onclick="logout()" style="font-size: 11px; color: var(--text-dim); background: none; border: none; cursor: pointer; text-decoration: underline;">
-          <i data-lucide="log-out" style="width: 12px; height: 12px; margin-right: 4px;"></i> Switch User / Log Out
-        </button>
-      </div>
     </div>
   </div>
 

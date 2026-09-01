@@ -132,6 +132,11 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/tools/syncthing/scan", post(handle_syncthing_scan))
         .route("/api/tools/search", post(handle_search))
         .route("/api/actions/run", post(handle_run_action))
+        // NoteDog Notes & Markdown Studio Chewtoy
+        .route("/api/tools/notedog/info", get(handle_notedog_info))
+        .route("/api/tools/notedog/templates", get(handle_notedog_templates))
+        .route("/api/tools/notedog/versions", get(handle_notedog_versions))
+        .route("/api/tools/notedog/version/save", post(handle_notedog_save_version))
         // Git Client & Version Control API
         .route("/api/git/status", get(handle_git_status))
         .route("/api/git/diff", get(handle_git_diff))
@@ -2819,6 +2824,55 @@ async fn handle_paranoid_dry_run(
     ParanoidEngine::dry_run(&payload.action, &payload.sources, payload.destination.as_deref())
         .map(Json)
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Dry run failed: {}", e)))
+}
+
+// ---------------- NOTEDOG CHEWTOY HANDLERS ----------------
+
+#[derive(Deserialize)]
+struct NoteDogInfoQuery {
+    folder: Option<String>,
+}
+
+async fn handle_notedog_info(
+    State(state): State<AppState>,
+    axum::extract::Query(query): axum::extract::Query<NoteDogInfoQuery>,
+) -> Result<Json<crate::tools::notedog::NoteDogInfo>, (StatusCode, String)> {
+    let cfg_folder = state.config.notedog.notes_folder.as_str();
+    let info = crate::tools::notedog::scan_notedog_hierarchy(query.folder.as_deref(), Some(cfg_folder));
+    Ok(Json(info))
+}
+
+async fn handle_notedog_templates() -> Json<Vec<crate::tools::notedog::NoteTemplate>> {
+    Json(crate::tools::notedog::get_builtin_templates())
+}
+
+#[derive(Deserialize)]
+struct NoteDogVersionsQuery {
+    path: String,
+}
+
+async fn handle_notedog_versions(
+    axum::extract::Query(query): axum::extract::Query<NoteDogVersionsQuery>,
+) -> Json<Vec<crate::tools::notedog::NoteVersionItem>> {
+    let p = Path::new(&query.path);
+    Json(crate::tools::notedog::list_note_versions(p))
+}
+
+#[derive(Deserialize)]
+struct NoteDogSaveVersionRequest {
+    path: String,
+}
+
+async fn handle_notedog_save_version(
+    Json(payload): Json<NoteDogSaveVersionRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let p = Path::new(&payload.path);
+    if p.exists() {
+        if let Ok(bytes) = std::fs::read(p) {
+            let _ = crate::tools::notedog::create_note_snapshot(p, &bytes);
+        }
+    }
+    Ok(Json(serde_json::json!({ "success": true })))
 }
 
 // ---------------- PHASE 4 HANDLERS (SYNC, SEARCH, SCRIPT ACTIONS) ----------------

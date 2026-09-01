@@ -28,6 +28,9 @@ const App = {
   taskVerbosity: localStorage.getItem('cd_task_verbosity') || 'detailed',
   trashEnabled: localStorage.getItem('cd_trash_enabled') !== 'false',
   customTrashDir: localStorage.getItem('cd_custom_trash_dir') || '',
+  iconTheme: localStorage.getItem('cd_icon_theme') || 'default',
+  globalFolderIcon: localStorage.getItem('cd_global_folder_icon') || '',
+  customFileIcons: JSON.parse(localStorage.getItem('cd_custom_file_icons') || '{}'),
 };
 
 function getBasename(path) {
@@ -167,6 +170,7 @@ function initPanes() {
     p.viewMode = localStorage.getItem(`cd_pane_viewmode_${i}`) || 'details';
     p.gridSize = localStorage.getItem(`cd_pane_gridsize_${i}`) || 'md';
     p.showTree = localStorage.getItem(`cd_pane_tree_${i}`) === '1';
+    p.dockedTool = localStorage.getItem(`cd_pane_docked_${i}`) || null;
     App.panes.push(p);
   }
   loadPaneCustomNames();
@@ -207,6 +211,7 @@ async function checkAuthAndLoad() {
           await loadAllFileTags();
           applyUserHomeToPanes();
           renderAllPanes();
+          restoreTerminalState();
           return;
         }
       }
@@ -237,6 +242,7 @@ async function checkAuthAndLoad() {
 
         applyUserHomeToPanes();
         renderAllPanes();
+        restoreTerminalState();
         return;
       }
     } catch (e) {
@@ -492,6 +498,7 @@ async function loadSystemUsersGroups() {
 }
 
 function renderAllPanes() {
+  stashDockedTerminal();
   const container = document.getElementById('panes-grid');
   container.className = `panes-container ${App.layout}`;
   container.innerHTML = '';
@@ -502,10 +509,14 @@ function renderAllPanes() {
     const pane = App.panes[i];
     const paneEl = createPaneElement(pane, i);
     container.appendChild(paneEl);
-    if (pane.showTree) {
-      loadPaneDirectoryTree(i);
+    if (pane.dockedTool) {
+      mountDockedTool(i);
+    } else {
+      if (pane.showTree) {
+        loadPaneDirectoryTree(i);
+      }
+      loadPaneDirectory(i, pane.path);
     }
-    loadPaneDirectory(i, pane.path);
   }
 
   applyPaneColors();
@@ -574,6 +585,7 @@ function createPaneElement(pane, index) {
     const tool = pane.dockedTool;
     const toolTitles = {
       'editor': '💻 EditorDog',
+      'notedog': '🐶 NoteDog',
       'terminal': '📟 Terminal Console',
       'calculator': '🧮 Calculator',
       'git': '🌲 Git Manager',
@@ -594,7 +606,7 @@ function createPaneElement(pane, index) {
         </div>
         <div style="display: flex; align-items: center; gap: 4px;">
           <button class="btn btn-xs btn-outline" onclick="event.stopPropagation(); undockToolFromPane(${index})" title="Undock to Floating Window"><i data-lucide="external-link" style="width:11px; height:11px;"></i> Float</button>
-          <button class="btn btn-xs btn-icon btn-danger" onclick="event.stopPropagation(); closeDockedTool(${index})" title="Close Docked Tool"><i data-lucide="x" style="width:11px; height:11px;"></i></button>
+          <button class="btn btn-xs btn-icon modal-close-btn" onclick="event.stopPropagation(); closeDockedTool(${index})" title="Close Docked Tool"><i data-lucide="x" style="width:11px; height:11px;"></i></button>
         </div>
       </div>
       <div class="pane-content" id="pane-content-${index}" style="padding: 0; overflow: hidden; display: flex; flex-direction: column;">
@@ -1520,18 +1532,10 @@ function renderPaneTable(paneIndex) {
       card.draggable = !isTouchDevice;
 
       let thumbHtml = '';
-      if (entry.is_dir) {
-        thumbHtml = `<img src="assets/folder-open.png" style="width: 48px; height: 48px; object-fit: contain;" alt="Folder">`;
-      } else if (isImageFile(entry.name)) {
+      if (!entry.is_dir && isImageFile(entry.name)) {
         thumbHtml = `<img src="/api/files/download?path=${encodeURIComponent(entry.path)}" class="grid-thumb-img" loading="lazy" alt="${escapeHtml(entry.name)}" onerror="this.src='assets/logo.png'">`;
       } else {
-        const iconDetails = getFileIconDetails(entry.name, false, entry.is_archive);
-        if (iconDetails.src) {
-          thumbHtml = `<img src="${iconDetails.src}" style="width: 44px; height: 44px; object-fit: contain;" alt="File">`;
-        } else {
-          const colorStyle = iconDetails.color ? `style="color: ${iconDetails.color};"` : '';
-          thumbHtml = `<i data-lucide="${iconDetails.icon}" class="grid-icon-svg" ${colorStyle}></i>`;
-        }
+        thumbHtml = renderFileIconHtml(entry.name, entry.is_dir, entry.is_archive, entry.path, 'lg');
       }
 
       card.innerHTML = `
@@ -1687,14 +1691,7 @@ function renderPaneTable(paneIndex) {
       const item = document.createElement('div');
       item.className = `compact-list-item ${isSelected ? 'selected' : ''} ${idx === pane.cursorIndex ? 'cursor-focus' : ''}`;
       
-      const iconDetails = getFileIconDetails(entry.name, entry.is_dir, entry.is_archive);
-      let iconHtml = '';
-      if (iconDetails.src) {
-        iconHtml = `<img src="${iconDetails.src}" style="width: 15px; height: 15px; object-fit: contain;">`;
-      } else {
-        const colorStyle = iconDetails.color ? `style="width: 14px; height: 14px; color: ${iconDetails.color};"` : `style="width: 14px; height: 14px;"`;
-        iconHtml = `<i data-lucide="${iconDetails.icon}" ${colorStyle}></i>`;
-      }
+      const iconHtml = renderFileIconHtml(entry.name, entry.is_dir, entry.is_archive, entry.path, 'sm');
 
       item.innerHTML = `
         ${iconHtml}
@@ -2034,13 +2031,7 @@ function renderPaneTable(paneIndex) {
       if (showCheckBadge) {
         iconHtml = `<i data-lucide="check" class="file-icon check-icon" style="width: 15px; height: 15px;"></i>`;
       } else {
-        const iconDetails = getFileIconDetails(entry.name, entry.is_dir, entry.is_archive);
-        if (iconDetails.src) {
-          iconHtml = `<img src="${iconDetails.src}" class="file-icon-img" alt="Folder" style="width: 17px; height: 17px;">`;
-        } else {
-          const colorStyle = iconDetails.color ? `style="width: 15px; height: 15px; color: ${iconDetails.color};"` : `style="width: 15px; height: 15px;"`;
-          iconHtml = `<i data-lucide="${iconDetails.icon}" class="file-icon ${iconDetails.type}" ${colorStyle}></i>`;
-        }
+        iconHtml = renderFileIconHtml(entry.name, entry.is_dir, entry.is_archive, entry.path, 'sm');
       }
 
       const ext = entry.name.includes('.') ? entry.name.split('.').pop() : '';
@@ -2072,6 +2063,305 @@ function renderPaneTable(paneIndex) {
   if (window.lucide) lucide.createIcons();
   updateMobileBottomBar();
   updatePaneFooter(paneIndex);
+}
+
+// ---------------- 🎨 CUSTOM ICON & EMOTE PRESETS & RESOLUTION ----------------
+
+const NERDFONT_PRESET = {
+  'folder': '',
+  'dir': '',
+  'rs': '',
+  'py': '',
+  'pyw': '',
+  'ipynb': '',
+  'js': '',
+  'mjs': '',
+  'cjs': '',
+  'ts': '',
+  'tsx': '',
+  'jsx': '',
+  'html': '',
+  'htm': '',
+  'vue': '󰡄',
+  'svelte': '',
+  'css': '',
+  'scss': '',
+  'less': '',
+  'json': '',
+  'toml': '',
+  'yaml': '',
+  'yml': '',
+  'xml': '󰗀',
+  'ini': '',
+  'env': '',
+  'conf': '',
+  'config': '',
+  'md': '',
+  'markdown': '',
+  'go': '',
+  'c': '',
+  'cpp': '',
+  'h': '',
+  'hpp': '',
+  'cc': '',
+  'cxx': '',
+  'java': '',
+  'jar': '',
+  'kt': '',
+  'kts': '',
+  'cs': '󰌛',
+  'php': '',
+  'rb': '',
+  'lua': '',
+  'sh': '',
+  'bash': '',
+  'zsh': '',
+  'fish': '',
+  'bat': '',
+  'cmd': '',
+  'ps1': '󰨊',
+  'exe': '',
+  'msi': '',
+  'bin': '',
+  'appimage': '',
+  'deb': '',
+  'rpm': '',
+  'apk': '',
+  'zip': '',
+  'tar': '',
+  'gz': '',
+  'tgz': '',
+  'bz2': '',
+  'xz': '',
+  '7z': '',
+  'rar': '',
+  'iso': '',
+  'pdf': '',
+  'doc': '',
+  'docx': '',
+  'xls': '',
+  'xlsx': '',
+  'csv': '',
+  'ppt': '',
+  'pptx': '',
+  'png': '',
+  'jpg': '',
+  'jpeg': '',
+  'gif': '',
+  'svg': '',
+  'webp': '',
+  'mp3': '',
+  'flac': '',
+  'wav': '',
+  'm4a': '',
+  'mp4': '',
+  'mkv': '',
+  'avi': '',
+  'mov': '',
+  'webm': '',
+  'db': '',
+  'sql': '',
+  'sqlite': '',
+  'sqlite3': '',
+  'lock': '',
+  'key': '',
+  'docker': '',
+  'git': '',
+  'ttf': '',
+  'otf': '',
+  'woff': '',
+  'woff2': ''
+};
+
+const EMOJI_PRESET = {
+  'folder': '📁',
+  'dir': '📁',
+  'rs': '🦀',
+  'py': '🐍',
+  'pyw': '🐍',
+  'ipynb': '📓',
+  'js': '⚡',
+  'mjs': '⚡',
+  'cjs': '⚡',
+  'ts': '📘',
+  'tsx': '⚛️',
+  'jsx': '⚛️',
+  'html': '🌐',
+  'htm': '🌐',
+  'vue': '🟢',
+  'svelte': '🟠',
+  'css': '🎨',
+  'scss': '🎨',
+  'json': '⚙️',
+  'toml': '⚙️',
+  'yaml': '⚙️',
+  'yml': '⚙️',
+  'xml': '📜',
+  'env': '🔒',
+  'conf': '🔧',
+  'config': '🔧',
+  'md': '📝',
+  'markdown': '📝',
+  'go': '🐹',
+  'c': '🔷',
+  'cpp': '💎',
+  'h': '🏷️',
+  'java': '☕',
+  'jar': '🫙',
+  'kt': '🟣',
+  'cs': '🎯',
+  'php': '🐘',
+  'rb': '♦️',
+  'lua': '🌙',
+  'sh': '💻',
+  'bash': '💻',
+  'zsh': '💻',
+  'bat': '📜',
+  'ps1': '🟦',
+  'exe': '🚀',
+  'deb': '📦',
+  'rpm': '📦',
+  'apk': '📱',
+  'zip': '📦',
+  'tar': '📦',
+  'gz': '📦',
+  '7z': '📦',
+  'iso': '💿',
+  'pdf': '📕',
+  'doc': '📄',
+  'docx': '📄',
+  'xls': '📊',
+  'xlsx': '📊',
+  'csv': '📈',
+  'ppt': '📽️',
+  'pptx': '📽️',
+  'png': '🖼️',
+  'jpg': '🖼️',
+  'jpeg': '🖼️',
+  'gif': '🎞️',
+  'svg': '📐',
+  'mp3': '🎵',
+  'flac': '🎼',
+  'wav': '🎧',
+  'mp4': '🎬',
+  'mkv': '🎥',
+  'avi': '📹',
+  'db': '🗄️',
+  'sql': '📊',
+  'sqlite': '🗄️',
+  'lock': '🔒',
+  'key': '🔑',
+  'ttf': '🔤',
+  'otf': '🔤'
+};
+
+const COMMON_PRESET_ICONS = [
+  '📁', '📂', '🗂️', '💼', '📦', '🚀', '💡', '🏷️', '🔒', '⭐️',
+  '🎨', '🧪', '🛠️', '🌐', '🎮', '📱', '🖥️', '🐳', '🐧', '🪟',
+  '🍎', '🐕', '🦀', '🐍', '⚡', '☕', '💎', '📝', '📊', '📕',
+  '🎵', '🎬', '🖼️', '💾', '💿', '', '', '', '', '',
+  '', '', '', '', ''
+];
+
+function renderFileIconHtml(name, is_dir, is_archive, path, size = 'sm') {
+  // 1. Check per-path custom icon (from SQLite / fileTagsMap)
+  if (path && fileTagsMap.has(path)) {
+    const itemTag = fileTagsMap.get(path);
+    if (itemTag && itemTag.custom_icon) {
+      return formatCustomIconToHtml(itemTag.custom_icon, size, is_dir);
+    }
+  }
+
+  const ext = (name || '').includes('.') ? (name || '').split('.').pop().toLowerCase() : '';
+  const lowerName = (name || '').toLowerCase();
+
+  // 2. Check per-filetype or extension custom icon from App.customFileIcons
+  if (is_dir) {
+    if (App.customFileIcons && (App.customFileIcons['folder'] || App.customFileIcons['dir'])) {
+      return formatCustomIconToHtml(App.customFileIcons['folder'] || App.customFileIcons['dir'], size, true);
+    }
+    if (App.globalFolderIcon) {
+      return formatCustomIconToHtml(App.globalFolderIcon, size, true);
+    }
+  } else {
+    if (App.customFileIcons && ext && App.customFileIcons[ext]) {
+      return formatCustomIconToHtml(App.customFileIcons[ext], size, false);
+    }
+    if (App.customFileIcons && App.customFileIcons[lowerName]) {
+      return formatCustomIconToHtml(App.customFileIcons[lowerName], size, false);
+    }
+  }
+
+  // 3. Check Global Theme if Nerd Font or Emoji mode is active
+  if (App.iconTheme === 'nerdfont') {
+    if (is_dir) {
+      if (lowerName === '.git') return formatCustomIconToHtml('', size, true, '#f97316');
+      if (lowerName === 'node_modules') return formatCustomIconToHtml('', size, true, '#10b981');
+      if (lowerName === 'downloads') return formatCustomIconToHtml('', size, true, '#38bdf8');
+      if (lowerName === 'documents') return formatCustomIconToHtml('', size, true, '#38bdf8');
+      if (lowerName === 'pictures' || lowerName === 'photos') return formatCustomIconToHtml('', size, true, '#a855f7');
+      if (lowerName === 'music') return formatCustomIconToHtml('', size, true, '#f43f5e');
+      if (lowerName === 'videos') return formatCustomIconToHtml('', size, true, '#06b6d4');
+      return formatCustomIconToHtml(NERDFONT_PRESET['folder'] || '', size, true, '#f59e0b');
+    }
+    if (ext && NERDFONT_PRESET[ext]) {
+      return formatCustomIconToHtml(NERDFONT_PRESET[ext], size, false);
+    }
+  } else if (App.iconTheme === 'emoji') {
+    if (is_dir) {
+      if (lowerName === 'downloads') return formatCustomIconToHtml('📥', size, true);
+      if (lowerName === 'documents') return formatCustomIconToHtml('📚', size, true);
+      if (lowerName === 'pictures' || lowerName === 'photos') return formatCustomIconToHtml('📸', size, true);
+      if (lowerName === 'music') return formatCustomIconToHtml('🎵', size, true);
+      if (lowerName === 'videos') return formatCustomIconToHtml('🎬', size, true);
+      if (lowerName === '.trash' || lowerName === 'trash') return formatCustomIconToHtml('🗑️', size, true);
+      return formatCustomIconToHtml(EMOJI_PRESET['folder'] || '📁', size, true);
+    }
+    if (ext && EMOJI_PRESET[ext]) {
+      return formatCustomIconToHtml(EMOJI_PRESET[ext], size, false);
+    }
+  }
+
+  // 4. Default Woofson icon resolution
+  const iconDetails = getFileIconDetails(name, is_dir, is_archive);
+  return formatIconDetailsToHtml(iconDetails, size, is_dir);
+}
+
+function formatCustomIconToHtml(iconVal, size = 'sm', isDir = false, forceColor = null) {
+  if (!iconVal) return '';
+  const clean = iconVal.trim();
+  
+  if (clean.startsWith('assets/') || clean.startsWith('/') || clean.startsWith('http://') || clean.startsWith('https://') || clean.startsWith('data:image')) {
+    const dim = size === 'lg' ? '44px' : (size === 'md' ? '28px' : '17px');
+    return `<img src="${escapeHtml(clean)}" class="file-icon-img" alt="Icon" style="width: ${dim}; height: ${dim}; object-fit: contain;">`;
+  }
+  if (clean.startsWith('img:')) {
+    const src = clean.slice(4).trim();
+    const dim = size === 'lg' ? '44px' : (size === 'md' ? '28px' : '17px');
+    return `<img src="${escapeHtml(src)}" class="file-icon-img" alt="Icon" style="width: ${dim}; height: ${dim}; object-fit: contain;">`;
+  }
+  
+  if (clean.startsWith('lucide:')) {
+    const iconName = clean.slice(7).trim();
+    const dim = size === 'lg' ? '32px' : (size === 'md' ? '22px' : '15px');
+    const colorStyle = forceColor ? `style="width: ${dim}; height: ${dim}; color: ${forceColor};"` : (isDir ? `style="width: ${dim}; height: ${dim}; color: var(--accent);"` : `style="width: ${dim}; height: ${dim};"`);
+    return `<i data-lucide="${escapeHtml(iconName)}" class="file-icon" ${colorStyle}></i>`;
+  }
+
+  const sizeClass = size === 'lg' ? 'icon-lg' : (size === 'md' ? 'icon-md' : 'icon-sm');
+  const colorStyle = forceColor ? `style="color: ${forceColor};"` : '';
+  return `<span class="file-icon-custom-glyph ${sizeClass}" ${colorStyle}>${escapeHtml(clean)}</span>`;
+}
+
+function formatIconDetailsToHtml(iconDetails, size = 'sm', isDir = false) {
+  if (iconDetails.src) {
+    const dim = size === 'lg' ? '48px' : (size === 'md' ? '28px' : '17px');
+    return `<img src="${iconDetails.src}" class="file-icon-img" alt="${isDir ? 'Folder' : 'File'}" style="width: ${dim}; height: ${dim}; object-fit: contain;">`;
+  }
+
+  const dim = size === 'lg' ? '32px' : (size === 'md' ? '22px' : '15px');
+  const colorStyle = iconDetails.color ? `style="width: ${dim}; height: ${dim}; color: ${iconDetails.color};"` : `style="width: ${dim}; height: ${dim};"`;
+  return `<i data-lucide="${iconDetails.icon}" class="file-icon ${iconDetails.type || ''}" ${colorStyle}></i>`;
 }
 
 function getFileIconDetails(name, is_dir, is_archive) {
@@ -2596,6 +2886,7 @@ function createTreeNodeElement(paneIndex, name, path, iconName = 'folder') {
   wrapper.dataset.path = path;
 
   const isActive = App.panes[paneIndex]?.path === path;
+  const treeIconHtml = renderFileIconHtml(name, true, false, path, 'sm');
 
   const row = document.createElement('div');
   row.className = `tree-node-row ${isActive ? 'active' : ''}`;
@@ -2603,7 +2894,7 @@ function createTreeNodeElement(paneIndex, name, path, iconName = 'folder') {
     <span class="tree-expander" onclick="event.stopPropagation(); toggleTreeNodeExpand(this, ${paneIndex}, '${escapeHtml(path)}')">
       <i data-lucide="chevron-right" style="width: 12px; height: 12px;"></i>
     </span>
-    <i data-lucide="${iconName}" class="tree-node-icon" style="color: var(--accent);"></i>
+    ${treeIconHtml}
     <span class="tree-node-label" title="${escapeHtml(path)}">${escapeHtml(name)}</span>
   `;
 
@@ -2977,20 +3268,33 @@ async function executeCustomAction(cmd, targetPath) {
 function switchSettingsTab(tabId) {
   const modal = document.getElementById('settings-modal');
   if (!modal) return;
+
+  // Backward compatibility alias for merged tabs
+  if (tabId === 'tab-columns' || tabId === 'tab-desktop') {
+    tabId = 'tab-general';
+  }
+
   modal.querySelectorAll('.settings-tab-btn').forEach(btn => btn.classList.remove('active'));
   modal.querySelectorAll('.settings-tab-content').forEach(c => c.classList.remove('active'));
 
+  let activeBtn = null;
   if (window.event && window.event.currentTarget && window.event.currentTarget.classList.contains('settings-tab-btn')) {
-    window.event.currentTarget.classList.add('active');
+    activeBtn = window.event.currentTarget;
   } else {
-    modal.querySelector(`[onclick*="${tabId}"]`)?.classList.add('active');
+    activeBtn = modal.querySelector(`[onclick*="${tabId}"]`);
   }
+
+  if (activeBtn) {
+    activeBtn.classList.add('active');
+  }
+
   document.getElementById(tabId)?.classList.add('active');
 
+  if (tabId === 'tab-general') updateColumnCheckboxes();
   if (tabId === 'tab-bookmarks') loadBookmarksList();
   if (tabId === 'tab-openwith') renderOpenWithRules();
   if (tabId === 'tab-context') renderCustomActionsList();
-  if (tabId === 'tab-columns') updateColumnCheckboxes();
+  if (tabId === 'tab-icons') renderIconSettingsTab();
 }
 
 function switchAdminTab(tabId) {
@@ -2999,11 +3303,18 @@ function switchAdminTab(tabId) {
   modal.querySelectorAll('.settings-tab-btn').forEach(btn => btn.classList.remove('active'));
   modal.querySelectorAll('.settings-tab-content').forEach(c => c.classList.remove('active'));
 
+  let activeBtn = null;
   if (window.event && window.event.currentTarget && window.event.currentTarget.classList.contains('settings-tab-btn')) {
-    window.event.currentTarget.classList.add('active');
+    activeBtn = window.event.currentTarget;
   } else {
-    modal.querySelector(`[onclick*="${tabId}"]`)?.classList.add('active');
+    activeBtn = modal.querySelector(`[onclick*="${tabId}"]`);
   }
+
+  if (activeBtn) {
+    activeBtn.classList.add('active');
+    activeBtn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+  }
+
   document.getElementById(tabId)?.classList.add('active');
 
   if (tabId === 'admin-tab-users') loadUsersTable();
@@ -4642,6 +4953,984 @@ function calcLoadHistoryItem(resVal) {
   calcExpr = '';
   calcHasEvaluated = false;
   calcUpdateDisplay();
+}
+
+// =========================================================================
+// 🐶 NOTEDOG CHEWTOY CLIENT ENGINE (Notes & Markdown Studio)
+// =========================================================================
+const notedogState = {
+  isOpen: false,
+  isMaximized: false,
+  rootFolder: '',
+  customFolder: localStorage.getItem('cd_notedog_folder') || '',
+  notebooks: [],
+  activeNotebook: '',
+  activeSection: '',
+  activeNote: null,
+  content: '',
+  isDirty: false,
+  viewMode: 'split',
+  searchQuery: '',
+  templates: [],
+  selectedVersion: null,
+  autoSaveTimer: null,
+  dragInitialized: false,
+};
+
+function saveNoteDogFolderSetting(newFolder) {
+  const clean = (newFolder || '').trim();
+  if (clean) {
+    localStorage.setItem('cd_notedog_folder', clean);
+    notedogState.customFolder = clean;
+    showToast(`NoteDog notes folder set to: ${clean}`, 'success');
+  } else {
+    localStorage.removeItem('cd_notedog_folder');
+    notedogState.customFolder = '';
+    showToast('NoteDog notes folder reset to default', 'info');
+  }
+  loadNoteDogHierarchy();
+}
+
+function browseNoteDogFolder() {
+  const activePane = App.panes[App.activePaneIndex];
+  if (activePane && activePane.path) {
+    const input = document.getElementById('setting-notedog-folder');
+    if (input) input.value = activePane.path;
+    saveNoteDogFolderSetting(activePane.path);
+  } else {
+    showToast('No active pane directory available', 'warning');
+  }
+}
+
+function promptChangeNoteDogFolder() {
+  const current = notedogState.customFolder || notedogState.rootFolder || '~/Notes';
+  const newPath = prompt('Change NoteDog Notes Folder location:\n(e.g. ~/Notes, /mnt/storage/Notes, or ~/Documents/Notes)', current);
+  if (newPath === null) return;
+  saveNoteDogFolderSetting(newPath);
+}
+
+function openFloatingNoteDog(optionalNotePath) {
+  closeToolsMenu();
+  const win = document.getElementById('floating-notedog-window');
+  const pill = document.getElementById('notedog-pill');
+  if (pill) pill.style.display = 'none';
+  if (win) {
+    win.style.display = 'flex';
+    notedogState.isOpen = true;
+    bringFloatingWindowToFront(win);
+  }
+  initNoteDogDrag();
+  loadNoteDogHierarchy(optionalNotePath);
+  if (window.lucide) lucide.createIcons();
+}
+
+function closeFloatingNoteDog() {
+  const win = document.getElementById('floating-notedog-window');
+  if (win) win.style.display = 'none';
+  const pill = document.getElementById('notedog-pill');
+  if (pill) pill.style.display = 'none';
+  notedogState.isOpen = false;
+}
+
+function minimizeFloatingNoteDog() {
+  const win = document.getElementById('floating-notedog-window');
+  if (win) win.style.display = 'none';
+  const pill = document.getElementById('notedog-pill');
+  if (pill) {
+    pill.style.display = 'flex';
+    const pillText = document.getElementById('notedog-pill-text');
+    if (pillText) {
+      pillText.textContent = notedogState.activeNote?.name || 'NoteDog';
+    }
+  }
+  notedogState.isOpen = false;
+}
+
+function restoreFloatingNoteDog() {
+  openFloatingNoteDog();
+}
+
+function maximizeFloatingNoteDog() {
+  const win = document.getElementById('floating-notedog-window');
+  if (!win) return;
+  notedogState.isMaximized = !notedogState.isMaximized;
+  win.classList.toggle('maximized', notedogState.isMaximized);
+}
+
+function dockNoteDogToActivePane() {
+  dockToolToPane('notedog', App.activePaneIndex);
+}
+
+function initNoteDogDrag() {
+  if (notedogState.dragInitialized) return;
+  notedogState.dragInitialized = true;
+
+  const win = document.getElementById('floating-notedog-window');
+  const header = document.getElementById('notedog-header');
+  if (!win || !header) return;
+
+  const savedLeft = localStorage.getItem('cd_notedog_x');
+  const savedTop = localStorage.getItem('cd_notedog_y');
+
+  if (savedLeft && savedTop && window.innerWidth > 768) {
+    win.style.left = `${Math.min(window.innerWidth - 400, Math.max(10, parseInt(savedLeft, 10)))}px`;
+    win.style.top = `${Math.min(window.innerHeight - 300, Math.max(35, parseInt(savedTop, 10)))}px`;
+  }
+
+  let isDragging = false;
+  let dragStartX = 0, dragStartY = 0;
+  let winStartX = 0, winStartY = 0;
+
+  header.addEventListener('mousedown', (e) => {
+    if (e.target.closest('button') || e.target.closest('input') || notedogState.isMaximized) return;
+    isDragging = true;
+    bringFloatingWindowToFront(win);
+    dragStartX = e.clientX;
+    dragStartY = e.clientY;
+    const rect = win.getBoundingClientRect();
+    winStartX = rect.left;
+    winStartY = rect.top;
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'move';
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (!isDragging) return;
+    const dx = e.clientX - dragStartX;
+    const dy = e.clientY - dragStartY;
+    const newLeft = Math.max(0, Math.min(window.innerWidth - win.offsetWidth, winStartX + dx));
+    const newTop = Math.max(35, Math.min(window.innerHeight - 60, winStartY + dy));
+    win.style.left = `${newLeft}px`;
+    win.style.top = `${newTop}px`;
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (isDragging) {
+      isDragging = false;
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+      localStorage.setItem('cd_notedog_x', win.offsetLeft);
+      localStorage.setItem('cd_notedog_y', win.offsetTop);
+    }
+  });
+}
+
+async function loadNoteDogHierarchy(targetNotePath) {
+  try {
+    const customFolder = notedogState.customFolder || localStorage.getItem('cd_notedog_folder');
+    const url = customFolder ? `/api/tools/notedog/info?folder=${encodeURIComponent(customFolder)}` : '/api/tools/notedog/info';
+    const resp = await fetch(url);
+    if (!resp.ok) return;
+    const data = await resp.json();
+    notedogState.rootFolder = data.root_folder;
+    notedogState.notebooks = data.notebooks || [];
+
+    // Resolve initial active notebook / section / note
+    if (targetNotePath) {
+      // Find matching note
+      for (const nb of notedogState.notebooks) {
+        for (const sec of nb.sections) {
+          for (const n of sec.notes) {
+            if (n.path === targetNotePath || n.relative_path === targetNotePath) {
+              notedogState.activeNotebook = nb.name;
+              notedogState.activeSection = sec.name;
+              notedogState.activeNote = n;
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    if (!notedogState.activeNotebook && notedogState.notebooks.length > 0) {
+      notedogState.activeNotebook = notedogState.notebooks[0].name;
+    }
+
+    const currentNb = notedogState.notebooks.find(nb => nb.name === notedogState.activeNotebook);
+    if (currentNb && currentNb.sections.length > 0) {
+      if (!notedogState.activeSection || !currentNb.sections.some(s => s.name === notedogState.activeSection)) {
+        notedogState.activeSection = currentNb.sections[0].name;
+      }
+    }
+
+    const currentSec = currentNb?.sections.find(s => s.name === notedogState.activeSection);
+    if (currentSec && currentSec.notes.length > 0) {
+      if (!notedogState.activeNote || !currentSec.notes.some(n => n.path === notedogState.activeNote.path)) {
+        notedogState.activeNote = currentSec.notes[0];
+      }
+    }
+
+    renderNoteDogSidebar();
+
+    if (notedogState.activeNote) {
+      loadNoteDogNoteContent(notedogState.activeNote);
+    } else {
+      // Blank state
+      const titleInput = document.getElementById('notedog-active-title');
+      if (titleInput) titleInput.value = 'No notes yet';
+      const textarea = document.getElementById('notedog-editor-textarea');
+      if (textarea) textarea.value = '';
+      const preview = document.getElementById('notedog-preview-content');
+      if (preview) preview.innerHTML = '<div style="color: var(--text-dim); text-align: center; padding: 40px;">Click <b>+ Note</b> to create your first note!</div>';
+    }
+  } catch (err) {
+    console.error('NoteDog load hierarchy failed:', err);
+  }
+}
+
+function renderNoteDogSidebar() {
+  const nbList = document.getElementById('notedog-notebooks-list');
+  const secList = document.getElementById('notedog-sections-list');
+  const noteList = document.getElementById('notedog-notes-list');
+  const breadcrumb = document.getElementById('notedog-current-breadcrumb');
+
+  if (breadcrumb) {
+    breadcrumb.textContent = `${notedogState.activeNotebook || 'Notes'} / ${notedogState.activeSection || 'General'}`;
+  }
+
+  // 1. Notebooks list
+  if (nbList) {
+    if (notedogState.notebooks.length === 0) {
+      nbList.innerHTML = '<div style="padding: 6px; font-size: 10px; color: var(--text-dim);">No notebooks</div>';
+    } else {
+      nbList.innerHTML = notedogState.notebooks.map(nb => {
+        const totalNotes = nb.sections.reduce((acc, s) => acc + s.notes.length, 0);
+        const isActive = nb.name === notedogState.activeNotebook;
+        return `
+          <div class="notedog-item ${isActive ? 'active' : ''}" onclick="selectNoteDogNotebook('${escapeHtml(nb.name)}')" title="${escapeHtml(nb.name)} (${totalNotes} notes)">
+            <span>📚</span>
+            <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1;">${escapeHtml(nb.name)}</span>
+            <span class="notedog-item-count">${totalNotes}</span>
+          </div>
+        `;
+      }).join('');
+    }
+  }
+
+  // 2. Sections list
+  const currentNb = notedogState.notebooks.find(nb => nb.name === notedogState.activeNotebook);
+  if (secList) {
+    if (!currentNb || currentNb.sections.length === 0) {
+      secList.innerHTML = '<div style="padding: 6px; font-size: 10px; color: var(--text-dim);">No sections</div>';
+    } else {
+      secList.innerHTML = currentNb.sections.map(sec => {
+        const isActive = sec.name === notedogState.activeSection;
+        return `
+          <div class="notedog-item ${isActive ? 'active' : ''}" onclick="selectNoteDogSection('${escapeHtml(sec.name)}')" title="${escapeHtml(sec.name)} (${sec.notes.length} notes)">
+            <span>📂</span>
+            <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1;">${escapeHtml(sec.name)}</span>
+            <span class="notedog-item-count">${sec.notes.length}</span>
+          </div>
+        `;
+      }).join('');
+    }
+  }
+
+  // 3. Notes list (supports search filter across all or active section)
+  if (noteList) {
+    let notesToRender = [];
+    if (notedogState.searchQuery.trim()) {
+      const q = notedogState.searchQuery.toLowerCase();
+      notedogState.notebooks.forEach(nb => {
+        nb.sections.forEach(sec => {
+          sec.notes.forEach(n => {
+            if (n.name.toLowerCase().includes(q) || n.filename.toLowerCase().includes(q)) {
+              notesToRender.push({ ...n, nbName: nb.name, secName: sec.name });
+            }
+          });
+        });
+      });
+    } else {
+      const currentSec = currentNb?.sections.find(s => s.name === notedogState.activeSection);
+      notesToRender = currentSec ? currentSec.notes : [];
+    }
+
+    if (notesToRender.length === 0) {
+      noteList.innerHTML = `<div style="padding: 10px; font-size: 11px; color: var(--text-dim); text-align: center;">${notedogState.searchQuery ? 'No matching notes' : 'No notes in section'}</div>`;
+    } else {
+      noteList.innerHTML = notesToRender.map(note => {
+        const isActive = notedogState.activeNote && (notedogState.activeNote.path === note.path);
+        const icon = note.is_encrypted ? '🔒' : '📄';
+        const subtext = note.nbName ? `${note.nbName}/${note.secName}` : '';
+        return `
+          <div class="notedog-item ${isActive ? 'active' : ''}" onclick='selectNoteDogNote(${JSON.stringify(note)})' title="${escapeHtml(note.filename)}">
+            <span>${icon}</span>
+            <div style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+              <div>${escapeHtml(note.name)}</div>
+              ${subtext ? `<div style="font-size: 9px; color: var(--text-dim);">${escapeHtml(subtext)}</div>` : ''}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+  }
+  if (window.lucide) lucide.createIcons();
+}
+
+function selectNoteDogNotebook(nbName) {
+  notedogState.activeNotebook = nbName;
+  const currentNb = notedogState.notebooks.find(nb => nb.name === nbName);
+  if (currentNb && currentNb.sections.length > 0) {
+    notedogState.activeSection = currentNb.sections[0].name;
+    if (currentNb.sections[0].notes.length > 0) {
+      selectNoteDogNote(currentNb.sections[0].notes[0]);
+    } else {
+      notedogState.activeNote = null;
+    }
+  } else {
+    notedogState.activeSection = '';
+    notedogState.activeNote = null;
+  }
+  renderNoteDogSidebar();
+}
+
+function selectNoteDogSection(secName) {
+  notedogState.activeSection = secName;
+  const currentNb = notedogState.notebooks.find(nb => nb.name === notedogState.activeNotebook);
+  const currentSec = currentNb?.sections.find(s => s.name === secName);
+  if (currentSec && currentSec.notes.length > 0) {
+    selectNoteDogNote(currentSec.notes[0]);
+  } else {
+    notedogState.activeNote = null;
+  }
+  renderNoteDogSidebar();
+}
+
+function selectNoteDogNote(note) {
+  if (notedogState.isDirty && notedogState.activeNote) {
+    saveActiveNoteDogNote();
+  }
+  notedogState.activeNote = note;
+  if (note.nbName && note.secName) {
+    notedogState.activeNotebook = note.nbName;
+    notedogState.activeSection = note.secName;
+  }
+  renderNoteDogSidebar();
+  loadNoteDogNoteContent(note);
+}
+
+async function loadNoteDogNoteContent(note) {
+  const titleInput = document.getElementById('notedog-active-title');
+  const textarea = document.getElementById('notedog-editor-textarea');
+  const preview = document.getElementById('notedog-preview-content');
+  const saveStatus = document.getElementById('notedog-save-status');
+
+  if (titleInput) titleInput.value = note.name;
+  if (saveStatus) {
+    saveStatus.textContent = 'Saved';
+    saveStatus.className = 'notedog-save-status';
+  }
+
+  try {
+    const resp = await fetch(`/api/fs/read?path=${encodeURIComponent(note.path)}`);
+    if (resp.ok) {
+      const data = await resp.json();
+      const content = data.content || '';
+      notedogState.content = content;
+      notedogState.isDirty = false;
+      if (textarea) textarea.value = content;
+      syncNoteDogGutter();
+      renderNoteDogPreview(content);
+    } else {
+      if (textarea) textarea.value = 'Failed to load note content';
+    }
+  } catch (err) {
+    console.error('NoteDog read note failed:', err);
+  }
+}
+
+function handleNoteDogInput() {
+  const textarea = document.getElementById('notedog-editor-textarea');
+  const saveStatus = document.getElementById('notedog-save-status');
+  if (!textarea) return;
+
+  notedogState.content = textarea.value;
+  notedogState.isDirty = true;
+
+  if (saveStatus) {
+    saveStatus.textContent = 'Unsaved *';
+    saveStatus.className = 'notedog-save-status unsaved';
+  }
+
+  syncNoteDogGutter();
+  renderNoteDogPreview(notedogState.content);
+
+  // Debounced auto-save after 2.5s of typing pause
+  if (notedogState.autoSaveTimer) clearTimeout(notedogState.autoSaveTimer);
+  notedogState.autoSaveTimer = setTimeout(() => {
+    if (notedogState.isDirty && notedogState.activeNote) {
+      saveActiveNoteDogNote(true);
+    }
+  }, 2500);
+}
+
+async function saveActiveNoteDogNote(isAutoSave = false) {
+  if (!notedogState.activeNote) return;
+  const textarea = document.getElementById('notedog-editor-textarea');
+  const saveStatus = document.getElementById('notedog-save-status');
+  const content = textarea ? textarea.value : notedogState.content;
+
+  try {
+    const resp = await fetch('/api/fs/write', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: notedogState.activeNote.path, content })
+    });
+
+    if (resp.ok) {
+      notedogState.isDirty = false;
+      if (saveStatus) {
+        saveStatus.textContent = 'Saved';
+        saveStatus.className = 'notedog-save-status';
+      }
+
+      // Record snapshot revision in .notedog_versions
+      fetch('/api/tools/notedog/version/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: notedogState.activeNote.path })
+      }).catch(() => {});
+
+      if (!isAutoSave) {
+        showToast(`Saved note: ${notedogState.activeNote.name}`, 'success');
+      }
+    }
+  } catch (err) {
+    console.error('NoteDog save error:', err);
+    if (!isAutoSave) showToast('Failed to save note', 'error');
+  }
+}
+
+function syncNoteDogGutter() {
+  const textarea = document.getElementById('notedog-editor-textarea');
+  const gutter = document.getElementById('notedog-editor-gutter');
+  if (!textarea || !gutter) return;
+
+  const lines = (textarea.value.match(/\n/g) || []).length + 1;
+  let gutterHtml = '';
+  for (let i = 1; i <= lines; i++) {
+    gutterHtml += `${i}\n`;
+  }
+  gutter.textContent = gutterHtml;
+  gutter.scrollTop = textarea.scrollTop;
+}
+
+function handleNoteDogKeyDown(e) {
+  if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+    e.preventDefault();
+    saveActiveNoteDogNote();
+  } else if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
+    e.preventDefault();
+    insertNoteDogMarkdown('**', '**', 'bold text');
+  } else if ((e.ctrlKey || e.metaKey) && e.key === 'i') {
+    e.preventDefault();
+    insertNoteDogMarkdown('*', '*', 'italic text');
+  } else if (e.key === 'Tab') {
+    e.preventDefault();
+    const textarea = e.target;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    textarea.value = textarea.value.substring(0, start) + '  ' + textarea.value.substring(end);
+    textarea.selectionStart = textarea.selectionEnd = start + 2;
+    handleNoteDogInput();
+  }
+}
+
+async function handleNoteDogTitleChange(newTitle) {
+  if (!notedogState.activeNote || !newTitle.trim()) return;
+  const cleanTitle = newTitle.trim();
+  if (cleanTitle === notedogState.activeNote.name) return;
+
+  const oldPath = notedogState.activeNote.path;
+  const dir = oldPath.substring(0, oldPath.lastIndexOf('/'));
+  const ext = oldPath.endsWith('.md.enc') ? '.md.enc' : '.md';
+  const newFilename = `${cleanTitle}${ext}`;
+  const newPath = `${dir}/${newFilename}`;
+
+  try {
+    const resp = await fetch('/api/fs/rename', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ source: oldPath, destination: newPath })
+    });
+    if (resp.ok) {
+      notedogState.activeNote.name = cleanTitle;
+      notedogState.activeNote.filename = newFilename;
+      notedogState.activeNote.path = newPath;
+      loadNoteDogHierarchy(newPath);
+      showToast(`Renamed note to "${cleanTitle}"`, 'info');
+    }
+  } catch (err) {
+    console.error('NoteDog rename note failed:', err);
+  }
+}
+
+function handleNoteDogSearch(query) {
+  notedogState.searchQuery = query || '';
+  renderNoteDogSidebar();
+}
+
+function setNoteDogViewMode(mode) {
+  notedogState.viewMode = mode;
+  const wrapper = document.getElementById('notedog-panes-wrapper');
+  if (wrapper) {
+    wrapper.className = `notedog-panes-wrapper ${mode}-mode`;
+  }
+  ['edit', 'split', 'preview'].forEach(m => {
+    const btn = document.getElementById(`notedog-mode-${m}`);
+    if (btn) btn.classList.toggle('active', m === mode);
+  });
+}
+
+function renderNoteDogPreview(text) {
+  const preview = document.getElementById('notedog-preview-content');
+  if (!preview) return;
+
+  if (!text || !text.trim()) {
+    preview.innerHTML = '<div style="color: var(--text-dim); font-style: italic;">Empty note</div>';
+    return;
+  }
+
+  const lines = text.split('\n');
+  let html = '';
+  let inCodeBlock = false;
+  let codeBlockContent = '';
+  let codeBlockLang = '';
+
+  lines.forEach((line, idx) => {
+    // Code block check
+    if (line.trim().startsWith('```')) {
+      if (!inCodeBlock) {
+        inCodeBlock = true;
+        codeBlockLang = line.trim().replace(/^```/, '').trim();
+        codeBlockContent = '';
+      } else {
+        inCodeBlock = false;
+        if (codeBlockLang === 'mermaid') {
+          html += `<div class="notedog-mermaid-box"><pre><code class="language-mermaid">${escapeHtml(codeBlockContent)}</code></pre></div>`;
+        } else {
+          html += `<pre><code>${escapeHtml(codeBlockContent)}</code></pre>`;
+        }
+      }
+      return;
+    }
+
+    if (inCodeBlock) {
+      codeBlockContent += (codeBlockContent ? '\n' : '') + line;
+      return;
+    }
+
+    // 1. Interactive Checkboxes: - [ ] Task or - [x] Task
+    const taskMatch = line.match(/^(\s*)-\s*\[([ xX])\]\s*(.*)$/);
+    if (taskMatch) {
+      const isChecked = taskMatch[2].toLowerCase() === 'x';
+      const taskText = formatNoteDogInlineMarkdown(taskMatch[3]);
+      html += `
+        <div class="notedog-task-item" onclick="toggleNoteDogTaskCheckbox(${idx})">
+          <input type="checkbox" class="notedog-task-checkbox" ${isChecked ? 'checked' : ''} onclick="event.stopPropagation(); toggleNoteDogTaskCheckbox(${idx})" />
+          <span class="notedog-task-text ${isChecked ? 'completed' : ''}">${taskText}</span>
+        </div>
+      `;
+      return;
+    }
+
+    // 2. Headers
+    if (line.startsWith('### ')) {
+      html += `<h3>${formatNoteDogInlineMarkdown(line.slice(4))}</h3>`;
+      return;
+    }
+    if (line.startsWith('## ')) {
+      html += `<h2>${formatNoteDogInlineMarkdown(line.slice(3))}</h2>`;
+      return;
+    }
+    if (line.startsWith('# ')) {
+      html += `<h1>${formatNoteDogInlineMarkdown(line.slice(2))}</h1>`;
+      return;
+    }
+
+    // 3. Horizontal Rule
+    if (line.trim() === '---' || line.trim() === '***' || line.trim() === '___') {
+      html += '<hr>';
+      return;
+    }
+
+    // 4. Blockquotes
+    if (line.startsWith('> ')) {
+      html += `<blockquote>${formatNoteDogInlineMarkdown(line.slice(2))}</blockquote>`;
+      return;
+    }
+
+    // 5. Unordered List
+    if (line.startsWith('- ') || line.startsWith('* ')) {
+      html += `<ul><li>${formatNoteDogInlineMarkdown(line.slice(2))}</li></ul>`;
+      return;
+    }
+
+    // 6. Regular paragraphs
+    if (line.trim() === '') {
+      html += '<br>';
+    } else {
+      html += `<p>${formatNoteDogInlineMarkdown(line)}</p>`;
+    }
+  });
+
+  preview.innerHTML = html;
+}
+
+function formatNoteDogInlineMarkdown(str) {
+  if (!str) return '';
+  let res = escapeHtml(str);
+
+  // Universal HTML color spans: <span style="color:#...">text</span> and <font color="...">text</font>
+  res = res.replace(/&lt;span style=&quot;color:\s*([^&]+)&quot;&gt;(.*?)&lt;\/span&gt;/gi, '<span style="color: $1">$2</span>');
+  res = res.replace(/&lt;font color=&quot;([^&]+)&quot;&gt;(.*?)&lt;\/font&gt;/gi, '<span style="color: $1">$2</span>');
+  
+  // Shorthand color tags: {[#color]text}
+  res = res.replace(/\{\[([#a-zA-Z0-9]+)\](.*?)\}/g, '<span style="color: $1">$2</span>');
+
+  // Bold **text**
+  res = res.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+
+  // Italic *text*
+  res = res.replace(/\*(.*?)\*/g, '<em>$1</em>');
+
+  // Strikethrough ~~text~~
+  res = res.replace(/~~(.*?)~~/g, '<del>$1</del>');
+
+  // Inline code `code`
+  res = res.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+  return res;
+}
+
+function toggleNoteDogTaskCheckbox(lineIndex) {
+  const textarea = document.getElementById('notedog-editor-textarea');
+  if (!textarea) return;
+
+  const lines = textarea.value.split('\n');
+  if (lineIndex < 0 || lineIndex >= lines.length) return;
+
+  const line = lines[lineIndex];
+  if (line.match(/^(\s*)-\s*\[ \]\s*(.*)$/)) {
+    lines[lineIndex] = line.replace(/^(\s*)-\s*\[ \]/, '$1- [x]');
+  } else if (line.match(/^(\s*)-\s*\[[xX]\]\s*(.*)$/)) {
+    lines[lineIndex] = line.replace(/^(\s*)-\s*\[[xX]\]/, '$1- [ ]');
+  }
+
+  textarea.value = lines.join('\n');
+  handleNoteDogInput();
+  saveActiveNoteDogNote(true);
+}
+
+function insertNoteDogMarkdown(prefix, suffix, defaultText) {
+  const textarea = document.getElementById('notedog-editor-textarea');
+  if (!textarea) return;
+
+  const start = textarea.selectionStart;
+  const end = textarea.selectionEnd;
+  const selectedText = textarea.value.substring(start, end) || defaultText;
+  const replacement = `${prefix}${selectedText}${suffix}`;
+
+  textarea.value = textarea.value.substring(0, start) + replacement + textarea.value.substring(end);
+  textarea.selectionStart = start + prefix.length;
+  textarea.selectionEnd = start + prefix.length + selectedText.length;
+  textarea.focus();
+  handleNoteDogInput();
+}
+
+function insertNoteDogMermaid() {
+  const template = `\n\`\`\`mermaid\ngraph TD\n    A[Start Process] --> B{Condition}\n    B -->|Yes| C[Success]\n    B -->|No| D[Retry]\n\`\`\`\n`;
+  insertNoteDogMarkdown('', '', template);
+}
+
+function insertNoteDogColorTag() {
+  const color = prompt('Enter hex color or name (e.g. #f59e0b, gold, #38bdf8):', '#f59e0b');
+  if (color) {
+    insertNoteDogMarkdown(`<span style="color:${color.trim()}">`, '</span>', 'colored text');
+  }
+}
+
+function insertNoteDogTimestamp() {
+  const now = new Date();
+  const ts = now.toISOString().replace('T', ' ').substring(0, 16);
+  insertNoteDogMarkdown('', '', `**${ts}** `);
+}
+
+async function promptCreateNotebook() {
+  const name = prompt('Enter new Notebook name (e.g. Personal, Projects, Ideas):');
+  if (!name || !name.trim()) return;
+  const nbName = name.trim();
+
+  try {
+    const root = notedogState.rootFolder || '~/Notes';
+    const nbPath = `${root}/${nbName}/General`;
+    await fetch('/api/fs/mkdir', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: nbPath })
+    });
+    await loadNoteDogHierarchy();
+    selectNoteDogNotebook(nbName);
+    showToast(`Created Notebook "${nbName}"`, 'success');
+  } catch (err) {
+    showToast('Failed to create notebook', 'error');
+  }
+}
+
+async function promptCreateSection() {
+  if (!notedogState.activeNotebook) {
+    showToast('Please select or create a notebook first', 'info');
+    return;
+  }
+  const name = prompt(`Enter new Section name for Notebook "${notedogState.activeNotebook}":`);
+  if (!name || !name.trim()) return;
+  const secName = name.trim();
+
+  try {
+    const root = notedogState.rootFolder || '~/Notes';
+    const secPath = `${root}/${notedogState.activeNotebook}/${secName}`;
+    await fetch('/api/fs/mkdir', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: secPath })
+    });
+    await loadNoteDogHierarchy();
+    selectNoteDogSection(secName);
+    showToast(`Created Section "${secName}"`, 'success');
+  } catch (err) {
+    showToast('Failed to create section', 'error');
+  }
+}
+
+function promptCreateNote() {
+  openNoteDogTemplatePicker();
+}
+
+function openNoteDogNewMenu(e) {
+  const choices = [
+    { name: '📄 New Note from Template', action: () => openNoteDogTemplatePicker() },
+    { name: '📂 New Section', action: () => promptCreateSection() },
+    { name: '📚 New Notebook', action: () => promptCreateNotebook() }
+  ];
+
+  const choice = prompt('Select creation type:\n1. New Note\n2. New Section\n3. New Notebook', '1');
+  if (choice === '1') openNoteDogTemplatePicker();
+  else if (choice === '2') promptCreateSection();
+  else if (choice === '3') promptCreateNotebook();
+}
+
+async function openNoteDogTemplatePicker() {
+  if (!notedogState.activeNotebook || !notedogState.activeSection) {
+    showToast('Please select a Notebook and Section first', 'info');
+    return;
+  }
+
+  try {
+    const resp = await fetch('/api/tools/notedog/templates');
+    const templates = resp.ok ? await resp.json() : [];
+    notedogState.templates = templates;
+
+    let templateMenu = 'Choose a Note Template:\n';
+    templates.forEach((t, i) => {
+      templateMenu += `${i + 1}. ${t.icon} ${t.name} - ${t.description}\n`;
+    });
+
+    const choice = prompt(templateMenu + '\nEnter number (1-6):', '1');
+    if (!choice) return;
+    const idx = parseInt(choice, 10) - 1;
+    const selectedTemplate = templates[idx] || templates[0];
+
+    const title = prompt('Enter note title:', selectedTemplate.name);
+    if (!title || !title.trim()) return;
+
+    createNoteFromTemplate(selectedTemplate, title.trim());
+  } catch (err) {
+    console.error('NoteDog template picker error:', err);
+  }
+}
+
+async function createNoteFromTemplate(template, title) {
+  const root = notedogState.rootFolder || '~/Notes';
+  const now = new Date().toISOString().replace('T', ' ').substring(0, 16);
+  let content = template.content.replace(/\{\{title\}\}/g, title).replace(/\{\{date\}\}/g, now);
+
+  const cleanFilename = `${title.replace(/[/\\?%*:|"<>]/g, '_')}.md`;
+  const notePath = `${root}/${notedogState.activeNotebook}/${notedogState.activeSection}/${cleanFilename}`;
+
+  try {
+    const resp = await fetch('/api/fs/write', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: notePath, content })
+    });
+
+    if (resp.ok) {
+      await loadNoteDogHierarchy(notePath);
+      showToast(`Created note "${title}"`, 'success');
+    }
+  } catch (err) {
+    showToast('Failed to create note', 'error');
+  }
+}
+
+async function promptDeleteCurrentNote() {
+  if (!notedogState.activeNote) return;
+  if (!confirm(`Are you sure you want to delete note "${notedogState.activeNote.name}"?`)) return;
+
+  try {
+    const resp = await fetch('/api/fs/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: notedogState.activeNote.path })
+    });
+    if (resp.ok) {
+      notedogState.activeNote = null;
+      await loadNoteDogHierarchy();
+      showToast('Note deleted', 'info');
+    }
+  } catch (err) {
+    showToast('Failed to delete note', 'error');
+  }
+}
+
+async function openNoteDogVersionsModal() {
+  if (!notedogState.activeNote) {
+    showToast('Please open a note first to view revisions', 'info');
+    return;
+  }
+
+  showModal('notedog-versions-modal');
+  const noteNameBadge = document.getElementById('notedog-version-note-name');
+  if (noteNameBadge) noteNameBadge.textContent = notedogState.activeNote.filename;
+
+  const listEl = document.getElementById('notedog-versions-list');
+  const previewEl = document.getElementById('notedog-version-preview-content');
+  const restoreBtn = document.getElementById('btn-notedog-restore-version');
+  const metaLabel = document.getElementById('notedog-version-meta-label');
+
+  if (listEl) listEl.innerHTML = '<div style="padding: 10px; font-size: 11px; color: var(--text-dim);">Loading revisions...</div>';
+  if (previewEl) previewEl.textContent = '';
+  if (restoreBtn) restoreBtn.style.display = 'none';
+
+  try {
+    const resp = await fetch(`/api/tools/notedog/versions?path=${encodeURIComponent(notedogState.activeNote.path)}`);
+    if (resp.ok) {
+      const versions = await resp.json();
+      if (versions.length === 0) {
+        if (listEl) listEl.innerHTML = '<div style="padding: 12px; font-size: 11px; color: var(--text-dim); text-align: center;">No revisions recorded yet. Revisions are created automatically when saving notes!</div>';
+        return;
+      }
+
+      if (listEl) {
+        listEl.innerHTML = versions.map((v, i) => `
+          <div class="notedog-item ${i === 0 ? 'active' : ''}" onclick="selectNoteDogVersion('${escapeHtml(v.path)}', '${escapeHtml(v.formatted_time)}', ${v.size_bytes})" style="padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,0.04);">
+            <div style="flex:1;">
+              <div style="font-weight:600; font-size:11px;">${escapeHtml(v.formatted_time)}</div>
+              <div style="font-size:10px; color:var(--text-dim);">${formatFileSize(v.size_bytes)}</div>
+            </div>
+          </div>
+        `).join('');
+      }
+
+      // Auto-preview first version
+      selectNoteDogVersion(versions[0].path, versions[0].formatted_time, versions[0].size_bytes);
+    }
+  } catch (err) {
+    console.error('NoteDog load versions failed:', err);
+  }
+}
+
+async function selectNoteDogVersion(verPath, verTime, sizeBytes) {
+  notedogState.selectedVersion = { path: verPath, time: verTime };
+  const previewEl = document.getElementById('notedog-version-preview-content');
+  const metaLabel = document.getElementById('notedog-version-meta-label');
+  const restoreBtn = document.getElementById('btn-notedog-restore-version');
+
+  if (metaLabel) metaLabel.textContent = `Revision: ${verTime} (${formatFileSize(sizeBytes)})`;
+  if (restoreBtn) restoreBtn.style.display = 'inline-flex';
+
+  try {
+    const resp = await fetch(`/api/fs/read?path=${encodeURIComponent(verPath)}`);
+    if (resp.ok) {
+      const data = await resp.json();
+      if (previewEl) previewEl.textContent = data.content || '';
+      notedogState.selectedVersion.content = data.content || '';
+    }
+  } catch (err) {
+    if (previewEl) previewEl.textContent = 'Failed to load version content';
+  }
+}
+
+async function restoreSelectedNoteDogVersion() {
+  if (!notedogState.selectedVersion || !notedogState.activeNote) return;
+  if (!confirm(`Restore revision from ${notedogState.selectedVersion.time}? Current edits will be replaced.`)) return;
+
+  const content = notedogState.selectedVersion.content || '';
+  const textarea = document.getElementById('notedog-editor-textarea');
+  if (textarea) textarea.value = content;
+  notedogState.content = content;
+
+  closeModal('notedog-versions-modal');
+  await saveActiveNoteDogNote();
+  renderNoteDogPreview(content);
+  syncNoteDogGutter();
+  showToast(`Restored revision from ${notedogState.selectedVersion.time}`, 'success');
+}
+
+function mountDockedNoteDog(paneIndex) {
+  const mountBody = document.getElementById(`docked-notedog-body-${paneIndex}`);
+  if (!mountBody) return;
+
+  mountBody.innerHTML = `
+    <div style="display: flex; flex-direction: column; width: 100%; height: 100%; overflow: hidden;">
+      <div style="padding: 4px 8px; background: var(--bg-dark); border-bottom: 1px solid var(--border); display: flex; gap: 4px; align-items: center; font-size: 11px;">
+        <select id="docked-notedog-nb-select-${paneIndex}" class="pane-quick-filter" style="font-size: 11px; padding: 2px 4px;" onchange="selectNoteDogNotebook(this.value); mountDockedNoteDog(${paneIndex});">
+          ${notedogState.notebooks.map(nb => `<option value="${escapeHtml(nb.name)}" ${nb.name === notedogState.activeNotebook ? 'selected' : ''}>📚 ${escapeHtml(nb.name)}</option>`).join('')}
+        </select>
+        <select id="docked-notedog-sec-select-${paneIndex}" class="pane-quick-filter" style="font-size: 11px; padding: 2px 4px;" onchange="selectNoteDogSection(this.value); mountDockedNoteDog(${paneIndex});">
+          ${(notedogState.notebooks.find(nb => nb.name === notedogState.activeNotebook)?.sections || []).map(sec => `<option value="${escapeHtml(sec.name)}" ${sec.name === notedogState.activeSection ? 'selected' : ''}>📂 ${escapeHtml(sec.name)}</option>`).join('')}
+        </select>
+        <select id="docked-notedog-note-select-${paneIndex}" class="pane-quick-filter" style="font-size: 11px; padding: 2px 4px; flex: 1;" onchange="handleDockedNoteSelect(${paneIndex}, this.value)">
+          ${((notedogState.notebooks.find(nb => nb.name === notedogState.activeNotebook)?.sections.find(s => s.name === notedogState.activeSection)?.notes) || []).map(n => `<option value="${escapeHtml(n.path)}" ${notedogState.activeNote && n.path === notedogState.activeNote.path ? 'selected' : ''}>📄 ${escapeHtml(n.name)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="notedog-panes-wrapper split-mode" style="flex: 1; height: 100%;">
+        <div class="notedog-pane notedog-editor-pane" style="width: 50%; border-right: 1px solid var(--border);">
+          <textarea id="docked-notedog-textarea-${paneIndex}" class="notedog-textarea" style="width: 100%; height: 100%;" oninput="syncDockedNoteDogInput(${paneIndex}, this.value)">${escapeHtml(notedogState.content || '')}</textarea>
+        </div>
+        <div class="notedog-pane notedog-preview-pane" style="width: 50%; padding: 10px;">
+          <div id="docked-notedog-preview-${paneIndex}" class="notedog-preview-content"></div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  renderDockedNoteDogPreview(paneIndex, notedogState.content || '');
+}
+
+function handleDockedNoteSelect(paneIndex, notePath) {
+  const currentNb = notedogState.notebooks.find(nb => nb.name === notedogState.activeNotebook);
+  const currentSec = currentNb?.sections.find(s => s.name === notedogState.activeSection);
+  const note = currentSec?.notes.find(n => n.path === notePath);
+  if (note) {
+    selectNoteDogNote(note);
+    setTimeout(() => mountDockedNoteDog(paneIndex), 100);
+  }
+}
+
+function syncDockedNoteDogInput(paneIndex, val) {
+  notedogState.content = val;
+  notedogState.isDirty = true;
+  const mainTextarea = document.getElementById('notedog-editor-textarea');
+  if (mainTextarea) mainTextarea.value = val;
+  renderDockedNoteDogPreview(paneIndex, val);
+}
+
+function renderDockedNoteDogPreview(paneIndex, text) {
+  const preview = document.getElementById(`docked-notedog-preview-${paneIndex}`);
+  if (preview) {
+    preview.innerHTML = formatNoteDogInlineMarkdown(text).replace(/\n/g, '<br>');
+  }
 }
 
 function renderEditorTabs() {
@@ -6459,8 +7748,6 @@ function triggerProperties(targetEntry) {
   activePropertiesEntry = entry;
   activePermEntry = entry;
 
-  const headerIcon = document.getElementById('prop-header-icon');
-  const bigIcon = document.getElementById('prop-big-icon');
   const title = document.getElementById('prop-header-title');
   const filenameInput = document.getElementById('prop-input-filename');
   const typeDesc = document.getElementById('prop-file-type-desc');
@@ -6468,15 +7755,7 @@ function triggerProperties(targetEntry) {
   if (title) title.textContent = `${entry.name} - Properties`;
   if (filenameInput) filenameInput.value = entry.name;
 
-  const iconDetails = getFileIconDetails(entry.name, entry.is_dir, entry.is_archive);
-  if (headerIcon) {
-    if (iconDetails.src) headerIcon.src = iconDetails.src;
-    else headerIcon.src = entry.is_dir ? 'assets/folder-open.png' : 'assets/logo.png';
-  }
-  if (bigIcon) {
-    if (iconDetails.src) bigIcon.src = iconDetails.src;
-    else bigIcon.src = entry.is_dir ? 'assets/folder-open.png' : 'assets/logo.png';
-  }
+  updatePropertiesModalHeaderIcon(entry);
 
   const ext = entry.name.includes('.') ? entry.name.split('.').pop().toUpperCase() : '';
   if (typeDesc) {
@@ -6566,7 +7845,10 @@ function switchPropertiesTab(tabId) {
   modal.querySelectorAll('.settings-tab-content').forEach(c => c.classList.remove('active'));
 
   const btn = document.getElementById(`btn-${tabId}`);
-  if (btn) btn.classList.add('active');
+  if (btn) {
+    btn.classList.add('active');
+    btn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+  }
   const content = document.getElementById(tabId);
   if (content) content.classList.add('active');
 }
@@ -6699,28 +7981,91 @@ function copyPropHash(elementId) {
   showToast('Checksum copied to clipboard', 'info');
 }
 
+function updatePropertiesModalHeaderIcon(entry) {
+  if (!entry) return;
+  const bigIconContainer = document.getElementById('prop-big-icon-container');
+  if (bigIconContainer) {
+    bigIconContainer.innerHTML = renderFileIconHtml(entry.name, entry.is_dir, entry.is_archive, entry.path, 'lg');
+  }
+  const headerIcon = document.getElementById('prop-header-icon');
+  if (headerIcon) {
+    headerIcon.outerHTML = `<span id="prop-header-icon" style="display:inline-flex;align-items:center;margin-right:4px;">${renderFileIconHtml(entry.name, entry.is_dir, entry.is_archive, entry.path, 'sm')}</span>`;
+  }
+  if (window.lucide) lucide.createIcons();
+}
+
 function renderPropTagsTab(path) {
   const container = document.getElementById('prop-tags-container');
-  if (!container) return;
-  container.innerHTML = '';
+  const iconBadge = document.getElementById('prop-current-icon-badge');
+  const inputIcon = document.getElementById('prop-input-custom-icon');
+  const presetContainer = document.getElementById('prop-preset-buttons-container');
 
   const tagInfo = fileTagsMap.get(path);
-  const tags = tagInfo?.tags || [];
+  const curCustomIcon = tagInfo?.custom_icon || '';
 
-  if (tags.length === 0) {
-    container.innerHTML = '<span style="color: var(--text-muted); font-size: 11px;">No custom tags assigned yet.</span>';
-    return;
+  if (iconBadge) {
+    if (curCustomIcon) {
+      iconBadge.innerHTML = `<span>Active:</span> ${formatCustomIconToHtml(curCustomIcon, 'sm')} <span style="font-family: var(--font-mono); font-size: 11px;">(${escapeHtml(curCustomIcon)})</span>`;
+    } else {
+      iconBadge.innerHTML = `<span style="color: var(--text-muted); font-size: 11px; font-weight: normal;">Default Icon</span>`;
+    }
   }
 
-  tags.forEach(tag => {
-    const pill = document.createElement('span');
-    pill.className = 'file-tag-badge';
-    pill.style.cssText = 'font-size: 12px; padding: 3px 8px; display: inline-flex; align-items: center; gap: 6px;';
-    pill.innerHTML = `<span>#${escapeHtml(tag)}</span><i data-lucide="x" style="width: 12px; height: 12px; cursor: pointer;" onclick="removePropCustomTag('${escapeHtml(tag)}')"></i>`;
-    container.appendChild(pill);
-  });
+  if (inputIcon) {
+    inputIcon.value = curCustomIcon;
+  }
+
+  if (presetContainer) {
+    presetContainer.innerHTML = '';
+    COMMON_PRESET_ICONS.forEach(icon => {
+      const chip = document.createElement('span');
+      chip.className = `icon-btn-chip ${curCustomIcon === icon ? 'active' : ''}`;
+      chip.innerHTML = formatCustomIconToHtml(icon, 'sm');
+      chip.title = `Apply ${icon}`;
+      chip.onclick = () => setPropCustomIcon(icon);
+      presetContainer.appendChild(chip);
+    });
+  }
+
+  if (container) {
+    container.innerHTML = '';
+    const tags = tagInfo?.tags || [];
+
+    if (tags.length === 0) {
+      container.innerHTML = '<span style="color: var(--text-muted); font-size: 11px;">No custom tags assigned yet.</span>';
+    } else {
+      tags.forEach(tag => {
+        const pill = document.createElement('span');
+        pill.className = 'file-tag-badge';
+        pill.style.cssText = 'font-size: 12px; padding: 3px 8px; display: inline-flex; align-items: center; gap: 6px;';
+        pill.innerHTML = `<span>#${escapeHtml(tag)}</span><i data-lucide="x" style="width: 12px; height: 12px; cursor: pointer;" onclick="removePropCustomTag('${escapeHtml(tag)}')"></i>`;
+        container.appendChild(pill);
+      });
+    }
+  }
 
   if (window.lucide) lucide.createIcons();
+}
+
+function applyPropCustomIconInput() {
+  if (!activePropertiesEntry) return;
+  const input = document.getElementById('prop-input-custom-icon');
+  const val = input ? input.value.trim() : '';
+  if (!val) {
+    clearPropCustomIcon();
+    return;
+  }
+  setPropCustomIcon(val);
+}
+
+function setPropCustomIcon(iconVal) {
+  if (!activePropertiesEntry) return;
+  setContextCustomIcon(iconVal, [activePropertiesEntry.path]);
+}
+
+function clearPropCustomIcon() {
+  if (!activePropertiesEntry) return;
+  setContextCustomIcon('', [activePropertiesEntry.path]);
 }
 
 function setPropFileColor(color) {
@@ -7460,6 +8805,7 @@ function lockSession() {
   if (lockScreen) {
     lockScreen.classList.add('active');
     lockScreen.style.display = 'flex';
+    if (window.lucide) lucide.createIcons({ root: lockScreen });
   }
   setTimeout(() => passIn?.focus(), 150);
 }
@@ -7689,6 +9035,24 @@ function switchLayout(layoutName) {
   App.layout = layoutName;
   localStorage.setItem('cd_layout', layoutName);
   updateActiveLayoutUI(layoutName);
+
+  const visibleCount = getVisiblePaneCount();
+  if (App.activePaneIndex >= visibleCount) {
+    App.activePaneIndex = visibleCount - 1;
+  }
+
+  // If terminal was docked in a pane that is now hidden, migrate terminal to active visible pane
+  App.panes.forEach((p, idx) => {
+    if (p && p.dockedTool === 'terminal' && idx >= visibleCount) {
+      p.dockedTool = null;
+      localStorage.removeItem(`cd_pane_docked_${idx}`);
+      if (App.panes[App.activePaneIndex]) {
+        App.panes[App.activePaneIndex].dockedTool = 'terminal';
+        localStorage.setItem(`cd_pane_docked_${App.activePaneIndex}`, 'terminal');
+      }
+    }
+  });
+
   renderAllPanes();
 }
 
@@ -7958,6 +9322,7 @@ async function handleLoginSubmit() {
     await loadSystemUsersGroups();
     applyUserHomeToPanes(true);
     renderAllPanes();
+    restoreTerminalState();
   } else {
     if (err) {
       err.style.display = 'block';
@@ -8059,7 +9424,145 @@ function openSettingsModal() {
     globalRefreshCheckbox.checked = saved !== null ? (saved === 'true') : (App.config?.ui?.show_global_refresh === true);
   }
 
+  const notedogFolderInput = document.getElementById('setting-notedog-folder');
+  if (notedogFolderInput) {
+    notedogFolderInput.value = localStorage.getItem('cd_notedog_folder') || notedogState.rootFolder || '~/Notes';
+  }
+
+  updateColumnCheckboxes();
+  renderIconSettingsTab();
   showModal('settings-modal');
+}
+
+function renderIconSettingsTab() {
+  const themeSel = document.getElementById('setting-icon-theme');
+  if (themeSel) themeSel.value = App.iconTheme || 'default';
+
+  const folderInput = document.getElementById('setting-global-folder-icon');
+  if (folderInput) folderInput.value = App.globalFolderIcon || '';
+
+  renderCustomIconsTable();
+}
+
+function changeGlobalIconTheme(theme) {
+  App.iconTheme = theme;
+  localStorage.setItem('cd_icon_theme', theme);
+  renderAllPanes();
+  showToast(`Global icon theme set to: ${theme}`, 'success');
+}
+
+function saveGlobalFolderIcon() {
+  const input = document.getElementById('setting-global-folder-icon');
+  const val = input ? input.value.trim() : '';
+  App.globalFolderIcon = val;
+  if (val) {
+    localStorage.setItem('cd_global_folder_icon', val);
+    showToast(`Global folder icon set to "${val}"`, 'success');
+  } else {
+    localStorage.removeItem('cd_global_folder_icon');
+    showToast('Global folder icon reset to default', 'info');
+  }
+  renderAllPanes();
+}
+
+function resetGlobalFolderIcon() {
+  const input = document.getElementById('setting-global-folder-icon');
+  if (input) input.value = '';
+  saveGlobalFolderIcon();
+}
+
+function selectGlobalFolderPreset(preset) {
+  const input = document.getElementById('setting-global-folder-icon');
+  if (input) {
+    input.value = preset === 'assets/folder-open.png' ? '' : preset;
+    saveGlobalFolderIcon();
+  }
+}
+
+function renderCustomIconsTable() {
+  const tbody = document.getElementById('setting-custom-icons-table-body');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+
+  const entries = Object.entries(App.customFileIcons || {});
+  if (entries.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 12px;">No custom filetype icon rules configured yet.</td></tr>';
+    return;
+  }
+
+  entries.sort((a, b) => a[0].localeCompare(b[0])).forEach(([ext, iconVal]) => {
+    const tr = document.createElement('tr');
+    tr.style.borderBottom = '1px solid var(--border)';
+    tr.innerHTML = `
+      <td style="padding: 6px 10px; font-family: var(--font-mono); font-weight: 600; color: var(--accent);">${escapeHtml(ext)}</td>
+      <td style="padding: 6px 10px; font-family: var(--font-mono); font-size: 11px;">${escapeHtml(iconVal)}</td>
+      <td style="padding: 6px 10px; text-align: center;">${formatCustomIconToHtml(iconVal, 'sm', ext === 'folder')}</td>
+      <td style="padding: 6px 10px; text-align: right;">
+        <button class="btn btn-icon btn-xs btn-danger" onclick="removeCustomFileIconRule('${escapeHtml(ext)}')"><i data-lucide="trash-2" style="width: 12px; height: 12px;"></i></button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  if (window.lucide) lucide.createIcons({ root: tbody });
+}
+
+function addCustomFileIconRule() {
+  const extInput = document.getElementById('setting-new-icon-ext');
+  const valInput = document.getElementById('setting-new-icon-val');
+  if (!extInput || !valInput) return;
+
+  const ext = extInput.value.trim().toLowerCase().replace(/^\./, '');
+  const val = valInput.value.trim();
+
+  if (!ext || !val) {
+    showToast('Please specify both extension and icon/glyph', 'warning');
+    return;
+  }
+
+  if (!App.customFileIcons) App.customFileIcons = {};
+  App.customFileIcons[ext] = val;
+  localStorage.setItem('cd_custom_file_icons', JSON.stringify(App.customFileIcons));
+
+  extInput.value = '';
+  valInput.value = '';
+  renderCustomIconsTable();
+  renderAllPanes();
+  showToast(`Custom icon rule saved for .${ext}`, 'success');
+}
+
+function removeCustomFileIconRule(ext) {
+  if (App.customFileIcons && App.customFileIcons[ext]) {
+    delete App.customFileIcons[ext];
+    localStorage.setItem('cd_custom_file_icons', JSON.stringify(App.customFileIcons));
+    renderCustomIconsTable();
+    renderAllPanes();
+    showToast(`Removed rule for .${ext}`, 'info');
+  }
+}
+
+function loadNerdFontPresets() {
+  App.customFileIcons = { ...NERDFONT_PRESET };
+  localStorage.setItem('cd_custom_file_icons', JSON.stringify(App.customFileIcons));
+  renderCustomIconsTable();
+  renderAllPanes();
+  showToast('Loaded complete Nerd Font developer preset suite!', 'success');
+}
+
+function loadEmojiPresets() {
+  App.customFileIcons = { ...EMOJI_PRESET };
+  localStorage.setItem('cd_custom_file_icons', JSON.stringify(App.customFileIcons));
+  renderCustomIconsTable();
+  renderAllPanes();
+  showToast('Loaded complete Emoji Suite icon preset!', 'success');
+}
+
+function clearAllCustomFileIcons() {
+  App.customFileIcons = {};
+  localStorage.removeItem('cd_custom_file_icons');
+  renderCustomIconsTable();
+  renderAllPanes();
+  showToast('Cleared all custom filetype icon rules', 'info');
 }
 
 function toggleMinimizeToTray(enabled) {
@@ -9385,6 +10888,7 @@ function showModal(id) {
   const el = document.getElementById(id);
   if (el) {
     el.classList.add('active');
+    if (window.lucide) lucide.createIcons({ root: el });
     if (typeof window !== 'undefined' && window.history && typeof window.history.pushState === 'function') {
       try {
         window.history.pushState({ type: 'modal', modalId: id }, '', '');
@@ -10254,68 +11758,105 @@ let termOpen = false;
 let termInstance = null;
 let termFitAddon = null;
 
+function ensureTerminalOutputElement() {
+  let termOutput = document.getElementById('terminal-output');
+  const drawer = document.getElementById('terminal-drawer');
+  if (!termOutput && drawer) {
+    termOutput = document.createElement('div');
+    termOutput.className = 'terminal-body';
+    termOutput.id = 'terminal-output';
+    termOutput.tabIndex = 0;
+    drawer.appendChild(termOutput);
+    if (termInstance) {
+      try { termInstance.dispose(); } catch (e) {}
+      termInstance = null;
+      termFitAddon = null;
+    }
+  }
+  return termOutput;
+}
+
+function stashDockedTerminal() {
+  const termOutput = document.getElementById('terminal-output');
+  const drawer = document.getElementById('terminal-drawer');
+  const panesGrid = document.getElementById('panes-grid');
+  if (termOutput && drawer && panesGrid && panesGrid.contains(termOutput)) {
+    drawer.appendChild(termOutput);
+    termOutput.style.width = '100%';
+    termOutput.style.height = '';
+  }
+}
+
 function initTerminalUI() {
-  const container = document.getElementById('terminal-output');
+  const container = ensureTerminalOutputElement();
   if (!container) return;
 
-  if (window.Terminal && !termInstance) {
-    container.innerHTML = '';
-    termInstance = new Terminal({
-      cursorBlink: true,
-      cursorStyle: 'bar',
-      fontFamily: 'JetBrains Mono, Menlo, Monaco, Consolas, "Courier New", monospace',
-      fontSize: 13,
-      lineHeight: 1.25,
-      scrollback: 5000,
-      theme: {
-        background: '#090a0d',
-        foreground: '#f4f4f5',
-        cursor: '#f59e0b',
-        cursorAccent: '#090a0d',
-        selectionBackground: 'rgba(245, 158, 11, 0.35)',
-        black: '#18181b',
-        red: '#ef4444',
-        green: '#10b981',
-        yellow: '#f59e0b',
-        blue: '#38bdf8',
-        magenta: '#bd93f9',
-        cyan: '#7dcfff',
-        white: '#f4f4f5',
-        brightBlack: '#71717a',
-        brightRed: '#f87171',
-        brightGreen: '#34d399',
-        brightYellow: '#fbbf24',
-        brightBlue: '#60a5fa',
-        brightMagenta: '#c084fc',
-        brightCyan: '#a5f3fc',
-        brightWhite: '#ffffff',
+  if (window.Terminal) {
+    if (!termInstance || !termInstance.element || !container.contains(termInstance.element)) {
+      container.innerHTML = '';
+      if (termInstance) {
+        try { termInstance.dispose(); } catch (e) {}
       }
-    });
+      termInstance = new Terminal({
+        cursorBlink: true,
+        cursorStyle: 'bar',
+        fontFamily: 'JetBrains Mono, Menlo, Monaco, Consolas, "Courier New", monospace',
+        fontSize: 13,
+        lineHeight: 1.25,
+        scrollback: 5000,
+        theme: {
+          background: '#090a0d',
+          foreground: '#f4f4f5',
+          cursor: '#f59e0b',
+          cursorAccent: '#090a0d',
+          selectionBackground: 'rgba(245, 158, 11, 0.35)',
+          black: '#18181b',
+          red: '#ef4444',
+          green: '#10b981',
+          yellow: '#f59e0b',
+          blue: '#38bdf8',
+          magenta: '#bd93f9',
+          cyan: '#7dcfff',
+          white: '#f4f4f5',
+          brightBlack: '#71717a',
+          brightRed: '#f87171',
+          brightGreen: '#34d399',
+          brightYellow: '#fbbf24',
+          brightBlue: '#60a5fa',
+          brightMagenta: '#c084fc',
+          brightCyan: '#a5f3fc',
+          brightWhite: '#ffffff',
+        }
+      });
 
-    if (window.FitAddon) {
-      termFitAddon = new FitAddon.FitAddon();
-      termInstance.loadAddon(termFitAddon);
-    }
-    if (window.WebLinksAddon) {
-      termInstance.loadAddon(new WebLinksAddon.WebLinksAddon());
+      if (window.FitAddon) {
+        termFitAddon = new FitAddon.FitAddon();
+        termInstance.loadAddon(termFitAddon);
+      }
+      if (window.WebLinksAddon) {
+        termInstance.loadAddon(new WebLinksAddon.WebLinksAddon());
+      }
+
+      termInstance.open(container);
+
+      termInstance.onData((data) => {
+        if (termWs && termWs.readyState === WebSocket.OPEN) {
+          termWs.send(data);
+        }
+      });
+
+      termInstance.onResize(({ cols, rows }) => {
+        if (termWs && termWs.readyState === WebSocket.OPEN) {
+          termWs.send(JSON.stringify({ cols, rows, resize: true }));
+        }
+      });
     }
 
-    termInstance.open(container);
     if (termFitAddon) {
-      setTimeout(() => termFitAddon.fit(), 50);
+      setTimeout(() => {
+        try { termFitAddon.fit(); } catch (e) {}
+      }, 50);
     }
-
-    termInstance.onData((data) => {
-      if (termWs && termWs.readyState === WebSocket.OPEN) {
-        termWs.send(data);
-      }
-    });
-
-    termInstance.onResize(({ cols, rows }) => {
-      if (termWs && termWs.readyState === WebSocket.OPEN) {
-        termWs.send(JSON.stringify({ cols, rows, resize: true }));
-      }
-    });
   }
 }
 
@@ -10330,20 +11871,46 @@ function toggleTerminal(forceState) {
   termOpen = typeof forceState === 'boolean' ? forceState : !termOpen;
 
   if (termOpen) {
+    localStorage.setItem('cd_terminal_open', '1');
     drawer.classList.add('active');
+
+    // Ensure #terminal-output is safely inside #terminal-drawer
+    const termOutput = ensureTerminalOutputElement();
+    if (termOutput && !drawer.contains(termOutput)) {
+      drawer.appendChild(termOutput);
+      termOutput.style.width = '100%';
+      termOutput.style.height = '';
+      termOutput.style.display = 'block';
+    }
+
+    // If any pane had terminal docked, undock it because it is now in the drawer
+    App.panes.forEach((p, idx) => {
+      if (p && p.dockedTool === 'terminal') {
+        p.dockedTool = null;
+        localStorage.removeItem(`cd_pane_docked_${idx}`);
+        rebuildPaneDOM(idx);
+      }
+    });
+
     const activePane = App.panes[App.activePaneIndex];
-    const cwd = (activePane && !activePane.path.includes('://')) ? activePane.path : '/';
-    document.getElementById('terminal-cwd-indicator').textContent = cwd;
+    const cwd = (activePane && !activePane.path.includes('://')) ? activePane.path : (getUserDefaultHomeDir() || '/');
+    const cwdEl = document.getElementById('terminal-cwd-indicator');
+    if (cwdEl) cwdEl.textContent = cwd;
 
     initTerminalUI();
 
     setTimeout(() => {
-      if (termFitAddon) termFitAddon.fit();
+      if (termFitAddon) {
+        try { termFitAddon.fit(); } catch (e) {}
+      }
       if (termInstance) termInstance.focus();
     }, 100);
 
-    connectTerminal(cwd);
+    if (!termWs || termWs.readyState !== WebSocket.OPEN) {
+      connectTerminal(cwd);
+    }
   } else {
+    localStorage.setItem('cd_terminal_open', '0');
     drawer.classList.remove('active');
     if (termWs) {
       termWs.close();
@@ -10356,7 +11923,8 @@ function toggleTerminal(forceState) {
 function toggleTerminalFullscreen() {
   const drawer = document.getElementById('terminal-drawer');
   if (!drawer) return;
-  drawer.classList.toggle('fullscreen');
+  const isFull = drawer.classList.toggle('fullscreen');
+  localStorage.setItem('cd_terminal_fullscreen', isFull ? '1' : '0');
   setTimeout(() => {
     if (termFitAddon) {
       termFitAddon.fit();
@@ -10375,6 +11943,29 @@ function clearTerminal() {
   } else {
     const out = document.getElementById('terminal-output');
     if (out) out.innerHTML = '';
+  }
+}
+
+function restoreTerminalState() {
+  const isAnyDocked = App.panes.some(p => p && p.dockedTool === 'terminal');
+  if (isAnyDocked) {
+    // Terminal is already mounted inside a docked pane by renderAllPanes()
+    return;
+  }
+
+  const wasOpen = localStorage.getItem('cd_terminal_open') === '1';
+  if (wasOpen) {
+    const wasFullscreen = localStorage.getItem('cd_terminal_fullscreen') === '1';
+    toggleTerminal(true);
+    if (wasFullscreen) {
+      const drawer = document.getElementById('terminal-drawer');
+      if (drawer) {
+        drawer.classList.add('fullscreen');
+        setTimeout(() => {
+          if (termFitAddon) termFitAddon.fit();
+        }, 120);
+      }
+    }
   }
 }
 
@@ -13573,13 +15164,13 @@ async function setContextFileColor(color) {
       paths.forEach(p => {
         const existing = fileTagsMap.get(p) || { path: p, tags: [], updated_at: Date.now() };
         existing.color_label = isClearing ? null : color;
-        if (!existing.color_label && (!existing.tags || existing.tags.length === 0)) {
+        if (!existing.color_label && (!existing.tags || existing.tags.length === 0) && !existing.custom_icon) {
           fileTagsMap.delete(p);
         } else {
           fileTagsMap.set(p, existing);
         }
       });
-      renderPaneTable(App.activePaneIndex);
+      renderAllPanes();
       showToast(isClearing ? 'Color label cleared' : `Color label set to ${color}`, 'success');
     } else {
       showToast('Failed to update color label', 'error');
@@ -13587,6 +15178,52 @@ async function setContextFileColor(color) {
   } catch (e) {
     console.error('Color label set error:', e);
     showToast('Error setting color label', 'error');
+  }
+}
+
+async function setContextCustomIcon(customIcon, targetPaths = null) {
+  const paths = targetPaths || getSelectedOrCursorPaths();
+  if (paths.length === 0) return;
+
+  const isClearing = (!customIcon || customIcon === 'none' || customIcon === 'clear' || customIcon === 'null');
+  const payload = {
+    paths,
+    custom_icon: isClearing ? 'none' : customIcon.trim(),
+    clear_custom_icon: isClearing
+  };
+
+  try {
+    const resp = await fetch('/api/fs/tags/set', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${App.token}`
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (resp.ok) {
+      paths.forEach(p => {
+        const existing = fileTagsMap.get(p) || { path: p, tags: [], updated_at: Date.now() };
+        existing.custom_icon = isClearing ? null : customIcon.trim();
+        if (!existing.color_label && (!existing.tags || existing.tags.length === 0) && !existing.custom_icon) {
+          fileTagsMap.delete(p);
+        } else {
+          fileTagsMap.set(p, existing);
+        }
+      });
+      renderAllPanes();
+      if (activePropertiesEntry && paths.includes(activePropertiesEntry.path)) {
+        renderPropTagsTab(activePropertiesEntry.path);
+        updatePropertiesModalHeaderIcon(activePropertiesEntry);
+      }
+      showToast(isClearing ? 'Custom icon cleared' : `Custom icon set to "${customIcon}"`, 'success');
+    } else {
+      showToast('Failed to update custom icon', 'error');
+    }
+  } catch (e) {
+    console.error('Custom icon set error:', e);
+    showToast('Error setting custom icon', 'error');
   }
 }
 
@@ -14144,6 +15781,7 @@ let spotlightSelectedIndex = 0;
 let spotlightItems = [];
 
 const SPOTLIGHT_STATIC_ACTIONS = [
+  { id: 'notedog', title: 'NoteDog Notes Studio', sub: 'Hierarchical notes, markdown editor, interactive checklists, templates & versions', icon: 'book-open', cat: 'actions', action: () => openFloatingNoteDog() },
   { id: 'calc', title: 'Calculator', sub: 'Interactive floating calculator with storage units & base conversions', icon: 'calculator', cat: 'actions', action: () => openFloatingCalculator() },
   { id: 'branch', title: 'Flat / Branch View', sub: 'Flatten all subdirectories into a single unified list (Ctrl+B)', icon: 'git-branch', cat: 'actions', action: () => toggleBranchView() },
   { id: 'tags', title: 'Color Labels & Custom Tags', sub: 'Assign color labels and custom tags to selected items', icon: 'tag', cat: 'actions', action: () => triggerEditTagsModal() },
@@ -15005,6 +16643,12 @@ function rebuildPaneDOM(paneIndex) {
   const pane = App.panes[paneIndex];
   if (!pane) return;
 
+  const termOutput = document.getElementById('terminal-output');
+  const drawer = document.getElementById('terminal-drawer');
+  if (oldPaneEl && termOutput && drawer && oldPaneEl.contains(termOutput)) {
+    drawer.appendChild(termOutput);
+  }
+
   const newPaneEl = createPaneElement(pane, paneIndex);
   if (oldPaneEl && oldPaneEl.parentNode) {
     oldPaneEl.replaceWith(newPaneEl);
@@ -15028,6 +16672,7 @@ function dockToolToPane(toolName, paneIndex) {
   if (!pane) return;
 
   pane.dockedTool = toolName;
+  localStorage.setItem(`cd_pane_docked_${paneIndex}`, toolName);
 
   // 1. Editor: hide floating editor window & pill
   if (toolName === 'editor') {
@@ -15039,7 +16684,14 @@ function dockToolToPane(toolName, paneIndex) {
       createNewEditorTab('', 'Untitled-1', null, false, []);
     }
   }
-  // 2. Terminal: close the bottom slide-up drawer completely!
+  // 2. NoteDog: hide floating notedog window & pill
+  else if (toolName === 'notedog') {
+    const win = document.getElementById('floating-notedog-window');
+    if (win) win.style.display = 'none';
+    const pill = document.getElementById('notedog-pill');
+    if (pill) pill.style.display = 'none';
+  }
+  // 3. Terminal: close the bottom slide-up drawer completely!
   else if (toolName === 'terminal') {
     const drawer = document.getElementById('terminal-drawer');
     if (drawer) {
@@ -15047,19 +16699,20 @@ function dockToolToPane(toolName, paneIndex) {
       drawer.classList.remove('fullscreen');
     }
     termOpen = false;
+    localStorage.setItem('cd_terminal_open', '0');
   }
-  // 3. Calculator: hide floating calculator & pill
+  // 4. Calculator: hide floating calculator & pill
   else if (toolName === 'calculator') {
     const win = document.getElementById('floating-calculator-window');
     if (win) win.style.display = 'none';
     const pill = document.getElementById('calc-pill');
     if (pill) pill.style.display = 'none';
   }
-  // 4. Tasks: hide floating task manager & backdrop
+  // 5. Tasks: hide floating task manager & backdrop
   else if (toolName === 'tasks') {
     closeFloatingTaskManager();
   }
-  // 5. Git: close git modal
+  // 6. Git: close git modal
   else if (toolName === 'git') {
     closeModal('git-modal');
   }
@@ -15074,6 +16727,7 @@ function undockToolFromPane(paneIndex) {
 
   const tool = pane.dockedTool;
   pane.dockedTool = null;
+  localStorage.removeItem(`cd_pane_docked_${paneIndex}`);
 
   // If terminal was docked, return #terminal-output back to the bottom drawer!
   if (tool === 'terminal') {
@@ -15097,6 +16751,8 @@ function undockToolFromPane(paneIndex) {
       if (textarea) textarea.value = activeTab.content || '';
       handleEditorInput('left');
     }
+  } else if (tool === 'notedog') {
+    openFloatingNoteDog();
   } else if (tool === 'terminal') {
     toggleTerminal(true);
   } else if (tool === 'calculator') {
@@ -15113,6 +16769,7 @@ function closeDockedTool(paneIndex) {
   if (!pane) return;
   const tool = pane.dockedTool;
   pane.dockedTool = null;
+  localStorage.removeItem(`cd_pane_docked_${paneIndex}`);
 
   if (tool === 'terminal') {
     const drawer = document.getElementById('terminal-drawer');
@@ -15120,9 +16777,14 @@ function closeDockedTool(paneIndex) {
     if (drawer && termOutput && !drawer.contains(termOutput)) {
       drawer.appendChild(termOutput);
     }
+    if (termWs) {
+      termWs.close();
+      termWs = null;
+    }
   }
 
   rebuildPaneDOM(paneIndex);
+  showToast(`Closed docked ${tool.toUpperCase()} in Pane ${paneIndex + 1}`, 'info');
 }
 
 function mountDockedTool(paneIndex) {
@@ -15133,8 +16795,37 @@ function mountDockedTool(paneIndex) {
   const mount = document.getElementById(`docked-tool-mount-${paneIndex}`);
   if (!mount) return;
 
+  // 0. DOCKED NOTEDOG NOTES & MARKDOWN STUDIO
+  if (tool === 'notedog') {
+    mount.innerHTML = `
+      <div class="docked-notedog-box" style="display: flex; flex-direction: column; width: 100%; height: 100%; overflow: hidden; background: var(--bg-panel);">
+        <div style="padding: 4px 8px; background: var(--bg-dark); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; font-size: 11px; gap: 4px;">
+          <div style="display: flex; align-items: center; gap: 4px;">
+            <button class="btn btn-xs btn-accent" onclick="saveActiveNoteDogNote()" title="Save Note (Ctrl+S)"><i data-lucide="save" style="width: 11px;"></i> Save</button>
+            <button class="btn btn-xs" onclick="promptCreateNote()" title="New Note"><i data-lucide="plus" style="width: 11px;"></i> Note</button>
+            <button class="btn btn-xs" onclick="openNoteDogVersionsModal()" title="Versions"><i data-lucide="history" style="width: 11px;"></i></button>
+          </div>
+          <div style="font-size: 11px; color: var(--text-dim); max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" id="docked-notedog-title-${paneIndex}">
+            ${escapeHtml(notedogState.activeNote?.name || 'NoteDog')}
+          </div>
+          <div style="display: flex; gap: 2px;">
+            <button class="btn btn-xs" onclick="setNoteDogViewMode('edit')" title="Edit"><i data-lucide="edit-3" style="width: 10px;"></i></button>
+            <button class="btn btn-xs" onclick="setNoteDogViewMode('preview')" title="Preview"><i data-lucide="eye" style="width: 10px;"></i></button>
+          </div>
+        </div>
+        <div style="flex: 1; display: flex; overflow: hidden; height: 100%;" id="docked-notedog-body-${paneIndex}">
+          <!-- Embedded NoteDog workspace -->
+        </div>
+      </div>
+    `;
+    if (notedogState.notebooks.length === 0) {
+      loadNoteDogHierarchy().then(() => mountDockedNoteDog(paneIndex));
+    } else {
+      mountDockedNoteDog(paneIndex);
+    }
+  }
   // 1. DOCKED CODE EDITOR
-  if (tool === 'editor') {
+  else if (tool === 'editor') {
     const activeTab = getActiveEditorTab('left');
     mount.innerHTML = `
       <div style="padding: 6px 10px; background: var(--bg-dark); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; font-size: 11px;">
@@ -15167,7 +16858,7 @@ function mountDockedTool(paneIndex) {
     `;
 
     const host = document.getElementById(`docked-term-host-${paneIndex}`);
-    const termOutput = document.getElementById('terminal-output');
+    const termOutput = ensureTerminalOutputElement();
     if (host && termOutput) {
       host.appendChild(termOutput);
       termOutput.style.width = '100%';
@@ -15177,20 +16868,22 @@ function mountDockedTool(paneIndex) {
 
     initTerminalUI();
 
-    const cwd = (pane && !pane.path.includes('://')) ? pane.path : '/';
+    const cwd = (pane && !pane.path.includes('://')) ? pane.path : (getUserDefaultHomeDir() || '/');
     if (!termWs || termWs.readyState !== WebSocket.OPEN) {
       connectTerminal(cwd);
     }
 
     setTimeout(() => {
-      if (termFitAddon) termFitAddon.fit();
+      if (termFitAddon) {
+        try { termFitAddon.fit(); } catch (e) {}
+      }
       if (termInstance) {
         termInstance.focus();
         if (termWs && termWs.readyState === WebSocket.OPEN) {
           termWs.send(JSON.stringify({ cols: termInstance.cols, rows: termInstance.rows, resize: true }));
         }
       }
-    }, 100);
+    }, 120);
   }
   // 3. DOCKED CALCULATOR (COMPLETE WITH CONVERTERS, STORAGE UNITS & HISTORY)
   else if (tool === 'calculator') {
