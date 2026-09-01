@@ -4020,7 +4020,7 @@ function setupKeyboardNavigation() {
 function getVisiblePaneCount() {
   if (App.layout === 'layout-single') return 1;
   if (App.layout === 'layout-dual-vertical' || App.layout === 'layout-dual-horizontal') return 2;
-  if (App.layout === 'layout-triple') return 3;
+  if (App.layout === 'layout-triple' || App.layout === 'layout-triple-stacked') return 3;
   return 4;
 }
 
@@ -8992,6 +8992,7 @@ function setupEventListeners() {
   document.getElementById('layout-2v')?.addEventListener('click', () => switchLayout('layout-dual-vertical'));
   document.getElementById('layout-2h')?.addEventListener('click', () => switchLayout('layout-dual-horizontal'));
   document.getElementById('layout-3')?.addEventListener('click', () => switchLayout('layout-triple'));
+  document.getElementById('layout-3s')?.addEventListener('click', () => switchLayout('layout-triple-stacked'));
   document.getElementById('layout-4')?.addEventListener('click', () => switchLayout('layout-quad'));
   updateActiveLayoutUI(App.layout);
 
@@ -9062,9 +9063,10 @@ function updateActiveLayoutUI(layoutName) {
     'layout-dual-vertical': 'layout-2v',
     'layout-dual-horizontal': 'layout-2h',
     'layout-triple': 'layout-3',
+    'layout-triple-stacked': 'layout-3s',
     'layout-quad': 'layout-4'
   };
-  ['layout-1', 'layout-2v', 'layout-2h', 'layout-3', 'layout-4'].forEach(id => {
+  ['layout-1', 'layout-2v', 'layout-2h', 'layout-3', 'layout-3s', 'layout-4'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.classList.remove('active');
   });
