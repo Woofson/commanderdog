@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version (e.g. 0.6.0)'
+        description: 'Release version (e.g. 0.7.0)'
         required: true
-        default: '0.6.0'
+        default: '0.7.0'
 
 permissions:
   contents: write
@@ -50,7 +50,7 @@ jobs:
         run: |
           $Version = "${{ github.ref_name }}".TrimStart('v')
           if ([string]::IsNullOrEmpty($Version)) { $Version = "${{ github.event.inputs.version }}" }
-          if ([string]::IsNullOrEmpty($Version)) { $Version = "0.6.0" }
+          if ([string]::IsNullOrEmpty($Version)) { $Version = "0.7.0" }
 
           $DistDir = "dist\windows"
           New-Item -ItemType Directory -Path "$DistDir\commanderdog" -Force | Out-Null

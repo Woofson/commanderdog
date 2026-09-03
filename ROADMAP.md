@@ -1,7 +1,7 @@
 # <img src="assets/logo.png" alt="CommanderDog Logo" height="40" style="vertical-align: -6px; margin-right: 8px;" /> CommanderDog Product Roadmap
 
 > **Slogan**: *Multi-Tab File Commander for Web & Native Desktop — By Woofson*  
-> **Current Version**: `v0.6.9-rc1 (Desktop & Web)`
+> **Current Version**: `v0.7.0 (Desktop & Web)`
 
 This roadmap outlines completed capabilities, active architectural enhancements, and future milestones for CommanderDog, combining orthodox two-pane file commander power tools (Total Commander, Double Commander, Krusader, Directory Opus) with modern responsive web and native standalone desktop architecture.
 
@@ -25,7 +25,7 @@ This roadmap outlines completed capabilities, active architectural enhancements,
 │                        │ Engine & Background Tasks   │ bandwidth throttling & auto-retry   │
 ├────────────────────────┼─────────────────────────────┼─────────────────────────────────────┤
 │ Bvckup 2 & SyncToy     │ Delta Backup & Sync Studio  │ 4 replication profiles, in-place    │
-│                        │ (v0.6.9-rc1)                │ block deltas, snapshots & scheduler │
+│                        │ (v0.6.9)                    │ block deltas, snapshots & scheduler │
 ├────────────────────────┼─────────────────────────────┼─────────────────────────────────────┤
 │ Syncthing              │ Live Syncthing Dashboard    │ Peer status, throughput charts,     │
 │                        │ & Direct Local/LAN Sync     │ folder scan triggers, P2P sync      │
@@ -53,9 +53,19 @@ This roadmap outlines completed capabilities, active architectural enhancements,
 
 ---
 
-## 1. Completed Milestones (v0.1.0 — v0.6.9-rc1)
+## 1. Completed Milestones (v0.1.0 — v0.7.0)
 
-### Bvckup 2 & SyncToy Delta Backup Engine, Background Daemons & Folder Watchers (`v0.6.9-rc1`)
+### NoteDog Notes Studio & Orthodox Power Tools Suite (`v0.7.0`)
+- [x] **NoteDog Hierarchical Markdown Notes Studio**:
+  - Tree organizer notebook with subdirectories, drag-and-drop hierarchy, and fast keyword indexing.
+  - Interactive checklists (`- [ ]`) and task tracking with instant DOM state persistence.
+  - Built-in note templates (Meeting Notes, Project Plan, Checklist / SOP, Daily Journal).
+  - Automated revision history snapshot engine under `.notedog_versions/` with side-by-side diff preview and 1-click restore.
+- [x] **Color Labels, Tags & Workspaces**:
+  - Direct metadata tagging with persistent SQLite indexes and custom color pills.
+  - Quick filter toggles and workspace layout persistence.
+
+### Bvckup 2 & SyncToy Delta Backup Engine, Background Daemons & Folder Watchers (`v0.6.9`)
 - [x] **4 Core Replication Profiles (SyncToy & Bvckup 2)**:
   - `synchronize`: Smart bidirectional 2-way sync with newer-file conflict resolution.
   - `echo`: 1-way mirror making destination an exact replica, deleting destination orphans.
@@ -135,23 +145,19 @@ This roadmap outlines completed capabilities, active architectural enhancements,
 
 ```mermaid
 graph TD
-    A["v0.6.9-rc1 (Current: Bvckup 2 & SyncToy Delta Backup Engine, Daemons & Snapshots)"] --> B["1. Orthodox Commander Power Tools Inspiration Suite (v0.7.0)"]
-    B --> C["2. Enterprise OIDC SSO & Collaborative Office (v0.8.0)"]
-    C --> D["3. High-Performance P2P Cluster & Distributed Virtual Storage (v1.0.0)"]
+    A["v0.7.0 (Current: NoteDog Notes Studio, Delta Backup, Tags & Workspaces)"] --> B["1. Enterprise OIDC SSO & Collaborative Office (v0.8.0)"]
+    B --> C["2. High-Performance P2P Cluster & Distributed Virtual Storage (v1.0.0)"]
 ```
 
 ---
 
-### Milestone 1: Orthodox Commander Power Tools Inspiration Suite (`v0.7.0`)
-- **Total Commander & Double Commander Power Tools**:
-  - **Directory Synchronization 2.0**: Advanced regex path matching, ignore lists (`.syncignore`, `.gitignore`), and interactive visual side-by-side binary diff viewer inside diff rows.
-  - **Advanced Multi-Rename Tool (MRT 2.0)**: Extended regex capture groups, Exif date/camera variables, MP3 ID3 audio metadata tokens, counter sequences, and 1-click batch undo.
-  - **Enhanced Archive Packer Plugins**: In-browser ISO extraction/mounting, DMG reading, multi-volume 7z splitting/joining, and zstd/tar.xz compression presets.
-  - **Wcx / Wdx Content Plugins Subsystem**: Custom metadata column extractors and external helper integrations.
-
-### Milestone 2: Enterprise OIDC SSO & Collaborative Office (`v0.8.0`)
+### Milestone 1: Enterprise OIDC SSO & Collaborative Office (`v0.8.0`)
 - **Enterprise Identity Providers**: OpenID Connect (OIDC), OAuth2, SAML 2.0, Keycloak, Authentik, Okta, Azure AD.
 - **Collaborative Document Editing**: In-browser real-time collaborative editing for markdown, code, and Office documents (Collabora / OnlyOffice WOPI integration).
+
+### Milestone 2: High-Performance P2P Cluster & Distributed Virtual Storage (`v1.0.0`)
+- **Cluster Node Mesh**: Direct peer-to-peer authenticated node clustering with distributed metadata synchronization.
+- **Distributed Virtual Storage**: Multi-host unified mountpoints and automated cross-node replication.
 
 ### Windows Native Desktop, Installers & Packaging (`v0.6.0`)
 - [x] **Native Windows Desktop Integration (`CommanderDog.exe`)**:
@@ -329,7 +335,8 @@ graph TD
 | **`v0.6.5`** | **PDF Split/Merger, Mouse-Wheel Image Navigation & Dynamic Statusbar Selection** | **Released** |
 | **`v0.6.6`** | **Windows Service, Autostart Management & Rich Filetype Icon Suite** | **Released** |
 | **`v0.6.7`** | **Orthodox Context Menu, Properties Dialog, GFM & Raw HTML Editor, Tags & Colors** | **Released** |
-| **`v0.6.8`** | **Resizable Columns, Custom Chooser, Multi-Size Grid & Tree Sidebar** | **Released (Current)** |
-| **`v0.6.9`** | **Bvckup 2 & SyncToy Delta Backup, Background Daemons, Scheduled Tasks & Automation** | *Next Up* |
-| **`v0.7.0`** | **Orthodox Commander Power Tools (Multi-Rename, Dir Sync, Workspaces, Quick Filter)** | *Planned* |
-| **`v0.8.0`** | **Enterprise OIDC SSO, Collaborative Office (WOPI) & Automation Engine** | *Planned* |
+| **`v0.6.8`** | **Resizable Columns, Custom Chooser, Multi-Size Grid & Tree Sidebar** | **Released** |
+| **`v0.6.9`** | **Bvckup 2 & SyncToy Delta Backup, Background Daemons, Scheduled Tasks & Automation** | **Released** |
+| **`v0.7.0`** | **NoteDog Notes Studio, Tags & Colors, Custom Workspaces & Power Suite** | **Released (Current)** |
+| **`v0.8.0`** | **Enterprise OIDC SSO, Collaborative Office (WOPI) & Automation Engine** | *Next Up* |
+| **`v1.0.0`** | **High-Performance P2P Cluster & Distributed Virtual Storage** | *Planned* |

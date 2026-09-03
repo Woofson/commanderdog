@@ -67,7 +67,7 @@ default_theme = "amber-charcoal" # Active theme ID (Built-in theme or custom the
 
 [[themes.themes]]
 id = "amber-charcoal"
-name = "Woofson Amber (Default)"
+name = "Woofsons Amber Charcoal"
 bg_dark = "#121214"
 bg_panel = "#18181b"
 bg_active = "#27272a"
@@ -76,6 +76,18 @@ accent_hover = "#fbbf24"
 text_main = "#f4f4f5"
 text_muted = "#a1a1aa"
 border = "#3f3f46"
+
+[[themes.themes]]
+id = "zink"
+name = "Woofsons Amber Zink"
+bg_dark = "#fafafa"
+bg_panel = "#ffffff"
+bg_active = "#e4e4e7"
+accent = "#d97706"
+accent_hover = "#b45309"
+text_main = "#18181b"
+text_muted = "#52525b"
+border = "#d4d4d8"
 
 [[themes.themes]]
 id = "gruvbox"

@@ -250,7 +250,7 @@ fn default_themes() -> Vec<ThemeDefinition> {
     vec![
         ThemeDefinition {
             id: "amber-charcoal".to_string(),
-            name: "Woofson Amber (Default)".to_string(),
+            name: "Woofsons Amber Charcoal".to_string(),
             bg_dark: "#121214".to_string(),
             bg_panel: "#18181b".to_string(),
             bg_active: "#27272a".to_string(),
@@ -259,6 +259,18 @@ fn default_themes() -> Vec<ThemeDefinition> {
             text_main: "#f4f4f5".to_string(),
             text_muted: "#a1a1aa".to_string(),
             border: "#3f3f46".to_string(),
+        },
+        ThemeDefinition {
+            id: "zink".to_string(),
+            name: "Woofsons Amber Zink".to_string(),
+            bg_dark: "#fafafa".to_string(),
+            bg_panel: "#ffffff".to_string(),
+            bg_active: "#e4e4e7".to_string(),
+            accent: "#d97706".to_string(),
+            accent_hover: "#b45309".to_string(),
+            text_main: "#18181b".to_string(),
+            text_muted: "#52525b".to_string(),
+            border: "#d4d4d8".to_string(),
         },
         ThemeDefinition {
             id: "gruvbox".to_string(),
@@ -698,6 +710,14 @@ impl ConfigManager {
                         warn!("Failed to read config {}: {}", candidate.display(), e);
                     }
                 }
+            }
+        }
+
+        // Ensure all built-in default themes (e.g. zink, amber-charcoal) are present
+        // even if the user has an existing older config.toml file on disk.
+        for dt in default_themes() {
+            if !config.themes.themes.iter().any(|t| t.id == dt.id) {
+                config.themes.themes.push(dt);
             }
         }
 

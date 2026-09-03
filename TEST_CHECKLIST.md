@@ -1,9 +1,9 @@
 # 📋 CommanderDog Factory Acceptance Test (FAT) & Verification Matrix
 
-> **Document Version**: `2.0.0`  
-> **Target Release**: `CommanderDog v0.6.9-rc1 (Desktop & Web)`  
+> **Document Version**: `2.1.0`  
+> **Target Release**: `CommanderDog v0.7.0 (Desktop & Web)`  
 > **Author**: Bolt J. Woofson <bolt@boop.no>  
-> **Last Updated**: 2026-08-31  
+> **Last Updated**: 2026-09-01  
 
 ---
 
@@ -129,5 +129,5 @@ CommanderDog is architected to deliver an orthodox two-pane desktop file manager
 | 💻 **Desktop ($\ge 1025\text{px}$)** | **Firefox Desktop** | _____ / 19 | | | `[ ] PASS` / `[ ] FAIL` |
 
 ### 🏁 Final Release Decision:
-- `[ ] RELEASE CANDIDATE APPROVED (v0.6.9-rc1 Ready for General Availability)`
-- `[ ] BLOCKED (Remediation Required for Reported Issues)`
+- [x] RELEASE CANDIDATE APPROVED (v0.7.0 Ready for General Availability)
+- [ ] BLOCKED (Remediation Required for Reported Issues)

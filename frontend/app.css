@@ -1,5 +1,41 @@
-/* 🐕 Woofson Design Tokens - Golden Amber & Charcoal */
-:root {
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,600;0,700;1,400&display=swap');
+
+@font-face {
+  font-family: 'JetBrainsMono Nerd Font';
+  src: url('/assets/fonts/JetBrainsMonoNerdFont-Regular.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'JetBrainsMono Nerd Font Mono';
+  src: url('/assets/fonts/JetBrainsMonoNerdFontMono-Regular.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Symbols Nerd Font Mono';
+  src: url('/assets/fonts/SymbolsNerdFontMono-Regular.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Symbols Nerd Font';
+  src: url('/assets/fonts/SymbolsNerdFont-Regular.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: block;
+}
+
+/* 🐕 Woofson Design Tokens - Golden Amber Charcoal (Default) */
+:root,
+:root[data-theme="charcoal"],
+:root[data-theme="amber-charcoal"] {
   --bg-dark: #121214;
   --bg-panel: #18181b;
   --bg-header: #202024;
@@ -19,7 +55,7 @@
   --success: #10b981;
   --info: #38bdf8;
   --archive: #f472b6;
-  --font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --font-mono: 'JetBrains Mono', 'JetBrainsMono Nerd Font', 'FiraCode Nerd Font', 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   --radius: 6px;
   --pane-border-width: 1px;
@@ -27,11 +63,70 @@
   --shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
 }
 
+/* 🐕 Woofson Amber Zink (Light Theme) */
+:root[data-theme="zink"] {
+  --bg-dark: #fafafa;
+  --bg-panel: #ffffff;
+  --bg-header: #f4f4f5;
+  --bg-active: #e4e4e7;
+  --bg-hover: #ebecee;
+  --bg-selected: rgba(245, 158, 11, 0.14);
+  --border: #d4d4d8;
+  --border-focus: #d97706;
+  --accent: #d97706;
+  --accent-hover: #b45309;
+  --accent-dark: #92400e;
+  --accent-subtle: rgba(245, 158, 11, 0.10);
+  --text-main: #18181b;
+  --text-muted: #52525b;
+  --text-dim: #71717a;
+  --danger: #dc2626;
+  --success: #059669;
+  --info: #0284c7;
+  --archive: #db2777;
+  --font-mono: 'JetBrains Mono', 'JetBrainsMono Nerd Font', 'FiraCode Nerd Font', 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --radius: 6px;
+  --pane-border-width: 1px;
+  --pane-active-ring-width: 1px;
+  --shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
   user-select: none;
+}
+
+/* Global Select & Dropdown Styling (Fixes white-on-white text issues across OS themes) */
+select,
+input,
+textarea {
+  font-family: inherit;
+  color: var(--text-main);
+  background-color: var(--bg-panel);
+}
+
+select {
+  background-color: var(--bg-panel);
+  color: var(--text-main);
+  border: 1px solid var(--border);
+  outline: none;
+  cursor: pointer;
+}
+
+select option,
+select optgroup {
+  background-color: var(--bg-panel) !important;
+  color: var(--text-main) !important;
+}
+
+select:focus,
+input:focus,
+textarea:focus {
+  border-color: var(--border-focus);
+  outline: none;
 }
 
 html {
@@ -2713,6 +2808,23 @@ body {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+  position: relative;
+}
+
+#doc-viewer-modal.floating-mode,
+#image-viewer-modal.floating-mode {
+  background: transparent !important;
+  pointer-events: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+#doc-viewer-modal.floating-mode .doc-viewer-box,
+#image-viewer-modal.floating-mode .image-viewer-box {
+  pointer-events: auto !important;
+  position: fixed !important;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.65), 0 0 0 1px var(--border);
+  z-index: 2800;
 }
 
 .doc-viewer-box.fullscreen {
@@ -2721,10 +2833,38 @@ body {
   max-width: 100vw !important;
   border-radius: 0 !important;
   border: none !important;
+  left: 0 !important;
+  top: 0 !important;
+}
+
+.image-viewer-box {
+  position: relative;
+}
+
+.image-viewer-box.fullscreen {
+  left: 0 !important;
+  top: 0 !important;
+}
+
+/* Tail Follow Glowing Indicator */
+.btn-tail-live {
+  background: rgba(16, 185, 129, 0.15) !important;
+  color: #10b981 !important;
+  border-color: rgba(16, 185, 129, 0.4) !important;
+  animation: pulse-tail-live 2s infinite ease-in-out;
+}
+
+@keyframes pulse-tail-live {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 8px 2px rgba(16, 185, 129, 0.3);
+  }
 }
 
 .doc-viewer-header {
-  padding: 8px 14px;
+  padding: 6px 12px;
   background: var(--bg-header);
   border-bottom: 1px solid var(--border);
   display: flex;
@@ -2732,6 +2872,13 @@ body {
   justify-content: space-between;
   gap: 12px;
   flex-shrink: 0;
+  cursor: grab;
+  user-select: none;
+  min-height: 42px;
+}
+
+.doc-viewer-header:active {
+  cursor: grabbing;
 }
 
 .doc-viewer-title-group {
@@ -2739,22 +2886,40 @@ body {
   align-items: center;
   gap: 10px;
   min-width: 0;
-  max-width: 35%;
+  max-width: 38%;
+  pointer-events: none;
+}
+
+.doc-viewer-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-end;
+  flex: 1;
 }
 
 .doc-viewer-toolbar-center {
   display: flex;
   align-items: center;
   gap: 6px;
-  flex-wrap: wrap;
-  justify-content: center;
+  justify-content: flex-end;
 }
 
 .doc-viewer-actions-right {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   flex-shrink: 0;
+}
+
+.doc-viewer-header-right button,
+.doc-viewer-header-right .btn,
+.doc-viewer-header-right select,
+.doc-viewer-header-right input {
+  height: 28px !important;
+  line-height: 26px !important;
+  font-size: 11px !important;
+  box-sizing: border-box;
 }
 
 .doc-viewer-body {

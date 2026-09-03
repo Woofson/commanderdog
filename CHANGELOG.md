@@ -7,7 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [0.6.9-rc1] - 2026-08-31
+## [0.7.1] - 2026-09-03
+
+### 🎨 Amber Zink Theme, Procedural Login, Chewtoys Polish & Fixes
+- **Woofson Amber Zink (Light Theme) & Charcoal Default Palette**:
+  - Full implementation of `WOOFSONS_AMBER.md` color tokens for both **Charcoal** (`#121214`) and **Zink** (`#fafafa` / `#ffffff`).
+  - Added `zink` to `config.toml` default themes and Rust backend configuration.
+  - Fixed white-on-white text contrast bug across all `<select>` and `<option>` elements globally.
+- **Procedural Randomized Login Background**:
+  - Dynamically computes random focal positions, radii, and amber opacities on each reload so no two logins look identical.
+- **Chewtoy Enhancements & Bug Fixes**:
+  - **Notes (NoteDog Chewtoy)**:
+    - Fixed note loading and saving authorization header resolution preventing 401/403 access issues.
+    - Added floating window desktop drag handles (`win-resize-handle`) allowing smooth resizing on PC viewports.
+    - Added encryption detection for NoteDog TUI `.md.enc` files.
+    - Refined header branding to "Notes" and removed redundant breadcrumb badge.
+  - **Bite! Terminal Console**:
+    - Added dynamic `ResizeObserver` to docked terminal host automatically updating xterm dimensions and dispatching PTY WebSocket `{ cols, rows, resize: true }` frames on pane resize.
+    - Extended monospace font family stack to prioritize Nerd Fonts (`"JetBrainsMono Nerd Font"`, `"FiraCode Nerd Font"`).
+  - **Background Transfers & Task Manager**:
+    - Fixed stuck "Uploading..." floating pill by eliminating uncleaned inline styles and enforcing `.active` CSS class toggling in `finally` blocks.
+  - **Right-Click Context Menu**:
+    - Added **"Save / Download File"** action directly in the file context menu for 1-click downloads.
+
+---
+
+## [0.7.0] - 2026-09-01
+
+### 📝 NoteDog Notes Studio & Orthodox Power Tools Suite
+- **NoteDog Hierarchical Markdown Notes Studio**:
+  - **Tree Organizer & Notebook Structure**: Seamless creation, nesting, categorization, and editing of markdown documents with folder hierarchies.
+  - **Interactive Checklists & Tasks**: Live interactive checklist parsing (`[ ]` / `[x]`) with instant status persistence.
+  - **Template Engine**: Instant note creation from built-in templates (*Meeting Notes*, *Project Plan*, *Checklist / SOP*, *Daily Journal*).
+  - **Automatic Snapshot Revision History**: In-place version snapshots stored under `.notedog_versions/` with 1-click preview and rollback.
+  - **Instant Search & Tag Filtering**: Fast real-time keyword indexing and tag filtering across all user notes.
+- **Enhanced Color Labels & Custom Tagging System**:
+  - Direct metadata tagging with persistent SQLite indexes and file table badges.
+  - Extended color preset palette (`🔴 🟠 🟡 🟢 🔵 🟣`) and instant filter shortcuts.
+- **Multi-Platform Release & Packaging Updates**:
+  - Linux packaging: Arch Linux (`PKGBUILD`, `commanderdog-bin.PKGBUILD`), Alpine Linux (`APKBUILD`), Debian/Ubuntu binaries, and multi-arch Docker images.
+  - Windows packaging: Tauri v2 standalone native executable, MSI installer, NSIS setup, Scoop manifest, and Winget manifests.
+
+---
+
+## [0.6.9] - 2026-08-31
 
 ### ⚡ Bvckup 2 & SyncToy Delta Backup Engine, Background Daemons & Folder Watchers
 - **4 Core Replication Profiles (SyncToy & Bvckup 2)**:

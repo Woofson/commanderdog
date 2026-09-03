@@ -153,7 +153,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   applyFontSize(App.fontSize);
   applyBorderSettings();
   applyAllColumnWidths();
-  applyTheme(localStorage.getItem('cd_theme') || 'amber-charcoal');
+  const urlTheme = new URLSearchParams(window.location.search).get('theme');
+  applyTheme(urlTheme || localStorage.getItem('cd_theme') || 'amber-charcoal');
   startTasksPolling();
   initInactivityTracker();
   initFolderTree();
@@ -256,6 +257,14 @@ async function checkAuthAndLoad() {
   }, 100);
 }
 
+function applyAppVersion(ver) {
+  if (!ver) return;
+  App.version = ver;
+  document.querySelectorAll('.login-version-badge').forEach(el => el.textContent = `v${ver}`);
+  const aboutBadge = document.getElementById('about-version-badge');
+  if (aboutBadge) aboutBadge.textContent = `v${ver} (Desktop & Web)`;
+}
+
 async function loadConfig() {
   try {
     const res = await fetch('/api/config');
@@ -263,6 +272,7 @@ async function loadConfig() {
       App.config = await res.json();
       App.paranoidMode = App.config.paranoid.enabled;
       updateParanoidBadge();
+      if (App.config.version) applyAppVersion(App.config.version);
 
       // Merge client-side custom themes saved in browser localStorage
       try {
@@ -439,8 +449,26 @@ border = "${accent}"
   showToast(`Exported ${id}.toml! You can drop this into ~/.config/commanderdog/themes/`, 'info');
 }
 
+const defaultThemeList = [
+  { id: 'amber-charcoal', name: 'Woofsons Amber Charcoal', bg_dark: '#121214', bg_panel: '#18181b', accent: '#f59e0b', text_main: '#f4f4f5' },
+  { id: 'zink', name: 'Woofsons Amber Zink', bg_dark: '#fafafa', bg_panel: '#ffffff', accent: '#d97706', text_main: '#18181b' },
+  { id: 'gruvbox', name: 'Gruvbox Dark', bg_dark: '#1d2021', bg_panel: '#282828', accent: '#fabd2f', text_main: '#ebdbb2' },
+  { id: 'catppuccin-mocha', name: 'Catppuccin Mocha', bg_dark: '#181825', bg_panel: '#1e1e2e', accent: '#cba6f7', text_main: '#cdd6f4' },
+  { id: 'catppuccin-latte', name: 'Catppuccin Latte (Light)', bg_dark: '#dce0e8', bg_panel: '#eff1f5', accent: '#8839ef', text_main: '#4c4f69' },
+  { id: 'tokyo-night', name: 'Tokyo Night', bg_dark: '#16161e', bg_panel: '#1a1b26', accent: '#7aa2f7', text_main: '#c0caf5' },
+  { id: 'monokai', name: 'Monokai Pro', bg_dark: '#1e1f1c', bg_panel: '#272822', accent: '#ffd866', text_main: '#f8f8f2' },
+  { id: 'solarized-dark', name: 'Solarized Dark', bg_dark: '#00212b', bg_panel: '#002b36', accent: '#268bd2', text_main: '#839496' },
+  { id: 'ayu-dark', name: 'Ayu Dark', bg_dark: '#0b0e14', bg_panel: '#0f1419', accent: '#e6b450', text_main: '#e6e1cf' },
+  { id: 'nord', name: 'Nord Frost', bg_dark: '#242933', bg_panel: '#2e3440', accent: '#88c0d0', text_main: '#eceff4' },
+  { id: 'dracula', name: 'Dracula Dark', bg_dark: '#1e1f29', bg_panel: '#282a36', accent: '#bd93f9', text_main: '#f8f8f2' },
+  { id: 'midnight-blue', name: 'Midnight Commander Blue', bg_dark: '#000044', bg_panel: '#000088', accent: '#00ffff', text_main: '#ffffff' }
+];
+
 function populateThemeSelectors() {
-  if (!App.config?.themes?.themes || !Array.isArray(App.config.themes.themes)) return;
+  const themeList = (App.config?.themes?.themes && Array.isArray(App.config.themes.themes) && App.config.themes.themes.length > 0)
+    ? App.config.themes.themes
+    : defaultThemeList;
+
   const selectors = [
     document.getElementById('settings-theme-selector'),
     document.getElementById('theme-selector')
@@ -451,10 +479,11 @@ function populateThemeSelectors() {
   selectors.forEach(sel => {
     if (!sel) return;
     sel.innerHTML = '';
-    App.config.themes.themes.forEach(t => {
+    themeList.forEach(t => {
       const opt = document.createElement('option');
       opt.value = t.id;
       opt.textContent = t.name;
+      if (t.id === curVal) opt.selected = true;
       sel.appendChild(opt);
     });
     sel.value = curVal;
@@ -464,7 +493,7 @@ function populateThemeSelectors() {
   const grid = document.getElementById('theme-swatch-grid');
   if (grid) {
     grid.innerHTML = '';
-    App.config.themes.themes.forEach(t => {
+    themeList.forEach(t => {
       const card = document.createElement('div');
       card.className = `theme-swatch-card ${t.id === curVal ? 'active' : ''}`;
       card.id = `theme-card-${t.id}`;
@@ -3753,6 +3782,7 @@ async function handlePaneDrop(e, targetPaneIndex, subfolderPath) {
     const pill = document.getElementById('tasks-pill');
     const pillText = document.getElementById('tasks-pill-text');
     if (pill && pillText) {
+      pill.classList.add('active');
       pill.style.display = 'flex';
       pillText.textContent = `Uploading ${fileCount} file(s)...`;
     }
@@ -3764,13 +3794,19 @@ async function handlePaneDrop(e, targetPaneIndex, subfolderPath) {
         headers: { 'Authorization': `Bearer ${App.token}` }
       });
       if (resp.ok) {
-        showToast('Upload completed successfully!', 'success');
+        showToast(`Uploaded ${fileCount} file(s) successfully!`, 'success');
         refreshPane(targetPaneIndex);
       } else {
         showToast(`Upload failed: ${await resp.text()}`, 'error');
       }
     } catch (err) {
       showToast(`Upload error: ${err}`, 'error');
+    } finally {
+      if (pill) {
+        pill.classList.remove('active');
+        pill.style.display = 'none';
+      }
+      pollTasks();
     }
     return;
   }
@@ -5061,6 +5097,86 @@ function dockNoteDogToActivePane() {
   dockToolToPane('notedog', App.activePaneIndex);
 }
 
+function setupNoteDogWindowResizers(win) {
+  const handles = {
+    top: document.getElementById('notedog-resize-top'),
+    bottom: document.getElementById('notedog-resize-bottom'),
+    left: document.getElementById('notedog-resize-left'),
+    right: document.getElementById('notedog-resize-right'),
+    corner: document.getElementById('notedog-resize-corner')
+  };
+
+  let resizeMode = null;
+  let startX = 0, startY = 0;
+  let startW = 0, startH = 0;
+  let startLeft = 0, startTop = 0;
+
+  Object.entries(handles).forEach(([mode, handle]) => {
+    if (!handle) return;
+    handle.addEventListener('mousedown', (e) => {
+      if (win.classList.contains('maximized')) return;
+      e.preventDefault();
+      e.stopPropagation();
+      resizeMode = mode;
+      startX = e.clientX;
+      startY = e.clientY;
+      const rect = win.getBoundingClientRect();
+      startW = rect.width;
+      startH = rect.height;
+      startLeft = rect.left;
+      startTop = rect.top;
+      document.body.style.userSelect = 'none';
+
+      const onMouseMove = (moveEvent) => {
+        if (!resizeMode) return;
+        const dx = moveEvent.clientX - startX;
+        const dy = moveEvent.clientY - startY;
+        const minW = 420;
+        const minH = 280;
+
+        if (resizeMode === 'right' || resizeMode === 'corner') {
+          const newW = Math.max(minW, startW + dx);
+          win.style.width = `${newW}px`;
+        }
+        if (resizeMode === 'bottom' || resizeMode === 'corner') {
+          const newH = Math.max(minH, startH + dy);
+          win.style.height = `${newH}px`;
+        }
+        if (resizeMode === 'left') {
+          const newW = Math.max(minW, startW - dx);
+          if (newW > minW) {
+            win.style.width = `${newW}px`;
+            win.style.left = `${startLeft + dx}px`;
+          }
+        }
+        if (resizeMode === 'top') {
+          const newH = Math.max(minH, startH - dy);
+          if (newH > minH) {
+            win.style.height = `${newH}px`;
+            win.style.top = `${startTop + dy}px`;
+          }
+        }
+      };
+
+      const onMouseUp = () => {
+        if (resizeMode) {
+          resizeMode = null;
+          document.body.style.userSelect = '';
+          window.removeEventListener('mousemove', onMouseMove);
+          window.removeEventListener('mouseup', onMouseUp);
+          if (win.style.width) localStorage.setItem('cd_notedog_w', parseInt(win.style.width, 10));
+          if (win.style.height) localStorage.setItem('cd_notedog_h', parseInt(win.style.height, 10));
+          if (win.style.left) localStorage.setItem('cd_notedog_x', parseInt(win.style.left, 10));
+          if (win.style.top) localStorage.setItem('cd_notedog_y', parseInt(win.style.top, 10));
+        }
+      };
+
+      window.addEventListener('mousemove', onMouseMove);
+      window.addEventListener('mouseup', onMouseUp);
+    });
+  });
+}
+
 function initNoteDogDrag() {
   if (notedogState.dragInitialized) return;
   notedogState.dragInitialized = true;
@@ -5071,11 +5187,15 @@ function initNoteDogDrag() {
 
   const savedLeft = localStorage.getItem('cd_notedog_x');
   const savedTop = localStorage.getItem('cd_notedog_y');
+  const savedWidth = localStorage.getItem('cd_notedog_w');
+  const savedHeight = localStorage.getItem('cd_notedog_h');
 
   if (savedLeft && savedTop && window.innerWidth > 768) {
     win.style.left = `${Math.min(window.innerWidth - 400, Math.max(10, parseInt(savedLeft, 10)))}px`;
     win.style.top = `${Math.min(window.innerHeight - 300, Math.max(35, parseInt(savedTop, 10)))}px`;
   }
+  if (savedWidth) win.style.width = `${Math.min(window.innerWidth - 20, Math.max(420, parseInt(savedWidth, 10)))}px`;
+  if (savedHeight) win.style.height = `${Math.min(window.innerHeight - 40, Math.max(280, parseInt(savedHeight, 10)))}px`;
 
   let isDragging = false;
   let dragStartX = 0, dragStartY = 0;
@@ -5113,13 +5233,17 @@ function initNoteDogDrag() {
       localStorage.setItem('cd_notedog_y', win.offsetTop);
     }
   });
+
+  setupNoteDogWindowResizers(win);
 }
 
 async function loadNoteDogHierarchy(targetNotePath) {
   try {
     const customFolder = notedogState.customFolder || localStorage.getItem('cd_notedog_folder');
     const url = customFolder ? `/api/tools/notedog/info?folder=${encodeURIComponent(customFolder)}` : '/api/tools/notedog/info';
-    const resp = await fetch(url);
+    const resp = await fetch(url, {
+      headers: { 'Authorization': `Bearer ${App.token}` }
+    });
     if (!resp.ok) return;
     const data = await resp.json();
     notedogState.rootFolder = data.root_folder;
@@ -5322,7 +5446,9 @@ async function loadNoteDogNoteContent(note) {
   }
 
   try {
-    const resp = await fetch(`/api/fs/read?path=${encodeURIComponent(note.path)}`);
+    const resp = await fetch(`/api/fs/read?path=${encodeURIComponent(note.path)}`, {
+      headers: { 'Authorization': `Bearer ${App.token}` }
+    });
     if (resp.ok) {
       const data = await resp.json();
       const content = data.content || '';
@@ -5332,10 +5458,21 @@ async function loadNoteDogNoteContent(note) {
       syncNoteDogGutter();
       renderNoteDogPreview(content);
     } else {
-      if (textarea) textarea.value = 'Failed to load note content';
+      const errText = await resp.text();
+      if (note.is_encrypted || note.filename?.endsWith('.md.enc')) {
+        const encNotice = `🔒 **Encrypted Note: ${escapeHtml(note.filename)}**\n\nThis note was saved with NoteDog encryption. Passphrase decryption support is active.`;
+        notedogState.content = encNotice;
+        if (textarea) textarea.value = encNotice;
+        renderNoteDogPreview(encNotice);
+      } else {
+        const errMsg = `Failed to load note content (${resp.status}): ${errText || 'Access Denied'}`;
+        if (textarea) textarea.value = errMsg;
+        if (preview) preview.innerHTML = `<div style="padding: 16px; color: var(--danger); font-family: var(--font-mono); font-size: 12px;">⚠️ ${escapeHtml(errMsg)}</div>`;
+      }
     }
   } catch (err) {
     console.error('NoteDog read note failed:', err);
+    if (textarea) textarea.value = `Failed to load note: ${err}`;
   }
 }
 
@@ -5373,7 +5510,10 @@ async function saveActiveNoteDogNote(isAutoSave = false) {
   try {
     const resp = await fetch('/api/fs/write', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${App.token}`
+      },
       body: JSON.stringify({ path: notedogState.activeNote.path, content })
     });
 
@@ -5387,13 +5527,19 @@ async function saveActiveNoteDogNote(isAutoSave = false) {
       // Record snapshot revision in .notedog_versions
       fetch('/api/tools/notedog/version/save', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${App.token}`
+        },
         body: JSON.stringify({ path: notedogState.activeNote.path })
       }).catch(() => {});
 
       if (!isAutoSave) {
         showToast(`Saved note: ${notedogState.activeNote.name}`, 'success');
       }
+    } else {
+      const errText = await resp.text();
+      if (!isAutoSave) showToast(`Failed to save note: ${errText}`, 'error');
     }
   } catch (err) {
     console.error('NoteDog save error:', err);
@@ -5666,7 +5812,10 @@ async function promptCreateNotebook() {
     const nbPath = `${root}/${nbName}/General`;
     await fetch('/api/fs/mkdir', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${App.token}`
+      },
       body: JSON.stringify({ path: nbPath })
     });
     await loadNoteDogHierarchy();
@@ -5691,7 +5840,10 @@ async function promptCreateSection() {
     const secPath = `${root}/${notedogState.activeNotebook}/${secName}`;
     await fetch('/api/fs/mkdir', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${App.token}`
+      },
       body: JSON.stringify({ path: secPath })
     });
     await loadNoteDogHierarchy();
@@ -5726,7 +5878,9 @@ async function openNoteDogTemplatePicker() {
   }
 
   try {
-    const resp = await fetch('/api/tools/notedog/templates');
+    const resp = await fetch('/api/tools/notedog/templates', {
+      headers: { 'Authorization': `Bearer ${App.token}` }
+    });
     const templates = resp.ok ? await resp.json() : [];
     notedogState.templates = templates;
 
@@ -5760,7 +5914,10 @@ async function createNoteFromTemplate(template, title) {
   try {
     const resp = await fetch('/api/fs/write', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${App.token}`
+      },
       body: JSON.stringify({ path: notePath, content })
     });
 
@@ -5780,7 +5937,10 @@ async function promptDeleteCurrentNote() {
   try {
     const resp = await fetch('/api/fs/delete', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${App.token}`
+      },
       body: JSON.stringify({ path: notedogState.activeNote.path })
     });
     if (resp.ok) {
@@ -5813,7 +5973,9 @@ async function openNoteDogVersionsModal() {
   if (restoreBtn) restoreBtn.style.display = 'none';
 
   try {
-    const resp = await fetch(`/api/tools/notedog/versions?path=${encodeURIComponent(notedogState.activeNote.path)}`);
+    const resp = await fetch(`/api/tools/notedog/versions?path=${encodeURIComponent(notedogState.activeNote.path)}`, {
+      headers: { 'Authorization': `Bearer ${App.token}` }
+    });
     if (resp.ok) {
       const versions = await resp.json();
       if (versions.length === 0) {
@@ -7640,6 +7802,7 @@ function showContextMenu(x, y) {
     </div>
     <div class="context-item" onclick="triggerView()"><i data-lucide="eye" style="width: 14px;"></i> Quick View (F3)</div>
     <div class="context-item" onclick="triggerEditor()"><i data-lucide="file-edit" style="width: 14px;"></i> Edit (F4)</div>
+    <div class="context-item" onclick="triggerDownloadContextItem()"><i data-lucide="download" style="width: 14px; color: var(--accent);"></i> Save / Download File</div>
     <div class="context-item" onclick="triggerProperties()"><i data-lucide="info" style="width: 14px; color: var(--accent);"></i> Properties (Alt+Enter)</div>
     <div class="context-sep"></div>
 
@@ -7735,6 +7898,20 @@ function showContextMenu(x, y) {
   if (window.lucide) lucide.createIcons();
 
   positionContextMenu(menu, x, y);
+}
+
+function triggerDownloadContextItem() {
+  hideContextMenu();
+  const item = App.contextItem;
+  if (!item) return;
+  const url = `/api/fs/download?path=${encodeURIComponent(item.path)}`;
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = item.name || 'download';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  showToast(`Initiating download for ${item.name}...`, 'info');
 }
 
 function triggerProperties(targetEntry) {
@@ -9141,6 +9318,34 @@ function applyBorderSettings(borderWidth, ringStyle) {
   if (ringSelect) ringSelect.value = ringStyle;
 }
 
+function randomizeLoginBackground() {
+  const modal = document.getElementById('login-modal');
+  if (!modal) return;
+
+  const randInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+  const randFloat = (min, max) => (Math.random() * (max - min) + min).toFixed(2);
+
+  const x1 = randInt(10, 35), y1 = randInt(10, 35);
+  const x2 = randInt(65, 90), y2 = randInt(65, 90);
+  const x3 = randInt(35, 65), y3 = randInt(35, 65);
+  const angle = randInt(125, 160);
+
+  const op1 = randFloat(0.12, 0.20);
+  const op2 = randFloat(0.09, 0.16);
+  const op3 = randFloat(0.05, 0.10);
+
+  const rx1 = randInt(60, 80), ry1 = randInt(45, 65);
+  const rx2 = randInt(55, 75), ry2 = randInt(40, 60);
+  const circleSize = randInt(450, 650);
+
+  modal.style.backgroundImage = `
+    radial-gradient(ellipse ${rx1}% ${ry1}% at ${x1}% ${y1}%, rgba(245, 158, 11, ${op1}) 0%, transparent 70%),
+    radial-gradient(ellipse ${rx2}% ${ry2}% at ${x2}% ${y2}%, rgba(217, 119, 6, ${op2}) 0%, transparent 65%),
+    radial-gradient(circle ${circleSize}px at ${x3}% ${y3}%, rgba(120, 53, 15, ${op3}) 0%, transparent 100%),
+    linear-gradient(${angle}deg, #0e0e11 0%, #15151a 45%, #181512 100%)
+  `;
+}
+
 function applyTheme(themeId) {
   localStorage.setItem('cd_theme', themeId);
   const sel = document.getElementById('theme-selector');
@@ -9149,6 +9354,7 @@ function applyTheme(themeId) {
   if (selSettings) selSettings.value = themeId;
 
   const root = document.documentElement;
+  root.setAttribute('data-theme', themeId);
 
   // Update active state on visual swatch cards
   document.querySelectorAll('.theme-swatch-card').forEach(card => {
@@ -9171,7 +9377,27 @@ function applyTheme(themeId) {
     return;
   }
 
-  if (themeId === 'gruvbox') {
+  if (themeId === 'zink') {
+    root.style.setProperty('--bg-dark', '#fafafa');
+    root.style.setProperty('--bg-panel', '#ffffff');
+    root.style.setProperty('--bg-header', '#f4f4f5');
+    root.style.setProperty('--bg-active', '#e4e4e7');
+    root.style.setProperty('--bg-hover', '#ebecee');
+    root.style.setProperty('--bg-selected', 'rgba(245, 158, 11, 0.14)');
+    root.style.setProperty('--border', '#d4d4d8');
+    root.style.setProperty('--border-focus', '#d97706');
+    root.style.setProperty('--accent', '#d97706');
+    root.style.setProperty('--accent-hover', '#b45309');
+    root.style.setProperty('--accent-dark', '#92400e');
+    root.style.setProperty('--accent-subtle', 'rgba(245, 158, 11, 0.10)');
+    root.style.setProperty('--text-main', '#18181b');
+    root.style.setProperty('--text-muted', '#52525b');
+    root.style.setProperty('--text-dim', '#71717a');
+    root.style.setProperty('--danger', '#dc2626');
+    root.style.setProperty('--success', '#059669');
+    root.style.setProperty('--info', '#0284c7');
+    root.style.setProperty('--archive', '#db2777');
+  } else if (themeId === 'gruvbox') {
     root.style.setProperty('--bg-dark', '#1d2021');
     root.style.setProperty('--bg-panel', '#282828');
     root.style.setProperty('--bg-header', '#3c3836');
@@ -9272,16 +9498,26 @@ function applyTheme(themeId) {
     root.style.setProperty('--text-main', '#ffffff');
     root.style.setProperty('--text-muted', '#a0a0ff');
   } else {
-    // Woofson Amber Default
+    // Woofson Amber Charcoal Default
     root.style.setProperty('--bg-dark', '#121214');
     root.style.setProperty('--bg-panel', '#18181b');
     root.style.setProperty('--bg-header', '#202024');
     root.style.setProperty('--bg-active', '#27272a');
+    root.style.setProperty('--bg-hover', '#323238');
+    root.style.setProperty('--bg-selected', 'rgba(245, 158, 11, 0.18)');
     root.style.setProperty('--border', '#3f3f46');
+    root.style.setProperty('--border-focus', '#f59e0b');
     root.style.setProperty('--accent', '#f59e0b');
     root.style.setProperty('--accent-hover', '#fbbf24');
+    root.style.setProperty('--accent-dark', '#d97706');
+    root.style.setProperty('--accent-subtle', 'rgba(245, 158, 11, 0.12)');
     root.style.setProperty('--text-main', '#f4f4f5');
     root.style.setProperty('--text-muted', '#a1a1aa');
+    root.style.setProperty('--text-dim', '#71717a');
+    root.style.setProperty('--danger', '#ef4444');
+    root.style.setProperty('--success', '#10b981');
+    root.style.setProperty('--info', '#38bdf8');
+    root.style.setProperty('--archive', '#f472b6');
   }
 }
 
@@ -10889,6 +11125,9 @@ function showModal(id) {
   hideContextMenu();
   const el = document.getElementById(id);
   if (el) {
+    if (id === 'login-modal') {
+      randomizeLoginBackground();
+    }
     el.classList.add('active');
     if (window.lucide) lucide.createIcons({ root: el });
     if (typeof window !== 'undefined' && window.history && typeof window.history.pushState === 'function') {
@@ -11802,7 +12041,7 @@ function initTerminalUI() {
       termInstance = new Terminal({
         cursorBlink: true,
         cursorStyle: 'bar',
-        fontFamily: 'JetBrains Mono, Menlo, Monaco, Consolas, "Courier New", monospace',
+        fontFamily: '"JetBrainsMono Nerd Font", "JetBrainsMono Nerd Font Mono", "Symbols Nerd Font Mono", "JetBrains Mono", monospace',
         fontSize: 13,
         lineHeight: 1.25,
         scrollback: 5000,
@@ -11840,6 +12079,22 @@ function initTerminalUI() {
       }
 
       termInstance.open(container);
+
+      if (document.fonts) {
+        Promise.all([
+          document.fonts.load('13px "JetBrainsMono Nerd Font"'),
+          document.fonts.load('13px "JetBrainsMono Nerd Font Mono"'),
+          document.fonts.load('13px "Symbols Nerd Font Mono"'),
+          document.fonts.ready
+        ]).then(() => {
+          if (termFitAddon) {
+            try {
+              termFitAddon.fit();
+              if (termInstance) termInstance.refresh(0, termInstance.rows - 1);
+            } catch (e) {}
+          }
+        });
+      }
 
       termInstance.onData((data) => {
         if (termWs && termWs.readyState === WebSocket.OPEN) {
@@ -12410,11 +12665,13 @@ function updateTasksPillState(list) {
   if (pill) {
     if (running.length > 0 && !isWinOpen) {
       pill.classList.add('active');
+      pill.style.display = 'flex';
       const hasParanoid = running.some(t => t.paranoid);
       document.getElementById('tasks-pill-text').textContent = `${hasParanoid ? '🛡️ ' : ''}${running.length} Job${running.length > 1 ? 's' : ''}`;
       document.getElementById('tasks-pill-speed').textContent = speedStr || (hasParanoid ? 'Verifying...' : 'Processing');
     } else {
       pill.classList.remove('active');
+      pill.style.display = 'none';
     }
   }
 
@@ -13037,6 +13294,182 @@ function preloadAdjacentImages() {
   });
 }
 
+let imageViewerDragInitialized = false;
+
+function setupImageViewerWindowResizers(win) {
+  const handles = {
+    top: document.getElementById('img-viewer-resize-top'),
+    bottom: document.getElementById('img-viewer-resize-bottom'),
+    left: document.getElementById('img-viewer-resize-left'),
+    right: document.getElementById('img-viewer-resize-right'),
+    corner: document.getElementById('img-viewer-resize-corner')
+  };
+
+  let resizeMode = null;
+  let startX = 0, startY = 0;
+  let startW = 0, startH = 0;
+  let startLeft = 0, startTop = 0;
+
+  Object.entries(handles).forEach(([mode, handle]) => {
+    if (!handle) return;
+    handle.addEventListener('mousedown', (e) => {
+      if (win.classList.contains('fullscreen')) return;
+      e.preventDefault();
+      e.stopPropagation();
+      resizeMode = mode;
+      startX = e.clientX;
+      startY = e.clientY;
+      const rect = win.getBoundingClientRect();
+      startW = rect.width;
+      startH = rect.height;
+      startLeft = rect.left;
+      startTop = rect.top;
+      document.body.style.userSelect = 'none';
+
+      const onMouseMove = (moveEvent) => {
+        if (!resizeMode) return;
+        const dx = moveEvent.clientX - startX;
+        const dy = moveEvent.clientY - startY;
+        const minW = 380;
+        const minH = 260;
+
+        if (resizeMode === 'right' || resizeMode === 'corner') {
+          win.style.width = `${Math.max(minW, startW + dx)}px`;
+        }
+        if (resizeMode === 'bottom' || resizeMode === 'corner') {
+          win.style.height = `${Math.max(minH, startH + dy)}px`;
+        }
+        if (resizeMode === 'left') {
+          const newW = Math.max(minW, startW - dx);
+          if (newW > minW) {
+            win.style.width = `${newW}px`;
+            win.style.left = `${startLeft + dx}px`;
+          }
+        }
+        if (resizeMode === 'top') {
+          const newH = Math.max(minH, startH - dy);
+          if (newH > minH) {
+            win.style.height = `${newH}px`;
+            win.style.top = `${startTop + dy}px`;
+          }
+        }
+      };
+
+      const onMouseUp = () => {
+        if (resizeMode) {
+          resizeMode = null;
+          document.body.style.userSelect = '';
+          window.removeEventListener('mousemove', onMouseMove);
+          window.removeEventListener('mouseup', onMouseUp);
+          if (win.style.width) localStorage.setItem('cd_img_viewer_w', parseInt(win.style.width, 10));
+          if (win.style.height) localStorage.setItem('cd_img_viewer_h', parseInt(win.style.height, 10));
+          if (win.style.left) localStorage.setItem('cd_img_viewer_x', parseInt(win.style.left, 10));
+          if (win.style.top) localStorage.setItem('cd_img_viewer_y', parseInt(win.style.top, 10));
+        }
+      };
+
+      window.addEventListener('mousemove', onMouseMove);
+      window.addEventListener('mouseup', onMouseUp);
+    });
+  });
+}
+
+function initImageViewerDrag() {
+  if (imageViewerDragInitialized) return;
+  imageViewerDragInitialized = true;
+
+  const modal = document.getElementById('image-viewer-modal');
+  const win = document.getElementById('image-viewer-box');
+  const toolbar = document.getElementById('image-viewer-toolbar');
+  if (!win || !toolbar) return;
+
+  const savedLeft = localStorage.getItem('cd_img_viewer_x');
+  const savedTop = localStorage.getItem('cd_img_viewer_y');
+  const savedWidth = localStorage.getItem('cd_img_viewer_w');
+  const savedHeight = localStorage.getItem('cd_img_viewer_h');
+  const savedFloating = localStorage.getItem('cd_img_viewer_floating') === 'true';
+
+  if (savedFloating && modal) {
+    modal.classList.add('floating-mode');
+  }
+
+  if (savedLeft && savedTop && window.innerWidth > 768) {
+    win.style.left = `${Math.min(window.innerWidth - 300, Math.max(10, parseInt(savedLeft, 10)))}px`;
+    win.style.top = `${Math.min(window.innerHeight - 200, Math.max(35, parseInt(savedTop, 10)))}px`;
+  }
+  if (savedWidth) win.style.width = `${Math.min(window.innerWidth - 20, Math.max(380, parseInt(savedWidth, 10)))}px`;
+  if (savedHeight) win.style.height = `${Math.min(window.innerHeight - 40, Math.max(260, parseInt(savedHeight, 10)))}px`;
+
+  let isDragging = false;
+  let dragStartX = 0, dragStartY = 0;
+  let winStartX = 0, winStartY = 0;
+
+  toolbar.addEventListener('mousedown', (e) => {
+    if (e.target.closest('button') || e.target.closest('a') || e.target.closest('input') || e.target.closest('.win-resize-handle') || win.classList.contains('fullscreen')) return;
+
+    if (modal && !modal.classList.contains('floating-mode')) {
+      toggleImageViewerFloating(true);
+    }
+
+    isDragging = true;
+    dragStartX = e.clientX;
+    dragStartY = e.clientY;
+    const rect = win.getBoundingClientRect();
+    winStartX = rect.left;
+    winStartY = rect.top;
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'move';
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (!isDragging) return;
+    const dx = e.clientX - dragStartX;
+    const dy = e.clientY - dragStartY;
+    const newLeft = Math.max(0, Math.min(window.innerWidth - win.offsetWidth, winStartX + dx));
+    const newTop = Math.max(35, Math.min(window.innerHeight - 60, winStartY + dy));
+    win.style.left = `${newLeft}px`;
+    win.style.top = `${newTop}px`;
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (isDragging) {
+      isDragging = false;
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+      localStorage.setItem('cd_img_viewer_x', win.offsetLeft);
+      localStorage.setItem('cd_img_viewer_y', win.offsetTop);
+    }
+  });
+
+  setupImageViewerWindowResizers(win);
+}
+
+function toggleImageViewerFloating(forceFloating) {
+  const modal = document.getElementById('image-viewer-modal');
+  const win = document.getElementById('image-viewer-box');
+  const btn = document.getElementById('btn-img-viewer-float');
+  if (!modal || !win) return;
+
+  const makeFloating = forceFloating !== undefined ? forceFloating : !modal.classList.contains('floating-mode');
+  modal.classList.toggle('floating-mode', makeFloating);
+  localStorage.setItem('cd_img_viewer_floating', makeFloating ? 'true' : 'false');
+
+  if (makeFloating) {
+    if (!win.style.left || !win.style.top) {
+      const rect = win.getBoundingClientRect();
+      win.style.left = `${Math.max(20, (window.innerWidth - (rect.width || 750)) / 2)}px`;
+      win.style.top = `${Math.max(50, (window.innerHeight - (rect.height || 550)) / 2)}px`;
+    }
+    if (btn) btn.innerHTML = '<i data-lucide="maximize"></i>';
+    showToast('Image Viewer is now in Floating Window Mode', 'info');
+  } else {
+    win.style.left = '';
+    win.style.top = '';
+    if (btn) btn.innerHTML = '<i data-lucide="picture-in-picture"></i>';
+  }
+  if (window.lucide) lucide.createIcons();
+}
+
 function openImageViewer(filePath) {
   const pane = App.panes[App.activePaneIndex];
   currentImageList = pane.entries.filter(e => !e.is_dir && isImageExtension(e.name)).map(e => e.path);
@@ -13048,6 +13481,7 @@ function openImageViewer(filePath) {
   currentImageIndex = currentImageList.indexOf(filePath);
   if (currentImageIndex === -1) currentImageIndex = 0;
 
+  initImageViewerDrag();
   setupImageViewerEvents();
   loadImageToViewer(currentImageList[currentImageIndex]);
   showModal('image-viewer-modal');
@@ -13365,12 +13799,317 @@ function openPdfViewer(filePath) {
   openDocumentViewer(filePath);
 }
 
+let docViewerDragInitialized = false;
+let docViewerTailFollow = false;
+let docViewerTailLines = localStorage.getItem('cd_tail_lines') || '100';
+let docViewerTailTimer = null;
+let docViewerWordWrap = true;
+
+function setupDocViewerWindowResizers(win) {
+  const handles = {
+    top: document.getElementById('doc-viewer-resize-top'),
+    bottom: document.getElementById('doc-viewer-resize-bottom'),
+    left: document.getElementById('doc-viewer-resize-left'),
+    right: document.getElementById('doc-viewer-resize-right'),
+    corner: document.getElementById('doc-viewer-resize-corner')
+  };
+
+  let resizeMode = null;
+  let startX = 0, startY = 0;
+  let startW = 0, startH = 0;
+  let startLeft = 0, startTop = 0;
+
+  Object.entries(handles).forEach(([mode, handle]) => {
+    if (!handle) return;
+    handle.addEventListener('mousedown', (e) => {
+      if (win.classList.contains('fullscreen')) return;
+      e.preventDefault();
+      e.stopPropagation();
+      resizeMode = mode;
+      startX = e.clientX;
+      startY = e.clientY;
+      const rect = win.getBoundingClientRect();
+      startW = rect.width;
+      startH = rect.height;
+      startLeft = rect.left;
+      startTop = rect.top;
+      document.body.style.userSelect = 'none';
+
+      const onMouseMove = (moveEvent) => {
+        if (!resizeMode) return;
+        const dx = moveEvent.clientX - startX;
+        const dy = moveEvent.clientY - startY;
+        const minW = 400;
+        const minH = 250;
+
+        if (resizeMode === 'right' || resizeMode === 'corner') {
+          win.style.width = `${Math.max(minW, startW + dx)}px`;
+        }
+        if (resizeMode === 'bottom' || resizeMode === 'corner') {
+          win.style.height = `${Math.max(minH, startH + dy)}px`;
+        }
+        if (resizeMode === 'left') {
+          const newW = Math.max(minW, startW - dx);
+          if (newW > minW) {
+            win.style.width = `${newW}px`;
+            win.style.left = `${startLeft + dx}px`;
+          }
+        }
+        if (resizeMode === 'top') {
+          const newH = Math.max(minH, startH - dy);
+          if (newH > minH) {
+            win.style.height = `${newH}px`;
+            win.style.top = `${startTop + dy}px`;
+          }
+        }
+      };
+
+      const onMouseUp = () => {
+        if (resizeMode) {
+          resizeMode = null;
+          document.body.style.userSelect = '';
+          window.removeEventListener('mousemove', onMouseMove);
+          window.removeEventListener('mouseup', onMouseUp);
+          if (win.style.width) localStorage.setItem('cd_doc_viewer_w', parseInt(win.style.width, 10));
+          if (win.style.height) localStorage.setItem('cd_doc_viewer_h', parseInt(win.style.height, 10));
+          if (win.style.left) localStorage.setItem('cd_doc_viewer_x', parseInt(win.style.left, 10));
+          if (win.style.top) localStorage.setItem('cd_doc_viewer_y', parseInt(win.style.top, 10));
+        }
+      };
+
+      window.addEventListener('mousemove', onMouseMove);
+      window.addEventListener('mouseup', onMouseUp);
+    });
+  });
+}
+
+function initDocViewerDrag() {
+  if (docViewerDragInitialized) return;
+  docViewerDragInitialized = true;
+
+  const modal = document.getElementById('doc-viewer-modal');
+  const win = document.getElementById('doc-viewer-box');
+  const header = document.getElementById('doc-viewer-header');
+  if (!win || !header) return;
+
+  const savedLeft = localStorage.getItem('cd_doc_viewer_x');
+  const savedTop = localStorage.getItem('cd_doc_viewer_y');
+  const savedWidth = localStorage.getItem('cd_doc_viewer_w');
+  const savedHeight = localStorage.getItem('cd_doc_viewer_h');
+  const savedFloating = localStorage.getItem('cd_doc_viewer_floating') === 'true';
+
+  if (savedFloating && modal) {
+    modal.classList.add('floating-mode');
+  }
+
+  if (savedLeft && savedTop && window.innerWidth > 768) {
+    win.style.left = `${Math.min(window.innerWidth - 300, Math.max(10, parseInt(savedLeft, 10)))}px`;
+    win.style.top = `${Math.min(window.innerHeight - 200, Math.max(35, parseInt(savedTop, 10)))}px`;
+  }
+  if (savedWidth) win.style.width = `${Math.min(window.innerWidth - 20, Math.max(400, parseInt(savedWidth, 10)))}px`;
+  if (savedHeight) win.style.height = `${Math.min(window.innerHeight - 40, Math.max(250, parseInt(savedHeight, 10)))}px`;
+
+  let isDragging = false;
+  let dragStartX = 0, dragStartY = 0;
+  let winStartX = 0, winStartY = 0;
+
+  header.addEventListener('mousedown', (e) => {
+    if (e.target.closest('button') || e.target.closest('a') || e.target.closest('input') || e.target.closest('select') || e.target.closest('.win-resize-handle') || win.classList.contains('fullscreen')) return;
+
+    if (modal && !modal.classList.contains('floating-mode')) {
+      toggleDocViewerFloating(true);
+    }
+
+    isDragging = true;
+    dragStartX = e.clientX;
+    dragStartY = e.clientY;
+    const rect = win.getBoundingClientRect();
+    winStartX = rect.left;
+    winStartY = rect.top;
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'move';
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (!isDragging) return;
+    const dx = e.clientX - dragStartX;
+    const dy = e.clientY - dragStartY;
+    const newLeft = Math.max(0, Math.min(window.innerWidth - win.offsetWidth, winStartX + dx));
+    const newTop = Math.max(35, Math.min(window.innerHeight - 60, winStartY + dy));
+    win.style.left = `${newLeft}px`;
+    win.style.top = `${newTop}px`;
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (isDragging) {
+      isDragging = false;
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+      localStorage.setItem('cd_doc_viewer_x', win.offsetLeft);
+      localStorage.setItem('cd_doc_viewer_y', win.offsetTop);
+    }
+  });
+
+  setupDocViewerWindowResizers(win);
+}
+
+function toggleDocViewerFloating(forceFloating) {
+  const modal = document.getElementById('doc-viewer-modal');
+  const win = document.getElementById('doc-viewer-box');
+  const btn = document.getElementById('btn-doc-viewer-float');
+  if (!modal || !win) return;
+
+  const makeFloating = forceFloating !== undefined ? forceFloating : !modal.classList.contains('floating-mode');
+  modal.classList.toggle('floating-mode', makeFloating);
+  localStorage.setItem('cd_doc_viewer_floating', makeFloating ? 'true' : 'false');
+
+  if (makeFloating) {
+    if (!win.style.left || !win.style.top) {
+      const rect = win.getBoundingClientRect();
+      win.style.left = `${Math.max(20, (window.innerWidth - (rect.width || 800)) / 2)}px`;
+      win.style.top = `${Math.max(50, (window.innerHeight - (rect.height || 600)) / 2)}px`;
+    }
+    if (btn) btn.innerHTML = '<i data-lucide="maximize"></i>';
+    showToast('Viewer is now in Floating Window Mode', 'info');
+  } else {
+    win.style.left = '';
+    win.style.top = '';
+    if (btn) btn.innerHTML = '<i data-lucide="picture-in-picture"></i>';
+  }
+  if (window.lucide) lucide.createIcons();
+}
+
+function renderTextDocViewerControls() {
+  const controlsEl = document.getElementById('doc-viewer-controls');
+  if (!controlsEl) return;
+
+  controlsEl.innerHTML = `
+    <div style="display: flex; align-items: center; gap: 4px;">
+      <button class="btn btn-sm ${docViewerTailFollow ? 'btn-tail-live' : ''}" id="btn-tail-follow" onclick="toggleTailFollow()" title="Toggle live streaming / tail follow updates" style="height: 28px; padding: 0 8px; font-size: 11px; display: inline-flex; align-items: center; gap: 4px;">
+        <i data-lucide="${docViewerTailFollow ? 'radio' : 'activity'}" style="width: 13px; height: 13px;"></i>
+        <span id="tail-follow-label">${docViewerTailFollow ? 'Following' : 'Follow (tail -f)'}</span>
+      </button>
+
+      <div style="display: flex; align-items: center; gap: 3px; background: var(--bg-dark); border: 1px solid var(--border); border-radius: 4px; padding: 0 6px; height: 28px; box-sizing: border-box;">
+        <span style="font-size: 10.5px; color: var(--text-dim); font-family: var(--font-mono); font-weight: 600;">-n</span>
+        <select id="tail-lines-select" style="background: transparent; border: none; color: var(--text-main); font-size: 11px; height: 26px; outline: none; cursor: pointer; padding: 0;" onchange="changeTailLines(this.value)">
+          <option value="50" ${docViewerTailLines === '50' ? 'selected' : ''}>50 lines</option>
+          <option value="100" ${docViewerTailLines === '100' ? 'selected' : ''}>100 lines</option>
+          <option value="250" ${docViewerTailLines === '250' ? 'selected' : ''}>250 lines</option>
+          <option value="500" ${docViewerTailLines === '500' ? 'selected' : ''}>500 lines</option>
+          <option value="1000" ${docViewerTailLines === '1000' ? 'selected' : ''}>1,000 lines</option>
+          <option value="all" ${docViewerTailLines === 'all' ? 'selected' : ''}>All lines</option>
+        </select>
+      </div>
+
+      <button class="btn btn-icon btn-sm" onclick="scrollViewerToBottom()" title="Scroll to Bottom (End)" style="height: 28px; width: 28px; padding: 0; display: inline-flex; align-items: center; justify-content: center;"><i data-lucide="arrow-down" style="width: 13px; height: 13px;"></i></button>
+      <button class="btn btn-icon btn-sm" onclick="toggleViewerWordWrap()" title="Toggle Word Wrap" style="height: 28px; width: 28px; padding: 0; display: inline-flex; align-items: center; justify-content: center;"><i data-lucide="wrap-text" style="width: 13px; height: 13px;"></i></button>
+      <button class="btn btn-icon btn-sm" onclick="refreshDocViewerText()" title="Refresh text" style="height: 28px; width: 28px; padding: 0; display: inline-flex; align-items: center; justify-content: center;"><i data-lucide="refresh-cw" style="width: 13px; height: 13px;"></i></button>
+    </div>
+  `;
+  if (window.lucide) lucide.createIcons();
+}
+
+async function refreshDocViewerText() {
+  if (!currentDocViewerPath) return;
+  const contentEl = document.getElementById('doc-text-content');
+  const metaEl = document.getElementById('doc-viewer-meta');
+  const ext = currentDocViewerPath.split('.').pop().toLowerCase();
+
+  try {
+    const resp = await fetch(`/api/fs/read?path=${encodeURIComponent(currentDocViewerPath)}`, {
+      headers: { 'Authorization': `Bearer ${App.token}` }
+    });
+    if (resp.ok) {
+      const data = await resp.json();
+      currentDocViewerRawText = data.content || '';
+
+      const allLines = currentDocViewerRawText.split('\n');
+      const totalLineCount = allLines.length;
+      let displayedText = currentDocViewerRawText;
+
+      if (docViewerTailLines !== 'all') {
+        const n = parseInt(docViewerTailLines, 10);
+        if (totalLineCount > n) {
+          displayedText = allLines.slice(-n).join('\n');
+        }
+      }
+
+      if (contentEl) {
+        contentEl.textContent = displayedText;
+      }
+
+      if (metaEl) {
+        const sizeStr = formatBytes(new Blob([currentDocViewerRawText]).size);
+        const liveIndicator = docViewerTailFollow ? ' • <span style="color: #10b981; font-weight: bold;">🟢 Live (tail -f)</span>' : '';
+        metaEl.innerHTML = `${ext.toUpperCase()} • ${totalLineCount.toLocaleString()} lines (showing ${docViewerTailLines === 'all' ? 'all' : Math.min(totalLineCount, parseInt(docViewerTailLines, 10))}) • ${sizeStr}${liveIndicator}`;
+      }
+
+      if (docViewerTailFollow) {
+        scrollViewerToBottom();
+      }
+    }
+  } catch (e) {
+    console.error('Tail refresh failed:', e);
+  }
+}
+
+function toggleTailFollow() {
+  docViewerTailFollow = !docViewerTailFollow;
+  const btn = document.getElementById('btn-tail-follow');
+  const label = document.getElementById('tail-follow-label');
+
+  if (docViewerTailFollow) {
+    if (btn) btn.classList.add('btn-tail-live');
+    if (label) label.textContent = 'Following (tail -f)';
+    showToast('Live Follow mode active (tail -f)', 'success');
+
+    if (docViewerTailTimer) clearInterval(docViewerTailTimer);
+    docViewerTailTimer = setInterval(refreshDocViewerText, 1200);
+    refreshDocViewerText();
+  } else {
+    if (btn) btn.classList.remove('btn-tail-live');
+    if (label) label.textContent = 'Follow (tail -f)';
+    if (docViewerTailTimer) {
+      clearInterval(docViewerTailTimer);
+      docViewerTailTimer = null;
+    }
+    showToast('Paused live follow mode', 'info');
+    refreshDocViewerText();
+  }
+  if (window.lucide) lucide.createIcons();
+}
+
+function changeTailLines(val) {
+  docViewerTailLines = val;
+  localStorage.setItem('cd_tail_lines', val);
+  refreshDocViewerText();
+}
+
+function scrollViewerToBottom() {
+  const container = document.getElementById('doc-view-text');
+  if (container) {
+    container.scrollTop = container.scrollHeight;
+  }
+}
+
+function toggleViewerWordWrap() {
+  const contentEl = document.getElementById('doc-text-content');
+  if (!contentEl) return;
+  docViewerWordWrap = !docViewerWordWrap;
+  contentEl.style.whiteSpace = docViewerWordWrap ? 'pre-wrap' : 'pre';
+  contentEl.style.wordBreak = docViewerWordWrap ? 'break-word' : 'normal';
+  showToast(`Word wrap: ${docViewerWordWrap ? 'ON' : 'OFF'}`, 'info');
+}
+
 async function openDocumentViewer(filePath) {
   currentDocViewerPath = filePath;
   currentDocViewerRawText = '';
   currentDocViewerMode = 'rendered';
   docPdfZoom = 100;
   docPdfRotation = 0;
+
+  initDocViewerDrag();
 
   const fileName = filePath.split('/').pop() || filePath;
   const ext = fileName.split('.').pop().toLowerCase();
@@ -13525,28 +14264,18 @@ async function openDocumentViewer(filePath) {
     }
 
   } else {
-    // Plain text / Code / Logs / Conf
+    // Plain text / Code / Logs / Conf / Tail -f
     if (metaEl) metaEl.textContent = `${ext.toUpperCase() || 'TEXT'} Document`;
     if (iconEl) iconEl.setAttribute('data-lucide', 'file-text');
-    if (controlsEl) controlsEl.innerHTML = '';
+
+    renderTextDocViewerControls();
 
     const textPanel = document.getElementById('doc-view-text');
     const contentEl = document.getElementById('doc-text-content');
     if (textPanel) textPanel.style.display = 'block';
     if (contentEl) contentEl.textContent = 'Loading...';
 
-    try {
-      const resp = await fetch(`/api/fs/read?path=${encodeURIComponent(filePath)}`, {
-        headers: { 'Authorization': `Bearer ${App.token}` }
-      });
-      if (resp.ok) {
-        const data = await resp.json();
-        currentDocViewerRawText = data.content || '';
-        if (contentEl) contentEl.textContent = currentDocViewerRawText;
-      }
-    } catch (e) {
-      if (contentEl) contentEl.textContent = `Error reading file: ${e.message}`;
-    }
+    refreshDocViewerText();
   }
 
   showModal('doc-viewer-modal');
@@ -13554,6 +14283,11 @@ async function openDocumentViewer(filePath) {
 }
 
 function closeDocViewerModal() {
+  if (docViewerTailTimer) {
+    clearInterval(docViewerTailTimer);
+    docViewerTailTimer = null;
+  }
+  docViewerTailFollow = false;
   closeModal('doc-viewer-modal');
   const pdfFrame = document.getElementById('doc-pdf-frame');
   if (pdfFrame) pdfFrame.src = 'about:blank';
@@ -15806,6 +16540,8 @@ const SPOTLIGHT_STATIC_ACTIONS = [
   { id: 'vault-create', title: 'Create Encrypted Vault', sub: 'Create a password-protected AES-256-GCM encrypted vault (.cdvault)', icon: 'shield-check', cat: 'actions', action: () => openCreateVaultModal() },
   { id: 'compress', title: 'Compress to Archive', sub: 'Create .zip or .tar.gz from selected files', icon: 'archive', cat: 'actions', action: () => triggerCompressModal() },
   { id: 'perms', title: 'Permissions & Ownership', sub: 'Visual Unix chmod & chown editor', icon: 'shield', cat: 'actions', action: () => triggerPermissions() },
+  { id: 'theme-charcoal', title: 'Theme: Woofsons Amber Charcoal', sub: 'Switch theme to Woofsons Amber Charcoal (Dark)', icon: 'palette', cat: 'actions', action: () => applyTheme('amber-charcoal') },
+  { id: 'theme-zink', title: 'Theme: Woofsons Amber Zink', sub: 'Switch theme to Woofsons Amber Zink (Light)', icon: 'palette', cat: 'actions', action: () => applyTheme('zink') },
   { id: 'theme-amber', title: 'Theme: Amber (Classic Woofson)', sub: 'Switch theme to Amber Gold', icon: 'palette', cat: 'actions', action: () => applyTheme('amber') },
   { id: 'theme-emerald', title: 'Theme: Emerald', sub: 'Switch theme to Emerald Green', icon: 'palette', cat: 'actions', action: () => applyTheme('emerald') },
   { id: 'theme-sky', title: 'Theme: Sky Blue', sub: 'Switch theme to Sky Blue', icon: 'palette', cat: 'actions', action: () => applyTheme('sky') },
@@ -16873,6 +17609,24 @@ function mountDockedTool(paneIndex) {
     const cwd = (pane && !pane.path.includes('://')) ? pane.path : (getUserDefaultHomeDir() || '/');
     if (!termWs || termWs.readyState !== WebSocket.OPEN) {
       connectTerminal(cwd);
+    }
+
+    // Dynamic resize observer keeping docked terminal & TUI apps (nano/vim) perfectly sized
+    if (window.ResizeObserver && host) {
+      if (host._termResizeObs) host._termResizeObs.disconnect();
+      let resizeTimer = null;
+      host._termResizeObs = new ResizeObserver(() => {
+        if (resizeTimer) clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => {
+          if (termFitAddon) {
+            try { termFitAddon.fit(); } catch (e) {}
+            if (termWs && termWs.readyState === WebSocket.OPEN && termInstance) {
+              termWs.send(JSON.stringify({ cols: termInstance.cols, rows: termInstance.rows, resize: true }));
+            }
+          }
+        }, 50);
+      });
+      host._termResizeObs.observe(host);
     }
 
     setTimeout(() => {

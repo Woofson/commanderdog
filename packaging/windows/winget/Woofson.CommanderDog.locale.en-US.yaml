@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.6.0.schema.json
 
 PackageIdentifier: Woofson.CommanderDog
-PackageVersion: 0.6.6-rc1
+PackageVersion: 0.7.0
 PackageLocale: en-US
 Publisher: Woofson
 PublisherUrl: https://github.com/woofson
@@ -29,6 +29,6 @@ Tags:
   - vault
   - encryption
   - explorer
-ReleaseNotesUrl: https://github.com/woofson/commanderdog/releases/tag/v0.6.0
+ReleaseNotesUrl: https://github.com/woofson/commanderdog/releases/tag/v0.7.0
 ManifestType: defaultLocale
 ManifestVersion: 1.6.0

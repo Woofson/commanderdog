@@ -92,7 +92,7 @@
   - Selected files only diff and full deep cryptographic hash comparison.
   - Side-by-side text diff with line-by-line additions, deletions, and inline token highlighting.
 - **Extensible Theme Engine & Palette Customizer**:
-  - 11 built-in themes: **Woofson Amber (Default)**, **Gruvbox Dark**, **Catppuccin Mocha**, **Catppuccin Latte (Light)**, **Tokyo Night**, **Monokai Pro**, **Solarized Dark**, **Ayu Dark**, **Nord Frost**, **Dracula Dark**, **Midnight Commander Blue**.
+  - 12 built-in themes: **Woofson Charcoal (Dark - Default)**, **Woofson Zink (Light)**, **Gruvbox Dark**, **Catppuccin Mocha**, **Catppuccin Latte (Light)**, **Tokyo Night**, **Monokai Pro**, **Solarized Dark**, **Ayu Dark**, **Nord Frost**, **Dracula Dark**, **Midnight Commander Blue**.
   - **External TOML Themes**: Drop custom `.toml` themes into `~/.config/commanderdog/themes/` or `/etc/commanderdog/themes/`.
   - **Web Custom Theme Creator**: Build, preview, and export custom themes directly within the Web UI.
 - **Unified Fast-Path XDG Configuration**:

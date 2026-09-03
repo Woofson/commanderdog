@@ -8,6 +8,9 @@
   <link rel="apple-touch-icon" href="assets/logo.png">
   <link rel="shortcut icon" href="assets/commanderdog.ico">
   <link rel="stylesheet" href="app.css">
+  <!-- Bundled Nerd Fonts Preload -->
+  <link rel="preload" href="/assets/fonts/JetBrainsMonoNerdFont-Regular.ttf" as="font" type="font/ttf" crossorigin>
+  <link rel="preload" href="/assets/fonts/SymbolsNerdFontMono-Regular.ttf" as="font" type="font/ttf" crossorigin>
   <!-- Lucide Icons CDN -->
   <script src="https://unpkg.com/lucide@latest"></script>
   <!-- Mermaid.js CDN for Markdown Diagrams -->
@@ -1098,7 +1101,8 @@
           <div class="form-group">
             <label>Active Theme:</label>
             <select id="settings-theme-selector" class="pane-quick-filter" style="width: 100%; padding: 8px; font-size: 13px;" onchange="applyTheme(this.value)">
-              <option value="amber-charcoal">Woofson Amber (Default)</option>
+              <option value="amber-charcoal">Woofsons Amber Charcoal</option>
+              <option value="zink">Woofsons Amber Zink</option>
               <option value="gruvbox">Gruvbox Dark</option>
               <option value="catppuccin-mocha">Catppuccin Mocha</option>
               <option value="catppuccin-latte">Catppuccin Latte (Light)</option>
@@ -2001,16 +2005,24 @@
     <span id="calc-pill-text">Calculator</span>
   </div>
 
-  <!-- Floating NoteDog Notes & Markdown Studio Window -->
+  <!-- Floating Notes Studio Window (Chewtoy) -->
   <div class="floating-notedog-window" id="floating-notedog-window" style="display: none;" onclick="bringFloatingWindowToFront(this)">
+    <!-- Desktop Resize Handles -->
+    <div class="win-resize-handle win-resize-top" id="notedog-resize-top"></div>
+    <div class="win-resize-handle win-resize-bottom" id="notedog-resize-bottom"></div>
+    <div class="win-resize-handle win-resize-left" id="notedog-resize-left"></div>
+    <div class="win-resize-handle win-resize-right" id="notedog-resize-right"></div>
+    <div class="win-resize-handle win-resize-corner" id="notedog-resize-corner">
+      <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M9 1L1 9M9 5L5 9M9 9H9.01" stroke="rgba(255,255,255,0.4)" stroke-width="1.5" stroke-linecap="round"/></svg>
+    </div>
+
     <!-- 1. Top Header (Draggable) -->
     <div class="modal-header notedog-header" id="notedog-header">
       <div class="notedog-header-left" style="display: flex; align-items: center; gap: 8px;">
         <span class="notedog-header-drag-handle" style="font-weight: 700; display: flex; align-items: center; gap: 6px; cursor: grab;">
-          <span style="font-size: 15px;">🐶</span>
-          <span style="color: var(--accent); font-weight: 800;">NoteDog</span>
+          <span style="font-size: 15px;">📝</span>
+          <span style="color: var(--accent); font-weight: 800;">Notes</span>
         </span>
-        <span class="notedog-badge-tag" id="notedog-current-breadcrumb">Personal / General</span>
       </div>
 
       <div class="notedog-header-center" style="flex: 1; max-width: 300px; margin: 0 10px; position: relative;">
@@ -2256,8 +2268,17 @@
   <!-- Rich Image Viewer Modal -->
   <div class="modal-overlay" id="image-viewer-modal">
     <div class="modal-box image-viewer-box" id="image-viewer-box">
+      <!-- Desktop Resize Handles -->
+      <div class="win-resize-handle win-resize-top" id="img-viewer-resize-top"></div>
+      <div class="win-resize-handle win-resize-bottom" id="img-viewer-resize-bottom"></div>
+      <div class="win-resize-handle win-resize-left" id="img-viewer-resize-left"></div>
+      <div class="win-resize-handle win-resize-right" id="img-viewer-resize-right"></div>
+      <div class="win-resize-handle win-resize-corner" id="img-viewer-resize-corner">
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M9 1L1 9M9 5L5 9M9 9H9.01" stroke="rgba(255,255,255,0.4)" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </div>
+
       <div class="image-viewer-toolbar" id="image-viewer-toolbar">
-        <div class="image-viewer-title-group">
+        <div class="image-viewer-title-group" id="image-viewer-drag-handle" style="cursor: grab;">
           <span style="color: var(--accent); font-weight: 700;">🖼️</span>
           <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
             <span id="img-viewer-title" style="font-weight: 600; font-size: 13px;">image.png</span>
@@ -2299,6 +2320,7 @@
           <button class="btn btn-icon btn-sm" id="btn-img-wheel-mode" onclick="toggleImgWheelMode()" title="Toggle Wheel Mode: Browse Images vs Direct Zoom"><i data-lucide="mouse"></i></button>
           <button class="btn btn-icon btn-sm" onclick="inspectCurrentImage()" title="Inspect EXIF & GPS Metadata"><i data-lucide="info"></i></button>
           <a id="img-viewer-download-link" class="btn btn-icon btn-sm" href="#" download title="Download Image"><i data-lucide="download"></i></a>
+          <button class="btn btn-icon btn-sm" id="btn-img-viewer-float" onclick="toggleImageViewerFloating()" title="Toggle Floating Window / Overlay (⇱ / ⇲)"><i data-lucide="picture-in-picture"></i></button>
           <button class="btn btn-icon btn-sm" onclick="closeModal('image-viewer-modal')" title="Close Viewer (Esc)"><i data-lucide="x"></i></button>
         </div>
       </div>
@@ -3407,10 +3429,19 @@
   <!-- Universal Document & PDF Reader Modal -->
   <div class="modal-overlay" id="doc-viewer-modal" style="z-index: 2800;">
     <div class="modal-box doc-viewer-box" id="doc-viewer-box">
+      <!-- Desktop Resize Handles -->
+      <div class="win-resize-handle win-resize-top" id="doc-viewer-resize-top"></div>
+      <div class="win-resize-handle win-resize-bottom" id="doc-viewer-resize-bottom"></div>
+      <div class="win-resize-handle win-resize-left" id="doc-viewer-resize-left"></div>
+      <div class="win-resize-handle win-resize-right" id="doc-viewer-resize-right"></div>
+      <div class="win-resize-handle win-resize-corner" id="doc-viewer-resize-corner">
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M9 1L1 9M9 5L5 9M9 9H9.01" stroke="rgba(255,255,255,0.4)" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </div>
+
       <!-- Modal Header & Toolbar -->
-      <div class="modal-header doc-viewer-header">
+      <div class="modal-header doc-viewer-header" id="doc-viewer-header">
         <!-- Left: File Info -->
-        <div class="doc-viewer-title-group">
+        <div class="doc-viewer-title-group" id="doc-viewer-title-group">
           <i data-lucide="file-text" id="doc-viewer-icon" style="color: var(--accent); width: 18px; height: 18px; flex-shrink: 0;"></i>
           <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
             <div id="doc-viewer-title" style="font-weight: 700; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; overflow: hidden;">Document.pdf</div>
@@ -3418,18 +3449,22 @@
           </div>
         </div>
 
-        <!-- Center: Dynamic Controls (PDF, Markdown, CSV, etc.) -->
-        <div class="doc-viewer-toolbar-center" id="doc-viewer-controls">
-          <!-- Dynamically populated per format -->
-        </div>
+        <!-- Right: Dynamic Controls & Universal Actions (Right-Aligned, Same Size) -->
+        <div class="doc-viewer-header-right" style="display: flex; align-items: center; gap: 8px; justify-content: flex-end; flex: 1;">
+          <div class="doc-viewer-toolbar-center" id="doc-viewer-controls" style="display: flex; align-items: center; gap: 6px;">
+            <!-- Dynamically populated per format -->
+          </div>
 
-        <!-- Right: Universal Actions -->
-        <div class="doc-viewer-actions-right">
-          <button class="btn btn-icon" id="doc-viewer-edit-btn" onclick="docViewerEditFile()" title="Edit in EditorDog (F4)"><i data-lucide="code"></i></button>
-          <a id="doc-viewer-download" class="btn btn-icon" href="#" download title="Download File"><i data-lucide="download"></i></a>
-          <a id="doc-viewer-external" class="btn btn-icon" href="#" target="_blank" title="Open in New Tab"><i data-lucide="external-link"></i></a>
-          <button class="btn btn-icon" id="doc-viewer-fullscreen" onclick="toggleDocViewerFullscreen()" title="Toggle Fullscreen"><i data-lucide="maximize-2"></i></button>
-          <button class="btn btn-icon" onclick="closeDocViewerModal()" title="Close (Esc)"><i data-lucide="x"></i></button>
+          <div style="width: 1px; height: 18px; background: var(--border); margin: 0 2px;"></div>
+
+          <div class="doc-viewer-actions-right" style="display: flex; align-items: center; gap: 4px;">
+            <button class="btn btn-icon btn-sm" id="doc-viewer-edit-btn" onclick="docViewerEditFile()" title="Edit in EditorDog (F4)"><i data-lucide="code"></i></button>
+            <a id="doc-viewer-download" class="btn btn-icon btn-sm" href="#" download title="Download File"><i data-lucide="download"></i></a>
+            <a id="doc-viewer-external" class="btn btn-icon btn-sm" href="#" target="_blank" title="Open in New Tab"><i data-lucide="external-link"></i></a>
+            <button class="btn btn-icon btn-sm" id="btn-doc-viewer-float" onclick="toggleDocViewerFloating()" title="Toggle Floating Window / Overlay (⇱ / ⇲)"><i data-lucide="picture-in-picture"></i></button>
+            <button class="btn btn-icon btn-sm" id="doc-viewer-fullscreen" onclick="toggleDocViewerFullscreen()" title="Toggle Fullscreen"><i data-lucide="maximize-2"></i></button>
+            <button class="btn btn-icon btn-sm" onclick="closeDocViewerModal()" title="Close (Esc)"><i data-lucide="x"></i></button>
+          </div>
         </div>
       </div>
 
