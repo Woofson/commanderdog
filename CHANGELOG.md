@@ -9,26 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.7.1] - 2026-09-03
 
-### 🎨 Amber Zink Theme, Procedural Login, Chewtoys Polish & Fixes
-- **Woofson Amber Zink (Light Theme) & Charcoal Default Palette**:
-  - Full implementation of `WOOFSONS_AMBER.md` color tokens for both **Charcoal** (`#121214`) and **Zink** (`#fafafa` / `#ffffff`).
-  - Added `zink` to `config.toml` default themes and Rust backend configuration.
+### 🎨 Universal Floating Viewers, Live Tail Streaming, Bundled Fonts & Themes
+- **Universal Floating & Resizable Viewers**:
+  - Detachable floating window mode for Universal Document/Text viewer and Image viewer with window geometry persistence in `localStorage`.
+  - Non-fiddly, full title bar drag handle and desktop edge/corner resizing.
+  - Live log follow mode (`tail -f`) with custom line count filtering (`-n 50`, `100`, `250`, `500`, `1000`, `All`), glowing live indicator, and word-wrap toggle.
+  - Unified right-aligned header layout with uniform `28px` control buttons.
+- **Offline Embedded JetBrainsMono Nerd Fonts**:
+  - Embedded local `JetBrainsMono Nerd Font` and `Symbols Nerd Font` into the binary via `rust_embed` for native out-of-the-box `eza --icons`, `starship`, and `fish` powerline glyphs without requiring client OS font installations.
+- **Official Woofsons Amber Palette & Auto-Merge Engine**:
+  - Implemented official **`Woofsons Amber Charcoal`** (Dark) and **`Woofsons Amber Zink`** (Light) themes.
+  - Automatic configuration merge ensuring new built-in themes are dynamically available even on existing installations with prior `config.toml` files.
   - Fixed white-on-white text contrast bug across all `<select>` and `<option>` elements globally.
-- **Procedural Randomized Login Background**:
+- **Procedural Randomized Login Background & Version Sync**:
   - Dynamically computes random focal positions, radii, and amber opacities on each reload so no two logins look identical.
-- **Chewtoy Enhancements & Bug Fixes**:
-  - **Notes (NoteDog Chewtoy)**:
-    - Fixed note loading and saving authorization header resolution preventing 401/403 access issues.
-    - Added floating window desktop drag handles (`win-resize-handle`) allowing smooth resizing on PC viewports.
-    - Added encryption detection for NoteDog TUI `.md.enc` files.
-    - Refined header branding to "Notes" and removed redundant breadcrumb badge.
-  - **Bite! Terminal Console**:
-    - Added dynamic `ResizeObserver` to docked terminal host automatically updating xterm dimensions and dispatching PTY WebSocket `{ cols, rows, resize: true }` frames on pane resize.
-    - Extended monospace font family stack to prioritize Nerd Fonts (`"JetBrainsMono Nerd Font"`, `"FiraCode Nerd Font"`).
-  - **Background Transfers & Task Manager**:
-    - Fixed stuck "Uploading..." floating pill by eliminating uncleaned inline styles and enforcing `.active` CSS class toggling in `finally` blocks.
-  - **Right-Click Context Menu**:
-    - Added **"Save / Download File"** action directly in the file context menu for 1-click downloads.
+  - Centralized compile-time versioning in `Cargo.toml` with early unauthenticated API sync updating all `.login-version-badge` and UI badges dynamically.
+- **Chewtoy Enhancements & Direct Downloads**:
+  - **Right-Click Context Menu**: Added **"Save / Download File"** action directly in the file context menu for 1-click downloads.
+  - **Notes (NoteDog Chewtoy)**: Fixed note loading authorization header resolution and added NoteDog TUI `.md.enc` encryption detection.
+  - **Bite! Terminal Console**: Added dynamic `ResizeObserver` to docked terminal host automatically updating xterm dimensions and dispatching PTY WebSocket resize frames.
+  - **Background Transfers & Task Manager**: Fixed stuck "Uploading..." floating pill by enforcing `.active` CSS class toggling in `finally` blocks.
 
 ---
 

@@ -34,6 +34,8 @@ At the end of every response after making changes, **always clearly inform the u
     2. **Arch Linux AUR**: `commanderdog` and `commanderdog-bin` PKGBUILDs.
     3. **Crates.io**: `cargo publish` using the `arf-` prefix rule (`arf-cmdr`).
     4. **Windows**: Scoop bucket and Winget package manifests (`packaging/windows/`).
+* **Documentation & Roadmap Alignment**:
+  * Before every git commit or push, ensure that `ROADMAP.md`, `todo.txt`, `CHANGELOG.md`, and all project documentation are fully synchronized, updated, and aligned with recent codebase changes.
 * **Crates.io Upload Ready**: Cargo is fully configured and ready for upload to crates.io with publishing prefix rules.
 
 ---

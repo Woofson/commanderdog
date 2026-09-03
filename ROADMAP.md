@@ -1,7 +1,7 @@
 # <img src="assets/logo.png" alt="CommanderDog Logo" height="40" style="vertical-align: -6px; margin-right: 8px;" /> CommanderDog Product Roadmap
 
 > **Slogan**: *Multi-Tab File Commander for Web & Native Desktop — By Woofson*  
-> **Current Version**: `v0.7.0 (Desktop & Web)`
+> **Current Version**: `v0.7.1 (Desktop & Web)`
 
 This roadmap outlines completed capabilities, active architectural enhancements, and future milestones for CommanderDog, combining orthodox two-pane file commander power tools (Total Commander, Double Commander, Krusader, Directory Opus) with modern responsive web and native standalone desktop architecture.
 
@@ -53,7 +53,22 @@ This roadmap outlines completed capabilities, active architectural enhancements,
 
 ---
 
-## 1. Completed Milestones (v0.1.0 — v0.7.0)
+## 1. Completed Milestones (v0.1.0 — v0.7.1)
+
+### Universal Floating Viewers, Live Log Streaming, Offline Nerd Fonts & Theme Engine (`v0.7.1`)
+- [x] **Universal Floating & Resizable Viewers**:
+  - Detachable floating window mode for Universal Document/Text viewer and Image viewer with window geometry persistence in `localStorage`.
+  - Non-fiddly, full title bar drag handle and desktop edge/corner resizing.
+  - Live log follow mode (`tail -f`) with custom line count filtering (`-n 50`, `100`, `250`, `500`, `1000`, `All`), glowing live indicator, and word-wrap toggle.
+  - Unified right-aligned header layout with uniform `28px` control buttons.
+- [x] **Bundled Offline JetBrainsMono Nerd Fonts**:
+  - Embedded local `JetBrainsMono Nerd Font` and `Symbols Nerd Font` into the binary via `rust_embed` for native out-of-the-box `eza --icons`, `starship`, and `fish` powerline glyphs without requiring client OS font installations.
+- [x] **Official Woofsons Amber Palette & Auto-Merge Engine**:
+  - Added official **Woofsons Amber Charcoal** (Dark) and **Woofsons Amber Zink** (Light) themes.
+  - Automatic configuration merge ensuring new built-in themes are dynamically available even on existing installations with prior `config.toml` files.
+- [x] **Direct File Panel Download & Dynamic Login Screen**:
+  - 1-click **Save / Download File** directly from the panel right-click context menu.
+  - Procedurally randomized geometric gradient background on login/lock screen with centralized version badge sync.
 
 ### NoteDog Notes Studio & Orthodox Power Tools Suite (`v0.7.0`)
 - [x] **NoteDog Hierarchical Markdown Notes Studio**:
@@ -145,17 +160,26 @@ This roadmap outlines completed capabilities, active architectural enhancements,
 
 ```mermaid
 graph TD
-    A["v0.7.0 (Current: NoteDog Notes Studio, Delta Backup, Tags & Workspaces)"] --> B["1. Enterprise OIDC SSO & Collaborative Office (v0.8.0)"]
-    B --> C["2. High-Performance P2P Cluster & Distributed Virtual Storage (v1.0.0)"]
+    A["v0.7.1 (Current: Universal Floating Viewers, Live Tail Follow, Bundled Fonts & Themes)"] --> B["1. Documentation Cleanup & Manuals Directory (v0.7.2)"]
+    B --> C["2. Enterprise OIDC SSO & Collaborative Office (v0.8.0)"]
+    C --> D["3. High-Performance P2P Cluster & Distributed Storage (v1.0.0)"]
 ```
 
 ---
 
-### Milestone 1: Enterprise OIDC SSO & Collaborative Office (`v0.8.0`)
+### Milestone 1: Documentation Cleanup & User Manuals Directory (`manuals/`)
+- **Documentation Reorganization**: Consolidate and clean up repository root markdown documentation. Move architecture runbooks, platform setup guides, and user manuals into a structured `manuals/` directory:
+  - `manuals/lxc-proxmox.md` (LXC Containerization, Proxmox VE & TurnKey deployment)
+  - `manuals/windows-setup.md` (Windows Native MSI, Scoop, Winget, and WebView2 setup)
+  - `manuals/theme-authoring.md` (Creating and exporting TOML themes with Woofsons Amber palette)
+  - `manuals/chewtoys-guide.md` (NoteDog Notes, Bite! Terminal, SyncToy Backup Studio, PDF Toolkit)
+- **Continuous Alignment**: Maintain strict alignment across `ROADMAP.md`, `todo.txt`, `CHANGELOG.md`, and `GEMINI.md` on every iteration and release.
+
+### Milestone 2: Enterprise OIDC SSO & Collaborative Office (`v0.8.0`)
 - **Enterprise Identity Providers**: OpenID Connect (OIDC), OAuth2, SAML 2.0, Keycloak, Authentik, Okta, Azure AD.
 - **Collaborative Document Editing**: In-browser real-time collaborative editing for markdown, code, and Office documents (Collabora / OnlyOffice WOPI integration).
 
-### Milestone 2: High-Performance P2P Cluster & Distributed Virtual Storage (`v1.0.0`)
+### Milestone 3: High-Performance P2P Cluster & Distributed Virtual Storage (`v1.0.0`)
 - **Cluster Node Mesh**: Direct peer-to-peer authenticated node clustering with distributed metadata synchronization.
 - **Distributed Virtual Storage**: Multi-host unified mountpoints and automated cross-node replication.
 
@@ -337,6 +361,8 @@ graph TD
 | **`v0.6.7`** | **Orthodox Context Menu, Properties Dialog, GFM & Raw HTML Editor, Tags & Colors** | **Released** |
 | **`v0.6.8`** | **Resizable Columns, Custom Chooser, Multi-Size Grid & Tree Sidebar** | **Released** |
 | **`v0.6.9`** | **Bvckup 2 & SyncToy Delta Backup, Background Daemons, Scheduled Tasks & Automation** | **Released** |
-| **`v0.7.0`** | **NoteDog Notes Studio, Tags & Colors, Custom Workspaces & Power Suite** | **Released (Current)** |
-| **`v0.8.0`** | **Enterprise OIDC SSO, Collaborative Office (WOPI) & Automation Engine** | *Next Up* |
+| **`v0.7.0`** | **NoteDog Notes Studio, Tags & Colors, Custom Workspaces & Power Suite** | **Released** |
+| **`v0.7.1`** | **Universal Floating Viewers, Live Tail Follow, Bundled Fonts & Theme Engine** | **Released (Current)** |
+| **`v0.7.2`** | **Documentation Reorganization & Manuals Directory (`manuals/`)** | *Next Up* |
+| **`v0.8.0`** | **Enterprise OIDC SSO, Collaborative Office (WOPI) & Automation Engine** | *Planned* |
 | **`v1.0.0`** | **High-Performance P2P Cluster & Distributed Virtual Storage** | *Planned* |
