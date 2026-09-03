@@ -6,11 +6,11 @@ Welcome to the **CommanderDog** project repository. All agents and pair-programm
 
 ## 1. 🏷️ Versioning & Iteration Rules
 
-* **Iteration Postfixes (`a-z`)**: Every time changes are made to the codebase, bump the version iteration using a postfix letter `a-z` (e.g. `0.7.1-a`, `0.7.1-b`, `0.7.1-c`...) in `Cargo.toml`.
+* **Iteration Release Candidates (`rc1-rc9`)**: Every time changes/iterations are made to the codebase between official releases, bump the release candidate postfix using SemVer `rc1` through `rc9` (e.g. `0.7.1-rc1`, `0.7.1-rc2`, `0.7.1-rc3`...) in `Cargo.toml`. When an official milestone release is finalized, drop the `-rc` suffix (e.g. `0.7.1`).
 * **Centralized Single Source of Truth**:
   * The version number is defined exclusively in `Cargo.toml` (`[package] version = "..."`).
   * The Rust backend automatically embeds this compile-time via `env!("CARGO_PKG_VERSION")` and serves it via `/api/config` and `/api/system/status`.
-  * The frontend dynamically populates all UI badges (`#about-version-badge`, `.login-version-badge`) through `applyAppVersion()`.
+  * The frontend dynamically populates all UI badges (`#about-version-badge`, `.login-version-badge`, `#sync-version-badge`) through `applyAppVersion()`.
   * **Token Efficiency**: Do NOT burn tokens editing hardcoded version strings across multiple HTML/JS files; updating `Cargo.toml` updates everything.
 
 ---
