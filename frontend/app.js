@@ -155,6 +155,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   applyAllColumnWidths();
   const urlTheme = new URLSearchParams(window.location.search).get('theme');
   applyTheme(urlTheme || localStorage.getItem('cd_theme') || 'amber-charcoal');
+  fetchAppVersion();
   startTasksPolling();
   initInactivityTracker();
   initFolderTree();
@@ -257,12 +258,24 @@ async function checkAuthAndLoad() {
   }, 100);
 }
 
+async function fetchAppVersion() {
+  try {
+    const res = await fetch('/api/system/status');
+    if (res.ok) {
+      const data = await res.json();
+      if (data.version) applyAppVersion(data.version);
+    }
+  } catch (_) {}
+}
+
 function applyAppVersion(ver) {
   if (!ver) return;
   App.version = ver;
   document.querySelectorAll('.login-version-badge').forEach(el => el.textContent = `v${ver}`);
   const aboutBadge = document.getElementById('about-version-badge');
   if (aboutBadge) aboutBadge.textContent = `v${ver} (Desktop & Web)`;
+  const syncBadge = document.getElementById('sync-version-badge');
+  if (syncBadge) syncBadge.textContent = `v${ver}`;
 }
 
 async function loadConfig() {
