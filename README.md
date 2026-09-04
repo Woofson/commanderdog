@@ -242,7 +242,7 @@ All detailed operational runbooks, platform guides, and security documentation a
 - [**Power Tools & ChewToys Manual**](manuals/chewtoys.md) — Notes Studio, Bite! Terminal, Delta Backup, PDF Toolkit, Vaults.
 - [**Windows Native Desktop & Packaging Guide**](manuals/windows.md) — Winget, Scoop, NSIS Setup, MSI, and Portable ZIP.
 - [**Transparent Encrypted Vaults Guide (AES-256-GCM / Argon2id)**](manuals/vaults.md) — Create, unlock, edit, and secure encrypted containers.
-- [**Docker Deployment Guide**](manuals/docker.md) — Multi-arch Debian and Alpine container setup.
+- [**Docker Deployment Guide**](manuals/docker.md) — Ultra-minimal Alpine Linux container setup.
 - [**LXC / Proxmox Guide**](manuals/lxc-proxmox.md) — Standalone Linux container deployment.
 - [**Reverse Proxy & Mesh VPN Guide**](manuals/reverse-proxy.md) — Tailscale, NetBird, Caddy 2, Nginx, Traefik, Cloudflare.
 - [**Themes & Palette Guide**](manuals/themes-and-palette.md) — Woofsons Amber design tokens and custom theme authoring.

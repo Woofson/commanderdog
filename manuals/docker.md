@@ -6,8 +6,8 @@
 
 ## 🌟 Why Run CommanderDog in Docker?
 
-- ⚡ **Ultra-Lightweight**: Rust binary based on Debian/Alpine slim, using only **~25 MB of RAM**.
-- 🔒 **Isolated & Secure**: Run in rootless/isolated containers with fine-grained host volume bind-mounts.
+- ⚡ **Ultra-Lightweight & Minimal**: Statically linked musl binary packaged on **Alpine Linux 3.20**, resulting in a tiny **~30 MB image footprint** and using only **~20 MB of RAM**.
+- 🔒 **Isolated & Secure**: Run in rootless/isolated containers with fine-grained host volume bind-mounts and `no-new-privileges: true`.
 - 🗄️ **Multi-Host Storage Management**: Mount `/mnt/storage`, `/mnt/nas`, USB drives, or NFS directly into CommanderDog.
 - 🔄 **Zero-Loss Upgrades**: Persistent `/data` volume keeps all SQLite databases, users, backup schedules, and configurations intact across image upgrades and container refreshes.
 
@@ -30,7 +30,7 @@ docker run -d \
   ghcr.io/woofson/commanderdog:latest
 ```
 
-> 💡 **Tip**: For ultra-minimal environments, you can use the Alpine musl-based image: `ghcr.io/woofson/commanderdog:alpine`.
+> 💡 **Image Details**: All official Docker images (`:latest`, `:alpine`, `:v0.7.2-rc1`) are built natively on Alpine Linux 3.20 with static musl binaries. Debian images have been retired.
 
 Open `http://<SERVER_IP>:3140` in your browser:
 - **Default Username**: `admin`

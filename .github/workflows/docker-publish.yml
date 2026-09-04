@@ -1,4 +1,4 @@
-name: Build & Publish Docker Image to GHCR
+name: Build & Publish Docker Image to GHCR (Alpine Linux)
 
 on:
   push:
@@ -13,59 +13,7 @@ permissions:
   packages: write
 
 jobs:
-  build-debian:
-    runs-on: ubuntu-22.04
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Install system build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y pkg-config libssl-dev libssh2-1-dev libsqlite3-dev zlib1g-dev libbz2-dev cmake clang build-essential
-
-      - name: Set up Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Compile CommanderDog release binary
-        run: |
-          cargo build --release --no-default-features
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract Docker metadata for Debian
-        id: meta-debian
-        uses: docker/metadata-action@v5
-        with:
-          images: ghcr.io/${{ github.repository }}
-          tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=raw,value=bookworm,enable={{is_default_branch}}
-            type=ref,event=tag
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-
-      - name: Build and push Debian 12 Bookworm Docker image (:latest, :bookworm)
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./Dockerfile
-          push: true
-          tags: ${{ steps.meta-debian.outputs.tags }}
-          labels: ${{ steps.meta-debian.outputs.labels }}
-          platforms: linux/amd64
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-  build-alpine:
+  build-and-publish:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout repository
@@ -81,7 +29,7 @@ jobs:
         with:
           targets: x86_64-unknown-linux-musl
 
-      - name: Compile CommanderDog for Alpine (musl)
+      - name: Compile CommanderDog for Alpine Linux (musl)
         env:
           CC_x86_64_unknown_linux_musl: musl-gcc
           AR_x86_64_unknown_linux_musl: ar
@@ -99,24 +47,25 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Extract Docker metadata for Alpine
-        id: meta-alpine
+        id: meta
         uses: docker/metadata-action@v5
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
             type=raw,value=alpine,enable={{is_default_branch}}
-            type=ref,event=tag,suffix=-alpine
-            type=semver,pattern={{version}},suffix=-alpine
-            type=semver,pattern={{major}}.{{minor}},suffix=-alpine
+            type=ref,event=tag
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
 
-      - name: Build and push minimal Alpine Linux Docker image (:alpine)
+      - name: Build and push minimal Alpine Linux Docker image (:latest, :alpine)
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: ./Dockerfile.alpine
+          file: ./Dockerfile
           push: true
-          tags: ${{ steps.meta-alpine.outputs.tags }}
-          labels: ${{ steps.meta-alpine.outputs.labels }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           platforms: linux/amd64
           cache-from: type=gha
           cache-to: type=gha,mode=max

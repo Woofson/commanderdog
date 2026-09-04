@@ -1,29 +1,35 @@
-# CommanderDog — Official Minimal Container Image (Debian 12 Bookworm Slim)
-FROM debian:bookworm-slim
+# CommanderDog — Official Ultra-Minimal Container Image (Alpine Linux 3.20)
+FROM alpine:3.20
 
-RUN apt-get update && apt-get install -y \
+LABEL org.opencontainers.image.title="CommanderDog" \
+      org.opencontainers.image.description="Multi-Tab Web File Commander - By Woofson" \
+      org.opencontainers.image.vendor="Woofsons Lab" \
+      org.opencontainers.image.url="https://www.arf.ac" \
+      org.opencontainers.image.source="https://github.com/woofson/commanderdog" \
+      org.opencontainers.image.licenses="MIT"
+
+RUN apk add --no-cache \
     ca-certificates \
     curl \
     bash \
     coreutils \
     procps \
     libssl3 \
-    libssh2-1 \
-    libsqlite3-0 \
-    libpam0g \
-    zlib1g \
-    libbz2-1.0 \
+    libcrypto3 \
+    libssh2 \
+    sqlite-libs \
+    zlib \
+    bzip2 \
     tar \
     gzip \
-    bzip2 \
-    p7zip-full \
+    7zip \
     openssh-client \
-    && rm -rf /var/lib/apt/lists/*
+    tzdata
 
 WORKDIR /app
 
-# Copy compiled Debian Bookworm binary and config.toml
-COPY target/release/commanderdog /usr/local/bin/commanderdog
+# Copy compiled musl release binary and master config.toml
+COPY target/x86_64-unknown-linux-musl/release/commanderdog /usr/local/bin/commanderdog
 COPY config.toml /etc/commanderdog/config.toml
 
 # Setup storage and runtime directories
