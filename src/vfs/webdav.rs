@@ -109,6 +109,8 @@ impl WebDavClient {
             total_dirs,
             total_size,
             protocol: "webdav".to_string(),
+            is_truncated: None,
+            max_limit: None,
         })
     }
 }

@@ -173,6 +173,8 @@ impl ArchiveHandler {
             total_dirs,
             total_size,
             protocol: "archive".to_string(),
+            is_truncated: None,
+            max_limit: None,
         })
     }
 

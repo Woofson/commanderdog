@@ -312,6 +312,8 @@ impl SmbClient {
             total_dirs,
             total_size,
             protocol: "smb".to_string(),
+            is_truncated: None,
+            max_limit: None,
         })
     }
 

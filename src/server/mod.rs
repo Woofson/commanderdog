@@ -137,6 +137,13 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/tools/notedog/templates", get(handle_notedog_templates))
         .route("/api/tools/notedog/versions", get(handle_notedog_versions))
         .route("/api/tools/notedog/version/save", post(handle_notedog_save_version))
+        .route("/api/tools/notedog/decrypt", post(handle_notedog_decrypt))
+        .route("/api/tools/notedog/encrypt", post(handle_notedog_encrypt))
+        .route("/api/tools/notedog/create", post(handle_notedog_create_note))
+        .route("/api/tools/notedog/section/encrypt", post(handle_notedog_section_encrypt))
+        .route("/api/tools/notedog/section/decrypt", post(handle_notedog_section_decrypt))
+        .route("/api/tools/notedog/notebook/encrypt", post(handle_notedog_notebook_encrypt))
+        .route("/api/tools/notedog/notebook/decrypt", post(handle_notedog_notebook_decrypt))
         // Git Client & Version Control API
         .route("/api/git/status", get(handle_git_status))
         .route("/api/git/diff", get(handle_git_diff))
@@ -1613,6 +1620,7 @@ struct ListQuery {
     show_hidden: Option<bool>,
     flat: Option<bool>,
     max_depth: Option<usize>,
+    max_entries: Option<usize>,
     host: Option<String>,
     port: Option<u16>,
     user: Option<String>,
@@ -1734,6 +1742,8 @@ async fn handle_list_dir(
             total_dirs,
             total_size,
             protocol: "proton".to_string(),
+            is_truncated: None,
+            max_limit: None,
         }))
     } else if target_path.starts_with("smb://") {
         let params = crate::vfs::smb::SmbClient::parse_uri(&target_path, query.user.as_deref(), query.pass.as_deref())
@@ -1748,9 +1758,16 @@ async fn handle_list_dir(
             .map(Json)
             .map_err(|e| (StatusCode::BAD_REQUEST, format!("NFS list failed: {}", e)))
     } else if query.flat.unwrap_or(false) {
-        LocalFs::list_branch_view(&target_path, show_hidden, query.max_depth)
-            .map(Json)
-            .map_err(|e| (StatusCode::BAD_REQUEST, format!("Failed to list branch view: {}", e)))
+        let max_d = query.max_depth;
+        let max_e = query.max_entries;
+        let p = target_path.clone();
+        tokio::task::spawn_blocking(move || {
+            LocalFs::list_branch_view(&p, show_hidden, max_d, max_e)
+        })
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Branch view task failed: {}", e)))?
+        .map(Json)
+        .map_err(|e| (StatusCode::BAD_REQUEST, format!("Failed to list branch view: {}", e)))
     } else {
         LocalFs::list_dir(&target_path, show_hidden)
             .map(Json)
@@ -2940,6 +2957,156 @@ async fn handle_notedog_save_version(
         }
     }
     Ok(Json(serde_json::json!({ "success": true })))
+}
+
+#[derive(Deserialize)]
+struct NoteDogDecryptRequest {
+    path: String,
+    passphrase: Option<String>,
+}
+
+#[derive(Serialize)]
+struct NoteDogDecryptResponse {
+    content: String,
+    path: String,
+}
+
+async fn handle_notedog_decrypt(
+    Json(payload): Json<NoteDogDecryptRequest>,
+) -> Result<Json<NoteDogDecryptResponse>, (StatusCode, String)> {
+    let p = Path::new(&payload.path);
+    if !p.exists() {
+        return Err((StatusCode::NOT_FOUND, "Note file not found".to_string()));
+    }
+    let pass = payload.passphrase.as_deref().unwrap_or("notedog");
+    match crate::tools::notedog::decrypt_note_file(p, pass) {
+        Ok(content) => Ok(Json(NoteDogDecryptResponse {
+            content,
+            path: payload.path,
+        })),
+        Err(err) => Err((StatusCode::BAD_REQUEST, err)),
+    }
+}
+
+#[derive(Deserialize)]
+struct NoteDogEncryptRequest {
+    path: String,
+    content: String,
+    passphrase: Option<String>,
+    convert_to_plain: Option<bool>,
+}
+
+#[derive(Serialize)]
+struct NoteDogEncryptResponse {
+    success: bool,
+    path: String,
+    is_encrypted: bool,
+}
+
+async fn handle_notedog_encrypt(
+    Json(payload): Json<NoteDogEncryptRequest>,
+) -> Result<Json<NoteDogEncryptResponse>, (StatusCode, String)> {
+    let p = Path::new(&payload.path);
+    let pass = payload.passphrase.as_deref().unwrap_or("notedog");
+
+    if payload.convert_to_plain.unwrap_or(false) {
+        match crate::tools::notedog::decrypt_and_save_plain_note(p, pass) {
+            Ok(new_path) => Ok(Json(NoteDogEncryptResponse {
+                success: true,
+                path: new_path.to_string_lossy().to_string(),
+                is_encrypted: false,
+            })),
+            Err(err) => Err((StatusCode::BAD_REQUEST, err)),
+        }
+    } else {
+        match crate::tools::notedog::encrypt_and_save_note(p, &payload.content, pass) {
+            Ok(new_path) => Ok(Json(NoteDogEncryptResponse {
+                success: true,
+                path: new_path.to_string_lossy().to_string(),
+                is_encrypted: true,
+            })),
+            Err(err) => Err((StatusCode::BAD_REQUEST, err)),
+        }
+    }
+}
+
+#[derive(Deserialize)]
+struct NoteDogCreateNoteRequest {
+    section_path: String,
+    title: String,
+    is_encrypted: Option<bool>,
+    passphrase: Option<String>,
+    initial_content: Option<String>,
+}
+
+async fn handle_notedog_create_note(
+    Json(payload): Json<NoteDogCreateNoteRequest>,
+) -> Result<Json<crate::tools::notedog::NoteDogFile>, (StatusCode, String)> {
+    let sec_p = Path::new(&payload.section_path);
+    match crate::tools::notedog::create_new_note(
+        sec_p,
+        &payload.title,
+        payload.is_encrypted.unwrap_or(false),
+        payload.passphrase.as_deref(),
+        payload.initial_content.as_deref(),
+    ) {
+        Ok(note) => Ok(Json(note)),
+        Err(err) => Err((StatusCode::BAD_REQUEST, err)),
+    }
+}
+
+#[derive(Deserialize)]
+struct NoteDogSectionActionRequest {
+    path: String,
+    passphrase: String,
+    cached_pass: Option<String>,
+}
+
+async fn handle_notedog_section_encrypt(
+    Json(payload): Json<NoteDogSectionActionRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let p = Path::new(&payload.path);
+    match crate::tools::notedog::encrypt_section_dir(p, &payload.passphrase, payload.cached_pass.as_deref()) {
+        Ok(count) => Ok(Json(serde_json::json!({ "success": true, "encrypted_count": count }))),
+        Err(err) => Err((StatusCode::BAD_REQUEST, err)),
+    }
+}
+
+async fn handle_notedog_section_decrypt(
+    Json(payload): Json<NoteDogSectionActionRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let p = Path::new(&payload.path);
+    match crate::tools::notedog::decrypt_section_dir(p, &payload.passphrase) {
+        Ok(count) => Ok(Json(serde_json::json!({ "success": true, "decrypted_count": count }))),
+        Err(err) => Err((StatusCode::BAD_REQUEST, err)),
+    }
+}
+
+#[derive(Deserialize)]
+struct NoteDogNotebookActionRequest {
+    path: String,
+    passphrase: String,
+    cached_pass: Option<String>,
+}
+
+async fn handle_notedog_notebook_encrypt(
+    Json(payload): Json<NoteDogNotebookActionRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let p = Path::new(&payload.path);
+    match crate::tools::notedog::encrypt_notebook_dir(p, &payload.passphrase, payload.cached_pass.as_deref()) {
+        Ok(count) => Ok(Json(serde_json::json!({ "success": true, "encrypted_count": count }))),
+        Err(err) => Err((StatusCode::BAD_REQUEST, err)),
+    }
+}
+
+async fn handle_notedog_notebook_decrypt(
+    Json(payload): Json<NoteDogNotebookActionRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let p = Path::new(&payload.path);
+    match crate::tools::notedog::decrypt_notebook_dir(p, &payload.passphrase) {
+        Ok(count) => Ok(Json(serde_json::json!({ "success": true, "decrypted_count": count }))),
+        Err(err) => Err((StatusCode::BAD_REQUEST, err)),
+    }
 }
 
 // ---------------- PHASE 4 HANDLERS (SYNC, SEARCH, SCRIPT ACTIONS) ----------------

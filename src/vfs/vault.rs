@@ -370,6 +370,8 @@ impl VaultManager {
             total_dirs,
             total_size,
             protocol: "vault".to_string(),
+            is_truncated: None,
+            max_limit: None,
         })
     }
 

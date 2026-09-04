@@ -7,6 +7,103 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.7.3-rc10] - 2026-09-04
+
+### 🎨 Uniform Woofsons Amber Icon Suite & DOM Resilience
+- **Uniform Woofsons Amber Icon Suite Integration**:
+  - Integrated full suite of 14 uniform amber PNG icons across all application surfaces:
+    - `amber-chewtoy-2.png`: Dedicated top header launchpad trigger button (`#btn-tools-menu`).
+    - `amber-chewtoy.png`: Settings "Tools Menu" tab and Launchpad customizer header.
+    - `amber-pdftool.png`: PDFDog power studio modal header, Launchpad dropdown, Spotlight action, and context menu.
+    - `amber-diff.png`: Compare & Diff engine modal header, Launchpad, Spotlight (`F9`), and context menus.
+    - `amber-terminal.png`: Terminal console drawer header, Launchpad, Spotlight, and docked pane header.
+    - `amber-sync.png`: Backup & Sync studio modal header, backup profile editor, Launchpad, and context menus.
+    - `amber-spot.png`: Spotlight search bar icon, search palette footer branding, and Launchpad menu item.
+    - `amber-calc.png`: Floating calculator header, minimized floating pill, Launchpad, and Spotlight.
+    - `amber-note.png`: NoteDog floating window, revision history modal, note creation modal, Launchpad, and Spotlight.
+    - `amber-settings.png` / `conf.png`: User profile dropdown (`F10`), `#settings-modal` header, `#confd-assembler-modal` header, and context menus.
+    - `amber-task.png`: Top header active transfer badge (`#header-task-icon`), floating transfer manager header, and docked queue.
+    - `amber-sharemgr.png`: Active Shares & Dropboxes modal header, share creation dialog, Launchpad, and file context menu.
+    - `amber-docs.png`: Universal Document & Text Viewer header (`#doc-viewer-modal`).
+    - `amber-media.png`: Rich Media EXIF GPS Inspector and Audio/Video player modal headers.
+    - `amber-syntaxedit.png` / `edit.png`: EditorDog floating header, docked editor header, Launchpad, Spotlight (`F4`), and context menus.
+- **HTML DOM Hierarchy & Loading State Repair**:
+  - Closed orphaned tags in `#notedog-versions-modal` inside `frontend/index.html`, eliminating an issue where subsequent DOM elements were trapped in a hidden modal.
+- **Embedded Asset Synchronization**:
+  - Synchronized new graphical assets directly into `frontend/assets/` to ensure `RustEmbed` serves all ChewToy, NoteDog, and Settings icons without 404 fallbacks.
+- **Modal Layer Stacking & Context Resolution**:
+  - Elevated `.modal-overlay` base layer to `z-index: 2800` across `app.css` and dialog markup to prevent modals from rendering beneath floating utilities or backdrops.
+  - Hardened item and pane resolution in `triggerRename()` and `triggerMkdir()` with proper context resets.
+
+## [0.7.3-rc9] - 2026-09-04
+
+### 📁 Streamlined New Folder Creation Modal (F7)
+- **Ergonomic Quick-Mkdir Dialog**:
+  - **ChewToy Standards & Visual Hierarchy**: Upgraded `#mkdir-modal` with 420px width, `folder-plus` Lucide icon in amber accent, clean monospace input field, and a dedicated confirmation button.
+  - **Instant Autofocus & Selection**: Opening the modal via <kbd>F7</kbd>, bottom toolbar "F7 Mkdir", context menu "New Folder...", or Spotlight command immediately focuses the input field with text selected for instant typing.
+  - **Keyboard Workflow**: Pressing <kbd>Enter</kbd> submits and creates the folder via `POST /api/fs/mkdir`; pressing <kbd>Esc</kbd> cancels and dismisses the dialog immediately.
+  - **Context-Aware Pane Resolution**: Accurate directory targeting when triggered from pane context menus or right-click actions (`App.contextPaneIndex`).
+  - **Clear User Feedback**: Displays real-time toast feedback on creation success or sanitized error feedback on failure.
+
+## [0.7.3-rc8] - 2026-09-04
+
+### 🔒 NoteDog Cross-TUI Encryption Suite & Streamlined Rename Modal
+- **Streamlined Rename Modal (`F2`)**:
+  - **Instant Autofocus & Smart Selection**: Pressing <kbd>F2</kbd>, clicking the bottom toolbar "F2 Rename", or choosing context menu "Rename" opens a clean, focused modal. The filename is automatically pre-selected excluding its extension (e.g. `report` in `report.pdf`, or entire name for folders/dotfiles).
+  - **Keyboard Ergonomics**: <kbd>Enter</kbd> confirms and executes rename via `/api/fs/rename`; <kbd>Esc</kbd> immediately cancels and closes the modal.
+- **NoteDog Encrypted Notes & Cross-TUI Compatibility**:
+  - **100% NoteDog TUI Cryptographic Interoperability**: Implemented symmetric authenticated encryption using **ChaCha20-Poly1305** and **Argon2id** key derivation, providing identical binary format (`NOTEDOG_ENC_V1` header + 16-byte salt + 12-byte nonce + ciphertext + Poly1305 tag) to the NoteDog TUI terminal client.
+  - **In-Workspace Decryption Unlock Card**: Selecting a `.md.enc` note presents an in-place unlock card with password field, Enter-to-unlock, and session passphrase caching.
+  - **Transparent Encrypted Editing & Saving**: Editing decrypted notes in NoteDog automatically re-encrypts the payload upon saving (<kbd>Ctrl+S</kbd> or auto-save) without ever touching disk in plaintext.
+  - **1-Click Note Encryption Toggle (<kbd>Ctrl+E</kbd>)**: Convert any unencrypted note `.md` to `.md.enc` with a passphrase, or decrypt back to plain `.md`.
+  - **Batch Section & Notebook Encryption / Decryption**: Added dedicated 🔒 actions to encrypt/decrypt entire sections or notebooks with directory `.encrypted` markers.
+  - **New Note Creation Modal**: Direct modal to create plain or encrypted notes with optional custom passphrases.
+
+## [0.7.3-rc7] - 2026-09-04
+
+### 🏷️ ChewToy Unified Shortened Nomenclature & Dedicated Icon Suite
+- **16 Standardized ChewToy Power Tool Names**:
+  - Harmonized the entire built-in tool suite across the Launchpad dropdown menu, Settings customization tab, Spotlight Quick-Switcher (`Ctrl+K`), and panel context menus:
+    1. **`Spot!`** — Spotlight Quick-Shifter & Command Palette (`Ctrl+K`)
+    2. **`Task Manager`** — Background Transfers & Job Queue
+    3. **`Terminal`** — Slide-Up PTY Web Terminal Console (`'`)
+    4. **`EditorDog`** — Multi-Tab Code & Text Editor (`F4`)
+    5. **`Calculator`** — Floating Calculator & Unit Converter
+    6. **`Tree`** — Folder Hierarchy Tree (`Ctrl+T`)
+    7. **`Flat`** — Flat / Branch Recursive View (`Ctrl+B`)
+    8. **`NoteDog`** — Notes & Markdown Studio
+    9. **`Compare`** — Side-by-Side Diff Engine (`F9`)
+    10. **`Search`** — Deep File Search (`Ctrl+F`)
+    11. **`Share Manager`** — Active Shares & Dropboxes
+    12. **`Backup`** — Delta Backup & Sync Studio (SyncToy / Bvckup2)
+    13. **`Stats`** — Disk Usage & Treemap Space Analyzer
+    14. **`Syncthing`** — Live Continuous P2P Syncthing Dashboard
+    15. **`ConvertX`** — Universal Transcoder & File Converters
+    16. **`PDFDog`** — PDF Power Studio (Merge, Split, Rotate, Extract)
+- **New Graphical Assets & Visual Identity Integration**:
+  - **ChewToys Suite Launcher**: Main header suite button now displays the dedicated `assets/chewtoy.png` icon.
+  - **NoteDog Studio Identity**: NoteDog floating window header, Launchpad menu, Spotlight search, and minimized pill now render `assets/note.png`.
+  - **Settings & Config Identity**: Settings (<kbd>F10</kbd>) modal header, profile dropdown item, and Spotlight entries now render `assets/conf.png`.
+- **Dynamic Config Upgrades**:
+  - Updated `getToolsMenuConfig()` to seamlessly upgrade labels and icons while preserving any custom tool ordering or visibility preferences in `localStorage`.
+
+## [0.7.3-rc6] - 2026-09-04
+
+### 🌲 Flat / Branch View Performance Overhaul & UX Streamlining
+- **High-Performance Bounded Backend Lister**:
+  - **Pruned Directory Traversal**: Configured `WalkDir` with iterator-level `filter_entry` pruning that stops descent into hidden directories (`.git`, `.cache`, `.cargo`, `node_modules`) when `show_hidden=false`, avoiding scanning millions of irrelevant files.
+  - **Entry Cap & Safety Limit**: Implemented a configurable entry cap (`MAX_BRANCH_ENTRIES = 5,000`, max 25,000) with a `is_truncated` response flag, eliminating browser freezing, memory blowups, and massive JSON payloads on root/system folders.
+  - **Non-Blocking Async Execution**: Offloaded `LocalFs::list_branch_view` to `tokio::task::spawn_blocking` to prevent blocking the axum event loop and terminal/WebSocket traffic.
+  - **Lightweight Metadata Resolution**: Eliminated redundant per-directory `read_dir` empty checks during recursive scans for 10x-50x speedups on large filesystems.
+- **Persistent Sticky Branch View Banner (`.pane-branch-banner`)**:
+  - Added a dedicated, amber-accented banner pinned above the file table/grid/compact lists with item count, truncation indicator badge, and a prominent **`[ ✕ Exit Branch View (Ctrl+B) ]`** button.
+- **Cancelable Scan Engine & AbortController**:
+  - Integrated `AbortController` into `loadPaneDirectory` allowing users to cleanly cancel in-flight recursive branch scans via a "✕ Cancel Scan" button without leaving the UI in a hanging state.
+- **Intuitive Multi-Trigger Exit Pathways**:
+  - Seamlessly exit flat branch view back to normal folder view via `Ctrl+B`, the sticky banner exit button, breadcrumb badge exit button, double clicking `..` (parent dir), double clicking any directory in the branch list, clicking any ancestor directory in the breadcrumb bar, or selecting bookmarks/tree nodes.
+- **Clickable Ancestor Breadcrumb Navigation**:
+  - Breadcrumbs in Branch View now render full clickable directory paths, allowing users to jump directly to any ancestor folder in standard view with a single click.
+
 ## [0.7.3-rc5] - 2026-09-04
 
 ### 🎨 Dedicated ChewToy Icon Integrations & Customizable Tools Launchpad

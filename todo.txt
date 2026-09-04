@@ -1,0 +1,23 @@
+Todos from Woofson 04.09.2026:
+
+- Rename function (F2), opens a very simple rename modal, text inputfield in focus, esc cancels, enter ok/accepts rename. 
+- More icons in ./assets/, note.png and conf.png for NoteDog and Settings. New icon for ChewToys ./assets/chewtoy.png
+- NoteDog - unlock enctrypted notes/notebook or sections - cross compatible NoteDog (ChewToy) and NoteDog TUI.
+
+- Renaming of some of the plugins (ChewToys)
+  - Spotlight Quick-Shifter (Ctrl+k) =                      Spot!
+  - Background Transfers & Queue =                          Task Manager
+  - Terminal Console (') =                                  Terminal
+  - EditorDog Multi-Tab (F4) =                              EditorDog
+  - Calculator                                              Calculator
+  - Folder Hierarhy Tree (Ctrl+T) =                         Tree
+  - Flat / Branch View (Ctrl+B) =                           Flat
+  - NoteDog Notes & Markdown =                              NoteDog
+  - Compare / Diff (F9) =                                   Compare
+  - Deep File Search (Ctrl+F) =                             Search
+  - Active Shares & Dropboxes =                             Share Manager
+  - Delta Backup & Sync Studio (SyncToy / Bvckup2) =        Backup
+  - Disk Usage & Treemap Analyzer =                         Stats
+  - Syncthing Dashboard =                                   Syncthing
+  - ConvertX Converters =                                   ConvertX
+  - PDF Power Studio (Merge & Split) =                      PDFDog

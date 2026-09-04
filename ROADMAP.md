@@ -2,7 +2,7 @@
 
 > **Creator & Lab**: Bolt J Woofson @ Woofsons Lab ([www.arf.ac](https://www.arf.ac))  
 > **Slogan**: *Multi-Tab File Commander for Web & Native Desktop — By Woofson*  
-> **Current Version**: `v0.7.3-rc5 (Desktop & Web)`  
+> **Current Version**: `v0.7.3-rc10 (Desktop & Web)`  
 > **Publishing Prefix Rule**: All crates, binaries, and packages use the `arf-` or `arf_` prefix (e.g. `arf-cmdr`, `arf-remote`).  
 > **Release History**: For detailed release notes and changelogs of past versions (`v0.1.0` — `v0.7.2`), see [**`CHANGELOG.md`**](CHANGELOG.md).
 
@@ -25,7 +25,7 @@
 │ rclone & rsync         │ DeltaCopy / RoboCopy        │ Differential delta streaming,       │
 │                        │ Engine & Background Tasks   │ bandwidth throttling & auto-retry   │
 ├────────────────────────┼─────────────────────────────┼─────────────────────────────────────┤
-│ Bvckup 2 & SyncToy     │ Delta Backup & Sync Studio  │ 4 replication profiles, in-place    │
+│ Bvckup 2 & SyncToy     │ Backup Studio (SyncToy)     │ 4 replication profiles, in-place    │
 │                        │                             │ block deltas, snapshots & scheduler │
 ├────────────────────────┼─────────────────────────────┼─────────────────────────────────────┤
 │ Syncthing              │ Live Syncthing Dashboard    │ Peer status, throughput charts,     │
@@ -44,7 +44,7 @@
 │ HandBrake / FFmpeg GUI │ ConvertX Transcoder         │ Browser-native image/audio/video/   │
 │                        │                             │ document conversion engine          │
 ├────────────────────────┼─────────────────────────────┼─────────────────────────────────────┤
-│ PDFsam / Acrobat Split │ PDF Power Studio            │ Pure-Rust visual merge, split,      │
+│ PDFsam / Acrobat Split │ PDFDog (PDF Power Studio)   │ Pure-Rust visual merge, split,      │
 │                        │                             │ page reordering & rotation grid     │
 ├────────────────────────┼─────────────────────────────┼─────────────────────────────────────┤
 │ FastStone / Feh Viewer │ High-DPI Image Viewer       │ Mouse wheel browse, focal zoom,     │
@@ -131,10 +131,41 @@ graph TD
   - Interactive "Create from Template" dialog with real-time live preview code editor and instant EditorDog opening.
   - Full "Templates" manager tab in Settings to create, edit, duplicate, test, or delete custom file templates, plus 1-click "Save Selected File as Template" action.
 
-### ⚡ Performance, Resource Scaling & Usability Backlog (Identified Technical Debt):
-- [ ] **Flat / Branch View (`Ctrl+B`) Performance & Seamless Revert Navigation**:
-  - **Resource Scaling & UI Freeze Prevention**: Flattening large/deep directory trees currently consumes massive system resources and locks the interface. Re-architect branch scanning in backend Rust using cancelable async streaming (`tokio` / `rayon`), progressive chunk delivery, and safety item thresholds (>10,000 files warning).
-  - **Direct Revert / Exit Mechanism**: Provide an explicit, high-visibility "Exit Flat View (Ctrl+B)" top banner and active mode badge on the panel header so users can instantly restore standard hierarchical folder browsing without altering panel configurations.
+### ⚡ Performance, Resource Scaling & Usability Backlog:
+- [x] **Flat / Branch View (`Ctrl+B`) Performance & Seamless Revert Navigation** (Shipped in `v0.7.3-rc6`):
+  - **Resource Scaling & UI Freeze Prevention**: Bounded backend recursive traversal with `WalkDir` `filter_entry` hidden tree pruning, safety item threshold (`MAX_BRANCH_ENTRIES = 5,000`), and non-blocking `tokio::task::spawn_blocking` execution.
+  - **Direct Revert / Exit Mechanism**: Added prominent sticky `.pane-branch-banner`, cancelable `AbortController` scan indicator, clickable ancestor breadcrumb navigation, and multi-trigger exit pathways (Ctrl+B, parent `..` double-click, directory opening, tree navigation).
+- [x] **Streamlined Single-Item Rename Modal (`F2`)** (Shipped in `v0.7.3-rc8`):
+  - **Dedicated Quick-Rename Dialog**: Pressing `F2` opens a focused, lightweight rename modal with the input field auto-focused.
+  - **Smart Selection & Keyboard Ergonomics**: Automatically pre-selects the filename without its extension for instant typing; `Enter` confirms and executes the rename; `Esc` immediately cancels without modifying the file.
+- [x] **Streamlined New Folder Creation Modal (`F7`)** (Shipped in `v0.7.3-rc9`):
+  - **Dedicated Quick-Mkdir Dialog**: Pressing `F7` opens a focused, lightweight new folder modal with instant autofocus and input selection.
+  - **Keyboard Ergonomics & Context Resolution**: `Enter` confirms and executes creation via `/api/fs/mkdir`; `Esc` cancels immediately; accurate resolution of active vs context right-clicked panes with toast notifications.
+- [x] **New Graphical Icons Integration (`note.png`, `conf.png`, `chewtoy.png`)** (Shipped in `v0.7.3-rc7`):
+  - **NoteDog Visual Identity**: Integrate dedicated asset `assets/note.png` across NoteDog headers, Launchpad menu, and spotlight entries.
+  - **Settings & Config Identity**: Integrate dedicated asset `assets/conf.png` for Settings modal triggers, menu actions, and header buttons.
+  - **ChewToys Suite Launcher**: Update the Tools/ChewToys suite button and header icons with dedicated asset `assets/chewtoy.png`.
+- [x] **ChewToy Unified Shortened Nomenclature** (Shipped in `v0.7.3-rc7`):
+  - Standardize and harmonize the 16 built-in power utilities across all dropdown menus, tooltips, settings, and Spotlight search (`Ctrl+K`):
+    - `Spot!` (Spotlight Quick-Shifter `Ctrl+K`)
+    - `Task Manager` (Background Transfers & Queue)
+    - `Terminal` (Slide-Up PTY Web Terminal `'`)
+    - `EditorDog` (Multi-Tab Code Editor `F4`)
+    - `Calculator` (Floating Calculator & Converter)
+    - `Tree` (Folder Hierarchy Tree `Ctrl+T`)
+    - `Flat` (Flat / Branch View `Ctrl+B`)
+    - `NoteDog` (Notes & Markdown Studio)
+    - `Compare` (Side-by-Side Diff Engine `F9`)
+    - `Search` (Deep File Search `Ctrl+F`)
+    - `Share Manager` (Active Shares & Dropboxes)
+    - `Backup` (Delta Backup & Sync Studio - SyncToy / Bvckup2)
+    - `Stats` (Disk Usage & Treemap Analyzer)
+    - `Syncthing` (Live Syncthing Dashboard)
+    - `ConvertX` (Universal Transcoder & Converters)
+    - `PDFDog` (PDF Power Studio - Merge & Split)
+- [x] **NoteDog Encrypted Notes & Cross-TUI Compatibility** (Shipped in `v0.7.3-rc8`):
+  - **Encrypted Notebooks & Sections**: Support unlocking, editing, and saving encrypted notes and notebook sections using ChaCha20-Poly1305 / Argon2id container standards (`.md.enc` format, `.encrypted` section markers).
+  - **NoteDog TUI Cross-Compatibility**: Full interoperability and symmetric decrypt/encrypt parity between the CommanderDog NoteDog ChewToy and the NoteDog TUI terminal client.
 - [ ] **Disk Usage & Storage Treemap Analyzer Optimization**:
   - **High-Latency Deep Scanning**: Disk usage calculation on large storage volumes takes significant time to load.
   - **Parallel Rayon Walker & Progressive Treemap Streaming**: Implement parallel multithreaded directory traversal with progressive chunk streaming to the frontend treemap and cached directory sizes for near-instant rendering.

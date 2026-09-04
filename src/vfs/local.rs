@@ -261,11 +261,18 @@ impl LocalFs {
             total_dirs,
             total_size,
             protocol: "local".to_string(),
+            is_truncated: None,
+            max_limit: None,
         })
     }
 
-    /// Recursively flattens directory tree into a branch view
-    pub fn list_branch_view(path_str: &str, show_hidden: bool, max_depth: Option<usize>) -> Result<DirectoryListing, std::io::Error> {
+    /// Recursively flattens directory tree into a branch view (optimized with entry capping & fast traversal)
+    pub fn list_branch_view(
+        path_str: &str,
+        show_hidden: bool,
+        max_depth: Option<usize>,
+        max_entries: Option<usize>,
+    ) -> Result<DirectoryListing, std::io::Error> {
         let path = Self::resolve_local_path(path_str);
         if !path.exists() {
             return Err(std::io::Error::new(
@@ -286,21 +293,41 @@ impl LocalFs {
         let mut total_dirs = 0;
         let mut total_size = 0u64;
 
-        let mut walker = walkdir::WalkDir::new(&canonical);
-        if let Some(depth) = max_depth {
-            walker = walker.max_depth(depth);
-        }
+        let depth_limit = max_depth.unwrap_or(8).clamp(1, 32);
+        let entry_limit = max_entries.unwrap_or(5_000).clamp(1, 25_000);
 
-        for entry_res in walker.into_iter().filter_map(|e| e.ok()) {
+        let walker = walkdir::WalkDir::new(&canonical)
+            .max_depth(depth_limit)
+            .follow_links(false)
+            .into_iter()
+            .filter_entry(move |e| {
+                if !show_hidden && e.depth() > 0 {
+                    let file_name = e.file_name().to_string_lossy();
+                    if file_name.starts_with('.') {
+                        return false;
+                    }
+                }
+                true
+            });
+
+        let mut is_truncated = false;
+
+        for entry_res in walker {
+            let entry_res = match entry_res {
+                Ok(e) => e,
+                Err(_) => continue,
+            };
+
             if entry_res.path() == canonical {
                 continue;
             }
 
-            let file_name = entry_res.file_name().to_string_lossy().to_string();
-            if !show_hidden && file_name.starts_with('.') {
-                continue;
+            if entries.len() >= entry_limit {
+                is_truncated = true;
+                break;
             }
 
+            let file_name = entry_res.file_name().to_string_lossy().to_string();
             let rel_path = entry_res.path().strip_prefix(&canonical)
                 .map(|p| p.to_string_lossy().to_string())
                 .unwrap_or_else(|_| file_name.clone());
@@ -308,9 +335,11 @@ impl LocalFs {
             let file_path = entry_res.path();
             let file_path_str = file_path.to_string_lossy().to_string();
 
+            let file_type = entry_res.file_type();
+            let is_dir = file_type.is_dir();
+            let is_symlink = file_type.is_symlink();
+
             let metadata = entry_res.metadata().ok();
-            let is_dir = metadata.as_ref().map_or(false, |m| m.is_dir());
-            let is_symlink = metadata.as_ref().map_or(false, |m| m.file_type().is_symlink());
             let size = metadata.as_ref().map_or(0, |m| m.len());
             let modified = metadata.as_ref().and_then(|m| {
                 m.modified().ok().and_then(|t| t.duration_since(UNIX_EPOCH).ok().map(|d| d.as_secs()))
@@ -356,11 +385,6 @@ impl LocalFs {
             };
 
             let is_archive = !is_dir && is_archive_file(&file_name);
-            let is_empty = if is_dir {
-                std::fs::read_dir(&file_path).map(|mut r| r.next().is_none()).ok()
-            } else {
-                None
-            };
 
             if is_dir {
                 total_dirs += 1;
@@ -374,7 +398,7 @@ impl LocalFs {
                 path: file_path_str,
                 is_dir,
                 is_symlink,
-                is_empty,
+                is_empty: None,
                 size,
                 modified,
                 permissions,
@@ -407,6 +431,8 @@ impl LocalFs {
             total_dirs,
             total_size,
             protocol: "branch".to_string(),
+            is_truncated: if is_truncated { Some(true) } else { None },
+            max_limit: if is_truncated { Some(entry_limit) } else { None },
         })
     }
 
@@ -874,5 +900,64 @@ mod tests {
         assert!(dest_dir.join("test.txt").exists());
         let content = fs::read_to_string(dest_dir.join("test.txt")).unwrap();
         assert_eq!(content, "verifiable data");
+    }
+
+    #[test]
+    fn test_list_branch_view_recursive_flatten() {
+        let tmp = tempdir().unwrap();
+        let root = tmp.path().join("root_dir");
+        let sub1 = root.join("sub1");
+        let sub2 = sub1.join("sub2");
+        fs::create_dir_all(&sub2).unwrap();
+        fs::write(root.join("file_root.txt"), "root").unwrap();
+        fs::write(sub1.join("file_sub1.txt"), "sub1").unwrap();
+        fs::write(sub2.join("file_sub2.txt"), "sub2").unwrap();
+
+        let res = LocalFs::list_branch_view(&root.to_string_lossy(), false, None, None).unwrap();
+        assert_eq!(res.protocol, "branch");
+        assert_eq!(res.total_files, 3);
+        assert_eq!(res.total_dirs, 2);
+        assert_eq!(res.is_truncated, None);
+
+        let names: Vec<String> = res.entries.iter().map(|e| e.name.clone()).collect();
+        assert!(names.contains(&"file_root.txt".to_string()));
+        assert!(names.contains(&"sub1/file_sub1.txt".to_string()));
+        assert!(names.contains(&"sub1/sub2/file_sub2.txt".to_string()));
+    }
+
+    #[test]
+    fn test_list_branch_view_max_entries_truncation() {
+        let tmp = tempdir().unwrap();
+        let root = tmp.path().join("root_trunc");
+        fs::create_dir_all(&root).unwrap();
+        for i in 0..10 {
+            fs::write(root.join(format!("file_{}.txt", i)), "data").unwrap();
+        }
+
+        // Limit to 5 entries
+        let res = LocalFs::list_branch_view(&root.to_string_lossy(), false, None, Some(5)).unwrap();
+        assert_eq!(res.entries.len(), 5);
+        assert_eq!(res.is_truncated, Some(true));
+        assert_eq!(res.max_limit, Some(5));
+    }
+
+    #[test]
+    fn test_list_branch_view_hidden_filter() {
+        let tmp = tempdir().unwrap();
+        let root = tmp.path().join("root_hidden");
+        let hidden_dir = root.join(".hidden_folder");
+        fs::create_dir_all(&hidden_dir).unwrap();
+        fs::write(root.join("visible.txt"), "visible").unwrap();
+        fs::write(root.join(".hidden_file.txt"), "hidden").unwrap();
+        fs::write(hidden_dir.join("inside_hidden.txt"), "inside").unwrap();
+
+        // show_hidden = false
+        let res_no_hidden = LocalFs::list_branch_view(&root.to_string_lossy(), false, None, None).unwrap();
+        let names_no: Vec<String> = res_no_hidden.entries.iter().map(|e| e.name.clone()).collect();
+        assert_eq!(names_no, vec!["visible.txt"]);
+
+        // show_hidden = true
+        let res_with_hidden = LocalFs::list_branch_view(&root.to_string_lossy(), true, None, None).unwrap();
+        assert!(res_with_hidden.entries.len() >= 3);
     }
 }

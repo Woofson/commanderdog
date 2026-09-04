@@ -33,7 +33,7 @@ pub struct FileEntry {
     pub is_archive: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct DirectoryListing {
     pub current_path: String,
     pub parent_path: Option<String>,
@@ -41,7 +41,11 @@ pub struct DirectoryListing {
     pub total_files: usize,
     pub total_dirs: usize,
     pub total_size: u64,
-    pub protocol: String, // "local", "sftp", "webdav", "archive", "s3"
+    pub protocol: String, // "local", "sftp", "webdav", "archive", "s3", "branch"
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub is_truncated: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_limit: Option<usize>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

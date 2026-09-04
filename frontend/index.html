@@ -81,26 +81,26 @@
 
       <!-- 5. Application Tools Suite & Launchpad -->
       <div class="tools-dropdown-wrapper">
-        <button class="btn btn-icon" id="btn-tools-menu" onclick="toggleToolsMenu(event)" title="Tools & Utilities (Terminal, Editor, Calculator, Git, Sync, Search)">
-          <img src="assets/tool.png" alt="Tools & Utilities" style="width: 17px; height: 17px; object-fit: contain; vertical-align: middle;">
+        <button class="btn btn-icon" id="btn-tools-menu" onclick="toggleToolsMenu(event)" title="ChewToys & Tools (Terminal, EditorDog, Calculator, Backup, Search)">
+          <img src="assets/amber-chewtoy-2.png" alt="ChewToys & Tools" style="width: 17px; height: 17px; object-fit: contain; vertical-align: middle;">
         </button>
         <div class="tools-dropdown-menu" id="tools-dropdown-menu">
-          <div class="dropdown-item" onclick="openSpotlightModal()"><i data-lucide="sparkles" style="color: var(--accent);"></i> Spotlight Quick-Switcher (Ctrl+K)</div>
-          <div class="dropdown-item" onclick="toggleFolderTree()"><i data-lucide="folder-tree" style="color: var(--accent);"></i> Folder Hierarchy Tree (Ctrl+T)</div>
-          <div class="dropdown-item" onclick="toggleBranchView()"><i data-lucide="git-branch" style="color: var(--accent);"></i> Flat / Branch View (Ctrl+B)</div>
-          <div class="dropdown-item" onclick="openFloatingNoteDog()"><i data-lucide="book-open" style="color: var(--accent);"></i> NoteDog Notes & Markdown</div>
+          <div class="dropdown-item" onclick="openSpotlightModal()"><img src="assets/spot.png" alt="Spot!" style="width: 15px; height: 15px; object-fit: contain; flex-shrink: 0;"> Spot! (Ctrl+K)</div>
+          <div class="dropdown-item" onclick="toggleFolderTree()"><i data-lucide="folder-tree" style="color: var(--accent);"></i> Tree (Ctrl+T)</div>
+          <div class="dropdown-item" onclick="toggleBranchView()"><i data-lucide="git-branch" style="color: var(--accent);"></i> Flat (Ctrl+B)</div>
+          <div class="dropdown-item" onclick="openFloatingNoteDog()"><img src="assets/note.png" alt="NoteDog" style="width: 15px; height: 15px; object-fit: contain; flex-shrink: 0;"> NoteDog</div>
           <div class="dropdown-item" onclick="openFloatingCalculator()"><img src="assets/calc.png" alt="Calculator" style="width: 15px; height: 15px; object-fit: contain; flex-shrink: 0;"> Calculator</div>
-          <div class="dropdown-item" onclick="toggleTerminal()"><img src="assets/term.png" alt="Terminal" style="width: 15px; height: 15px; object-fit: contain; flex-shrink: 0;"> Terminal Console (`)</div>
-          <div class="dropdown-item" onclick="openFloatingEditor()"><img src="assets/edit.png" alt="EditorDog" style="width: 15px; height: 15px; object-fit: contain; flex-shrink: 0;"> EditorDog Multi-Tab (F4)</div>
-          <div class="dropdown-item" onclick="triggerDiff()"><i data-lucide="git-compare"></i> Compare / Diff (F9)</div>
-          <div class="dropdown-item" onclick="openSearchModal()"><i data-lucide="search"></i> Deep File Search (Ctrl+F)</div>
-          <div class="dropdown-item" onclick="openSharesManager()"><i data-lucide="share-2"></i> Active Shares & Dropboxes</div>
-          <div class="dropdown-item" onclick="openSyncModal()"><i data-lucide="refresh-cw" style="color: #22c55e;"></i> Delta Backup & Sync Studio (SyncToy / Bvckup 2)</div>
-          <div class="dropdown-item" onclick="openDiskUsageModal()"><i data-lucide="pie-chart" style="color: var(--accent);"></i> Disk Usage & Treemap Analyzer</div>
-          <div class="dropdown-item" onclick="openSyncthingModal()"><i data-lucide="repeat"></i> Syncthing Dashboard</div>
-          <div class="dropdown-item" onclick="openConverterModal()"><i data-lucide="file-output"></i> ConvertX Converters</div>
-          <div class="dropdown-item" onclick="openPdfToolModal()"><i data-lucide="file-text" style="color: #ef4444;"></i> PDF Power Studio (Merge & Split)</div>
-          <div class="dropdown-item" onclick="openFloatingTaskManager()"><img src="assets/task.png" alt="Tasks" style="width: 15px; height: 15px; object-fit: contain; flex-shrink: 0;"> Background Transfers & Queue</div>
+          <div class="dropdown-item" onclick="toggleTerminal()"><img src="assets/term.png" alt="Terminal" style="width: 15px; height: 15px; object-fit: contain; flex-shrink: 0;"> Terminal (`)</div>
+          <div class="dropdown-item" onclick="openFloatingEditor()"><img src="assets/edit.png" alt="EditorDog" style="width: 15px; height: 15px; object-fit: contain; flex-shrink: 0;"> EditorDog (F4)</div>
+          <div class="dropdown-item" onclick="triggerDiff()"><img src="assets/diff.png" alt="Compare" style="width: 15px; height: 15px; object-fit: contain; flex-shrink: 0;"> Compare (F9)</div>
+          <div class="dropdown-item" onclick="openSearchModal()"><i data-lucide="search"></i> Search (Ctrl+F)</div>
+          <div class="dropdown-item" onclick="openSharesManager()"><img src="assets/sharemgr.png" alt="Share Manager" style="width: 15px; height: 15px; object-fit: contain; flex-shrink: 0;"> Share Manager</div>
+          <div class="dropdown-item" onclick="openSyncModal()"><img src="assets/sync.png" alt="Backup" style="width: 15px; height: 15px; object-fit: contain; flex-shrink: 0;"> Backup</div>
+          <div class="dropdown-item" onclick="openDiskUsageModal()"><i data-lucide="pie-chart" style="color: var(--accent);"></i> Stats</div>
+          <div class="dropdown-item" onclick="openSyncthingModal()"><i data-lucide="repeat"></i> Syncthing</div>
+          <div class="dropdown-item" onclick="openConverterModal()"><i data-lucide="file-output"></i> ConvertX</div>
+          <div class="dropdown-item" onclick="openPdfToolModal()"><img src="assets/amber-pdftool.png" alt="PDFDog" style="width: 15px; height: 15px; object-fit: contain; flex-shrink: 0;"> PDFDog</div>
+          <div class="dropdown-item" onclick="openFloatingTaskManager()"><img src="assets/task.png" alt="Task Manager" style="width: 15px; height: 15px; object-fit: contain; flex-shrink: 0;"> Task Manager</div>
         </div>
       </div>
 
@@ -124,7 +124,7 @@
             </button>
           </div>
           <div class="dropdown-item" id="menu-admin-panel-item" onclick="openAdminPanel()"><i data-lucide="shield-alert" style="color: var(--accent);"></i> Admin Control Panel</div>
-          <div class="dropdown-item" onclick="openSettingsModal()"><i data-lucide="settings"></i> Settings</div>
+          <div class="dropdown-item" onclick="openSettingsModal()"><img src="assets/conf.png" alt="Settings" style="width: 15px; height: 15px; object-fit: contain; flex-shrink: 0; vertical-align: middle;"> Settings (F10)</div>
           <div class="dropdown-item" onclick="openAboutModal()"><i data-lucide="info"></i> About CommanderDog</div>
           
           <!-- Bottom Action Buttons: Lock Session & Logout Icons -->
@@ -231,7 +231,7 @@
   <!-- Right Click / Touch Context Menu -->
   <div id="context-menu" class="context-menu">
     <div class="context-item" id="ctx-item-view" onclick="triggerView()"><i data-lucide="eye" style="width: 14px;"></i> Quick View (F3)</div>
-    <div class="context-item" id="ctx-item-edit" onclick="triggerEditor()"><i data-lucide="file-edit" style="width: 14px;"></i> Edit File (F4)</div>
+    <div class="context-item" id="ctx-item-edit" onclick="triggerEditor()"><img src="assets/edit.png" alt="Edit" style="width: 14px; height: 14px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> Edit File (F4)</div>
     <div class="context-item context-submenu-parent" id="ctx-item-openwith" onmouseenter="populateOpenWithSubmenu()">
       <span style="display: flex; align-items: center; gap: 6px;"><i data-lucide="external-link" style="width: 14px; color: var(--accent);"></i> Open With...</span>
       <i data-lucide="chevron-right" style="width: 12px; margin-left: auto;"></i>
@@ -243,8 +243,8 @@
       <div class="context-submenu" id="ctx-custom-actions-submenu"></div>
     </div>
     <div class="context-item" id="ctx-item-download" onclick="triggerDownload()"><i data-lucide="download" style="width: 14px;"></i> Download / Batch Zip</div>
-    <div class="context-item" id="ctx-item-share" onclick="triggerShare()"><i data-lucide="share-2" style="width: 14px; color: var(--accent);"></i> Share Link / Guest Dropbox...</div>
-    <div class="context-item" id="ctx-item-diff" onclick="triggerDiff()"><i data-lucide="git-compare" style="width: 14px;"></i> Compare / Diff</div>
+    <div class="context-item" id="ctx-item-share" onclick="triggerShare()"><img src="assets/sharemgr.png" alt="Share" style="width: 14px; height: 14px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> Share Link / Guest Dropbox...</div>
+    <div class="context-item" id="ctx-item-diff" onclick="triggerDiff()"><img src="assets/diff.png" alt="Compare" style="width: 14px; height: 14px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> Compare / Diff</div>
     <div class="context-sep"></div>
     <div class="context-item" onclick="triggerPermissions()"><i data-lucide="lock" style="width: 14px;"></i> Permissions & Ownership</div>
     <div class="context-item" onclick="triggerCopy()"><i data-lucide="copy" style="width: 14px;"></i> Copy to Target Pane (F5)</div>
@@ -579,7 +579,7 @@
     <div class="spotlight-box" id="spotlight-box">
       <!-- Search Input Header -->
       <div class="spotlight-input-wrapper">
-        <i data-lucide="search" class="spotlight-search-icon"></i>
+        <img src="assets/spot.png" alt="Spot!" class="spotlight-search-icon" style="width: 16px; height: 16px; object-fit: contain; flex-shrink: 0;">
         <input type="text" id="spotlight-input" class="spotlight-input" placeholder="Type a path, folder, bookmark, or action (e.g. 'down', 'term', '/var')..." autocomplete="off" spellcheck="false" oninput="handleSpotlightInput(this.value)" onkeydown="handleSpotlightKey(event)">
         <button class="btn btn-icon spotlight-clear-btn" id="spotlight-clear-btn" onclick="clearSpotlightInput()" style="display: none;" title="Clear">
           <i data-lucide="x" style="width: 13px; height: 13px;"></i>
@@ -615,8 +615,8 @@
           <kbd>Esc</kbd> Close
         </div>
         <div style="flex: 1;"></div>
-        <div style="font-size: 10px; color: var(--text-dim);">
-          CommanderDog Spotlight
+        <div style="font-size: 10px; color: var(--text-dim); display: flex; align-items: center; gap: 4px;">
+          <img src="assets/spot.png" alt="Spot!" style="width: 12px; height: 12px; object-fit: contain;"> CommanderDog Spotlight
         </div>
       </div>
     </div>
@@ -626,7 +626,7 @@
   <div class="modal-overlay" id="share-create-modal">
     <div class="modal-box" style="width: 520px;">
       <div class="modal-header">
-        <span>🔗 Share Link & Guest Upload Dropbox</span>
+        <span style="display: flex; align-items: center; gap: 8px; font-weight: 700; color: var(--accent);"><img src="assets/sharemgr.png" alt="Share" style="width: 16px; height: 16px; object-fit: contain;"> Share Link & Guest Upload Dropbox</span>
         <button class="btn" onclick="closeModal('share-create-modal')"><i data-lucide="x"></i></button>
       </div>
       <div class="modal-body">
@@ -684,7 +684,7 @@
   <div class="modal-overlay" id="shares-manager-modal">
     <div class="modal-box" style="width: 750px; max-height: 80vh;">
       <div class="modal-header">
-        <span>🔗 Active Public Shares & Guest Dropboxes</span>
+        <span style="display: flex; align-items: center; gap: 8px; font-weight: 700; color: var(--accent);"><img src="assets/sharemgr.png" alt="Shares" style="width: 16px; height: 16px; object-fit: contain;"> Active Public Shares & Guest Dropboxes</span>
         <button class="btn" onclick="closeModal('shares-manager-modal')"><i data-lucide="x"></i></button>
       </div>
       <div class="modal-body" style="padding: 12px;">
@@ -789,7 +789,7 @@
   <div class="modal-overlay" id="settings-modal">
     <div class="modal-box" style="width: 900px; max-width: 96vw; height: 85vh; display: flex; flex-direction: column;">
       <div class="modal-header">
-        <span>⚙️ User Settings & Preferences</span>
+        <span style="display: flex; align-items: center; gap: 7px;"><img src="assets/conf.png" alt="Settings" style="width: 16px; height: 16px; object-fit: contain;"> User Settings & Preferences</span>
         <button class="btn" onclick="closeModal('settings-modal')"><i data-lucide="x"></i></button>
       </div>
       
@@ -798,7 +798,7 @@
         <button class="settings-tab-btn active" onclick="switchSettingsTab('tab-general')"><i data-lucide="sliders"></i> General</button>
         <button class="settings-tab-btn" onclick="switchSettingsTab('tab-palette')"><i data-lucide="palette"></i> Themes</button>
         <button class="settings-tab-btn" onclick="switchSettingsTab('tab-icons')"><i data-lucide="sparkles"></i> Icons & Filetypes</button>
-        <button class="settings-tab-btn" onclick="switchSettingsTab('tab-tools')"><i data-lucide="wrench"></i> Tools Menu</button>
+        <button class="settings-tab-btn" onclick="switchSettingsTab('tab-tools')"><img src="assets/chewtoy.png" alt="Tools" style="width: 14px; height: 14px; object-fit: contain; vertical-align: middle;"> Tools Menu</button>
         <button class="settings-tab-btn" onclick="switchSettingsTab('tab-openwith')"><i data-lucide="external-link"></i> Open With</button>
         <button class="settings-tab-btn" onclick="switchSettingsTab('tab-context')"><i data-lucide="mouse-pointer"></i> Context Menu</button>
         <button class="settings-tab-btn" onclick="switchSettingsTab('tab-templates')"><i data-lucide="file-code-2"></i> Templates</button>
@@ -1214,7 +1214,7 @@
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
             <div>
               <h4 style="margin: 0; font-size: 13px; font-weight: 700; color: var(--accent); display: flex; align-items: center; gap: 6px;">
-                <i data-lucide="wrench" style="width: 16px; height: 16px;"></i> Tools & ChewToys Launchpad Customizer
+                <img src="assets/chewtoy.png" alt="ChewToys" style="width: 16px; height: 16px; object-fit: contain;"> Tools & ChewToys Launchpad Customizer
               </h4>
               <div class="form-hint" style="margin-top: 2px;">Rearrange tool order, toggle menu visibility, or reset the Tools & Utilities launchpad dropdown.</div>
             </div>
@@ -1823,7 +1823,7 @@
   <div class="modal-overlay" id="confd-assembler-modal">
     <div class="modal-box" style="width: 520px;">
       <div class="modal-header">
-        <span>🧩 Modular Config Directory Detected</span>
+        <span style="display: flex; align-items: center; gap: 8px; font-weight: 700; color: var(--accent);"><img src="assets/conf.png" alt="Config" style="width: 16px; height: 16px; object-fit: contain;"> Modular Config Directory Detected</span>
         <button class="btn" onclick="closeModal('confd-assembler-modal')"><i data-lucide="x"></i></button>
       </div>
       <div class="modal-body">
@@ -2157,7 +2157,7 @@
     <div class="modal-header notedog-header" id="notedog-header">
       <div class="notedog-header-left" style="display: flex; align-items: center; gap: 8px;">
         <span class="notedog-header-drag-handle" style="font-weight: 700; display: flex; align-items: center; gap: 6px; cursor: grab;">
-          <i data-lucide="book-open" style="color: var(--accent); width: 16px;"></i>
+          <img src="assets/note.png" alt="NoteDog" style="width: 16px; height: 16px; object-fit: contain; vertical-align: middle;">
           <span>NoteDog</span>
         </span>
       </div>
@@ -2201,6 +2201,7 @@
             <span style="font-weight: 700; font-size: 10px; color: var(--accent); letter-spacing: 0.5px; text-transform: uppercase;">📚 Notebooks</span>
             <div style="display: flex; gap: 2px;">
               <button class="btn btn-icon btn-xs" onclick="promptChangeNoteDogFolder()" title="Change Notes Folder Location"><i data-lucide="folder-cog" style="width: 11px;"></i></button>
+              <button class="btn btn-icon btn-xs" id="btn-toggle-encrypt-nb" onclick="promptToggleEncryptNotebook()" title="Encrypt / Decrypt Active Notebook"><i data-lucide="shield" style="width: 11px;"></i></button>
               <button class="btn btn-icon btn-xs" onclick="promptCreateNotebook()" title="Create Notebook"><i data-lucide="folder-plus" style="width: 11px;"></i></button>
             </div>
           </div>
@@ -2211,7 +2212,10 @@
         <div class="notedog-tier notedog-tier-sections">
           <div class="notedog-tier-header">
             <span style="font-weight: 700; font-size: 10px; color: var(--text-dim); letter-spacing: 0.5px; text-transform: uppercase;">📂 Sections</span>
-            <button class="btn btn-icon btn-xs" onclick="promptCreateSection()" title="Create Section in Selected Notebook"><i data-lucide="plus" style="width: 11px;"></i></button>
+            <div style="display: flex; gap: 2px;">
+              <button class="btn btn-icon btn-xs" id="btn-toggle-encrypt-sec" onclick="promptToggleEncryptSection()" title="Encrypt / Decrypt Active Section"><i data-lucide="shield" style="width: 11px;"></i></button>
+              <button class="btn btn-icon btn-xs" onclick="promptCreateSection()" title="Create Section in Selected Notebook"><i data-lucide="plus" style="width: 11px;"></i></button>
+            </div>
           </div>
           <div class="notedog-tier-list" id="notedog-sections-list"></div>
         </div>
@@ -2221,6 +2225,8 @@
           <div class="notedog-tier-header">
             <span style="font-weight: 700; font-size: 10px; color: var(--text-dim); letter-spacing: 0.5px; text-transform: uppercase;">📄 Notes</span>
             <div style="display: flex; gap: 2px;">
+              <button class="btn btn-icon btn-xs" onclick="promptCreateNote(true)" title="Create Encrypted Note (.md.enc)"><i data-lucide="lock" style="width: 11px;"></i></button>
+              <button class="btn btn-icon btn-xs" onclick="promptCreateNote(false)" title="Create Plain Note (.md)"><i data-lucide="plus" style="width: 11px;"></i></button>
               <button class="btn btn-icon btn-xs" onclick="openNoteDogTemplatePicker(event)" title="New Note from Template"><i data-lucide="file-plus" style="width: 11px;"></i></button>
             </div>
           </div>
@@ -2238,6 +2244,7 @@
           </div>
 
           <div class="notedog-workspace-actions" style="display: flex; align-items: center; gap: 3px;">
+            <button class="btn btn-icon" id="btn-toggle-encrypt-note" onclick="toggleCurrentNoteEncryption()" title="Encrypt / Decrypt Note (Ctrl+E)"><i data-lucide="lock" id="icon-encrypt-note"></i></button>
             <button class="btn btn-icon btn-accent" id="btn-save-notedog" onclick="saveActiveNoteDogNote()" title="Save Note (Ctrl+S)"><i data-lucide="save"></i></button>
             <button class="btn btn-icon" id="btn-template-notedog" onclick="openNoteDogTemplatePicker(event)" title="Insert Template"><i data-lucide="layout-template"></i></button>
             <button class="btn btn-icon btn-danger-hover" id="btn-delete-notedog" onclick="promptDeleteCurrentNote()" title="Delete Current Note"><i data-lucide="trash-2"></i></button>
@@ -2274,13 +2281,35 @@
             <div class="notedog-preview-content" id="notedog-preview-content"></div>
           </div>
         </div>
+
+        <!-- Encrypted Note Unlock Overlay -->
+        <div class="notedog-unlock-card" id="notedog-unlock-card" style="display: none;">
+          <div class="notedog-unlock-box">
+            <div style="font-size: 32px; margin-bottom: 8px;">🔒</div>
+            <div style="font-weight: 700; font-size: 15px; color: var(--accent); margin-bottom: 4px;" id="notedog-unlock-title">Encrypted NoteDog Note</div>
+            <div style="font-size: 11px; color: var(--text-dim); margin-bottom: 16px; text-align: center; max-width: 340px;" id="notedog-unlock-sub">
+              Protected with ChaCha20-Poly1305 + Argon2id authenticated encryption. Compatible with NoteDog TUI.
+            </div>
+            <div style="width: 100%; max-width: 320px; display: flex; flex-direction: column; gap: 10px;">
+              <input type="password" id="notedog-unlock-pass" class="pane-quick-filter" placeholder="Enter passphrase..." style="width: 100%; padding: 8px 10px; font-size: 13px;" onkeydown="if(event.key==='Enter') executeUnlockNoteDogNote();">
+              <label style="display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-dim); cursor: pointer;">
+                <input type="checkbox" id="notedog-unlock-remember" checked>
+                <span>Remember passphrase for this session</span>
+              </label>
+              <div id="notedog-unlock-error" style="display: none; color: var(--danger); font-size: 11px; text-align: center;"></div>
+              <button class="btn btn-accent" onclick="executeUnlockNoteDogNote()" style="width: 100%; height: 32px; font-weight: 600;">
+                <i data-lucide="unlock" style="width: 14px;"></i> Unlock Note
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 
   <!-- NoteDog Minimized Pill -->
   <div class="notedog-pill" id="notedog-pill" style="display: none;" onclick="restoreFloatingNoteDog()" title="Click to restore NoteDog">
-    <span style="font-size: 14px;">🐶</span>
+    <img src="assets/note.png" alt="NoteDog" style="width: 14px; height: 14px; object-fit: contain; vertical-align: middle;">
     <span id="notedog-pill-text">NoteDog</span>
     <span class="notedog-pill-dirty" id="notedog-pill-dirty" style="display: none;"></span>
   </div>
@@ -2290,7 +2319,7 @@
     <div class="modal-box" style="width: 720px; max-width: 95vw; height: 560px; max-height: 90vh; display: flex; flex-direction: column; background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden;">
       <div class="modal-header" style="padding: 10px 14px; background: var(--bg-dark); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
         <div style="display: flex; align-items: center; gap: 8px;">
-          <span style="font-size: 15px;">📜</span>
+          <img src="assets/note.png" alt="NoteDog" style="width: 16px; height: 16px; object-fit: contain;">
           <span style="font-weight: 700; font-size: 13px;">Note Revision History</span>
           <span class="notedog-badge-tag" id="notedog-version-note-name">Note.md</span>
         </div>
@@ -2311,12 +2340,75 @@
     </div>
   </div>
 
+  <!-- NoteDog Encrypt / Decrypt Modal -->
+  <div class="modal-overlay" id="notedog-crypto-modal" style="z-index: 2870;">
+    <div class="modal-box" style="width: 440px; max-width: 95vw;">
+      <div class="modal-header">
+        <span style="display: flex; align-items: center; gap: 8px; font-weight: 700; color: var(--accent);">
+          <i data-lucide="shield" style="width: 16px; height: 16px;"></i>
+          <span id="notedog-crypto-modal-title">Encrypt Section</span>
+        </span>
+        <button class="btn btn-icon modal-close-btn" onclick="closeModal('notedog-crypto-modal')" title="Close (Esc)"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body" style="display: flex; flex-direction: column; gap: 10px;">
+        <div style="font-size: 12px; color: var(--text-dim);" id="notedog-crypto-modal-desc">
+          Set a passphrase to encrypt all notes in this section. NoteDog TUI cross-compatible.
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+          <label for="notedog-crypto-pass" style="font-size: 11px; font-weight: 600;">Passphrase:</label>
+          <input type="password" id="notedog-crypto-pass" class="pane-quick-filter" placeholder="Enter passphrase..." style="width: 100%; padding: 8px 10px; font-size: 13px;">
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 4px;" id="notedog-crypto-confirm-group">
+          <label for="notedog-crypto-pass-confirm" style="font-size: 11px; font-weight: 600;">Confirm Passphrase:</label>
+          <input type="password" id="notedog-crypto-pass-confirm" class="pane-quick-filter" placeholder="Re-enter passphrase..." style="width: 100%; padding: 8px 10px; font-size: 13px;">
+        </div>
+        <div id="notedog-crypto-error" style="display: none; color: var(--danger); font-size: 11px;"></div>
+      </div>
+      <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 8px;">
+        <button class="btn" onclick="closeModal('notedog-crypto-modal')">Cancel</button>
+        <button class="btn btn-accent" id="btn-notedog-crypto-confirm"><i data-lucide="check" style="width: 14px;"></i> Proceed</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- NoteDog Create Note Modal -->
+  <div class="modal-overlay" id="notedog-create-note-modal" style="z-index: 2870;">
+    <div class="modal-box" style="width: 440px; max-width: 95vw;">
+      <div class="modal-header">
+        <span style="display: flex; align-items: center; gap: 8px; font-weight: 700; color: var(--accent);">
+          <img src="assets/note.png" alt="NoteDog" style="width: 16px; height: 16px; object-fit: contain;" id="notedog-create-modal-icon">
+          <span id="notedog-create-modal-title">Create New Note</span>
+        </span>
+        <button class="btn btn-icon modal-close-btn" onclick="closeModal('notedog-create-note-modal')" title="Close (Esc)"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body" style="display: flex; flex-direction: column; gap: 10px;">
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+          <label for="notedog-create-title-input" style="font-size: 11px; font-weight: 600;">Note Title:</label>
+          <input type="text" id="notedog-create-title-input" class="pane-quick-filter" placeholder="e.g. Project Architecture" style="width: 100%; padding: 8px 10px; font-size: 13px;">
+        </div>
+        <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer;">
+          <input type="checkbox" id="notedog-create-is-encrypted" onchange="toggleNoteDogCreateEncryptedFields()">
+          <span>🔒 Encrypted Note (ChaCha20-Poly1305 / .md.enc)</span>
+        </label>
+        <div id="notedog-create-pass-group" style="display: none; flex-direction: column; gap: 6px;">
+          <label for="notedog-create-pass" style="font-size: 11px; font-weight: 600;">Passphrase:</label>
+          <input type="password" id="notedog-create-pass" class="pane-quick-filter" placeholder="Enter passphrase..." style="width: 100%; padding: 8px 10px; font-size: 13px;">
+        </div>
+        <div id="notedog-create-error" style="display: none; color: var(--danger); font-size: 11px;"></div>
+      </div>
+      <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 8px;">
+        <button class="btn" onclick="closeModal('notedog-create-note-modal')">Cancel</button>
+        <button class="btn btn-accent" id="btn-notedog-create-confirm"><i data-lucide="plus" style="width: 14px;"></i> Create Note</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Diff & Comparison Modal -->
   <div class="modal-overlay" id="diff-modal" style="z-index: 2840;">
     <div class="modal-box diff-modal-box" id="diff-modal-box">
       <div class="modal-header diff-modal-header">
         <div class="diff-header-title-group" style="display: flex; align-items: center; gap: 8px;">
-          <i data-lucide="git-compare" class="diff-header-icon" style="color: var(--accent); width: 16px; height: 16px;"></i>
+          <img src="assets/diff.png" alt="Compare" class="diff-header-icon" style="width: 16px; height: 16px; object-fit: contain;">
           <span class="diff-header-title" style="font-weight: 700; font-size: 13px;">Comparison & Diff Engine</span>
         </div>
         <div class="diff-header-actions" style="display: flex; align-items: center; gap: 4px;">
@@ -2608,7 +2700,7 @@
       <div class="modal-header" style="padding: 10px 16px; background: var(--bg-header); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
         <div style="display: flex; align-items: center; gap: 12px;">
           <div style="display: flex; align-items: center; gap: 8px;">
-            <i data-lucide="refresh-cw" style="color: var(--accent); width: 18px; height: 18px;"></i>
+            <img src="assets/sync.png" alt="Backup" style="width: 18px; height: 18px; object-fit: contain;">
             <span style="font-weight: 700; font-size: 14px;">SyncToy & Bvckup 2 Delta Backup Studio</span>
             <span id="sync-version-badge" class="badge" style="background: rgba(34, 197, 94, 0.15); color: #22c55e; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px;">v0.7.2</span>
           </div>
@@ -2847,7 +2939,7 @@
   <div class="modal-overlay" id="backup-profile-modal" style="z-index: 2870;">
     <div class="modal-box" style="max-width: 520px; width: 90vw;">
       <div class="modal-header" style="padding: 10px 16px; background: var(--bg-header); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
-        <span style="font-weight: 700; font-size: 13px;" id="backup-profile-modal-title">Create Backup Profile</span>
+        <span style="font-weight: 700; font-size: 13px; display: flex; align-items: center; gap: 8px;"><img src="assets/sync.png" alt="Backup" style="width: 16px; height: 16px; object-fit: contain;"> <span id="backup-profile-modal-title">Create Backup Profile</span></span>
         <button class="btn btn-icon" onclick="closeModal('backup-profile-modal')"><i data-lucide="x"></i></button>
       </div>
       <div style="padding: 16px; display: flex; flex-direction: column; gap: 12px; font-size: 12px;">
@@ -3275,19 +3367,22 @@
   </div>
 
   <!-- Mkdir Modal -->
-  <div class="modal-overlay" id="mkdir-modal">
-    <div class="modal-box" style="width: 400px;">
+  <div class="modal-overlay" id="mkdir-modal" style="z-index: 2800;">
+    <div class="modal-box" style="width: 420px; max-width: 95vw;">
       <div class="modal-header">
-        <span style="display: flex; align-items: center; gap: 6px;"><img src="assets/folder-closed.png" style="width: 16px; height: 16px;"> Create New Folder (F7)</span>
+        <span style="display: flex; align-items: center; gap: 8px; font-weight: 700; color: var(--accent);">
+          <i data-lucide="folder-plus" style="width: 16px; height: 16px;"></i>
+          <span>Create New Folder (F7)</span>
+        </span>
         <button class="btn btn-icon modal-close-btn" onclick="closeModal('mkdir-modal')" title="Close (Esc)"><i data-lucide="x"></i></button>
       </div>
-      <div class="modal-body">
-        <label style="display: block; margin-bottom: 6px; font-size: 12px;">Folder Name:</label>
-        <input type="text" id="mkdir-input" class="pane-quick-filter" style="width: 100%; padding: 8px;" placeholder="new-folder">
+      <div class="modal-body" style="display: flex; flex-direction: column; gap: 8px;">
+        <label for="mkdir-input" style="font-size: 12px; color: var(--text-dim);">Folder Name / Relative Path:</label>
+        <input type="text" id="mkdir-input" class="pane-quick-filter" placeholder="e.g. new-folder or docs/subfolder" style="width: 100%; padding: 8px 10px; font-size: 13px; font-family: var(--font-mono);" autocomplete="off" spellcheck="false">
       </div>
-      <div class="modal-footer">
+      <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 8px;">
         <button class="btn" onclick="closeModal('mkdir-modal')">Cancel</button>
-        <button class="btn btn-accent" id="btn-confirm-mkdir">Create</button>
+        <button class="btn btn-accent" id="btn-confirm-mkdir"><i data-lucide="check" style="width: 14px;"></i> Create</button>
       </div>
     </div>
   </div>
@@ -3409,19 +3504,22 @@
   </div>
 
   <!-- Rename Modal -->
-  <div class="modal-overlay" id="rename-modal">
-    <div class="modal-box" style="width: 400px;">
+  <div class="modal-overlay" id="rename-modal" style="z-index: 2800;">
+    <div class="modal-box" style="width: 420px; max-width: 95vw;">
       <div class="modal-header">
-        <span>✏️ Rename Entry (F2)</span>
-        <button class="btn" onclick="closeModal('rename-modal')"><i data-lucide="x"></i></button>
+        <span style="display: flex; align-items: center; gap: 8px; font-weight: 700; color: var(--accent);">
+          <i data-lucide="edit-3" style="width: 16px; height: 16px;"></i>
+          <span>Rename (F2)</span>
+        </span>
+        <button class="btn btn-icon modal-close-btn" onclick="closeModal('rename-modal')" title="Close (Esc)"><i data-lucide="x"></i></button>
       </div>
-      <div class="modal-body">
-        <label style="display: block; margin-bottom: 6px; font-size: 12px;">New Name / Destination:</label>
-        <input type="text" id="rename-input" class="pane-quick-filter" style="width: 100%; padding: 8px;">
+      <div class="modal-body" style="display: flex; flex-direction: column; gap: 8px;">
+        <label for="rename-input" style="font-size: 12px; color: var(--text-dim);">New Name / Destination:</label>
+        <input type="text" id="rename-input" class="pane-quick-filter" style="width: 100%; padding: 8px 10px; font-size: 13px; font-family: var(--font-mono);" autocomplete="off" spellcheck="false">
       </div>
-      <div class="modal-footer">
+      <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 8px;">
         <button class="btn" onclick="closeModal('rename-modal')">Cancel</button>
-        <button class="btn btn-accent" id="btn-confirm-rename">Rename</button>
+        <button class="btn btn-accent" id="btn-confirm-rename"><i data-lucide="check" style="width: 14px;"></i> Rename</button>
       </div>
     </div>
   </div>
@@ -3787,7 +3885,7 @@
       <div class="modal-header doc-viewer-header" id="doc-viewer-header">
         <!-- Left: File Info -->
         <div class="doc-viewer-title-group" id="doc-viewer-title-group">
-          <i data-lucide="file-text" id="doc-viewer-icon" style="color: var(--accent); width: 18px; height: 18px; flex-shrink: 0;"></i>
+          <img src="assets/docs.png" id="doc-viewer-icon" alt="Document" style="width: 18px; height: 18px; object-fit: contain; flex-shrink: 0;">
           <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
             <div id="doc-viewer-title" style="font-weight: 700; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; overflow: hidden;">Document.pdf</div>
             <div id="doc-viewer-meta" style="font-size: 10px; color: var(--text-muted); font-family: var(--font-mono); margin-top: 1px;">PDF Document</div>
@@ -3851,7 +3949,7 @@
       <!-- Modal Header -->
       <div class="modal-header" style="padding: 10px 16px; background: var(--bg-header); border-bottom: 1px solid var(--border);">
         <div style="display: flex; align-items: center; gap: 8px; overflow: hidden;">
-          <i data-lucide="info" style="color: var(--accent); width: 16px; height: 16px; flex-shrink: 0;"></i>
+          <img src="assets/media.png" alt="Media Inspector" style="width: 16px; height: 16px; object-fit: contain; flex-shrink: 0;">
           <span id="inspector-file-title" style="font-weight: 700; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; overflow: hidden;">Media Inspector</span>
         </div>
         <div style="display: flex; align-items: center; gap: 6px;">
@@ -3941,7 +4039,7 @@
     <div class="media-player-box">
       <div class="modal-header" style="padding: 10px 14px; background: var(--bg-header); border-bottom: 1px solid var(--border);">
         <div style="display: flex; align-items: center; gap: 8px; overflow: hidden;">
-          <i id="media-player-icon" data-lucide="music" style="color: var(--accent); width: 16px;"></i>
+          <img id="media-player-icon" src="assets/media.png" alt="Media Player" style="width: 16px; height: 16px; object-fit: contain; flex-shrink: 0;">
           <span id="media-player-title" style="font-weight: 700; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; overflow: hidden;">Track.mp3</span>
           <span class="badge" id="media-player-badge" style="font-size: 9px; text-transform: uppercase;">MP3</span>
         </div>
@@ -4510,7 +4608,7 @@
     <div class="modal-box" style="width: 680px; max-width: calc(100vw - 32px); max-height: 88vh; display: flex; flex-direction: column;">
       <div class="modal-header">
         <div style="display: flex; align-items: center; gap: 8px;">
-          <i data-lucide="file-text" style="color: #ef4444; width: 18px; height: 18px;"></i>
+          <img src="assets/amber-pdftool.png" alt="PDFDog" style="width: 18px; height: 18px; object-fit: contain;">
           <span style="font-weight: 700; font-size: 14px;">PDF Power Studio: Merge & Split</span>
         </div>
         <button class="btn btn-icon modal-close-btn" onclick="closeModal('pdf-tool-modal')" title="Close PDF Studio (Esc)"><i data-lucide="x"></i></button>

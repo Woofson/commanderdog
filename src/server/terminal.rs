@@ -75,9 +75,30 @@ async fn handle_terminal_socket(socket: WebSocket, query: TerminalQuery) {
     }
 
     if let Some(ref cwd) = query.cwd {
-        let p = std::path::Path::new(cwd);
-        if p.exists() && p.is_dir() {
-            cmd.cwd(p);
+        let clean = cwd.trim();
+        let expanded = if clean == "~" || clean.starts_with("~/") {
+            if let Some(home) = dirs::home_dir() {
+                if clean == "~" {
+                    home
+                } else {
+                    home.join(&clean[2..])
+                }
+            } else {
+                std::path::PathBuf::from(clean)
+            }
+        } else {
+            std::path::PathBuf::from(clean)
+        };
+        if expanded.exists() && expanded.is_dir() {
+            cmd.cwd(expanded);
+        } else if let Some(home) = dirs::home_dir() {
+            if home.exists() && home.is_dir() {
+                cmd.cwd(home);
+            }
+        }
+    } else if let Some(home) = dirs::home_dir() {
+        if home.exists() && home.is_dir() {
+            cmd.cwd(home);
         }
     }
 

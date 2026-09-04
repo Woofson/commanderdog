@@ -139,6 +139,8 @@ impl NfsClient {
                         total_size: 0,
                         entries,
                         protocol: "nfs".to_string(),
+                        is_truncated: None,
+                        max_limit: None,
                     });
                 }
             }

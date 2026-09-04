@@ -234,6 +234,8 @@ impl SftpClient {
             total_dirs,
             total_size,
             protocol: "sftp".to_string(),
+            is_truncated: None,
+            max_limit: None,
         })
     }
 

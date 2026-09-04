@@ -8,7 +8,7 @@ const App = {
   user: null,
   config: null,
   contextItem: null,
-  contextPaneIndex: 0,
+  contextPaneIndex: null,
   systemUsers: [],
   systemGroups: [],
   showHiddenDefault: localStorage.getItem('cd_show_hidden') !== 'false',
@@ -78,6 +78,9 @@ class PaneState {
     this.showHidden = App.showHiddenDefault;
     this.viewMode = 'details'; // 'details', 'compact', 'grid'
     this.isBranchView = false;
+    this.isBranchTruncated = false;
+    this.branchMaxLimit = 5000;
+    this._abortController = null;
     this.isVirtual = false;
     this.virtualTitle = '';
     this.customName = null;
@@ -779,7 +782,7 @@ function createPaneElement(pane, index) {
     const tool = pane.dockedTool;
     const toolTitles = {
       'editor': '<img src="assets/edit.png" alt="EditorDog" style="width: 14px; height: 14px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> EditorDog',
-      'notedog': '🐶 NoteDog',
+      'notedog': '<img src="assets/note.png" alt="NoteDog" style="width: 14px; height: 14px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> NoteDog',
       'terminal': '<img src="assets/term.png" alt="Terminal" style="width: 14px; height: 14px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> Terminal Console',
       'calculator': '<img src="assets/calc.png" alt="Calculator" style="width: 14px; height: 14px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> Calculator',
       'git': '🌲 Git Manager',
@@ -1071,7 +1074,7 @@ function togglePaneDotfiles(paneIndex) {
   loadPaneDirectory(paneIndex, pane.path);
 }
 
-async function loadPaneDirectory(paneIndex, targetPath, pushHistory = true, selectItemName = null) {
+async function loadPaneDirectory(paneIndex, targetPath, pushHistory = true, selectItemName = null, retainBranch = false) {
   if (targetPath === '~' || (typeof targetPath === 'string' && targetPath.startsWith('~/'))) {
     const userHome = getUserDefaultHomeDir();
     const resolvedHome = (userHome && userHome !== '~') ? userHome : '/';
@@ -1082,6 +1085,22 @@ async function loadPaneDirectory(paneIndex, targetPath, pushHistory = true, sele
   const authUrl = resolveAuthUri(targetPath);
 
   const pane = App.panes[paneIndex];
+  if (!pane) return;
+
+  // Abort any ongoing directory fetch for this pane
+  if (pane._abortController) {
+    try {
+      pane._abortController.abort();
+    } catch (_) {}
+    pane._abortController = null;
+  }
+
+  // If navigating to a different directory without explicitly retaining branch mode, exit branch mode
+  if (!retainBranch && pane.path && cleanPath !== pane.path && pane.isBranchView) {
+    pane.isBranchView = false;
+    pane.isBranchTruncated = false;
+  }
+
   pane.path = cleanPath;
   if (!selectItemName) {
     pane.selected.clear();
@@ -1094,11 +1113,18 @@ async function loadPaneDirectory(paneIndex, targetPath, pushHistory = true, sele
     } catch (_) {}
   }
 
+  pane._abortController = new AbortController();
+
+  if (pane.isBranchView) {
+    renderPaneBranchLoading(paneIndex);
+  }
+
   try {
     const flatParam = pane.isBranchView ? '&flat=true' : '';
     const url = `/api/fs/list?path=${encodeURIComponent(authUrl)}&show_hidden=${pane.showHidden}${flatParam}`;
     const resp = await fetch(url, {
-      headers: { 'Authorization': `Bearer ${App.token}` }
+      headers: { 'Authorization': `Bearer ${App.token}` },
+      signal: pane._abortController.signal
     });
 
     if (!resp.ok) {
@@ -1122,6 +1148,12 @@ async function loadPaneDirectory(paneIndex, targetPath, pushHistory = true, sele
       path: sanitizeCredentials(e.path)
     }));
     pane.totalSize = data.total_size;
+    pane.isBranchTruncated = !!data.is_truncated;
+    pane.branchMaxLimit = data.max_limit || 5000;
+
+    if (pane.isBranchTruncated && pane.isBranchView) {
+      showToast(`⚠️ Branch view capped at ${pane.branchMaxLimit} items for performance`, 'warning');
+    }
 
     if (selectItemName && pane.entries) {
       pane.selected.clear();
@@ -1157,7 +1189,12 @@ async function loadPaneDirectory(paneIndex, targetPath, pushHistory = true, sele
       console.warn('Footer/tree sync error:', fErr);
     }
   } catch (e) {
+    if (e.name === 'AbortError') {
+      return;
+    }
     console.error('Directory load error:', e);
+  } finally {
+    pane._abortController = null;
   }
 }
 
@@ -1174,19 +1211,41 @@ function renderPaneBreadcrumbs(paneIndex, pathStr) {
     branchBadge.innerHTML = '<i data-lucide="git-branch" style="width:11px; height:11px;"></i> Flat Branch View';
     container.appendChild(branchBadge);
 
-    const pathCrumb = document.createElement('span');
-    pathCrumb.className = 'crumb';
-    pathCrumb.style.maxWidth = '180px';
-    pathCrumb.style.overflow = 'hidden';
-    pathCrumb.style.textOverflow = 'ellipsis';
-    pathCrumb.textContent = pathStr;
-    container.appendChild(pathCrumb);
+    // Clickable ancestor breadcrumb navigation
+    const parts = pathStr.split('/').filter(Boolean);
+    let accum = '';
+
+    const rootCrumb = document.createElement('span');
+    rootCrumb.className = 'crumb';
+    rootCrumb.textContent = '/';
+    rootCrumb.title = 'Exit Flat Branch View and go to /';
+    rootCrumb.onclick = (e) => { e.stopPropagation(); exitBranchView(paneIndex, '/'); };
+    container.appendChild(rootCrumb);
+
+    parts.forEach((p) => {
+      accum += '/' + p;
+      const target = accum;
+      const sep = document.createElement('span');
+      sep.className = 'crumb-sep';
+      sep.textContent = '/';
+      container.appendChild(sep);
+
+      const c = document.createElement('span');
+      c.className = 'crumb';
+      c.textContent = p;
+      c.title = `Exit Flat Branch View and go to ${target}`;
+      c.onclick = (e) => { e.stopPropagation(); exitBranchView(paneIndex, target); };
+      container.appendChild(c);
+    });
 
     const exitBtn = document.createElement('button');
     exitBtn.className = 'btn btn-xs';
     exitBtn.style.marginLeft = 'auto';
-    exitBtn.style.padding = '1px 6px';
-    exitBtn.textContent = '✕ Exit Branch';
+    exitBtn.style.padding = '1px 7px';
+    exitBtn.style.color = 'var(--accent)';
+    exitBtn.style.borderColor = 'rgba(245, 158, 11, 0.4)';
+    exitBtn.innerHTML = '<i data-lucide="x" style="width: 10px; height: 10px; margin-right: 3px;"></i> Exit Branch';
+    exitBtn.title = 'Exit Flat Branch View (Ctrl+B)';
     exitBtn.onclick = (e) => { e.stopPropagation(); toggleBranchView(paneIndex); };
     container.appendChild(exitBtn);
     if (window.lucide) lucide.createIcons();
@@ -1664,7 +1723,40 @@ function renderPaneTable(paneIndex) {
   const tbody = document.getElementById(`pane-tbody-${paneIndex}`);
   const gridEl = document.getElementById(`pane-grid-${paneIndex}`);
   const compactEl = document.getElementById(`pane-compact-${paneIndex}`);
+  const mainEl = document.getElementById(`pane-main-${paneIndex}`);
   if (!tbody) return;
+
+  // Manage Flat Branch View Banner
+  let branchBanner = document.getElementById(`pane-branch-banner-${paneIndex}`);
+  if (pane && pane.isBranchView) {
+    if (!branchBanner && mainEl) {
+      branchBanner = document.createElement('div');
+      branchBanner.className = 'pane-branch-banner';
+      branchBanner.id = `pane-branch-banner-${paneIndex}`;
+      mainEl.insertBefore(branchBanner, mainEl.firstChild);
+    }
+    if (branchBanner) {
+      branchBanner.style.display = 'flex';
+      const count = pane.entries ? pane.entries.length : 0;
+      const truncatedBadge = pane.isBranchTruncated
+        ? `<span class="branch-banner-badge" title="Directory listing reached safety limit of ${pane.branchMaxLimit || 5000} items for speed">Capped at ${pane.branchMaxLimit || 5000} items</span>`
+        : '';
+      branchBanner.innerHTML = `
+        <div class="branch-banner-info">
+          <i data-lucide="git-branch" class="branch-banner-icon"></i>
+          <span class="branch-banner-title">Flat Branch View</span>
+          <span class="branch-banner-count">&bull; ${count} items flattened</span>
+          ${truncatedBadge}
+        </div>
+        <button class="branch-banner-exit" onclick="toggleBranchView(${paneIndex})" title="Exit Flat Branch View and return to standard folder view (Ctrl+B)">
+          <i data-lucide="x" style="width: 12px; height: 12px;"></i>
+          <span>Exit Branch View <kbd>Ctrl+B</kbd></span>
+        </button>
+      `;
+    }
+  } else if (branchBanner) {
+    branchBanner.remove();
+  }
 
   tbody.innerHTML = '';
   if (gridEl) gridEl.innerHTML = '';
@@ -5185,6 +5277,8 @@ const notedogState = {
   selectedVersion: null,
   autoSaveTimer: null,
   dragInitialized: false,
+  cachedPassphrases: {},
+  unlockedNotes: {},
 };
 
 function saveNoteDogFolderSetting(newFolder) {
@@ -5494,9 +5588,11 @@ function renderNoteDogSidebar() {
       nbList.innerHTML = notedogState.notebooks.map(nb => {
         const totalNotes = nb.sections.reduce((acc, s) => acc + s.notes.length, 0);
         const isActive = nb.name === notedogState.activeNotebook;
+        const icon = nb.is_encrypted ? '📚 🔒' : '📚';
+        const encLabel = nb.is_encrypted ? ' [Encrypted Notebook]' : '';
         return `
-          <div class="notedog-item ${isActive ? 'active' : ''}" onclick="selectNoteDogNotebook('${escapeHtml(nb.name)}')" title="${escapeHtml(nb.name)} (${totalNotes} notes)">
-            <span>📚</span>
+          <div class="notedog-item ${isActive ? 'active' : ''}" onclick="selectNoteDogNotebook('${escapeHtml(nb.name)}')" title="${escapeHtml(nb.name)}${encLabel} (${totalNotes} notes)">
+            <span>${icon}</span>
             <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1;">${escapeHtml(nb.name)}</span>
             <span class="notedog-item-count">${totalNotes}</span>
           </div>
@@ -5513,9 +5609,11 @@ function renderNoteDogSidebar() {
     } else {
       secList.innerHTML = currentNb.sections.map(sec => {
         const isActive = sec.name === notedogState.activeSection;
+        const icon = sec.is_encrypted ? '📂 🔒' : '📂';
+        const encLabel = sec.is_encrypted ? ' [Encrypted Section]' : '';
         return `
-          <div class="notedog-item ${isActive ? 'active' : ''}" onclick="selectNoteDogSection('${escapeHtml(sec.name)}')" title="${escapeHtml(sec.name)} (${sec.notes.length} notes)">
-            <span>📂</span>
+          <div class="notedog-item ${isActive ? 'active' : ''}" onclick="selectNoteDogSection('${escapeHtml(sec.name)}')" title="${escapeHtml(sec.name)}${encLabel} (${sec.notes.length} notes)">
+            <span>${icon}</span>
             <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1;">${escapeHtml(sec.name)}</span>
             <span class="notedog-item-count">${sec.notes.length}</span>
           </div>
@@ -5545,6 +5643,7 @@ function renderNoteDogSidebar() {
 
     if (notesToRender.length === 0) {
       noteList.innerHTML = `<div style="padding: 10px; font-size: 11px; color: var(--text-dim); text-align: center;">${notedogState.searchQuery ? 'No matching notes' : 'No notes in section'}</div>`;
+    } else {
       noteList.innerHTML = notesToRender.map(note => {
         const isActive = notedogState.activeNote && (notedogState.activeNote.path === note.path);
         const icon = note.is_encrypted ? '🔒' : '📄';
@@ -5626,6 +5725,8 @@ async function loadNoteDogNoteContent(note) {
   const textarea = document.getElementById('notedog-editor-textarea');
   const preview = document.getElementById('notedog-preview-content');
   const saveStatus = document.getElementById('notedog-save-status');
+  const unlockCard = document.getElementById('notedog-unlock-card');
+  const lockIcon = document.getElementById('icon-encrypt-note');
 
   if (titleInput) titleInput.value = note.name;
   if (saveStatus) {
@@ -5633,34 +5734,132 @@ async function loadNoteDogNoteContent(note) {
     saveStatus.className = 'notedog-save-status';
   }
 
-  try {
-    const resp = await fetch(`/api/fs/read?path=${encodeURIComponent(note.path)}`, {
-      headers: { 'Authorization': `Bearer ${App.token}` }
-    });
-    if (resp.ok) {
-      const data = await resp.json();
-      const content = data.content || '';
-      notedogState.content = content;
-      notedogState.isDirty = false;
-      if (textarea) textarea.value = content;
-      syncNoteDogGutter();
-      renderNoteDogPreview(content);
-    } else {
-      const errText = await resp.text();
-      if (note.is_encrypted || note.filename?.endsWith('.md.enc')) {
-        const encNotice = `🔒 **Encrypted Note: ${escapeHtml(note.filename)}**\n\nThis note was saved with NoteDog encryption. Passphrase decryption support is active.`;
-        notedogState.content = encNotice;
-        if (textarea) textarea.value = encNotice;
-        renderNoteDogPreview(encNotice);
+  const isEnc = note.is_encrypted || note.filename?.endsWith('.md.enc');
+  if (lockIcon) {
+    lockIcon.setAttribute('data-lucide', isEnc ? 'lock' : 'unlock');
+    lockIcon.style.color = isEnc ? 'var(--accent)' : 'inherit';
+    if (window.lucide) lucide.createIcons();
+  }
+
+  if (isEnc) {
+    const cached = notedogState.cachedPassphrases[note.path] || notedogState.cachedPassphrases[notedogState.activeSection] || notedogState.cachedPassphrases['__global'];
+    if (cached) {
+      try {
+        const resp = await fetch('/api/tools/notedog/decrypt', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
+          body: JSON.stringify({ path: note.path, passphrase: cached })
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          notedogState.content = data.content || '';
+          notedogState.isDirty = false;
+          notedogState.unlockedNotes[note.path] = true;
+          if (unlockCard) unlockCard.style.display = 'none';
+          if (textarea) textarea.value = notedogState.content;
+          syncNoteDogGutter();
+          renderNoteDogPreview(notedogState.content);
+          return;
+        }
+      } catch (e) {
+        console.warn('Cached passphrase decrypt failed:', e);
+      }
+    }
+
+    // Show in-workspace unlock card
+    if (unlockCard) {
+      unlockCard.style.display = 'flex';
+      const unlockTitle = document.getElementById('notedog-unlock-title');
+      if (unlockTitle) unlockTitle.textContent = `${note.name} (Encrypted)`;
+      const passInput = document.getElementById('notedog-unlock-pass');
+      if (passInput) {
+        passInput.value = '';
+        setTimeout(() => passInput.focus(), 50);
+      }
+      const errEl = document.getElementById('notedog-unlock-error');
+      if (errEl) errEl.style.display = 'none';
+    }
+    if (textarea) textarea.value = '';
+    if (preview) preview.innerHTML = '';
+  } else {
+    // Plain note
+    if (unlockCard) unlockCard.style.display = 'none';
+    try {
+      const resp = await fetch(`/api/fs/read?path=${encodeURIComponent(note.path)}`, {
+        headers: { 'Authorization': `Bearer ${App.token}` }
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        const content = data.content || '';
+        notedogState.content = content;
+        notedogState.isDirty = false;
+        if (textarea) textarea.value = content;
+        syncNoteDogGutter();
+        renderNoteDogPreview(content);
       } else {
+        const errText = await resp.text();
         const errMsg = `Failed to load note content (${resp.status}): ${errText || 'Access Denied'}`;
         if (textarea) textarea.value = errMsg;
         if (preview) preview.innerHTML = `<div style="padding: 16px; color: var(--danger); font-family: var(--font-mono); font-size: 12px;">⚠️ ${escapeHtml(errMsg)}</div>`;
       }
+    } catch (err) {
+      console.error('NoteDog read note failed:', err);
+      if (textarea) textarea.value = `Failed to load note: ${err}`;
+    }
+  }
+}
+
+async function executeUnlockNoteDogNote() {
+  if (!notedogState.activeNote) return;
+  const passInput = document.getElementById('notedog-unlock-pass');
+  const pass = passInput ? passInput.value : '';
+  const remember = document.getElementById('notedog-unlock-remember')?.checked !== false;
+  const errEl = document.getElementById('notedog-unlock-error');
+  const unlockCard = document.getElementById('notedog-unlock-card');
+  const textarea = document.getElementById('notedog-editor-textarea');
+
+  if (!pass) {
+    if (errEl) {
+      errEl.textContent = 'Please enter a passphrase';
+      errEl.style.display = 'block';
+    }
+    return;
+  }
+
+  try {
+    const resp = await fetch('/api/tools/notedog/decrypt', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
+      body: JSON.stringify({ path: notedogState.activeNote.path, passphrase: pass })
+    });
+
+    if (resp.ok) {
+      const data = await resp.json();
+      if (remember) {
+        notedogState.cachedPassphrases[notedogState.activeNote.path] = pass;
+        if (notedogState.activeSection) notedogState.cachedPassphrases[notedogState.activeSection] = pass;
+        notedogState.cachedPassphrases['__global'] = pass;
+      }
+      notedogState.content = data.content || '';
+      notedogState.isDirty = false;
+      notedogState.unlockedNotes[notedogState.activeNote.path] = true;
+      if (unlockCard) unlockCard.style.display = 'none';
+      if (textarea) textarea.value = notedogState.content;
+      syncNoteDogGutter();
+      renderNoteDogPreview(notedogState.content);
+      showToast('Note unlocked', 'success');
+    } else {
+      const err = await resp.text();
+      if (errEl) {
+        errEl.textContent = 'Decryption failed: ' + (err || 'Incorrect passphrase');
+        errEl.style.display = 'block';
+      }
     }
   } catch (err) {
-    console.error('NoteDog read note failed:', err);
-    if (textarea) textarea.value = `Failed to load note: ${err}`;
+    if (errEl) {
+      errEl.textContent = 'Error: ' + err.message;
+      errEl.style.display = 'block';
+    }
   }
 }
 
@@ -5694,16 +5893,30 @@ async function saveActiveNoteDogNote(isAutoSave = false) {
   const textarea = document.getElementById('notedog-editor-textarea');
   const saveStatus = document.getElementById('notedog-save-status');
   const content = textarea ? textarea.value : notedogState.content;
+  const isEnc = notedogState.activeNote.is_encrypted || notedogState.activeNote.filename?.endsWith('.md.enc');
 
   try {
-    const resp = await fetch('/api/fs/write', {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${App.token}`
-      },
-      body: JSON.stringify({ path: notedogState.activeNote.path, content })
-    });
+    let resp;
+    if (isEnc) {
+      const pass = notedogState.cachedPassphrases[notedogState.activeNote.path] || notedogState.cachedPassphrases[notedogState.activeSection] || notedogState.cachedPassphrases['__global'] || 'notedog';
+      resp = await fetch('/api/tools/notedog/encrypt', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${App.token}`
+        },
+        body: JSON.stringify({ path: notedogState.activeNote.path, content, passphrase: pass })
+      });
+    } else {
+      resp = await fetch('/api/fs/write', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${App.token}`
+        },
+        body: JSON.stringify({ path: notedogState.activeNote.path, content })
+      });
+    }
 
     if (resp.ok) {
       notedogState.isDirty = false;
@@ -5753,6 +5966,9 @@ function handleNoteDogKeyDown(e) {
   if ((e.ctrlKey || e.metaKey) && e.key === 's') {
     e.preventDefault();
     saveActiveNoteDogNote();
+  } else if ((e.ctrlKey || e.metaKey) && (e.key === 'e' || e.key === 'E')) {
+    e.preventDefault();
+    toggleCurrentNoteEncryption();
   } else if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
     e.preventDefault();
     insertNoteDogMarkdown('**', '**', 'bold text');
@@ -6042,8 +6258,296 @@ async function promptCreateSection() {
   }
 }
 
-function promptCreateNote() {
-  openNoteDogTemplatePicker();
+async function toggleCurrentNoteEncryption() {
+  if (!notedogState.activeNote) {
+    showToast('No active note selected', 'warning');
+    return;
+  }
+  const isEnc = notedogState.activeNote.is_encrypted || notedogState.activeNote.filename?.endsWith('.md.enc');
+
+  if (isEnc) {
+    // Decrypt to plain Markdown (.md)
+    const confirmed = await showConfirmDialog({
+      title: 'Decrypt Note to Plain Markdown',
+      subtitle: `Convert "${notedogState.activeNote.filename}" to unencrypted .md`,
+      message: 'This will store the note in plaintext on disk. Are you sure?',
+      confirmText: 'Decrypt to Plain',
+      confirmIcon: 'unlock'
+    });
+    if (!confirmed) return;
+
+    const pass = notedogState.cachedPassphrases[notedogState.activeNote.path] || notedogState.cachedPassphrases[notedogState.activeSection] || notedogState.cachedPassphrases['__global'] || prompt('Enter note passphrase:') || 'notedog';
+    try {
+      const resp = await fetch('/api/tools/notedog/encrypt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
+        body: JSON.stringify({ path: notedogState.activeNote.path, content: notedogState.content, passphrase: pass, convert_to_plain: true })
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        showToast('Note converted to plain Markdown', 'success');
+        await loadNoteDogHierarchy(data.path);
+      } else {
+        showToast('Decryption failed: ' + sanitizeCredentials(await resp.text()), 'error');
+      }
+    } catch (err) {
+      showToast('Decryption failed: ' + err.message, 'error');
+    }
+  } else {
+    // Encrypt plain note (.md -> .md.enc)
+    const pass = prompt(`Enter encryption passphrase for "${notedogState.activeNote.name}":\n(ChaCha20-Poly1305 + Argon2id authenticated encryption)`);
+    if (pass === null) return;
+    const passphrase = pass.trim() || 'notedog';
+
+    try {
+      const resp = await fetch('/api/tools/notedog/encrypt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
+        body: JSON.stringify({ path: notedogState.activeNote.path, content: notedogState.content, passphrase, convert_to_plain: false })
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        notedogState.cachedPassphrases[data.path] = passphrase;
+        if (notedogState.activeSection) notedogState.cachedPassphrases[notedogState.activeSection] = passphrase;
+        notedogState.cachedPassphrases['__global'] = passphrase;
+        notedogState.unlockedNotes[data.path] = true;
+        showToast('Note encrypted (.md.enc)', 'success');
+        await loadNoteDogHierarchy(data.path);
+      } else {
+        showToast('Encryption failed: ' + sanitizeCredentials(await resp.text()), 'error');
+      }
+    } catch (err) {
+      showToast('Encryption failed: ' + err.message, 'error');
+    }
+  }
+}
+
+function toggleNoteDogCreateEncryptedFields() {
+  const isEnc = document.getElementById('notedog-create-is-encrypted')?.checked;
+  const passGroup = document.getElementById('notedog-create-pass-group');
+  if (passGroup) passGroup.style.display = isEnc ? 'flex' : 'none';
+}
+
+function promptCreateNote(isEncrypted = false) {
+  if (!notedogState.activeNotebook || !notedogState.activeSection) {
+    showToast('Please select a Notebook and Section first', 'info');
+    return;
+  }
+
+  const currentNb = notedogState.notebooks.find(nb => nb.name === notedogState.activeNotebook);
+  const currentSec = currentNb?.sections.find(s => s.name === notedogState.activeSection);
+  const shouldEnc = isEncrypted || (currentSec && currentSec.is_encrypted) || (currentNb && currentNb.is_encrypted);
+
+  const titleInput = document.getElementById('notedog-create-title-input');
+  const encCheck = document.getElementById('notedog-create-is-encrypted');
+  const passInput = document.getElementById('notedog-create-pass');
+  const errEl = document.getElementById('notedog-create-error');
+
+  if (titleInput) titleInput.value = '';
+  if (encCheck) encCheck.checked = !!shouldEnc;
+  if (passInput) passInput.value = notedogState.cachedPassphrases[notedogState.activeSection] || notedogState.cachedPassphrases['__global'] || '';
+  if (errEl) errEl.style.display = 'none';
+
+  toggleNoteDogCreateEncryptedFields();
+  showModal('notedog-create-note-modal');
+
+  setTimeout(() => { if (titleInput) titleInput.focus(); }, 50);
+
+  const confirmBtn = document.getElementById('btn-notedog-create-confirm');
+  if (confirmBtn) {
+    confirmBtn.onclick = async () => {
+      const title = titleInput.value.trim();
+      if (!title) {
+        if (errEl) { errEl.textContent = 'Please enter a note title'; errEl.style.display = 'block'; }
+        return;
+      }
+      const isEnc = encCheck ? encCheck.checked : false;
+      const pass = passInput ? passInput.value : '';
+
+      const root = notedogState.rootFolder || '~/Notes';
+      const secPath = `${root}/${notedogState.activeNotebook}/${notedogState.activeSection}`;
+
+      try {
+        const resp = await fetch('/api/tools/notedog/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
+          body: JSON.stringify({
+            section_path: secPath,
+            title,
+            is_encrypted: isEnc,
+            passphrase: pass || null,
+            initial_content: `# ${title}\n\n`
+          })
+        });
+
+        if (resp.ok) {
+          const note = await resp.json();
+          if (isEnc && pass) {
+            notedogState.cachedPassphrases[note.path] = pass;
+            notedogState.cachedPassphrases[notedogState.activeSection] = pass;
+            notedogState.cachedPassphrases['__global'] = pass;
+            notedogState.unlockedNotes[note.path] = true;
+          }
+          closeModal('notedog-create-note-modal');
+          await loadNoteDogHierarchy(note.path);
+          showToast(`Created note "${title}"`, 'success');
+        } else {
+          const err = await resp.text();
+          if (errEl) { errEl.textContent = 'Failed: ' + sanitizeCredentials(err); errEl.style.display = 'block'; }
+        }
+      } catch (err) {
+        if (errEl) { errEl.textContent = 'Error: ' + err.message; errEl.style.display = 'block'; }
+      }
+    };
+  }
+
+  if (titleInput) {
+    titleInput.onkeydown = (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        confirmBtn?.click();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        closeModal('notedog-create-note-modal');
+      }
+    };
+  }
+}
+
+async function promptToggleEncryptSection() {
+  if (!notedogState.activeNotebook || !notedogState.activeSection) {
+    showToast('Please select a Section first', 'warning');
+    return;
+  }
+  const currentNb = notedogState.notebooks.find(nb => nb.name === notedogState.activeNotebook);
+  const currentSec = currentNb?.sections.find(s => s.name === notedogState.activeSection);
+  if (!currentSec) return;
+
+  const isEnc = currentSec.is_encrypted;
+  const titleEl = document.getElementById('notedog-crypto-modal-title');
+  const descEl = document.getElementById('notedog-crypto-modal-desc');
+  const passInput = document.getElementById('notedog-crypto-pass');
+  const passConfirmInput = document.getElementById('notedog-crypto-pass-confirm');
+  const confirmGroup = document.getElementById('notedog-crypto-confirm-group');
+  const errEl = document.getElementById('notedog-crypto-error');
+  const confirmBtn = document.getElementById('btn-notedog-crypto-confirm');
+
+  if (titleEl) titleEl.textContent = isEnc ? `🔓 Decrypt Section "${currentSec.name}"` : `🔒 Encrypt Section "${currentSec.name}"`;
+  if (descEl) descEl.textContent = isEnc 
+    ? `Decrypt all .md.enc notes in section "${currentSec.name}" back to plain Markdown (.md).`
+    : `Encrypt all notes in section "${currentSec.name}" using ChaCha20-Poly1305 + Argon2id (.md.enc). NoteDog TUI compatible.`;
+  if (confirmGroup) confirmGroup.style.display = isEnc ? 'none' : 'flex';
+  if (passInput) passInput.value = notedogState.cachedPassphrases[currentSec.path] || notedogState.cachedPassphrases['__global'] || '';
+  if (passConfirmInput) passConfirmInput.value = '';
+  if (errEl) errEl.style.display = 'none';
+
+  showModal('notedog-crypto-modal');
+  setTimeout(() => { if (passInput) passInput.focus(); }, 50);
+
+  if (confirmBtn) {
+    confirmBtn.onclick = async () => {
+      const pass = passInput.value;
+      if (!pass) {
+        if (errEl) { errEl.textContent = 'Please enter a passphrase'; errEl.style.display = 'block'; }
+        return;
+      }
+      if (!isEnc && passConfirmInput.value !== pass) {
+        if (errEl) { errEl.textContent = 'Passphrases do not match'; errEl.style.display = 'block'; }
+        return;
+      }
+
+      const endpoint = isEnc ? '/api/tools/notedog/section/decrypt' : '/api/tools/notedog/section/encrypt';
+      try {
+        const resp = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
+          body: JSON.stringify({ path: currentSec.path, passphrase: pass })
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          if (!isEnc) {
+            notedogState.cachedPassphrases[currentSec.path] = pass;
+            notedogState.cachedPassphrases['__global'] = pass;
+          }
+          closeModal('notedog-crypto-modal');
+          await loadNoteDogHierarchy();
+          showToast(isEnc ? `Decrypted ${data.decrypted_count || 0} notes in section` : `Encrypted ${data.encrypted_count || 0} notes in section`, 'success');
+        } else {
+          const err = await resp.text();
+          if (errEl) { errEl.textContent = 'Action failed: ' + sanitizeCredentials(err); errEl.style.display = 'block'; }
+        }
+      } catch (err) {
+        if (errEl) { errEl.textContent = 'Error: ' + err.message; errEl.style.display = 'block'; }
+      }
+    };
+  }
+}
+
+async function promptToggleEncryptNotebook() {
+  if (!notedogState.activeNotebook) {
+    showToast('Please select a Notebook first', 'warning');
+    return;
+  }
+  const currentNb = notedogState.notebooks.find(nb => nb.name === notedogState.activeNotebook);
+  if (!currentNb) return;
+
+  const isEnc = currentNb.is_encrypted;
+  const titleEl = document.getElementById('notedog-crypto-modal-title');
+  const descEl = document.getElementById('notedog-crypto-modal-desc');
+  const passInput = document.getElementById('notedog-crypto-pass');
+  const passConfirmInput = document.getElementById('notedog-crypto-pass-confirm');
+  const confirmGroup = document.getElementById('notedog-crypto-confirm-group');
+  const errEl = document.getElementById('notedog-crypto-error');
+  const confirmBtn = document.getElementById('btn-notedog-crypto-confirm');
+
+  if (titleEl) titleEl.textContent = isEnc ? `🔓 Decrypt Notebook "${currentNb.name}"` : `🔒 Encrypt Notebook "${currentNb.name}"`;
+  if (descEl) descEl.textContent = isEnc 
+    ? `Decrypt all sections and notes in notebook "${currentNb.name}" back to plain Markdown (.md).`
+    : `Encrypt all sections and notes in notebook "${currentNb.name}" using ChaCha20-Poly1305 + Argon2id (.md.enc). NoteDog TUI compatible.`;
+  if (confirmGroup) confirmGroup.style.display = isEnc ? 'none' : 'flex';
+  if (passInput) passInput.value = notedogState.cachedPassphrases['__global'] || '';
+  if (passConfirmInput) passConfirmInput.value = '';
+  if (errEl) errEl.style.display = 'none';
+
+  showModal('notedog-crypto-modal');
+  setTimeout(() => { if (passInput) passInput.focus(); }, 50);
+
+  if (confirmBtn) {
+    confirmBtn.onclick = async () => {
+      const pass = passInput.value;
+      if (!pass) {
+        if (errEl) { errEl.textContent = 'Please enter a passphrase'; errEl.style.display = 'block'; }
+        return;
+      }
+      if (!isEnc && passConfirmInput.value !== pass) {
+        if (errEl) { errEl.textContent = 'Passphrases do not match'; errEl.style.display = 'block'; }
+        return;
+      }
+
+      const endpoint = isEnc ? '/api/tools/notedog/notebook/decrypt' : '/api/tools/notedog/notebook/encrypt';
+      try {
+        const resp = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
+          body: JSON.stringify({ path: currentNb.path, passphrase: pass })
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          if (!isEnc) {
+            notedogState.cachedPassphrases['__global'] = pass;
+          }
+          closeModal('notedog-crypto-modal');
+          await loadNoteDogHierarchy();
+          showToast(isEnc ? `Decrypted ${data.decrypted_count || 0} notes in notebook` : `Encrypted ${data.encrypted_count || 0} notes in notebook`, 'success');
+        } else {
+          const err = await resp.text();
+          if (errEl) { errEl.textContent = 'Action failed: ' + sanitizeCredentials(err); errEl.style.display = 'block'; }
+        }
+      } catch (err) {
+        if (errEl) { errEl.textContent = 'Error: ' + err.message; errEl.style.display = 'block'; }
+      }
+    };
+  }
 }
 
 function openNoteDogNewMenu(e) {
@@ -7533,22 +8037,22 @@ function updateLogoutOrExitButton() {
 
 // ---------------- TOOLS & CHEWTOYS LAUNCHPAD MENU CUSTOMIZER ----------------
 const DEFAULT_TOOLS_MENU = [
-  { id: 'spotlight', label: 'Spotlight Quick-Switcher (Ctrl+K)', icon: 'sparkles', iconColor: 'var(--accent)', action: 'openSpotlightModal()', desc: 'Instant search across files, tools & themes', visible: true },
-  { id: 'tree', label: 'Folder Hierarchy Tree (Ctrl+T)', icon: 'folder-tree', iconColor: 'var(--accent)', action: 'toggleFolderTree()', desc: 'Collapsible directory navigation tree', visible: true },
-  { id: 'branch', label: 'Flat / Branch View (Ctrl+B)', icon: 'git-branch', iconColor: 'var(--accent)', action: 'toggleBranchView()', desc: 'Flatten recursive subfolders into single list', visible: true },
-  { id: 'notedog', label: 'NoteDog Notes & Markdown', icon: 'book-open', iconColor: 'var(--accent)', action: 'openFloatingNoteDog()', desc: 'Notes, checklists, templates & markdown studio', visible: true },
+  { id: 'spotlight', label: 'Spot!', icon: 'assets/spot.png', action: 'openSpotlightModal()', desc: 'Instant search across files, tools & themes (Ctrl+K)', visible: true },
+  { id: 'tree', label: 'Tree', icon: 'folder-tree', iconColor: 'var(--accent)', action: 'toggleFolderTree()', desc: 'Collapsible directory navigation tree (Ctrl+T)', visible: true },
+  { id: 'branch', label: 'Flat', icon: 'git-branch', iconColor: 'var(--accent)', action: 'toggleBranchView()', desc: 'Flatten recursive subfolders into single list (Ctrl+B)', visible: true },
+  { id: 'notedog', label: 'NoteDog', icon: 'assets/note.png', action: 'openFloatingNoteDog()', desc: 'Notes, checklists, templates & markdown studio', visible: true },
   { id: 'calc', label: 'Calculator', icon: 'assets/calc.png', action: 'openFloatingCalculator()', desc: 'Storage units, conversions & live history', visible: true },
-  { id: 'terminal', label: 'Terminal Console (`)', icon: 'assets/term.png', action: 'toggleTerminal()', desc: 'Interactive slide-up & floating PTY shell', visible: true },
-  { id: 'editor', label: 'EditorDog Multi-Tab (F4)', icon: 'assets/edit.png', action: 'openFloatingEditor()', desc: 'Multi-tab text and code editor with syntax mode', visible: true },
-  { id: 'diff', label: 'Compare / Diff (F9)', icon: 'git-compare', action: 'triggerDiff()', desc: 'Visual side-by-side file and folder diff', visible: true },
-  { id: 'search', label: 'Deep File Search (Ctrl+F)', icon: 'search', action: 'openSearchModal()', desc: 'Recursive filename, regex & size filter', visible: true },
-  { id: 'shares', label: 'Active Shares & Dropboxes', icon: 'share-2', action: 'openSharesManager()', desc: 'Manage public share links and guest dropboxes', visible: true },
-  { id: 'sync', label: 'Delta Backup & Sync Studio (SyncToy / Bvckup 2)', icon: 'refresh-cw', iconColor: '#22c55e', action: 'openSyncModal()', desc: 'Two-way sync, mirrors, snapshot archives & cron', visible: true },
-  { id: 'du', label: 'Disk Usage & Treemap Analyzer', icon: 'pie-chart', iconColor: 'var(--accent)', action: 'openDiskUsageModal()', desc: 'Treemap visualizer and heavy space consumer', visible: true },
-  { id: 'syncthing', label: 'Syncthing Dashboard', icon: 'repeat', action: 'openSyncthingModal()', desc: 'Continuous peer-to-peer file synchronization', visible: true },
-  { id: 'converter', label: 'ConvertX Converters', icon: 'file-output', action: 'openConverterModal()', desc: 'Batch file format conversions for media & docs', visible: true },
-  { id: 'pdf', label: 'PDF Power Studio (Merge & Split)', icon: 'file-text', iconColor: '#ef4444', action: 'openPdfToolModal()', desc: 'Merge, split, extract pages & inspect PDFs', visible: true },
-  { id: 'tasks', label: 'Background Transfers & Queue', icon: 'assets/task.png', action: 'openFloatingTaskManager()', desc: 'Active transfers, speeds & queue control', visible: true }
+  { id: 'terminal', label: 'Terminal', icon: 'assets/term.png', action: 'toggleTerminal()', desc: 'Interactive slide-up & floating PTY shell (\`)', visible: true },
+  { id: 'editor', label: 'EditorDog', icon: 'assets/edit.png', action: 'openFloatingEditor()', desc: 'Multi-tab text and code editor with syntax mode (F4)', visible: true },
+  { id: 'diff', label: 'Compare', icon: 'assets/diff.png', action: 'triggerDiff()', desc: 'Visual side-by-side file and folder diff (F9)', visible: true },
+  { id: 'search', label: 'Search', icon: 'search', action: 'openSearchModal()', desc: 'Recursive filename, regex & size filter (Ctrl+F)', visible: true },
+  { id: 'shares', label: 'Share Manager', icon: 'assets/sharemgr.png', action: 'openSharesManager()', desc: 'Manage public share links and guest dropboxes', visible: true },
+  { id: 'sync', label: 'Backup', icon: 'assets/sync.png', action: 'openSyncModal()', desc: 'Two-way sync, mirrors, snapshot archives & cron (SyncToy / Bvckup 2)', visible: true },
+  { id: 'du', label: 'Stats', icon: 'pie-chart', iconColor: 'var(--accent)', action: 'openDiskUsageModal()', desc: 'Treemap visualizer and heavy space consumer analyzer', visible: true },
+  { id: 'syncthing', label: 'Syncthing', icon: 'repeat', action: 'openSyncthingModal()', desc: 'Continuous peer-to-peer file synchronization', visible: true },
+  { id: 'converter', label: 'ConvertX', icon: 'file-output', action: 'openConverterModal()', desc: 'Batch file format conversions for media & docs', visible: true },
+  { id: 'pdf', label: 'PDFDog', icon: 'assets/amber-pdftool.png', action: 'openPdfToolModal()', desc: 'Merge, split, extract pages & inspect PDFs (PDF Power Studio)', visible: true },
+  { id: 'tasks', label: 'Task Manager', icon: 'assets/task.png', action: 'openFloatingTaskManager()', desc: 'Active transfers, speeds & queue control', visible: true }
 ];
 
 function getToolsMenuConfig() {
@@ -7562,7 +8066,7 @@ function getToolsMenuConfig() {
         parsed.forEach(item => {
           const def = DEFAULT_TOOLS_MENU.find(d => d.id === item.id);
           if (def) {
-            result.push({ ...def, ...item });
+            result.push({ ...def, visible: item.visible !== undefined ? item.visible : def.visible });
             seen.add(item.id);
           }
         });
@@ -8777,7 +9281,7 @@ function showContextMenu(x, y) {
         <div class="context-sep"></div>
         <div class="context-item" onclick="saveContextItemAsTemplate(); hideContextMenu();"><i data-lucide="bookmark-plus" style="width: 13px; color: var(--accent);"></i> Save File as Template...</div>
         <div class="context-item" onclick="openCreateTemplateModal(); hideContextMenu();"><i data-lucide="file-code-2" style="width: 13px;"></i> + Create Template...</div>
-        <div class="context-item" onclick="openSettings(); switchSettingsTab('tab-templates'); hideContextMenu();"><i data-lucide="settings" style="width: 13px;"></i> Manage Templates...</div>
+        <div class="context-item" onclick="openSettings(); switchSettingsTab('tab-templates'); hideContextMenu();"><img src="assets/conf.png" alt="Settings" style="width: 13px; height: 13px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> Manage Templates...</div>
       </div>
     </div>
     <div class="context-sep"></div>
@@ -8791,7 +9295,7 @@ function showContextMenu(x, y) {
       </div>
     </div>
     <div class="context-item" onclick="triggerView()"><i data-lucide="eye" style="width: 14px;"></i> Quick View (F3)</div>
-    <div class="context-item" onclick="triggerEditor()"><i data-lucide="file-edit" style="width: 14px;"></i> Edit (F4)</div>
+    <div class="context-item" onclick="triggerEditor()"><img src="assets/edit.png" alt="Edit" style="width: 14px; height: 14px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> Edit (F4)</div>
     <div class="context-item" onclick="triggerDownloadContextItem()"><i data-lucide="download" style="width: 14px; color: var(--accent);"></i> Save / Download File</div>
     <div class="context-item" onclick="triggerProperties()"><i data-lucide="info" style="width: 14px; color: var(--accent);"></i> Properties (Alt+Enter)</div>
     <div class="context-sep"></div>
@@ -8847,11 +9351,11 @@ function showContextMenu(x, y) {
 
     <!-- Group 4: Tools Submenu -->
     <div class="context-item has-submenu" onmouseenter="adjustSubmenuPosition(this)" onclick="toggleContextSubmenu(event, this)">
-      <div style="display:flex; align-items:center; gap:8px;"><i data-lucide="wrench" style="width: 14px; color: var(--accent);"></i> Tools</div>
+      <div style="display:flex; align-items:center; gap:8px;"><img src="assets/chewtoy.png" alt="Tools" style="width: 14px; height: 14px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> Tools</div>
       <i data-lucide="chevron-right" class="submenu-chevron" style="width: 12px;"></i>
       <div class="context-submenu">
         <div class="context-item" onclick="openSearchModal()"><i data-lucide="search" style="width: 13px;"></i> Advanced Search (Ctrl+F)</div>
-        <div class="context-item" onclick="triggerDiff()"><i data-lucide="git-compare" style="width: 13px;"></i> Compare / Diff (F9)</div>
+        <div class="context-item" onclick="triggerDiff()"><img src="assets/diff.png" alt="Compare" style="width: 13px; height: 13px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> Compare / Diff (F9)</div>
         <div class="context-item" onclick="triggerBulkRename()"><i data-lucide="tags" style="width: 13px;"></i> Advanced Rename (Shift+F6)</div>
         <div class="context-item has-submenu" onmouseenter="adjustSubmenuPosition(this)" onclick="toggleContextSubmenu(event, this)">
           <div style="display:flex; align-items:center; gap:8px;"><i data-lucide="terminal-square" style="width: 13px; color: var(--accent);"></i> Custom Script Actions</div>
@@ -8869,11 +9373,11 @@ function showContextMenu(x, y) {
             <div class="context-item" onclick="runPredefinedAction('wc -l &quot;{file}&quot;', 'Line Count')"><i data-lucide="list-ordered" style="width:13px;"></i> Count Lines (wc -l)</div>
           </div>
         </div>
-        <div class="context-item" onclick="openPdfToolModal(App.contextItem ? App.contextItem.path : null)"><i data-lucide="file-text" style="width: 13px; color: #ef4444;"></i> PDFDog (Split & Merge)</div>
+        <div class="context-item" onclick="openPdfToolModal(App.contextItem ? App.contextItem.path : null)"><img src="assets/amber-pdftool.png" alt="PDFDog" style="width: 13px; height: 13px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> PDFDog (Merge & Split)</div>
         <div class="context-item" onclick="triggerFileSplit()"><i data-lucide="scissors" style="width: 13px;"></i> Split Large File...</div>
         <div class="context-item" onclick="triggerFileCombine()"><i data-lucide="merge" style="width: 13px;"></i> Combine Part Files (.001, .002)...</div>
-        <div class="context-item" onclick="openSyncModal()"><i data-lucide="refresh-cw" style="width: 13px; color: #22c55e;"></i> Delta Backup & Sync Studio (SyncToy / Bvckup 2)...</div>
-        <div class="context-item" onclick="openDiskUsageModal()"><i data-lucide="pie-chart" style="width: 13px;"></i> Disk Usage & Space Analyzer</div>
+        <div class="context-item" onclick="openSyncModal()"><img src="assets/sync.png" alt="Backup" style="width: 13px; height: 13px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> Backup (Sync & Replication)...</div>
+        <div class="context-item" onclick="openDiskUsageModal()"><i data-lucide="pie-chart" style="width: 13px;"></i> Stats (Disk Usage & Treemap)</div>
         <div class="context-item" onclick="triggerGitManager()"><i data-lucide="git-branch" style="width: 13px;"></i> Git Manager & Diff</div>
       </div>
     </div>
@@ -9455,7 +9959,7 @@ function showEmptySpaceContextMenu(x, y, paneIndex) {
         ${generateTemplateSubmenuItems()}
         <div class="context-sep"></div>
         <div class="context-item" onclick="openCreateTemplateModal(); hideContextMenu();"><i data-lucide="file-code-2" style="width: 13px;"></i> + Create Template...</div>
-        <div class="context-item" onclick="openSettings(); switchSettingsTab('tab-templates'); hideContextMenu();"><i data-lucide="settings" style="width: 13px;"></i> Manage Templates...</div>
+        <div class="context-item" onclick="openSettings(); switchSettingsTab('tab-templates'); hideContextMenu();"><img src="assets/conf.png" alt="Settings" style="width: 13px; height: 13px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> Manage Templates...</div>
       </div>
     </div>
     <div class="context-item" onclick="openCreateVaultModal()"><i data-lucide="shield-check" style="width: 14px; color: var(--accent);"></i> Create Encrypted Vault (.cdvault)...</div>
@@ -9465,9 +9969,9 @@ function showEmptySpaceContextMenu(x, y, paneIndex) {
     <div class="context-item" onclick="refreshPane(${paneIndex})"><i data-lucide="rotate-cw" style="width: 14px;"></i> Refresh Directory</div>
     <div class="context-sep"></div>
     <div class="context-item" onclick="openTerminalInPath('${escapeHtml(pane.path)}')"><img src="assets/term.png" alt="Terminal" style="width: 14px; height: 14px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> Open in Terminal (\`)</div>
-    <div class="context-item" onclick="openSearchModal()"><i data-lucide="search" style="width: 14px;"></i> Deep Search in Directory (Ctrl+F)</div>
-    <div class="context-item" onclick="openSyncModal()"><i data-lucide="refresh-cw" style="width: 14px; color: #22c55e;"></i> Delta Backup & Sync Studio (SyncToy / Bvckup 2)...</div>
-    <div class="context-item" onclick="openDiskUsageModal('${escapeHtml(pane.path)}')"><i data-lucide="pie-chart" style="width: 14px; color: var(--accent);"></i> Disk Usage & Treemap Analyzer...</div>
+    <div class="context-item" onclick="openSearchModal()"><i data-lucide="search" style="width: 14px;"></i> Search in Directory (Ctrl+F)</div>
+    <div class="context-item" onclick="openSyncModal()"><img src="assets/sync.png" alt="Backup" style="width: 14px; height: 14px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> Backup (Sync & Replication)...</div>
+    <div class="context-item" onclick="openDiskUsageModal('${escapeHtml(pane.path)}')"><i data-lucide="pie-chart" style="width: 14px; color: var(--accent);"></i> Stats (Disk Usage & Treemap)...</div>
     <div class="context-item" onclick="openRemoteModal(${paneIndex})"><i data-lucide="network" style="width: 14px;"></i> Mount Remote Storage Here...</div>
     ${pane.path.includes('://') ? `<div class="context-item" onclick="disconnectPaneRemote(${paneIndex})" style="color: var(--danger, #ef4444);"><i data-lucide="log-out" style="width: 14px; color: var(--danger, #ef4444);"></i> Disconnect Remote Storage</div>` : ''}
     <div class="context-item" onclick="addCurrentPaneToQuickDest()"><i data-lucide="bookmark-plus" style="width: 14px;"></i> Bookmark Current Path</div>
@@ -10889,53 +11393,166 @@ function triggerEditor() {
 }
 
 function triggerMkdir() {
-  document.getElementById('mkdir-input').value = '';
+  const targetPaneIdx = (App.contextPaneIndex !== null && App.contextPaneIndex !== undefined) ? App.contextPaneIndex : App.activePaneIndex;
+  const pane = App.panes[targetPaneIdx];
+
+  // Reset context flags now that pane index has been captured
+  App.contextItem = null;
+  App.contextPaneIndex = null;
+
+  if (!pane) {
+    showToast('No active pane available', 'error');
+    return;
+  }
+
+  const input = document.getElementById('mkdir-input');
+  if (!input) {
+    console.error('mkdir-input not found');
+    return;
+  }
+
+  input.value = '';
   showModal('mkdir-modal');
-  document.getElementById('btn-confirm-mkdir').onclick = async () => {
-    const name = document.getElementById('mkdir-input').value.trim();
-    if (!name) return;
-    const pane = App.panes[App.activePaneIndex];
+
+  // Autofocus input
+  setTimeout(() => {
+    input.focus();
+    input.select();
+  }, 40);
+
+  const executeMkdir = async () => {
+    const name = input.value.trim();
+    if (!name) {
+      closeModal('mkdir-modal');
+      return;
+    }
     const newDir = `${pane.path.replace(/\/$/, '')}/${name}`;
     const authDir = resolveAuthUri(newDir);
-    const resp = await fetch('/api/fs/mkdir', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
-      body: JSON.stringify({ path: authDir })
-    });
     closeModal('mkdir-modal');
-    if (resp.ok) {
-      refreshPane(App.activePaneIndex);
-    } else {
-      showToast('Failed to create folder: ' + sanitizeCredentials(await resp.text()), 'error');
+    try {
+      const resp = await fetch('/api/fs/mkdir', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
+        body: JSON.stringify({ path: authDir })
+      });
+      if (resp.ok) {
+        showToast(`Created folder "${name}"`, 'success');
+        refreshPane(targetPaneIdx);
+      } else {
+        showToast('Failed to create folder: ' + sanitizeCredentials(await resp.text()), 'error');
+      }
+    } catch (err) {
+      showToast('Failed to create folder: ' + err.message, 'error');
     }
   };
+
+  input.onkeydown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      executeMkdir();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      closeModal('mkdir-modal');
+    }
+  };
+
+  const confirmBtn = document.getElementById('btn-confirm-mkdir');
+  if (confirmBtn) confirmBtn.onclick = executeMkdir;
 }
 
 function triggerRename() {
-  const pane = App.panes[App.activePaneIndex];
-  const item = App.contextItem || pane.entries[pane.cursorIndex];
-  if (!item) return;
+  const targetPaneIdx = (App.contextPaneIndex !== null && App.contextPaneIndex !== undefined) ? App.contextPaneIndex : App.activePaneIndex;
+  const pane = App.panes[targetPaneIdx];
+  if (!pane) {
+    showToast('No active pane available', 'error');
+    return;
+  }
 
-  document.getElementById('rename-input').value = item.name;
+  // Resolve target item:
+  // 1. App.contextItem (if triggered via right-click)
+  // 2. Single selected item in pane.selected
+  // 3. Item currently under cursor (pane.cursorIndex)
+  let item = App.contextItem;
+  if (!item && pane.selected && pane.selected.size === 1 && pane.entries) {
+    const selectedPath = Array.from(pane.selected)[0];
+    item = pane.entries.find(e => e.path === selectedPath);
+  }
+  if (!item && pane.entries && pane.cursorIndex >= 0 && pane.cursorIndex < pane.entries.length) {
+    item = pane.entries[pane.cursorIndex];
+  }
+
+  // Reset context flags now that item has been captured
+  App.contextItem = null;
+  App.contextPaneIndex = null;
+
+  if (!item || item.name === '..' || item.name === '.') {
+    showToast('Please select a file or folder to rename', 'info');
+    return;
+  }
+
+  const input = document.getElementById('rename-input');
+  if (!input) {
+    console.error('rename-input not found');
+    return;
+  }
+
+  input.value = item.name;
   showModal('rename-modal');
-  document.getElementById('btn-confirm-rename').onclick = async () => {
-    const newName = document.getElementById('rename-input').value.trim();
-    if (!newName) return;
+
+  // Focus and pre-select filename (excluding file extension)
+  setTimeout(() => {
+    input.focus();
+    if (item.is_dir) {
+      input.select();
+    } else {
+      const lastDot = item.name.lastIndexOf('.');
+      if (lastDot > 0) {
+        input.setSelectionRange(0, lastDot);
+      } else {
+        input.select();
+      }
+    }
+  }, 40);
+
+  const executeRename = async () => {
+    const newName = input.value.trim();
+    if (!newName || newName === item.name) {
+      closeModal('rename-modal');
+      return;
+    }
     const toPath = `${pane.path.replace(/\/$/, '')}/${newName}`;
     const fromAuth = resolveAuthUri(item.path);
     const toAuth = resolveAuthUri(toPath);
-    const resp = await fetch('/api/fs/rename', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
-      body: JSON.stringify({ from: fromAuth, to: toAuth })
-    });
     closeModal('rename-modal');
-    if (resp.ok) {
-      refreshPane(App.activePaneIndex);
-    } else {
-      showToast('Rename failed: ' + sanitizeCredentials(await resp.text()), 'error');
+    try {
+      const resp = await fetch('/api/fs/rename', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
+        body: JSON.stringify({ from: fromAuth, to: toAuth })
+      });
+      if (resp.ok) {
+        showToast(`Renamed to "${newName}"`, 'success');
+        refreshPane(targetPaneIdx);
+      } else {
+        showToast('Rename failed: ' + sanitizeCredentials(await resp.text()), 'error');
+      }
+    } catch (err) {
+      showToast('Rename failed: ' + err.message, 'error');
     }
   };
+
+  input.onkeydown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      executeRename();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      closeModal('rename-modal');
+    }
+  };
+
+  const confirmBtn = document.getElementById('btn-confirm-rename');
+  if (confirmBtn) confirmBtn.onclick = executeRename;
 }
 
 async function triggerDelete() {
@@ -11998,7 +12615,14 @@ function applyPaneColors() {
 
 function navPaneUp(index) {
   const pane = App.panes[index];
-  if (!pane || pane.path === '/' || pane.path === '') return;
+  if (!pane) return;
+
+  if (pane.isBranchView) {
+    pane.isBranchView = false;
+    pane.isBranchTruncated = false;
+  }
+
+  if (pane.path === '/' || pane.path === '') return;
 
   if (pane.parentPath) {
     loadPaneDirectory(index, pane.parentPath);
@@ -12042,7 +12666,7 @@ function navPaneUp(index) {
 }
 
 function refreshPane(index, selectItemName = null) {
-  loadPaneDirectory(index, App.panes[index].path, false, selectItemName);
+  loadPaneDirectory(index, App.panes[index].path, false, selectItemName, true);
 }
 
 function enablePathInput(index) {
@@ -12152,7 +12776,13 @@ function showModal(id) {
       randomizeLoginBackground();
     }
     el.classList.add('active');
-    if (window.lucide) lucide.createIcons({ root: el });
+    try {
+      if (window.lucide && typeof lucide.createIcons === 'function') {
+        lucide.createIcons({ root: el });
+      }
+    } catch (_) {
+      try { lucide.createIcons(); } catch (__) {}
+    }
     if (typeof window !== 'undefined' && window.history && typeof window.history.pushState === 'function') {
       try {
         window.history.pushState({ type: 'modal', modalId: id }, '', '');
@@ -13055,13 +13685,24 @@ function initTerminalUI() {
   const container = ensureTerminalOutputElement();
   if (!container) return;
 
-  if (window.Terminal) {
-    if (!termInstance || !termInstance.element || !container.contains(termInstance.element)) {
-      container.innerHTML = '';
-      if (termInstance) {
-        try { termInstance.dispose(); } catch (e) {}
-      }
-      termInstance = new Terminal({
+  const TerminalCtor = (typeof Terminal !== 'undefined' && typeof Terminal === 'function')
+    ? Terminal
+    : (window.Terminal ? (window.Terminal.Terminal || window.Terminal) : null);
+
+  if (!TerminalCtor) {
+    console.warn('Xterm Terminal constructor not available');
+    return;
+  }
+
+  if (!termInstance || !termInstance.element || !container.contains(termInstance.element)) {
+    container.innerHTML = '';
+    if (termInstance) {
+      try { termInstance.dispose(); } catch (e) {}
+      termInstance = null;
+      termFitAddon = null;
+    }
+    try {
+      termInstance = new TerminalCtor({
         cursorBlink: true,
         cursorStyle: 'bar',
         fontFamily: '"JetBrainsMono Nerd Font", "JetBrainsMono Nerd Font Mono", "Symbols Nerd Font Mono", "JetBrains Mono", monospace',
@@ -13092,51 +13733,73 @@ function initTerminalUI() {
           brightWhite: '#ffffff',
         }
       });
+    } catch (ctorErr) {
+      console.error('Failed to instantiate Terminal:', ctorErr);
+      return;
+    }
 
-      if (window.FitAddon) {
-        termFitAddon = new FitAddon.FitAddon();
+    const FitCtor = (typeof FitAddon !== 'undefined')
+      ? (FitAddon.FitAddon || FitAddon)
+      : (window.FitAddon ? (window.FitAddon.FitAddon || window.FitAddon) : null);
+    if (FitCtor) {
+      try {
+        termFitAddon = new FitCtor();
         termInstance.loadAddon(termFitAddon);
+      } catch (fErr) {
+        console.warn('Could not load FitAddon:', fErr);
       }
-      if (window.WebLinksAddon) {
-        termInstance.loadAddon(new WebLinksAddon.WebLinksAddon());
-      }
+    }
 
+    const WebLinksCtor = (typeof WebLinksAddon !== 'undefined')
+      ? (WebLinksAddon.WebLinksAddon || WebLinksAddon)
+      : (window.WebLinksAddon ? (window.WebLinksAddon.WebLinksAddon || window.WebLinksAddon) : null);
+    if (WebLinksCtor) {
+      try {
+        termInstance.loadAddon(new WebLinksCtor());
+      } catch (wErr) {
+        console.warn('Could not load WebLinksAddon:', wErr);
+      }
+    }
+
+    try {
       termInstance.open(container);
+    } catch (openErr) {
+      console.error('Failed to open Terminal into container:', openErr);
+    }
 
-      if (document.fonts) {
-        Promise.all([
-          document.fonts.load('13px "JetBrainsMono Nerd Font"'),
-          document.fonts.load('13px "JetBrainsMono Nerd Font Mono"'),
-          document.fonts.load('13px "Symbols Nerd Font Mono"'),
-          document.fonts.ready
-        ]).then(() => {
-          if (termFitAddon) {
-            try {
-              termFitAddon.fit();
-              if (termInstance) termInstance.refresh(0, termInstance.rows - 1);
-            } catch (e) {}
-          }
-        });
+    if (document.fonts) {
+      Promise.all([
+        document.fonts.load('13px "JetBrainsMono Nerd Font"'),
+        document.fonts.load('13px "JetBrainsMono Nerd Font Mono"'),
+        document.fonts.load('13px "Symbols Nerd Font Mono"'),
+        document.fonts.ready
+      ]).then(() => {
+        if (termFitAddon) {
+          try {
+            termFitAddon.fit();
+            if (termInstance) termInstance.refresh(0, termInstance.rows - 1);
+          } catch (e) {}
+        }
+      });
+    }
+
+    termInstance.onData((data) => {
+      if (termWs && termWs.readyState === WebSocket.OPEN) {
+        termWs.send(data);
       }
+    });
 
-      termInstance.onData((data) => {
-        if (termWs && termWs.readyState === WebSocket.OPEN) {
-          termWs.send(data);
-        }
-      });
+    termInstance.onResize(({ cols, rows }) => {
+      if (termWs && termWs.readyState === WebSocket.OPEN) {
+        termWs.send(JSON.stringify({ cols, rows, resize: true }));
+      }
+    });
+  }
 
-      termInstance.onResize(({ cols, rows }) => {
-        if (termWs && termWs.readyState === WebSocket.OPEN) {
-          termWs.send(JSON.stringify({ cols, rows, resize: true }));
-        }
-      });
-    }
-
-    if (termFitAddon) {
-      setTimeout(() => {
-        try { termFitAddon.fit(); } catch (e) {}
-      }, 50);
-    }
+  if (termFitAddon) {
+    setTimeout(() => {
+      try { termFitAddon.fit(); } catch (e) {}
+    }, 50);
   }
 }
 
@@ -13266,53 +13929,63 @@ function getWsUrl(endpoint) {
 
 function connectTerminal(cwd) {
   if (termWs) {
-    termWs.close();
+    try { termWs.close(); } catch (_) {}
+    termWs = null;
   }
 
   const cols = termInstance ? termInstance.cols : 100;
   const rows = termInstance ? termInstance.rows : 24;
-  const url = `${getWsUrl('/api/ws/terminal')}?cwd=${encodeURIComponent(cwd)}&cols=${cols}&rows=${rows}`;
+  const cleanCwd = (cwd && typeof cwd === 'string') ? cwd : '/';
+  const url = `${getWsUrl('/api/ws/terminal')}?cwd=${encodeURIComponent(cleanCwd)}&cols=${cols}&rows=${rows}`;
 
-  termWs = new WebSocket(url);
-  termWs.binaryType = 'arraybuffer';
+  try {
+    termWs = new WebSocket(url);
+    termWs.binaryType = 'arraybuffer';
 
-  termWs.onopen = () => {
-    if (termInstance) {
-      termInstance.writeln('\x1b[38;5;214mCommanderDog PTY Session Connected\x1b[0m [\x1b[38;5;244mcwd:\x1b[0m ' + cwd + ']\r\n');
-      termInstance.focus();
-    }
-  };
-
-  termWs.onmessage = (e) => {
-    if (termInstance) {
-      if (e.data instanceof ArrayBuffer) {
-        termInstance.write(new Uint8Array(e.data));
-      } else {
-        termInstance.write(e.data);
-      }
-    } else {
-      appendTerminalTextFallback(typeof e.data === 'string' ? e.data : new TextDecoder().decode(e.data));
-    }
-  };
-
-  termWs.onclose = () => {
-    termWs = null;
-    const dockedPaneIdx = App.panes.findIndex(p => p && p.dockedTool === 'terminal');
-    if (dockedPaneIdx !== -1) {
-      closeDockedTool(dockedPaneIdx);
-    } else {
-      toggleTerminal(false);
+    termWs.onopen = () => {
       if (termInstance) {
-        try { termInstance.reset(); } catch (e) {}
+        termInstance.writeln('\x1b[38;5;214mCommanderDog PTY Session Connected\x1b[0m [\x1b[38;5;244mcwd:\x1b[0m ' + cleanCwd + ']\r\n');
+        termInstance.focus();
+        if (termFitAddon) {
+          try { termFitAddon.fit(); } catch (_) {}
+        }
       }
-    }
-  };
+    };
 
-  termWs.onerror = (err) => {
-    if (termInstance) {
-      termInstance.writeln('\r\n\x1b[38;5;196m[Terminal Error: ' + err + ']\x1b[0m');
-    }
-  };
+    termWs.onmessage = (e) => {
+      if (termInstance) {
+        if (e.data instanceof ArrayBuffer) {
+          termInstance.write(new Uint8Array(e.data));
+        } else {
+          termInstance.write(e.data);
+        }
+      } else {
+        appendTerminalTextFallback(typeof e.data === 'string' ? e.data : new TextDecoder().decode(e.data));
+      }
+    };
+
+    termWs.onerror = (err) => {
+      console.warn('Terminal WebSocket error:', err);
+      if (termInstance) {
+        termInstance.writeln('\r\n\x1b[38;5;196m[WebSocket connection error]\x1b[0m\r\n');
+      }
+    };
+
+    termWs.onclose = () => {
+      termWs = null;
+      const dockedPaneIdx = App.panes.findIndex(p => p && p.dockedTool === 'terminal');
+      if (dockedPaneIdx !== -1) {
+        closeDockedTool(dockedPaneIdx);
+      } else {
+        toggleTerminal(false);
+        if (termInstance) {
+          try { termInstance.reset(); } catch (e) {}
+        }
+      }
+    };
+  } catch (wsErr) {
+    console.error('Failed to create Terminal WebSocket:', wsErr);
+  }
 }
 
 function appendTerminalTextFallback(str) {
@@ -14824,9 +15497,14 @@ async function executeUnlockVault() {
 }
 
 function openFileByType(entry, paneIndex) {
+  const pane = App.panes[paneIndex];
   if (isVaultFile(entry.name)) {
     handleVaultOpen(entry.path, paneIndex);
   } else if (entry.is_dir || entry.is_archive) {
+    if (pane && pane.isBranchView) {
+      pane.isBranchView = false;
+      pane.isBranchTruncated = false;
+    }
     loadPaneDirectory(paneIndex, entry.path);
   } else if (isPdfExtension(entry.name) || isDocumentExtension(entry.name)) {
     openDocumentViewer(entry.path);
@@ -17067,10 +17745,75 @@ function toggleBranchView(paneIndex) {
   const pane = App.panes[pIdx];
   if (!pane) return;
 
+  if (pane.isVirtual) {
+    pane.isVirtual = false;
+  }
+
   pane.isBranchView = !pane.isBranchView;
-  pane.isVirtual = false;
-  showToast(pane.isBranchView ? '🌲 Flat Branch View Enabled' : 'Standard Directory View', 'info');
+  pane.isBranchTruncated = false;
+
+  showToast(
+    pane.isBranchView ? '🌲 Flat Branch View Enabled' : 'Standard Directory View',
+    'info'
+  );
+  loadPaneDirectory(pIdx, pane.path, true, null, true);
+}
+
+function exitBranchView(paneIndex, targetPath) {
+  const pIdx = (paneIndex !== undefined) ? paneIndex : App.activePaneIndex;
+  const pane = App.panes[pIdx];
+  if (!pane) return;
+
+  if (pane._abortController) {
+    try {
+      pane._abortController.abort();
+    } catch (_) {}
+    pane._abortController = null;
+  }
+
+  pane.isBranchView = false;
+  pane.isBranchTruncated = false;
+  const dest = targetPath || pane.path;
+  loadPaneDirectory(pIdx, dest);
+}
+
+function cancelBranchScan(paneIndex) {
+  const pIdx = (paneIndex !== undefined) ? paneIndex : App.activePaneIndex;
+  const pane = App.panes[pIdx];
+  if (!pane) return;
+
+  if (pane._abortController) {
+    try {
+      pane._abortController.abort();
+    } catch (_) {}
+    pane._abortController = null;
+  }
+
+  pane.isBranchView = false;
+  pane.isBranchTruncated = false;
+  showToast('Flat Branch View scan canceled', 'info');
   loadPaneDirectory(pIdx, pane.path);
+}
+
+function renderPaneBranchLoading(paneIndex) {
+  const tbody = document.getElementById(`pane-tbody-${paneIndex}`);
+  if (tbody) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="12" style="text-align: center; padding: 40px 16px;">
+          <div class="pane-branch-loading">
+            <i data-lucide="loader" class="spin" style="width: 24px; height: 24px; color: var(--accent); margin-bottom: 10px;"></i>
+            <div style="font-weight: 600; font-size: 13px; color: var(--text-main);">Scanning subdirectories recursively...</div>
+            <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Flat Branch View (Ctrl+B)</div>
+            <button class="btn btn-xs" style="margin-top: 14px; padding: 3px 10px; border-color: rgba(245, 158, 11, 0.4); color: var(--accent);" onclick="cancelBranchScan(${paneIndex})">
+              ✕ Cancel Scan
+            </button>
+          </div>
+        </td>
+      </tr>
+    `;
+    if (window.lucide) lucide.createIcons();
+  }
 }
 
 function feedSearchResultsToActivePane() {
@@ -17798,21 +18541,23 @@ let spotlightSelectedIndex = 0;
 let spotlightItems = [];
 
 const SPOTLIGHT_STATIC_ACTIONS = [
-  { id: 'notedog', title: 'NoteDog Notes Studio', sub: 'Hierarchical notes, markdown editor, interactive checklists, templates & versions', icon: 'book-open', cat: 'actions', action: () => openFloatingNoteDog() },
+  { id: 'notedog', title: 'NoteDog', sub: 'Hierarchical notes, markdown editor, interactive checklists, templates & versions', icon: 'assets/note.png', cat: 'actions', action: () => openFloatingNoteDog() },
   { id: 'calc', title: 'Calculator', sub: 'Interactive floating calculator with storage units & base conversions', icon: 'assets/calc.png', cat: 'actions', action: () => openFloatingCalculator() },
-  { id: 'branch', title: 'Flat / Branch View', sub: 'Flatten all subdirectories into a single unified list (Ctrl+B)', icon: 'git-branch', cat: 'actions', action: () => toggleBranchView() },
+  { id: 'branch', title: 'Flat', sub: 'Flatten all subdirectories into a single unified list (Ctrl+B)', icon: 'git-branch', cat: 'actions', action: () => toggleBranchView() },
+  { id: 'tree', title: 'Tree', sub: 'Collapsible directory navigation tree (Ctrl+T)', icon: 'folder-tree', cat: 'actions', action: () => toggleFolderTree() },
   { id: 'tags', title: 'Color Labels & Custom Tags', sub: 'Assign color labels and custom tags to selected items', icon: 'tag', cat: 'actions', action: () => triggerEditTagsModal() },
-  { id: 'term', title: 'Terminal Console', sub: 'Open integrated interactive terminal (` or F4)', icon: 'assets/term.png', cat: 'actions', action: () => toggleTerminal() },
-  { id: 'edit', title: 'EditorDog Multi-Tab', sub: 'Open floating EditorDog code & text editor (F4)', icon: 'assets/edit.png', cat: 'actions', action: () => openFloatingEditor() },
-  { id: 'diff', title: 'File & Folder Diff', sub: 'Compare files or directories side-by-side (F9)', icon: 'git-compare', cat: 'actions', action: () => triggerDiff() },
-  { id: 'search', title: 'Deep File Search', sub: 'Search files and folders recursively (Ctrl+F)', icon: 'search', cat: 'actions', action: () => openSearchModal() },
-  { id: 'shares', title: 'Active Shares & Dropboxes', sub: 'Manage public share links and guest upload dropboxes', icon: 'share-2', cat: 'actions', action: () => openSharesManager() },
-  { id: 'sync', title: 'Delta Backup & Sync Studio (SyncToy & Bvckup 2)', sub: 'Two-Way Sync, Mirror, Contribute, Versioning Archive & Scheduler', icon: 'refresh-cw', cat: 'actions', action: () => openSyncModal() },
-  { id: 'du', title: 'Disk Usage & Storage Treemap Analyzer', sub: 'Inspect space consumption, largest folders & files', icon: 'pie-chart', cat: 'actions', action: () => openDiskUsageModal() },
-  { id: 'syncthing', title: 'Syncthing Dashboard', sub: 'Continuous peer-to-peer file synchronization', icon: 'repeat', cat: 'actions', action: () => openSyncthingModal() },
-  { id: 'convert', title: 'ConvertX File Converter', sub: 'Batch convert images, documents, audio, videos', icon: 'file-output', cat: 'actions', action: () => openConverterModal() },
-  { id: 'tasks', title: 'Background Transfers & Queue', sub: 'View active transfers, speeds, and queued jobs', icon: 'assets/task.png', cat: 'actions', action: () => openFloatingTaskManager() },
-  { id: 'settings', title: 'User Settings & Hub', sub: 'Themes, keybindings, and preferences (F10)', icon: 'settings', cat: 'actions', action: () => openSettingsModal() },
+  { id: 'term', title: 'Terminal', sub: 'Open integrated interactive terminal (` or F4)', icon: 'assets/term.png', cat: 'actions', action: () => toggleTerminal() },
+  { id: 'edit', title: 'EditorDog', sub: 'Open floating EditorDog code & text editor (F4)', icon: 'assets/edit.png', cat: 'actions', action: () => openFloatingEditor() },
+  { id: 'diff', title: 'Compare', sub: 'Compare files or directories side-by-side (F9)', icon: 'assets/diff.png', cat: 'actions', action: () => triggerDiff() },
+  { id: 'search', title: 'Search', sub: 'Search files and folders recursively (Ctrl+F)', icon: 'search', cat: 'actions', action: () => openSearchModal() },
+  { id: 'shares', title: 'Share Manager', sub: 'Manage public share links and guest upload dropboxes', icon: 'assets/sharemgr.png', cat: 'actions', action: () => openSharesManager() },
+  { id: 'sync', title: 'Backup', sub: 'Delta Backup & Sync Studio: Two-Way Sync, Mirror, Contribute & Versioning (SyncToy / Bvckup 2)', icon: 'assets/sync.png', cat: 'actions', action: () => openSyncModal() },
+  { id: 'du', title: 'Stats', sub: 'Disk Usage & Storage Treemap Analyzer: inspect space consumption', icon: 'pie-chart', cat: 'actions', action: () => openDiskUsageModal() },
+  { id: 'syncthing', title: 'Syncthing', sub: 'Continuous peer-to-peer file synchronization dashboard', icon: 'repeat', cat: 'actions', action: () => openSyncthingModal() },
+  { id: 'convert', title: 'ConvertX', sub: 'Universal transcoder: batch convert images, documents, audio, videos', icon: 'file-output', cat: 'actions', action: () => openConverterModal() },
+  { id: 'pdf', title: 'PDFDog', sub: 'PDF Power Studio: visual merge, split, extract pages & inspect PDFs', icon: 'assets/amber-pdftool.png', cat: 'actions', action: () => openPdfToolModal() },
+  { id: 'tasks', title: 'Task Manager', sub: 'View active background transfers, speeds, and queued jobs', icon: 'assets/task.png', cat: 'actions', action: () => openFloatingTaskManager() },
+  { id: 'settings', title: 'User Settings & Preferences', sub: 'Themes, keybindings, and preferences (F10)', icon: 'assets/conf.png', cat: 'actions', action: () => openSettingsModal() },
   { id: 'admin', title: 'Admin Control Panel', sub: 'User management, RBAC, mounts, audit logs', icon: 'shield-alert', cat: 'actions', action: () => openAdminPanel() },
   { id: 'profile', title: 'User Profile & Password', sub: 'Account credentials, session avatar, and security', icon: 'user', cat: 'actions', action: () => openUserProfileModal() },
   { id: 'lock', title: 'Lock Session', sub: 'Lock CommanderDog immediately (Ctrl+Alt+L)', icon: 'lock', cat: 'actions', action: () => lockSession() },
