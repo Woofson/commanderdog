@@ -7,6 +7,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.7.3-rc5] - 2026-09-04
+
+### 🎨 Dedicated ChewToy Icon Integrations & Customizable Tools Launchpad
+- **Terminal (Bite!) Visual Identity**:
+  - Integrated dedicated high-resolution graphical asset `assets/term.png` across the slide-up Terminal drawer header, in-pane docked terminal headers, panel right-click context menu ("Open in Terminal"), Tools dropdown, and Spotlight quick-actions.
+- **Sleek & Larger Icons in Tools & Launchpad Dropdown**:
+  - Standardized Tools & Utilities dropdown menu icons to 18px with crisp alignment and balanced vertical spacing.
+- **Customizable & Rearrangable Tools Launchpad**:
+  - **Native Drag-and-Drop Reordering**: Rearrange the order of ChewToys and tools in the Launchpad dropdown menu with real-time drag-and-drop handles (`⋮⋮`).
+  - **1-Click Direction Controls**: Fast Move to Top (⤒), Move Up (▲), Move Down (▼), and Move to Bottom (⤓) ChewToy buttons.
+  - **Item Visibility Toggles**: Checkboxes to show or hide any tool from the dropdown suite with active visible counter (`X / 16 Visible`).
+  - **Dedicated Settings Tab & Dropdown Quick-Action**: Added "Tools Menu" manager tab in Settings Modal and an instant "Customize Tools Menu..." footer shortcut in the dropdown.
+  - **State Persistence & Reset**: User preferences persist across sessions in `localStorage` with a 1-click "Reset Defaults" action.
+- **EditorDog, Calculator & Task Manager Visual Identity**:
+  - Integrated dedicated high-resolution graphical assets `assets/edit.png`, `assets/calc.png`, and `assets/task.png` across the entire application interface.
+  - Upgraded the main header Task activity button (`#btn-header-tasks`), Tools & Launchpad dropdown items, floating window headers, minimized floating pills (`#tasks-pill`, `#editor-pill`, `#calc-pill`), and in-pane docked ChewToy titles to render their respective dedicated graphical icons.
+  - Added full image icon support in the Spotlight Quick-Switcher (Ctrl+K).
+
+## [0.7.2] - 2026-09-04
+
+### 🪟 ChewToy Design System, Delta Sync Templates, Hostname Badges & Polish
+- **Delta Backup & Sync Studio Templates & Visual Exclusion Builder**:
+  - **1-Click Profile Templates**: Added quick replication presets (`🪞 NAS Mirror`, `💻 Codebase Sync`, `📦 Snapshot Vault`, `📸 Media Backup`) for both live diff studio and scheduled job creator.
+  - **Visual Exclusion Builder**: Interactive preset exclusion chips (`node_modules`, `.git`, `target/`, `.cache/`, `tmp/`, `*.tmp`, `.DS_Store`, `Thumbs.db`, `*.log`, `dist/`, `*.bak`) with dynamic custom pattern tag input.
+  - **Pattern Engine & SQLite Migration**: Integrated wildcard and substring path matching into sync scanning/execution and persisted exclusions per backup profile in SQLite.
+- **ChewToy Design & Layout Language Specification**:
+  - Enforced 42px header bar standard with full drag handle (`cursor: grab;`), uniform `28px` square buttons, and right-aligned icon-only layout switches.
+  - Standardized flat stealthy window control buttons (Minimize, Maximize, Dock, Float, Close) across all ChewToys.
+  - Unified sub-headers and inner workspace toolbars to `26px x 26px` buttons across NoteDog, Git Manager, Diff Engine, Disk Usage, and Sync Studio.
+  - Docked in-pane ChewToys now use icon-only float buttons (`external-link`).
+- **Terminal Console (Bite!) Lifecycle**:
+  - Added clean handling for `Ctrl+D` (EOF), shell `logout`, and `exit` commands to automatically close the docked drawer/window and reset PTY state.
+- **Chewtoy & Tools Launchpad Icon**:
+  - Replaced generic grid icon with dedicated `assets/tool.png` icon on the main header Tools & Launchpad suite.
+- **EditorDog Compact Canvas & Interactive Status Bar Selector**:
+  - Removed redundant inner document pane sub-headers; tabs now connect directly to the editor canvas for maximum vertical space.
+  - Interactive status bar language selector (`RUST ▾`, `JS / TS ▾`, etc.) with auto-detection and 1-click syntax mode switching.
+- **Compact Breadcrumbs & Sleek Panel Git Badges**:
+  - Tightened breadcrumb spacing (`gap: 2px;`), streamlined separator chips, and compacted storage root dropdown buttons.
+  - Minified panel git branch badge (9.5px, 17px height, 10px icons) for an uncluttered path navigation bar.
+- **Universal "New ▶" Context Menu & File Template Engine**:
+  - Accessible anywhere across all file rows, cards, compact items, and empty background space.
+  - Built-in rich templates for Plain Text (`.txt`), Markdown (`.md`), HTML5 (`.html`), CSS (`.css`), JavaScript (`.js`), TypeScript (`.ts`), Python (`.py`), Rust (`.rs`), Bash (`.sh`), JSON (`.json`), and YAML (`.yaml`).
+  - Dynamic variable expansion: `{{TITLE}}` (humanized title), `{{FILENAME}}`, `{{NAME}}`, `{{DATE}}` (`YYYY-MM-DD`), `{{TIME}}`, `{{USER}}`, `{{ISO_DATE}}`, `{{YEAR}}`, `{{MONTH}}`, `{{DAY}}`, `{{AUTHOR}}`.
+  - Interactive "Create from Template" dialog with real-time live preview code editor and instant EditorDog opening.
+  - Full "Templates" manager tab in Settings to create, edit, duplicate, test, or delete custom file templates, plus 1-click "Save Selected File as Template" action.
+- **Task Manager & Activity Polish**:
+  - Balanced 32px height for main activity button, resolved stuck UI pill states, and added automated completed tasks pruning.
+- **Documentation Reorganization**:
+  - Reorganized root documentation into a structured [`manuals/`](manuals/README.md) hierarchy and synchronized `ROADMAP.md`.
+
+---
+
 ## [0.7.1] - 2026-09-03
 
 ### 🎨 Universal Floating Viewers, Live Tail Streaming, Bundled Fonts & Themes

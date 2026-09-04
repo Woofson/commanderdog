@@ -153,6 +153,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   applyFontSize(App.fontSize);
   applyBorderSettings();
   applyAllColumnWidths();
+  renderToolsMenu();
   const urlTheme = new URLSearchParams(window.location.search).get('theme');
   applyTheme(urlTheme || localStorage.getItem('cd_theme') || 'amber-charcoal');
   fetchAppVersion();
@@ -263,7 +264,9 @@ async function fetchAppVersion() {
     const res = await fetch('/api/system/status');
     if (res.ok) {
       const data = await res.json();
+      App.systemStatus = data;
       if (data.version) applyAppVersion(data.version);
+      updateHostnameBadge();
     }
   } catch (_) {}
 }
@@ -276,6 +279,152 @@ function applyAppVersion(ver) {
   if (aboutBadge) aboutBadge.textContent = `v${ver} (Desktop & Web)`;
   const syncBadge = document.getElementById('sync-version-badge');
   if (syncBadge) syncBadge.textContent = `v${ver}`;
+}
+
+function getHostnameBadgeSettings() {
+  const savedShow = localStorage.getItem('cd_show_hostname_badge');
+  const show = savedShow !== null 
+    ? (savedShow === 'true') 
+    : (App.systemStatus?.show_hostname_badge !== false && App.config?.ui?.show_hostname_badge !== false);
+
+  const savedCustom = localStorage.getItem('cd_custom_hostname');
+  const customLabel = (savedCustom && savedCustom.trim()) 
+    || App.config?.ui?.hostname_badge 
+    || App.systemStatus?.custom_hostname;
+
+  const color = localStorage.getItem('cd_hostname_color')
+    || App.config?.ui?.hostname_color
+    || App.systemStatus?.hostname_color
+    || 'amber';
+
+  const style = localStorage.getItem('cd_hostname_style')
+    || App.config?.ui?.hostname_style
+    || App.systemStatus?.hostname_style
+    || 'subtle';
+
+  const icon = localStorage.getItem('cd_hostname_icon')
+    || App.config?.ui?.hostname_icon
+    || App.systemStatus?.hostname_icon
+    || 'server';
+
+  const size = localStorage.getItem('cd_hostname_size')
+    || App.config?.ui?.hostname_size
+    || App.systemStatus?.hostname_size
+    || 'md';
+
+  const hostname = (customLabel && customLabel.trim().length > 0)
+    ? customLabel.trim()
+    : (App.systemStatus?.hostname || 'localhost');
+
+  return { show, hostname, customLabel, color, style, icon, size };
+}
+
+function updateHostnameBadge() {
+  const badge = document.getElementById('header-hostname-badge');
+  const textEl = document.getElementById('header-hostname-text');
+  if (!badge) return;
+
+  const cfg = getHostnameBadgeSettings();
+
+  if (!cfg.show) {
+    badge.style.display = 'none';
+    return;
+  }
+
+  if (textEl) textEl.textContent = cfg.hostname;
+  badge.style.display = 'inline-flex';
+  badge.className = `header-hostname-badge color-${cfg.color} style-${cfg.style} size-${cfg.size}`;
+
+  // Update Icon
+  let iconEl = badge.querySelector('i, svg');
+  if (cfg.icon === 'none') {
+    if (iconEl) iconEl.style.display = 'none';
+  } else {
+    if (!iconEl) {
+      iconEl = document.createElement('i');
+      badge.insertBefore(iconEl, textEl);
+    }
+    iconEl.style.display = 'inline-block';
+    iconEl.setAttribute('data-lucide', cfg.icon);
+  }
+
+  const os = App.systemStatus?.os || 'linux';
+  const arch = App.systemStatus?.arch || 'x86_64';
+  const user = App.user?.username || App.systemStatus?.current_user || 'user';
+  badge.title = `Host: ${cfg.hostname} (${os}/${arch})\nUser: ${user}\nClick to copy host info`;
+
+  if (typeof lucide !== 'undefined' && lucide.createIcons) {
+    lucide.createIcons({ root: badge });
+  }
+
+  updateHostnameSettingsPreview();
+}
+
+function updateHostnameSettingsPreview() {
+  const previewBadge = document.getElementById('hostname-settings-preview-badge');
+  const previewText = document.getElementById('hostname-preview-text');
+  if (!previewBadge) return;
+
+  const cfg = getHostnameBadgeSettings();
+  if (previewText) previewText.textContent = cfg.hostname;
+  previewBadge.className = `header-hostname-badge color-${cfg.color} style-${cfg.style} size-${cfg.size}`;
+
+  let iconEl = previewBadge.querySelector('i, svg');
+  if (cfg.icon === 'none') {
+    if (iconEl) iconEl.style.display = 'none';
+  } else {
+    if (!iconEl) {
+      iconEl = document.createElement('i');
+      previewBadge.insertBefore(iconEl, previewText);
+    }
+    iconEl.style.display = 'inline-block';
+    iconEl.setAttribute('data-lucide', cfg.icon);
+  }
+
+  if (typeof lucide !== 'undefined' && lucide.createIcons) {
+    lucide.createIcons({ root: previewBadge });
+  }
+}
+
+function handleHostnameSettingChange() {
+  const labelInput = document.getElementById('setting-custom-hostname-label');
+  const colorSelect = document.getElementById('setting-hostname-color');
+  const styleSelect = document.getElementById('setting-hostname-style');
+  const iconSelect = document.getElementById('setting-hostname-icon');
+  const sizeSelect = document.getElementById('setting-hostname-size');
+
+  if (labelInput) {
+    const val = labelInput.value.trim();
+    if (val) localStorage.setItem('cd_custom_hostname', val);
+    else localStorage.removeItem('cd_custom_hostname');
+  }
+
+  if (colorSelect) localStorage.setItem('cd_hostname_color', colorSelect.value);
+  if (styleSelect) localStorage.setItem('cd_hostname_style', styleSelect.value);
+  if (iconSelect) localStorage.setItem('cd_hostname_icon', iconSelect.value);
+  if (sizeSelect) localStorage.setItem('cd_hostname_size', sizeSelect.value);
+
+  updateHostnameBadge();
+}
+
+function copyHostnameBadge() {
+  const cfg = getHostnameBadgeSettings();
+  const os = App.systemStatus?.os || 'linux';
+  const arch = App.systemStatus?.arch || 'x86_64';
+  const user = App.user?.username || App.systemStatus?.current_user || 'user';
+  
+  const textToCopy = `${user}@${cfg.hostname} [${os}/${arch}]`;
+  copyTextToClipboard(textToCopy, `Host info copied to clipboard: ${textToCopy}`);
+}
+
+function toggleHostnameBadgeSetting(enabled) {
+  localStorage.setItem('cd_show_hostname_badge', enabled);
+  updateHostnameBadge();
+  showToast(enabled ? 'Hostname badge enabled in top header' : 'Hostname badge hidden', 'info');
+}
+
+function saveCustomHostnameSetting(val) {
+  handleHostnameSettingChange();
 }
 
 async function loadConfig() {
@@ -316,6 +465,9 @@ async function loadConfig() {
 
       // Configure Trash Settings UI
       syncTrashSettingsUI();
+
+      // Configure Top Header Hostname Badge
+      updateHostnameBadge();
     }
   } catch (e) {
     console.error('Config fetch failed:', e);
@@ -626,12 +778,12 @@ function createPaneElement(pane, index) {
   if (pane.dockedTool) {
     const tool = pane.dockedTool;
     const toolTitles = {
-      'editor': '💻 EditorDog',
+      'editor': '<img src="assets/edit.png" alt="EditorDog" style="width: 14px; height: 14px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> EditorDog',
       'notedog': '🐶 NoteDog',
-      'terminal': '📟 Terminal Console',
-      'calculator': '🧮 Calculator',
+      'terminal': '<img src="assets/term.png" alt="Terminal" style="width: 14px; height: 14px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> Terminal Console',
+      'calculator': '<img src="assets/calc.png" alt="Calculator" style="width: 14px; height: 14px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> Calculator',
       'git': '🌲 Git Manager',
-      'tasks': '⚡ Transfers & Queue'
+      'tasks': '<img src="assets/task.png" alt="Tasks" style="width: 14px; height: 14px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> Transfers & Queue'
     };
     el.innerHTML = `
       ${mobileTabs}
@@ -647,8 +799,8 @@ function createPaneElement(pane, index) {
           <span style="font-weight: 700; font-size: 12px; color: var(--accent);">${toolTitles[tool] || 'Docked Tool'}</span>
         </div>
         <div style="display: flex; align-items: center; gap: 4px;">
-          <button class="btn btn-xs btn-outline" onclick="event.stopPropagation(); undockToolFromPane(${index})" title="Undock to Floating Window"><i data-lucide="external-link" style="width:11px; height:11px;"></i> Float</button>
-          <button class="btn btn-xs btn-icon modal-close-btn" onclick="event.stopPropagation(); closeDockedTool(${index})" title="Close Docked Tool"><i data-lucide="x" style="width:11px; height:11px;"></i></button>
+          <button class="btn btn-icon btn-panel-control" onclick="event.stopPropagation(); undockToolFromPane(${index})" title="Undock to Floating Window (Float)"><i data-lucide="external-link"></i></button>
+          <button class="btn btn-icon btn-panel-control modal-close-btn" onclick="event.stopPropagation(); closeDockedTool(${index})" title="Close Docked Tool"><i data-lucide="x"></i></button>
         </div>
       </div>
       <div class="pane-content" id="pane-content-${index}" style="padding: 0; overflow: hidden; display: flex; flex-direction: column;">
@@ -1255,7 +1407,7 @@ function renderPaneBreadcrumbs(paneIndex, pathStr) {
     const btn = document.createElement('span');
     btn.className = 'crumb-root-dropdown-btn';
     btn.title = 'Click to switch drive or storage root';
-    btn.innerHTML = `${icon ? icon + ' ' : ''}${displayText} <span style="font-size: 8.5px; opacity: 0.7; margin-left: 2px;">▾</span>`;
+    btn.innerHTML = `${icon ? icon + ' ' : ''}<span>${displayText}</span><span style="font-size: 7.5px; opacity: 0.7; margin-left: 1px;">▾</span>`;
     btn.onclick = (e) => {
       e.stopPropagation();
       showBreadcrumbRootDropdown(e, paneIndex);
@@ -3337,6 +3489,8 @@ function switchSettingsTab(tabId) {
   if (tabId === 'tab-openwith') renderOpenWithRules();
   if (tabId === 'tab-context') renderCustomActionsList();
   if (tabId === 'tab-icons') renderIconSettingsTab();
+  if (tabId === 'tab-templates') renderFileTemplatesList();
+  if (tabId === 'tab-tools') renderToolsSettingsTab();
 }
 
 function switchAdminTab(tabId) {
@@ -4171,6 +4325,9 @@ function createNewEditorTab(initialContent = '', defaultName = null, filePath = 
 
 function openFloatingEditor() {
   closeToolsMenu();
+  if (editorTabs.length === 0) {
+    createNewEditorTab();
+  }
   const win = document.getElementById('floating-editor-window');
   const pill = document.getElementById('editor-pill');
   if (pill) pill.style.display = 'none';
@@ -4179,6 +4336,11 @@ function openFloatingEditor() {
     bringFloatingWindowToFront(win);
   }
   initEditorDragResize();
+  renderEditorTabs();
+  const leftTab = getActiveEditorTab('left');
+  if (leftTab) {
+    switchActiveEditorTab(leftTab.id, 'left');
+  }
 }
 
 function restoreFloatingEditor() {
@@ -4196,7 +4358,7 @@ function minimizeFloatingEditor() {
     pill.style.display = 'flex';
     const dirtyCount = editorTabs.filter(t => t.isDirty).length;
     const tabCount = editorTabs.length;
-    if (pillText) pillText.textContent = `📝 EditorDog (${tabCount} file${tabCount === 1 ? '' : 's'})`;
+    if (pillText) pillText.textContent = `EditorDog (${tabCount} file${tabCount === 1 ? '' : 's'})`;
     if (pillDirty) pillDirty.style.display = dirtyCount > 0 ? 'inline-block' : 'none';
     if (window.lucide) lucide.createIcons();
   }
@@ -4233,11 +4395,7 @@ async function openEditorWithFile(filePath) {
       createNewEditorTab(data.content, null, cleanPath, false, []);
       
       const isMd = cleanPath.endsWith('.md') || cleanPath.endsWith('.markdown');
-      const viewModeSelect = document.getElementById('editor-view-mode');
-      if (viewModeSelect) {
-        viewModeSelect.value = isMd ? 'split-markdown' : 'single-editor';
-        handleEditorViewModeChange(viewModeSelect.value);
-      }
+      handleEditorViewModeChange(isMd ? 'split-markdown' : 'single-editor');
 
       const dockedIdx = App.panes.findIndex(p => p.dockedTool === 'editor');
       if (dockedIdx !== -1) {
@@ -4332,11 +4490,7 @@ async function executeOpenConfdAssembled() {
   const tab = createNewEditorTab(fullBuffer, `${confdFolderName} [Assembled]`, pendingConfdDirPath, true, assembledParts);
   populateConfdJumpDropdown(tab);
 
-  const viewModeSelect = document.getElementById('editor-view-mode');
-  if (viewModeSelect) {
-    viewModeSelect.value = 'single-editor';
-    handleEditorViewModeChange('single-editor');
-  }
+  handleEditorViewModeChange('single-editor');
 
   openFloatingEditor();
   showToast(`Assembled ${assembledParts.length} files into unified config view!`, 'success');
@@ -4434,11 +4588,18 @@ function switchActiveEditorTab(tabId, targetPane = 'left') {
   }
 
   if (tagEl) {
-    tagEl.textContent = targetTab.isConfdAssembled ? 'CONFD' : targetTab.lang.toUpperCase();
+    tagEl.textContent = targetTab.isConfdAssembled ? 'CONFD' : (targetTab.lang ? targetTab.lang.toUpperCase() : 'TEXT');
+  }
+
+  const langBadge = document.getElementById('editor-language-badge');
+  if (langBadge && targetPane === 'left') {
+    langBadge.textContent = formatEditorLangBadge(targetTab.lang, targetTab.isConfdAssembled);
   }
 
   const langSelect = document.getElementById('editor-language-select');
-  if (langSelect) langSelect.value = targetTab.lang || 'auto';
+  if (langSelect && targetPane === 'left') langSelect.value = targetTab.lang || 'auto';
+  const mobileLangSelect = document.getElementById('editor-language-select-mobile');
+  if (mobileLangSelect && targetPane === 'left') mobileLangSelect.value = targetTab.lang || 'auto';
 
   populateConfdJumpDropdown(targetTab);
   updateEditorGutter(targetPane);
@@ -5384,13 +5545,12 @@ function renderNoteDogSidebar() {
 
     if (notesToRender.length === 0) {
       noteList.innerHTML = `<div style="padding: 10px; font-size: 11px; color: var(--text-dim); text-align: center;">${notedogState.searchQuery ? 'No matching notes' : 'No notes in section'}</div>`;
-    } else {
       noteList.innerHTML = notesToRender.map(note => {
         const isActive = notedogState.activeNote && (notedogState.activeNote.path === note.path);
         const icon = note.is_encrypted ? '🔒' : '📄';
         const subtext = note.nbName ? `${note.nbName}/${note.secName}` : '';
         return `
-          <div class="notedog-item ${isActive ? 'active' : ''}" onclick='selectNoteDogNote(${JSON.stringify(note)})' title="${escapeHtml(note.filename)}">
+          <div class="notedog-item ${isActive ? 'active' : ''}" onclick="selectNoteDogNoteByPath('${escapeHtml(note.path)}')" title="${escapeHtml(note.filename)}">
             <span>${icon}</span>
             <div style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
               <div>${escapeHtml(note.name)}</div>
@@ -5431,6 +5591,21 @@ function selectNoteDogSection(secName) {
     notedogState.activeNote = null;
   }
   renderNoteDogSidebar();
+}
+
+function selectNoteDogNoteByPath(path) {
+  if (!path) return;
+  let found = null;
+  for (const nb of notedogState.notebooks) {
+    for (const sec of nb.sections) {
+      const n = sec.notes.find(it => it.path === path);
+      if (n) { found = n; break; }
+    }
+    if (found) break;
+  }
+  if (found) {
+    selectNoteDogNote(found);
+  }
 }
 
 function selectNoteDogNote(note) {
@@ -6266,10 +6441,12 @@ function flashSaveButton() {
   const btn = document.getElementById('btn-save-editor');
   if (btn) {
     const origHtml = btn.innerHTML;
-    btn.innerHTML = '<i data-lucide="check"></i> Saved!';
+    btn.innerHTML = '<i data-lucide="check"></i>';
+    btn.classList.add('btn-saved');
     if (window.lucide) lucide.createIcons();
     setTimeout(() => {
       btn.innerHTML = origHtml;
+      btn.classList.remove('btn-saved');
       if (window.lucide) lucide.createIcons();
     }, 1400);
   }
@@ -6285,6 +6462,20 @@ function handleEditorViewModeChange(mode) {
   const bodyWrapperRight = document.getElementById('editor-body-wrapper-right');
   const rightTitle = document.getElementById('editor-file-title-right');
   const rightTag = document.getElementById('editor-file-tag-right');
+
+  // Update active state on layout buttons
+  const modeBtnMap = {
+    'single-editor': 'btn-view-single',
+    'dual-vertical': 'btn-view-dual-v',
+    'dual-horizontal': 'btn-view-dual-h',
+    'split-markdown': 'btn-view-preview'
+  };
+  document.querySelectorAll('.editor-view-mode-btn').forEach(b => b.classList.remove('active'));
+  const activeBtnId = modeBtnMap[mode];
+  if (activeBtnId) {
+    const activeBtn = document.getElementById(activeBtnId);
+    if (activeBtn) activeBtn.classList.add('active');
+  }
 
   if (!grid || !rightPane) return;
 
@@ -6319,12 +6510,42 @@ function handleEditorViewModeChange(mode) {
   }
 }
 
+function formatEditorLangBadge(lang, isConfd) {
+  if (isConfd) return 'CONFD ▾';
+  if (!lang || lang === 'auto') return 'AUTO ▾';
+  const nameMap = {
+    'rust': 'RUST',
+    'python': 'PYTHON',
+    'javascript': 'JS / TS',
+    'html': 'HTML',
+    'css': 'CSS',
+    'json': 'JSON',
+    'yaml': 'YAML',
+    'toml': 'TOML',
+    'bash': 'BASH',
+    'sql': 'SQL',
+    'markdown': 'MARKDOWN',
+    'clike': 'C / C++',
+    'docker': 'DOCKER',
+    'ini': 'INI'
+  };
+  return (nameMap[lang.toLowerCase()] || lang.toUpperCase()) + ' ▾';
+}
+
 function handleEditorLanguageChange(lang) {
   const tab = getActiveEditorTab('left');
   if (tab) {
     tab.lang = lang === 'auto' ? (tab.path ? detectLanguageFromPath(tab.path) : 'markup') : lang;
     const tagEl = document.getElementById('editor-file-tag-left');
     if (tagEl) tagEl.textContent = tab.lang.toUpperCase();
+    const langBadge = document.getElementById('editor-language-badge');
+    if (langBadge) {
+      langBadge.textContent = formatEditorLangBadge(tab.lang, tab.isConfdAssembled);
+    }
+    const mobileSelect = document.getElementById('editor-language-select-mobile');
+    if (mobileSelect) mobileSelect.value = lang;
+    const desktopSelect = document.getElementById('editor-language-select');
+    if (desktopSelect) desktopSelect.value = lang;
     if (editorViewMode === 'split-markdown') updateMarkdownPreview();
   }
 }
@@ -6407,6 +6628,12 @@ function updateEditorStatusBar(pane = 'left') {
   const statsEl = document.getElementById('editor-doc-stats');
   if (statsEl) {
     statsEl.textContent = `${totalLines} lines | ${content.length} chars | ${totalWords} words`;
+  }
+
+  const tab = getActiveEditorTab(pane);
+  const langBadge = document.getElementById('editor-language-badge');
+  if (langBadge && tab) {
+    langBadge.textContent = formatEditorLangBadge(tab.lang, tab.isConfdAssembled);
   }
 }
 
@@ -7304,12 +7531,274 @@ function updateLogoutOrExitButton() {
   }
 }
 
+// ---------------- TOOLS & CHEWTOYS LAUNCHPAD MENU CUSTOMIZER ----------------
+const DEFAULT_TOOLS_MENU = [
+  { id: 'spotlight', label: 'Spotlight Quick-Switcher (Ctrl+K)', icon: 'sparkles', iconColor: 'var(--accent)', action: 'openSpotlightModal()', desc: 'Instant search across files, tools & themes', visible: true },
+  { id: 'tree', label: 'Folder Hierarchy Tree (Ctrl+T)', icon: 'folder-tree', iconColor: 'var(--accent)', action: 'toggleFolderTree()', desc: 'Collapsible directory navigation tree', visible: true },
+  { id: 'branch', label: 'Flat / Branch View (Ctrl+B)', icon: 'git-branch', iconColor: 'var(--accent)', action: 'toggleBranchView()', desc: 'Flatten recursive subfolders into single list', visible: true },
+  { id: 'notedog', label: 'NoteDog Notes & Markdown', icon: 'book-open', iconColor: 'var(--accent)', action: 'openFloatingNoteDog()', desc: 'Notes, checklists, templates & markdown studio', visible: true },
+  { id: 'calc', label: 'Calculator', icon: 'assets/calc.png', action: 'openFloatingCalculator()', desc: 'Storage units, conversions & live history', visible: true },
+  { id: 'terminal', label: 'Terminal Console (`)', icon: 'assets/term.png', action: 'toggleTerminal()', desc: 'Interactive slide-up & floating PTY shell', visible: true },
+  { id: 'editor', label: 'EditorDog Multi-Tab (F4)', icon: 'assets/edit.png', action: 'openFloatingEditor()', desc: 'Multi-tab text and code editor with syntax mode', visible: true },
+  { id: 'diff', label: 'Compare / Diff (F9)', icon: 'git-compare', action: 'triggerDiff()', desc: 'Visual side-by-side file and folder diff', visible: true },
+  { id: 'search', label: 'Deep File Search (Ctrl+F)', icon: 'search', action: 'openSearchModal()', desc: 'Recursive filename, regex & size filter', visible: true },
+  { id: 'shares', label: 'Active Shares & Dropboxes', icon: 'share-2', action: 'openSharesManager()', desc: 'Manage public share links and guest dropboxes', visible: true },
+  { id: 'sync', label: 'Delta Backup & Sync Studio (SyncToy / Bvckup 2)', icon: 'refresh-cw', iconColor: '#22c55e', action: 'openSyncModal()', desc: 'Two-way sync, mirrors, snapshot archives & cron', visible: true },
+  { id: 'du', label: 'Disk Usage & Treemap Analyzer', icon: 'pie-chart', iconColor: 'var(--accent)', action: 'openDiskUsageModal()', desc: 'Treemap visualizer and heavy space consumer', visible: true },
+  { id: 'syncthing', label: 'Syncthing Dashboard', icon: 'repeat', action: 'openSyncthingModal()', desc: 'Continuous peer-to-peer file synchronization', visible: true },
+  { id: 'converter', label: 'ConvertX Converters', icon: 'file-output', action: 'openConverterModal()', desc: 'Batch file format conversions for media & docs', visible: true },
+  { id: 'pdf', label: 'PDF Power Studio (Merge & Split)', icon: 'file-text', iconColor: '#ef4444', action: 'openPdfToolModal()', desc: 'Merge, split, extract pages & inspect PDFs', visible: true },
+  { id: 'tasks', label: 'Background Transfers & Queue', icon: 'assets/task.png', action: 'openFloatingTaskManager()', desc: 'Active transfers, speeds & queue control', visible: true }
+];
+
+function getToolsMenuConfig() {
+  try {
+    const saved = localStorage.getItem('cd_tools_menu_config');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        const result = [];
+        const seen = new Set();
+        parsed.forEach(item => {
+          const def = DEFAULT_TOOLS_MENU.find(d => d.id === item.id);
+          if (def) {
+            result.push({ ...def, ...item });
+            seen.add(item.id);
+          }
+        });
+        DEFAULT_TOOLS_MENU.forEach(def => {
+          if (!seen.has(def.id)) {
+            result.push({ ...def });
+          }
+        });
+        return result;
+      }
+    }
+  } catch (e) {
+    console.error('Failed to parse cd_tools_menu_config', e);
+  }
+  return DEFAULT_TOOLS_MENU.map(item => ({ ...item }));
+}
+
+function saveToolsMenuConfig(config) {
+  try {
+    localStorage.setItem('cd_tools_menu_config', JSON.stringify(config));
+  } catch (e) {
+    console.error('Failed to save tools menu config', e);
+  }
+  renderToolsMenu();
+  renderToolsSettingsTab();
+}
+
+function resetToolsMenuToDefault() {
+  localStorage.removeItem('cd_tools_menu_config');
+  renderToolsMenu();
+  renderToolsSettingsTab();
+  if (typeof showToast === 'function') {
+    showToast('Tools & Launchpad menu reset to default order', 'info');
+  }
+}
+
+function renderToolIconHtml(icon, iconColor = '', size = 18) {
+  if (!icon) return `<i data-lucide="wrench" style="width:${size}px; height:${size}px;"></i>`;
+  if (icon.endsWith('.png') || icon.startsWith('assets/')) {
+    return `<img src="${icon}" alt="" style="width: ${size}px; height: ${size}px; object-fit: contain; flex-shrink: 0; vertical-align: middle;">`;
+  }
+  const colorStyle = iconColor ? `color: ${iconColor};` : '';
+  return `<i data-lucide="${icon}" style="width: ${size}px; height: ${size}px; flex-shrink: 0; ${colorStyle}"></i>`;
+}
+
+function renderToolsMenu() {
+  const menu = document.getElementById('tools-dropdown-menu');
+  if (!menu) return;
+
+  const config = getToolsMenuConfig();
+  const visibleItems = config.filter(item => item.visible !== false);
+
+  let html = '';
+  visibleItems.forEach(item => {
+    html += `
+      <div class="dropdown-item" onclick="${item.action}">
+        ${renderToolIconHtml(item.icon, item.iconColor, 18)}
+        <span>${escapeHtml(item.label)}</span>
+      </div>
+    `;
+  });
+
+  html += `
+    <div class="dropdown-sep"></div>
+    <div class="dropdown-item" onclick="openToolsMenuCustomizer(event)" style="color: var(--accent); font-size: 11px; padding: 6px 12px; display: flex; justify-content: space-between; align-items: center;">
+      <span style="display: flex; align-items: center; gap: 8px;">
+        <i data-lucide="sliders-horizontal" style="width: 14px; height: 14px;"></i>
+        <span>Customize Tools Menu...</span>
+      </span>
+      <span style="font-size: 10px; opacity: 0.7;">⚙️</span>
+    </div>
+  `;
+
+  menu.innerHTML = html;
+  if (window.lucide) {
+    lucide.createIcons({ root: menu });
+  }
+}
+
+function openToolsMenuCustomizer(e) {
+  e?.stopPropagation();
+  closeToolsMenu();
+  openSettingsModal();
+  switchSettingsTab('tab-tools');
+}
+
+let draggedToolIndex = null;
+
+function renderToolsSettingsTab() {
+  const container = document.getElementById('settings-tools-list');
+  const counter = document.getElementById('tools-visible-counter');
+  if (!container) return;
+
+  const config = getToolsMenuConfig();
+  const visibleCount = config.filter(item => item.visible !== false).length;
+  if (counter) {
+    counter.textContent = `${visibleCount} / ${config.length} Visible`;
+  }
+
+  container.innerHTML = config.map((item, idx) => {
+    const isFirst = idx === 0;
+    const isLast = idx === config.length - 1;
+    const isVisible = item.visible !== false;
+
+    return `
+      <div class="tool-reorder-row ${!isVisible ? 'is-hidden' : ''}" 
+           draggable="true" 
+           data-tool-id="${item.id}" 
+           data-index="${idx}"
+           ondragstart="handleToolDragStart(event, ${idx})"
+           ondragover="handleToolDragOver(event, ${idx})"
+           ondragleave="handleToolDragLeave(event)"
+           ondrop="handleToolDrop(event, ${idx})"
+           ondragend="handleToolDragEnd(event)">
+        
+        <!-- Left: Drag handle, checkbox, icon, label & description -->
+        <div style="display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1;">
+          <span class="tool-drag-handle" title="Drag up or down to reorder">⋮⋮</span>
+          <input type="checkbox" ${isVisible ? 'checked' : ''} onchange="toggleToolVisibility('${item.id}', this.checked)" title="Toggle Visibility in Tools Menu" style="cursor: pointer; width: 15px; height: 15px; accent-color: var(--accent);">
+          <span style="display: flex; align-items: center; justify-content: center; width: 22px; height: 22px; flex-shrink: 0;">
+            ${renderToolIconHtml(item.icon, item.iconColor, 18)}
+          </span>
+          <div style="display: flex; flex-direction: column; min-width: 0; flex: 1;">
+            <div style="font-weight: 600; font-size: 12px; color: ${isVisible ? 'var(--text-main)' : 'var(--text-muted)'}; display: flex; align-items: center; gap: 6px;">
+              <span>${escapeHtml(item.label)}</span>
+              ${item.icon.includes('.png') ? '<span class="badge" style="font-size: 9px; padding: 1px 4px; background: rgba(245,158,11,0.15); color: var(--accent);">ChewToy</span>' : ''}
+            </div>
+            ${item.desc ? `<div style="font-size: 10px; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(item.desc)}</div>` : ''}
+          </div>
+        </div>
+
+        <!-- Right: ChewToy standard 26px action controls (Top, Up, Down, Bottom) -->
+        <div style="display: flex; align-items: center; gap: 3px; flex-shrink: 0; margin-left: 10px;">
+          <button class="btn btn-icon btn-sm" onclick="moveToolItem('${item.id}', 'top')" ${isFirst ? 'disabled style="opacity:0.3;"' : ''} title="Move to Top (⤒)" style="width: 26px; height: 26px; padding: 0;">
+            <i data-lucide="arrow-up-to-line" style="width: 13px; height: 13px;"></i>
+          </button>
+          <button class="btn btn-icon btn-sm" onclick="moveToolItem('${item.id}', 'up')" ${isFirst ? 'disabled style="opacity:0.3;"' : ''} title="Move Up (▲)" style="width: 26px; height: 26px; padding: 0;">
+            <i data-lucide="arrow-up" style="width: 13px; height: 13px;"></i>
+          </button>
+          <button class="btn btn-icon btn-sm" onclick="moveToolItem('${item.id}', 'down')" ${isLast ? 'disabled style="opacity:0.3;"' : ''} title="Move Down (▼)" style="width: 26px; height: 26px; padding: 0;">
+            <i data-lucide="arrow-down" style="width: 13px; height: 13px;"></i>
+          </button>
+          <button class="btn btn-icon btn-sm" onclick="moveToolItem('${item.id}', 'bottom')" ${isLast ? 'disabled style="opacity:0.3;"' : ''} title="Move to Bottom (⤓)" style="width: 26px; height: 26px; padding: 0;">
+            <i data-lucide="arrow-down-to-line" style="width: 13px; height: 13px;"></i>
+          </button>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  if (window.lucide) {
+    lucide.createIcons({ root: container });
+  }
+}
+
+function handleToolDragStart(e, index) {
+  draggedToolIndex = index;
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', index);
+  e.currentTarget.classList.add('dragging');
+}
+
+function handleToolDragOver(e, index) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  const row = e.currentTarget;
+  if (row && !row.classList.contains('drag-over') && draggedToolIndex !== index) {
+    row.classList.add('drag-over');
+  }
+}
+
+function handleToolDragLeave(e) {
+  e.currentTarget.classList.remove('drag-over');
+}
+
+function handleToolDrop(e, targetIndex) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+  if (draggedToolIndex === null || draggedToolIndex === targetIndex) return;
+
+  const config = getToolsMenuConfig();
+  const movedItem = config.splice(draggedToolIndex, 1)[0];
+  config.splice(targetIndex, 0, movedItem);
+  saveToolsMenuConfig(config);
+}
+
+function handleToolDragEnd(e) {
+  draggedToolIndex = null;
+  document.querySelectorAll('.tool-reorder-row').forEach(el => {
+    el.classList.remove('dragging');
+    el.classList.remove('drag-over');
+  });
+}
+
+function moveToolItem(id, direction) {
+  const config = getToolsMenuConfig();
+  const idx = config.findIndex(item => item.id === id);
+  if (idx === -1) return;
+
+  if (direction === 'up' && idx > 0) {
+    const temp = config[idx];
+    config[idx] = config[idx - 1];
+    config[idx - 1] = temp;
+  } else if (direction === 'down' && idx < config.length - 1) {
+    const temp = config[idx];
+    config[idx] = config[idx + 1];
+    config[idx + 1] = temp;
+  } else if (direction === 'top' && idx > 0) {
+    const [item] = config.splice(idx, 1);
+    config.unshift(item);
+  } else if (direction === 'bottom' && idx < config.length - 1) {
+    const [item] = config.splice(idx, 1);
+    config.push(item);
+  }
+
+  saveToolsMenuConfig(config);
+}
+
+function toggleToolVisibility(id, visible) {
+  const config = getToolsMenuConfig();
+  const item = config.find(i => i.id === id);
+  if (item) {
+    item.visible = visible;
+    saveToolsMenuConfig(config);
+  }
+}
+
 function toggleToolsMenu(e) {
   e?.stopPropagation();
   const menu = document.getElementById('tools-dropdown-menu');
   const profileMenu = document.getElementById('profile-dropdown-menu');
   if (profileMenu) profileMenu.classList.remove('active');
-  if (menu) menu.classList.toggle('active');
+  if (menu) {
+    renderToolsMenu();
+    menu.classList.toggle('active');
+  }
 }
 
 function closeToolsMenu() {
@@ -7664,6 +8153,476 @@ async function showParanoidConfirm(action, sources, destination, onProceed) {
   }
 }
 
+// ---------------- FILE TEMPLATES ENGINE ----------------
+
+const DEFAULT_FILE_TEMPLATES = [
+  {
+    id: 'text',
+    name: 'Plain Text Document (.txt)',
+    ext: 'txt',
+    icon: 'file-text',
+    defaultFilename: 'document.txt',
+    content: 'Title: {{TITLE}}\nDate: {{DATE}}\nAuthor: {{USER}}\n--------------------------------------------------\n\n'
+  },
+  {
+    id: 'markdown',
+    name: 'Markdown Document (.md)',
+    ext: 'md',
+    icon: 'file-code',
+    defaultFilename: 'document.md',
+    content: '# {{TITLE}}\n\n> Created on {{DATE}} by {{USER}}\n\n## Overview\n\n\n## Notes\n\n'
+  },
+  {
+    id: 'html',
+    name: 'HTML5 Webpage (.html)',
+    ext: 'html',
+    icon: 'globe',
+    defaultFilename: 'index.html',
+    content: '<!DOCTYPE html>\n<html lang="en">\n<head>\n  <meta charset="UTF-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1.0">\n  <title>{{TITLE}}</title>\n  <style>\n    body {\n      font-family: system-ui, -apple-system, sans-serif;\n      margin: 2rem;\n      background: #121316;\n      color: #e4e4e7;\n    }\n  </style>\n</head>\n<body>\n  <h1>{{TITLE}}</h1>\n  <p>Generated on {{DATE}} by {{USER}}.</p>\n</body>\n</html>\n'
+  },
+  {
+    id: 'css',
+    name: 'CSS Stylesheet (.css)',
+    ext: 'css',
+    icon: 'palette',
+    defaultFilename: 'styles.css',
+    content: '/**\n * {{FILENAME}} - {{TITLE}}\n * Created: {{DATE}} by {{USER}}\n */\n\n:root {\n  --accent: #f59e0b;\n  --bg: #121316;\n  --text: #e4e4e7;\n}\n\n* {\n  box-sizing: border-box;\n}\n'
+  },
+  {
+    id: 'js',
+    name: 'JavaScript Module (.js)',
+    ext: 'js',
+    icon: 'file-code',
+    defaultFilename: 'app.js',
+    content: '/**\n * {{FILENAME}} - {{TITLE}}\n * Created: {{DATE}} by {{USER}}\n */\n\nexport function init() {\n  console.log("Initialized {{TITLE}} on {{DATE}}");\n}\n\ninit();\n'
+  },
+  {
+    id: 'ts',
+    name: 'TypeScript (.ts)',
+    ext: 'ts',
+    icon: 'file-code',
+    defaultFilename: 'index.ts',
+    content: '/**\n * {{FILENAME}} - {{TITLE}}\n * Created: {{DATE}} by {{USER}}\n */\n\nexport interface Config {\n  title: string;\n  createdAt: string;\n  author: string;\n}\n\nexport const config: Config = {\n  title: "{{TITLE}}",\n  createdAt: "{{ISO_DATE}}",\n  author: "{{USER}}"\n};\n'
+  },
+  {
+    id: 'python',
+    name: 'Python Script (.py)',
+    ext: 'py',
+    icon: 'terminal',
+    defaultFilename: 'script.py',
+    content: '#!/usr/bin/env python3\n"""\n{{TITLE}}\nCreated on {{DATE}} by {{USER}}\n"""\n\nimport sys\n\ndef main():\n    print(f"Running {{TITLE}} (created {{DATE}})")\n\nif __name__ == "__main__":\n    main()\n'
+  },
+  {
+    id: 'rust',
+    name: 'Rust Source (.rs)',
+    ext: 'rs',
+    icon: 'cpu',
+    defaultFilename: 'main.rs',
+    content: '//! {{TITLE}}\n//! Created on {{DATE}} by {{USER}}.\n\nfn main() {\n    println!("Running {{TITLE}} ({{DATE}})");\n}\n'
+  },
+  {
+    id: 'sh',
+    name: 'Shell Script (.sh)',
+    ext: 'sh',
+    icon: 'terminal-square',
+    defaultFilename: 'script.sh',
+    content: '#!/usr/bin/env bash\n# ==============================================================================\n# {{FILENAME}} - {{TITLE}}\n# Created: {{DATE}} by {{USER}}\n# ==============================================================================\n\nset -euo pipefail\n\necho "Running {{TITLE}}..."\n'
+  },
+  {
+    id: 'json',
+    name: 'JSON Configuration (.json)',
+    ext: 'json',
+    icon: 'file-text',
+    defaultFilename: 'config.json',
+    content: '{\n  "$schema": "https://json-schema.org/draft/2020-12/schema",\n  "title": "{{TITLE}}",\n  "createdAt": "{{ISO_DATE}}",\n  "author": "{{USER}}",\n  "settings": {}\n}\n'
+  },
+  {
+    id: 'yaml',
+    name: 'YAML Document (.yaml)',
+    ext: 'yaml',
+    icon: 'file-text',
+    defaultFilename: 'config.yaml',
+    content: '# {{TITLE}}\n# Created: {{DATE}} by {{USER}}\nversion: "1.0"\ntitle: "{{TITLE}}"\ncreated_at: "{{ISO_DATE}}"\nauthor: "{{USER}}"\n'
+  }
+];
+
+function getFileTemplates() {
+  try {
+    const raw = localStorage.getItem('cd_file_templates');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch (e) {
+    console.warn('Failed to load cd_file_templates from localStorage:', e);
+  }
+  return [...DEFAULT_FILE_TEMPLATES];
+}
+
+function saveFileTemplates(templates) {
+  try {
+    localStorage.setItem('cd_file_templates', JSON.stringify(templates));
+  } catch (e) {
+    console.error('Failed to save cd_file_templates:', e);
+  }
+}
+
+function resetFileTemplatesToDefault() {
+  saveFileTemplates(DEFAULT_FILE_TEMPLATES);
+  renderFileTemplatesList();
+  showToast('Reset file templates to default suite', 'success');
+}
+
+function humanizeFilenameToTitle(filename) {
+  if (!filename) return 'Document';
+  const base = filename.replace(/\.[^/.]+$/, '');
+  return base
+    .replace(/[-_]+/g, ' ')
+    .trim()
+    .replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function expandTemplateVariables(templateStr, filename, customTitle = null) {
+  if (!templateStr) return '';
+  const now = new Date();
+  const dateStr = now.toISOString().split('T')[0];
+  const timeStr = now.toTimeString().split(' ')[0];
+  const isoDate = now.toISOString();
+  const year = now.getFullYear().toString();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const user = App.currentUser || 'User';
+  const author = App.currentUser || 'CommanderDog User';
+  const baseName = filename ? filename.replace(/\.[^/.]+$/, '') : 'document';
+  const ext = filename && filename.includes('.') ? filename.split('.').pop() : '';
+  const title = (customTitle && customTitle.trim()) ? customTitle.trim() : humanizeFilenameToTitle(filename);
+
+  return templateStr
+    .replace(/\{\{TITLE\}\}/g, title)
+    .replace(/\{\{FILENAME\}\}/g, filename || '')
+    .replace(/\{\{NAME\}\}/g, baseName)
+    .replace(/\{\{EXT\}\}/g, ext)
+    .replace(/\{\{DATE\}\}/g, dateStr)
+    .replace(/\{\{TIME\}\}/g, timeStr)
+    .replace(/\{\{ISO_DATE\}\}/g, isoDate)
+    .replace(/\{\{DATETIME\}\}/g, `${dateStr} ${timeStr}`)
+    .replace(/\{\{YEAR\}\}/g, year)
+    .replace(/\{\{MONTH\}\}/g, month)
+    .replace(/\{\{DAY\}\}/g, day)
+    .replace(/\{\{USER\}\}/g, user)
+    .replace(/\{\{AUTHOR\}\}/g, author);
+}
+
+function generateTemplateSubmenuItems() {
+  const templates = getFileTemplates();
+  if (!templates || templates.length === 0) {
+    return '<div style="color: var(--text-muted); font-size: 11px; padding: 4px 10px;">No templates configured</div>';
+  }
+  return templates.map(t => `
+    <div class="context-item" onclick="triggerCreateFromTemplate('${escapeHtml(t.id)}', App.contextPaneIndex ?? App.activePaneIndex); hideContextMenu();">
+      <i data-lucide="${escapeHtml(t.icon || 'file-text')}" style="width: 13px; color: var(--accent);"></i>
+      <span>${escapeHtml(t.name)}</span>
+    </div>
+  `).join('');
+}
+
+let activeCreatingTemplate = null;
+let activeTemplatePaneIndex = 0;
+
+function triggerCreateFromTemplate(templateId, paneIndex = App.activePaneIndex) {
+  const templates = getFileTemplates();
+  const template = templates.find(t => t.id === templateId) || templates[0];
+  if (!template) return;
+
+  activeCreatingTemplate = template;
+  activeTemplatePaneIndex = paneIndex;
+
+  const pane = App.panes[paneIndex];
+  const targetDir = pane?.path || '/';
+
+  const initialFilename = expandTemplateVariables(template.defaultFilename || `new_file.${template.ext || 'txt'}`, '');
+  const initialTitle = humanizeFilenameToTitle(initialFilename);
+
+  const titleEl = document.getElementById('template-modal-title');
+  if (titleEl) titleEl.textContent = `New ${template.name}`;
+  const iconEl = document.getElementById('template-modal-icon');
+  if (iconEl) iconEl.setAttribute('data-lucide', template.icon || 'file-code-2');
+  const destEl = document.getElementById('template-modal-dest');
+  if (destEl) destEl.textContent = targetDir;
+  const fileInput = document.getElementById('template-filename-input');
+  if (fileInput) fileInput.value = initialFilename;
+  const docTitleInput = document.getElementById('template-title-input');
+  if (docTitleInput) docTitleInput.value = initialTitle;
+
+  updateTemplateLivePreview();
+  showModal('new-from-template-modal');
+  if (window.lucide) lucide.createIcons();
+
+  setTimeout(() => {
+    const input = document.getElementById('template-filename-input');
+    if (input) {
+      input.focus();
+      const dotIdx = input.value.lastIndexOf('.');
+      if (dotIdx > 0) {
+        input.setSelectionRange(0, dotIdx);
+      } else {
+        input.select();
+      }
+    }
+  }, 50);
+}
+
+function updateTemplateLivePreview() {
+  if (!activeCreatingTemplate) return;
+  const filename = document.getElementById('template-filename-input')?.value.trim() || '';
+  const titleInput = document.getElementById('template-title-input');
+  const title = titleInput ? titleInput.value : '';
+
+  const previewEl = document.getElementById('template-preview-code');
+  if (previewEl) {
+    previewEl.value = expandTemplateVariables(activeCreatingTemplate.content, filename, title);
+  }
+}
+
+async function executeCreateFromTemplate() {
+  if (!activeCreatingTemplate) return;
+  const filename = document.getElementById('template-filename-input')?.value.trim();
+  if (!filename) {
+    showToast('Please enter a valid filename', 'error');
+    return;
+  }
+  const content = document.getElementById('template-preview-code')?.value || '';
+  const pane = App.panes[activeTemplatePaneIndex] || App.panes[App.activePaneIndex];
+  const targetDir = (pane?.path || '/').replace(/\/$/, '');
+  const newFilePath = `${targetDir}/${filename}`;
+  const authTarget = resolveAuthUri(newFilePath);
+  const openInEditor = document.getElementById('template-open-editor-chk')?.checked;
+
+  try {
+    const resp = await fetch('/api/fs/write', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
+      body: JSON.stringify({ path: authTarget, content })
+    });
+
+    closeModal('new-from-template-modal');
+
+    if (resp.ok) {
+      showToast(`Created '${filename}' from template`, 'success');
+      await refreshPane(activeTemplatePaneIndex);
+      
+      const updatedPane = App.panes[activeTemplatePaneIndex];
+      if (updatedPane && updatedPane.entries) {
+        const foundIdx = updatedPane.entries.findIndex(e => e.name === filename);
+        if (foundIdx !== -1) {
+          updatedPane.cursorIndex = foundIdx;
+          renderPaneTable(activeTemplatePaneIndex);
+        }
+      }
+
+      if (openInEditor) {
+        openEditorWithFile(newFilePath);
+      }
+    } else {
+      showToast(`Failed to create file: ${sanitizeCredentials(await resp.text())}`, 'error');
+    }
+  } catch (e) {
+    showToast(`Error creating file from template: ${e}`, 'error');
+  }
+}
+
+function copyVariableTag(tag) {
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(tag).then(() => {
+      showToast(`Copied ${tag} to clipboard`, 'info');
+    }).catch(() => {
+      showToast(`Selected: ${tag}`, 'info');
+    });
+  }
+}
+
+function openCreateTemplateModal(prefill = null) {
+  const idEl = document.getElementById('edit-template-id');
+  if (idEl) idEl.value = prefill?.id || '';
+  const hdrEl = document.getElementById('edit-template-header-title');
+  if (hdrEl) hdrEl.textContent = prefill ? 'Edit File Template' : 'Create New File Template';
+  const nameEl = document.getElementById('edit-template-name');
+  if (nameEl) nameEl.value = prefill?.name || '';
+  const extEl = document.getElementById('edit-template-ext');
+  if (extEl) extEl.value = prefill?.ext || '';
+  const defEl = document.getElementById('edit-template-default-filename');
+  if (defEl) defEl.value = prefill?.defaultFilename || '';
+  const iconEl = document.getElementById('edit-template-icon');
+  if (iconEl) iconEl.value = prefill?.icon || 'file-code';
+  const contentEl = document.getElementById('edit-template-content');
+  if (contentEl) contentEl.value = prefill?.content || '';
+
+  showModal('template-edit-modal');
+  if (window.lucide) lucide.createIcons();
+}
+
+function insertVariableIntoEditTemplate(varTag) {
+  const textarea = document.getElementById('edit-template-content');
+  if (!textarea) return;
+  const start = textarea.selectionStart;
+  const end = textarea.selectionEnd;
+  const text = textarea.value;
+  textarea.value = text.substring(0, start) + varTag + text.substring(end);
+  textarea.selectionStart = textarea.selectionEnd = start + varTag.length;
+  textarea.focus();
+}
+
+function saveTemplateFromModal() {
+  const id = document.getElementById('edit-template-id')?.value.trim() || `custom_${Date.now()}`;
+  const name = document.getElementById('edit-template-name')?.value.trim();
+  const ext = document.getElementById('edit-template-ext')?.value.trim().replace(/^\./, '');
+  const defaultFilename = document.getElementById('edit-template-default-filename')?.value.trim() || `new_file.${ext || 'txt'}`;
+  const icon = document.getElementById('edit-template-icon')?.value || 'file-code';
+  const content = document.getElementById('edit-template-content')?.value || '';
+
+  if (!name) {
+    showToast('Please enter a template name', 'error');
+    return;
+  }
+
+  const templates = getFileTemplates();
+  const existingIdx = templates.findIndex(t => t.id === id);
+
+  const newTemplate = {
+    id,
+    name,
+    ext,
+    defaultFilename,
+    icon,
+    content,
+    isCustom: true
+  };
+
+  if (existingIdx !== -1) {
+    templates[existingIdx] = { ...templates[existingIdx], ...newTemplate };
+  } else {
+    templates.push(newTemplate);
+  }
+
+  saveFileTemplates(templates);
+  closeModal('template-edit-modal');
+  renderFileTemplatesList();
+  showToast(`Saved template '${name}'`, 'success');
+}
+
+function deleteFileTemplate(templateId) {
+  let templates = getFileTemplates();
+  templates = templates.filter(t => t.id !== templateId);
+  saveFileTemplates(templates);
+  renderFileTemplatesList();
+  showToast('Template removed', 'info');
+}
+
+function duplicateFileTemplate(templateId) {
+  const templates = getFileTemplates();
+  const t = templates.find(item => item.id === templateId);
+  if (!t) return;
+  const clone = {
+    ...t,
+    id: `custom_${Date.now()}`,
+    name: `${t.name} (Copy)`,
+    isCustom: true
+  };
+  templates.push(clone);
+  saveFileTemplates(templates);
+  renderFileTemplatesList();
+  showToast(`Duplicated '${t.name}'`, 'success');
+}
+
+async function saveContextItemAsTemplate() {
+  const item = App.contextItem;
+  if (!item) {
+    showToast('No file selected to save as template', 'error');
+    return;
+  }
+
+  try {
+    const authPath = resolveAuthUri(item.path);
+    const resp = await fetch(`/api/fs/read?path=${encodeURIComponent(authPath)}`, {
+      headers: { 'Authorization': `Bearer ${App.token}` }
+    });
+
+    let content = '';
+    if (resp.ok) {
+      content = await resp.text();
+    }
+
+    const ext = item.name.includes('.') ? item.name.split('.').pop() : 'txt';
+    const base = item.name.replace(/\.[^/.]+$/, '');
+    const defaultFilename = `new_${item.name}`;
+
+    openCreateTemplateModal({
+      id: `custom_${Date.now()}`,
+      name: `${humanizeFilenameToTitle(base)} Template`,
+      ext,
+      defaultFilename,
+      icon: 'file-code',
+      content
+    });
+  } catch (e) {
+    showToast(`Error reading file: ${e}`, 'error');
+  }
+}
+
+function editTemplateById(templateId) {
+  const templates = getFileTemplates();
+  const t = templates.find(item => item.id === templateId);
+  if (t) {
+    openCreateTemplateModal(t);
+  }
+}
+
+function renderFileTemplatesList() {
+  const container = document.getElementById('settings-templates-list');
+  if (!container) return;
+
+  const templates = getFileTemplates();
+  if (templates.length === 0) {
+    container.innerHTML = '<div style="color: var(--text-muted); font-size: 12px; padding: 20px; text-align: center;">No templates configured. Click "Reset Defaults" above.</div>';
+    return;
+  }
+
+  container.innerHTML = templates.map(t => {
+    const isBuiltin = DEFAULT_FILE_TEMPLATES.some(d => d.id === t.id && !t.isCustom);
+    const badgeClass = isBuiltin ? 'builtin' : 'custom';
+    const badgeText = isBuiltin ? 'Built-in' : 'Custom';
+
+    return `
+      <div class="template-card">
+        <div style="display: flex; align-items: center; gap: 10px; min-width: 0;">
+          <div style="width: 32px; height: 32px; border-radius: 6px; background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.25); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+            <i data-lucide="${escapeHtml(t.icon || 'file-text')}" style="width: 16px; height: 16px; color: var(--accent);"></i>
+          </div>
+          <div style="min-width: 0;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-weight: 700; font-size: 12px; color: var(--text-main);">${escapeHtml(t.name)}</span>
+              <span class="template-badge ${badgeClass}">${badgeText}</span>
+              ${t.ext ? `<span style="font-size: 10px; font-family: var(--font-mono); color: var(--text-dim);">.${escapeHtml(t.ext)}</span>` : ''}
+            </div>
+            <div style="font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+              Default: ${escapeHtml(t.defaultFilename || 'untitled')}
+            </div>
+          </div>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
+          <button class="btn btn-xs" onclick="triggerCreateFromTemplate('${escapeHtml(t.id)}'); closeModal('settings-modal');" title="Test / Create File from this Template"><i data-lucide="play" style="width: 11px;"></i> Test</button>
+          <button class="btn btn-xs" onclick="editTemplateById('${escapeHtml(t.id)}')" title="Edit Template"><i data-lucide="edit-3" style="width: 11px;"></i> Edit</button>
+          <button class="btn btn-xs" onclick="duplicateFileTemplate('${escapeHtml(t.id)}')" title="Duplicate Template"><i data-lucide="copy" style="width: 11px;"></i></button>
+          ${!isBuiltin ? `<button class="btn btn-xs btn-danger" onclick="deleteFileTemplate('${escapeHtml(t.id)}')" title="Delete Custom Template"><i data-lucide="trash-2" style="width: 11px;"></i></button>` : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  if (window.lucide) lucide.createIcons({ root: container });
+}
+
 // ---------------- CONTEXT MENU & UI ACTIONS ----------------
 
 let activePropertiesEntry = null;
@@ -7804,6 +8763,24 @@ function showContextMenu(x, y) {
         More...
       </button>
     </div>
+
+    <!-- New File / Folder / Templates Submenu (Always Accessible Anywhere) -->
+    <div class="context-item has-submenu" onmouseenter="adjustSubmenuPosition(this)" onclick="toggleContextSubmenu(event, this)">
+      <div style="display:flex; align-items:center; gap:8px;"><i data-lucide="plus-circle" style="width: 14px; color: var(--accent);"></i> New</div>
+      <i data-lucide="chevron-right" class="submenu-chevron" style="width: 12px;"></i>
+      <div class="context-submenu">
+        <div class="context-item" onclick="triggerMkdir(); hideContextMenu();"><i data-lucide="folder-plus" style="width: 13px; color: var(--accent);"></i> New Folder... (F7)</div>
+        <div class="context-item" onclick="triggerNewFile(); hideContextMenu();"><i data-lucide="file-plus" style="width: 13px;"></i> Blank File...</div>
+        <div class="context-sep"></div>
+        <div class="submenu-header">Templates</div>
+        ${generateTemplateSubmenuItems()}
+        <div class="context-sep"></div>
+        <div class="context-item" onclick="saveContextItemAsTemplate(); hideContextMenu();"><i data-lucide="bookmark-plus" style="width: 13px; color: var(--accent);"></i> Save File as Template...</div>
+        <div class="context-item" onclick="openCreateTemplateModal(); hideContextMenu();"><i data-lucide="file-code-2" style="width: 13px;"></i> + Create Template...</div>
+        <div class="context-item" onclick="openSettings(); switchSettingsTab('tab-templates'); hideContextMenu();"><i data-lucide="settings" style="width: 13px;"></i> Manage Templates...</div>
+      </div>
+    </div>
+    <div class="context-sep"></div>
 
     <!-- Group 1: Open With, View, Edit, Properties -->
     <div class="context-item has-submenu" onmouseenter="adjustSubmenuPosition(this)" onclick="toggleContextSubmenu(event, this)">
@@ -8467,15 +9444,27 @@ function showEmptySpaceContextMenu(x, y, paneIndex) {
     <div class="context-item" onclick="triggerDownloadCurrentDirectory(${paneIndex})"><i data-lucide="download" style="width: 14px;"></i> Download Directory (.zip)</div>
     <div class="context-item" onclick="triggerShareDirectory(${paneIndex})"><i data-lucide="share-2" style="width: 14px; color: var(--accent);"></i> Share Directory / Guest Dropbox...</div>
     <div class="context-sep"></div>
-    <div class="context-item" onclick="triggerMkdir()"><i data-lucide="folder-plus" style="width: 14px;"></i> New Folder... (F7)</div>
-    <div class="context-item" onclick="triggerNewFile()"><i data-lucide="file-plus" style="width: 14px;"></i> New Text File...</div>
+    <div class="context-item has-submenu" onmouseenter="adjustSubmenuPosition(this)" onclick="toggleContextSubmenu(event, this)">
+      <div style="display:flex; align-items:center; gap:8px;"><i data-lucide="plus-circle" style="width: 14px; color: var(--accent);"></i> New</div>
+      <i data-lucide="chevron-right" class="submenu-chevron" style="width: 12px;"></i>
+      <div class="context-submenu">
+        <div class="context-item" onclick="triggerMkdir(); hideContextMenu();"><i data-lucide="folder-plus" style="width: 13px; color: var(--accent);"></i> New Folder... (F7)</div>
+        <div class="context-item" onclick="triggerNewFile(); hideContextMenu();"><i data-lucide="file-plus" style="width: 13px;"></i> Blank File...</div>
+        <div class="context-sep"></div>
+        <div class="submenu-header">Templates</div>
+        ${generateTemplateSubmenuItems()}
+        <div class="context-sep"></div>
+        <div class="context-item" onclick="openCreateTemplateModal(); hideContextMenu();"><i data-lucide="file-code-2" style="width: 13px;"></i> + Create Template...</div>
+        <div class="context-item" onclick="openSettings(); switchSettingsTab('tab-templates'); hideContextMenu();"><i data-lucide="settings" style="width: 13px;"></i> Manage Templates...</div>
+      </div>
+    </div>
     <div class="context-item" onclick="openCreateVaultModal()"><i data-lucide="shield-check" style="width: 14px; color: var(--accent);"></i> Create Encrypted Vault (.cdvault)...</div>
     <div class="context-item ${App.clipboard ? '' : 'disabled'}" onclick="triggerPaste(${paneIndex})" style="${App.clipboard ? '' : 'opacity: 0.5; pointer-events: none;'}">
       <i data-lucide="clipboard-paste" style="width: 14px;"></i> Paste ${clipInfo} (Ctrl+V)
     </div>
     <div class="context-item" onclick="refreshPane(${paneIndex})"><i data-lucide="rotate-cw" style="width: 14px;"></i> Refresh Directory</div>
     <div class="context-sep"></div>
-    <div class="context-item" onclick="openTerminalInPath('${escapeHtml(pane.path)}')"><i data-lucide="terminal" style="width: 14px; color: var(--accent);"></i> Open in Terminal (\`)</div>
+    <div class="context-item" onclick="openTerminalInPath('${escapeHtml(pane.path)}')"><img src="assets/term.png" alt="Terminal" style="width: 14px; height: 14px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> Open in Terminal (\`)</div>
     <div class="context-item" onclick="openSearchModal()"><i data-lucide="search" style="width: 14px;"></i> Deep Search in Directory (Ctrl+F)</div>
     <div class="context-item" onclick="openSyncModal()"><i data-lucide="refresh-cw" style="width: 14px; color: #22c55e;"></i> Delta Backup & Sync Studio (SyncToy / Bvckup 2)...</div>
     <div class="context-item" onclick="openDiskUsageModal('${escapeHtml(pane.path)}')"><i data-lucide="pie-chart" style="width: 14px; color: var(--accent);"></i> Disk Usage & Treemap Analyzer...</div>
@@ -9674,6 +10663,27 @@ function openSettingsModal() {
     const saved = localStorage.getItem('cd_show_global_refresh');
     globalRefreshCheckbox.checked = saved !== null ? (saved === 'true') : (App.config?.ui?.show_global_refresh === true);
   }
+
+  const hostnameBadgeCheckbox = document.getElementById('setting-show-hostname-badge');
+  if (hostnameBadgeCheckbox) {
+    const saved = localStorage.getItem('cd_show_hostname_badge');
+    hostnameBadgeCheckbox.checked = saved !== null 
+      ? (saved === 'true') 
+      : (App.systemStatus?.show_hostname_badge !== false && App.config?.ui?.show_hostname_badge !== false);
+  }
+
+  const cfg = getHostnameBadgeSettings();
+  const customHostnameInput = document.getElementById('setting-custom-hostname-label');
+  if (customHostnameInput) customHostnameInput.value = localStorage.getItem('cd_custom_hostname') || App.config?.ui?.hostname_badge || App.systemStatus?.custom_hostname || '';
+  const colorSelect = document.getElementById('setting-hostname-color');
+  if (colorSelect) colorSelect.value = cfg.color;
+  const styleSelect = document.getElementById('setting-hostname-style');
+  if (styleSelect) styleSelect.value = cfg.style;
+  const iconSelect = document.getElementById('setting-hostname-icon');
+  if (iconSelect) iconSelect.value = cfg.icon;
+  const sizeSelect = document.getElementById('setting-hostname-size');
+  if (sizeSelect) sizeSelect.value = cfg.size;
+  updateHostnameSettingsPreview();
 
   const notedogFolderInput = document.getElementById('setting-notedog-folder');
   if (notedogFolderInput) {
@@ -12286,8 +13296,15 @@ function connectTerminal(cwd) {
   };
 
   termWs.onclose = () => {
-    if (termInstance) {
-      termInstance.writeln('\r\n\x1b[38;5;244m[Terminal Session Disconnected]\x1b[0m');
+    termWs = null;
+    const dockedPaneIdx = App.panes.findIndex(p => p && p.dockedTool === 'terminal');
+    if (dockedPaneIdx !== -1) {
+      closeDockedTool(dockedPaneIdx);
+    } else {
+      toggleTerminal(false);
+      if (termInstance) {
+        try { termInstance.reset(); } catch (e) {}
+      }
     }
   };
 
@@ -12602,6 +13619,7 @@ function applyTaskVerbosityUI(mode) {
 }
 
 let knownCompletedTasks = new Set();
+let tasksAutoPruneTimer = null;
 
 async function pollTasks() {
   if (!App.token) return;
@@ -12612,16 +13630,16 @@ async function pollTasks() {
     });
     if (res.ok) {
       const list = await res.json();
-      lastKnownTasksList = list;
+      lastKnownTasksList = Array.isArray(list) ? list : [];
 
-      const isAnyRunning = list.some(t => t.status === 'running');
+      const isAnyRunning = lastKnownTasksList.some(t => t.status === 'running');
       if (isAnyRunning && !wasAnyRunningLastCheck && App.autoOpenTasks && !App.taskManagerVisible) {
         openFloatingTaskManager();
       }
       wasAnyRunningLastCheck = isAnyRunning;
 
       let shouldRefreshAll = false;
-      list.forEach(t => {
+      lastKnownTasksList.forEach(t => {
         if (t.status === 'completed' && !knownCompletedTasks.has(t.id)) {
           knownCompletedTasks.add(t.id);
           shouldRefreshAll = true;
@@ -12635,9 +13653,24 @@ async function pollTasks() {
         refreshAllPanes();
       }
 
-      updateTasksPillState(list);
-      renderFloatingTaskManager(list);
-      renderDockedTasksPanes(list);
+      // If all tasks finished and none running, schedule auto-clean of completed records
+      if (!isAnyRunning && lastKnownTasksList.length > 0) {
+        if (!tasksAutoPruneTimer) {
+          tasksAutoPruneTimer = setTimeout(() => {
+            tasksAutoPruneTimer = null;
+            if (!App.taskManagerVisible) {
+              clearCompletedTasks();
+            }
+          }, 10000);
+        }
+      } else if (isAnyRunning && tasksAutoPruneTimer) {
+        clearTimeout(tasksAutoPruneTimer);
+        tasksAutoPruneTimer = null;
+      }
+
+      updateTasksPillState(lastKnownTasksList);
+      renderFloatingTaskManager(lastKnownTasksList);
+      renderDockedTasksPanes(lastKnownTasksList);
     }
   } catch (e) {
     // Ignore polling errors
@@ -12652,7 +13685,8 @@ function updateTasksPillState(list) {
   const peekBadge = document.getElementById('mobile-peek-badge');
   const peekText = document.getElementById('mobile-peek-text');
 
-  const running = list.filter(t => t.status === 'running');
+  const safeList = Array.isArray(list) ? list : [];
+  const running = safeList.filter(t => t.status === 'running');
   const win = document.getElementById('floating-task-manager');
   const isWinOpen = win && win.classList.contains('active') && !win.classList.contains('minimized');
   const totalSpeed = running.reduce((acc, t) => acc + (t.speed_bytes_per_sec || 0), 0);
@@ -12669,7 +13703,7 @@ function updateTasksPillState(list) {
       }
     } else {
       headerBtn.classList.remove('has-running');
-      if (headerCount) headerCount.textContent = `${list.length}`;
+      if (headerCount) headerCount.textContent = '0';
       if (headerSpeed) headerSpeed.style.display = 'none';
     }
   }
@@ -12680,8 +13714,10 @@ function updateTasksPillState(list) {
       pill.classList.add('active');
       pill.style.display = 'flex';
       const hasParanoid = running.some(t => t.paranoid);
-      document.getElementById('tasks-pill-text').textContent = `${hasParanoid ? '🛡️ ' : ''}${running.length} Job${running.length > 1 ? 's' : ''}`;
-      document.getElementById('tasks-pill-speed').textContent = speedStr || (hasParanoid ? 'Verifying...' : 'Processing');
+      const pillText = document.getElementById('tasks-pill-text');
+      const pillSpeed = document.getElementById('tasks-pill-speed');
+      if (pillText) pillText.textContent = `${hasParanoid ? '🛡️ ' : ''}${running.length} Job${running.length > 1 ? 's' : ''}`;
+      if (pillSpeed) pillSpeed.textContent = speedStr || (hasParanoid ? 'Verifying...' : 'Processing');
     } else {
       pill.classList.remove('active');
       pill.style.display = 'none';
@@ -12958,7 +13994,7 @@ function renderFloatingTaskManager(list) {
   const paranoidBadgeEl = document.getElementById('task-paranoid-badge');
 
   if (titleEl) {
-    titleEl.textContent = `⚡ Transfers (${running.length} active${list.length > running.length ? `, ${list.length - running.length} done` : ''})`;
+    titleEl.textContent = `Transfers (${running.length} active${list.length > running.length ? `, ${list.length - running.length} done` : ''})`;
   }
   if (paranoidBadgeEl) {
     paranoidBadgeEl.style.display = anyParanoid ? 'inline-block' : 'none';
@@ -14989,6 +16025,7 @@ async function executeBulkRename() {
 // ---------------- TWO-WAY VISUAL DIRECTORY SYNCHRONIZER ----------------
 let syncAnalysisData = null;
 let syncCurrentFilter = 'all';
+let syncCustomExclusions = [];
 
 function openSyncModal() {
   const visible = getVisiblePaneCount();
@@ -15002,7 +16039,7 @@ function openSyncModal() {
 
   syncAnalysisData = null;
   syncCurrentFilter = 'all';
-  updateSyncCounters(0, 0, 0, 0, 0);
+  updateSyncCounters(0, 0, 0, 0, 0, 0);
 
   const tbody = document.getElementById('sync-diff-body');
   if (tbody) tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 40px; color: var(--text-dim);">Click <b>Compare & Analyze</b> to inspect differences.</td></tr>`;
@@ -15034,7 +16071,7 @@ function switchSyncTab(tab) {
 }
 
 function useActivePanePath(inputId) {
-  const activePane = panes[activePaneIndex];
+  const activePane = App.panes[App.activePaneIndex];
   if (activePane && activePane.path) {
     const input = document.getElementById(inputId);
     if (input) {
@@ -15047,8 +16084,8 @@ function useActivePanePath(inputId) {
 }
 
 function useInactivePanePath(inputId) {
-  const otherIdx = (activePaneIndex === 0) ? 1 : 0;
-  const otherPane = panes[otherIdx] || panes[0];
+  const otherIdx = (App.activePaneIndex === 0) ? 1 : 0;
+  const otherPane = App.panes[otherIdx] || App.panes[0];
   if (otherPane && otherPane.path) {
     const input = document.getElementById(inputId);
     if (input) {
@@ -15079,6 +16116,195 @@ function handleSyncModeChange() {
   }
   if (document.getElementById('sync-src-input')?.value && document.getElementById('sync-dest-input')?.value) {
     analyzeSync();
+  }
+}
+
+function toggleSyncExclusionsPanel() {
+  const panel = document.getElementById('sync-exclusions-panel');
+  if (!panel) return;
+  const isHidden = panel.style.display === 'none' || panel.style.display === '';
+  panel.style.display = isHidden ? 'flex' : 'none';
+  if (isHidden && window.lucide) lucide.createIcons();
+}
+
+function toggleExclusionChip(chipEl) {
+  if (!chipEl) return;
+  chipEl.classList.toggle('active');
+  updateSyncExclusionBadge();
+  if (document.getElementById('sync-src-input')?.value && document.getElementById('sync-dest-input')?.value) {
+    analyzeSync();
+  }
+}
+
+function addCustomExclusionPattern() {
+  const input = document.getElementById('sync-custom-exclusion-input');
+  if (!input) return;
+  const val = input.value.trim();
+  if (!val) return;
+  if (!syncCustomExclusions.includes(val)) {
+    syncCustomExclusions.push(val);
+    renderCustomExclusionTags();
+    updateSyncExclusionBadge();
+    if (document.getElementById('sync-src-input')?.value && document.getElementById('sync-dest-input')?.value) {
+      analyzeSync();
+    }
+  }
+  input.value = '';
+}
+
+function removeCustomExclusionTag(pattern) {
+  syncCustomExclusions = syncCustomExclusions.filter(p => p !== pattern);
+  renderCustomExclusionTags();
+  updateSyncExclusionBadge();
+  if (document.getElementById('sync-src-input')?.value && document.getElementById('sync-dest-input')?.value) {
+    analyzeSync();
+  }
+}
+
+function renderCustomExclusionTags() {
+  const container = document.getElementById('sync-active-custom-tags');
+  if (!container) return;
+  container.innerHTML = syncCustomExclusions.map(pat => `
+    <span class="sync-custom-tag">
+      ${escapeHtml(pat)}
+      <span class="sync-custom-tag-remove" onclick="removeCustomExclusionTag('${escapeHtml(pat)}')">&times;</span>
+    </span>
+  `).join('');
+}
+
+function clearAllSyncExclusions() {
+  document.querySelectorAll('#sync-exclusions-panel .sync-chip').forEach(c => c.classList.remove('active'));
+  syncCustomExclusions = [];
+  renderCustomExclusionTags();
+  updateSyncExclusionBadge();
+  if (document.getElementById('sync-src-input')?.value && document.getElementById('sync-dest-input')?.value) {
+    analyzeSync();
+  }
+}
+
+function getActiveSyncExclusions() {
+  const activeChips = Array.from(document.querySelectorAll('#sync-exclusions-panel .sync-chip.active'))
+    .map(c => c.getAttribute('data-pattern'))
+    .filter(Boolean);
+  return Array.from(new Set([...activeChips, ...syncCustomExclusions]));
+}
+
+function updateSyncExclusionBadge() {
+  const list = getActiveSyncExclusions();
+  const badge = document.getElementById('sync-exclusions-badge');
+  if (badge) badge.textContent = list.length;
+  const btn = document.getElementById('btn-toggle-sync-exclusions');
+  if (btn) {
+    if (list.length > 0) {
+      btn.classList.add('btn-accent');
+    } else {
+      btn.classList.remove('btn-accent');
+    }
+  }
+}
+
+function setPresetChips(patternsToActivate) {
+  document.querySelectorAll('#sync-exclusions-panel .sync-chip').forEach(chip => {
+    const pat = chip.getAttribute('data-pattern');
+    if (pat && patternsToActivate.includes(pat)) {
+      chip.classList.add('active');
+    } else {
+      chip.classList.remove('active');
+    }
+  });
+  updateSyncExclusionBadge();
+}
+
+function applySyncTemplate(templateKey) {
+  if (templateKey === 'nas_mirror') {
+    const radio = document.querySelector('input[name="sync-mode"][value="echo"]');
+    if (radio) { radio.checked = true; handleSyncModeChange(); }
+    const delta = document.getElementById('sync-opt-delta');
+    if (delta) delta.checked = true;
+    const verify = document.getElementById('sync-opt-verify');
+    if (verify) verify.checked = true;
+    setPresetChips(['.DS_Store', 'Thumbs.db', '*.tmp', '*.bak']);
+    showToast('🪞 Applied NAS Mirror template (Echo mode, verify checksums, system exclusions)', 'info');
+  } else if (templateKey === 'code_sync') {
+    const radio = document.querySelector('input[name="sync-mode"][value="synchronize"]');
+    if (radio) { radio.checked = true; handleSyncModeChange(); }
+    const delta = document.getElementById('sync-opt-delta');
+    if (delta) delta.checked = true;
+    const verify = document.getElementById('sync-opt-verify');
+    if (verify) verify.checked = true;
+    setPresetChips(['node_modules', '.git', 'target', '.cache', 'tmp', 'dist', '*.log']);
+    showToast('💻 Applied Codebase Sync template (2-Way delta sync, dev exclusions)', 'info');
+  } else if (templateKey === 'snapshot_archive') {
+    const radio = document.querySelector('input[name="sync-mode"][value="subscribe"]');
+    if (radio) { radio.checked = true; handleSyncModeChange(); }
+    const delta = document.getElementById('sync-opt-delta');
+    if (delta) delta.checked = true;
+    const verify = document.getElementById('sync-opt-verify');
+    if (verify) verify.checked = true;
+    const retention = document.getElementById('sync-opt-retention');
+    if (retention) retention.value = '30';
+    setPresetChips(['.DS_Store', 'Thumbs.db', '*.tmp']);
+    showToast('📦 Applied Snapshot Vault template (Versioned archive snapshots)', 'info');
+  } else if (templateKey === 'media_vault') {
+    const radio = document.querySelector('input[name="sync-mode"][value="contribute"]');
+    if (radio) { radio.checked = true; handleSyncModeChange(); }
+    const delta = document.getElementById('sync-opt-delta');
+    if (delta) delta.checked = true;
+    const verify = document.getElementById('sync-opt-verify');
+    if (verify) verify.checked = true;
+    setPresetChips(['.DS_Store', 'Thumbs.db', '*.tmp', '*.bak']);
+    showToast('📸 Applied Media Backup template (Additive contribute mode)', 'info');
+  }
+
+  if (document.getElementById('sync-src-input')?.value && document.getElementById('sync-dest-input')?.value) {
+    analyzeSync();
+  }
+}
+
+function applyJobModalTemplate(templateKey) {
+  if (!templateKey) return;
+  const nameInput = document.getElementById('bp-name');
+  const modeSelect = document.getElementById('bp-mode');
+  const schedSelect = document.getElementById('bp-schedule-type');
+  const intervalInput = document.getElementById('bp-interval-mins');
+  const dailyInput = document.getElementById('bp-daily-time');
+  const exclusionsInput = document.getElementById('bp-exclusions');
+
+  if (templateKey === 'nas_mirror') {
+    if (nameInput && !nameInput.value) nameInput.value = 'Daily NAS Mirror';
+    if (modeSelect) modeSelect.value = 'echo';
+    if (schedSelect) schedSelect.value = 'daily';
+    if (dailyInput) dailyInput.value = '02:00';
+    if (exclusionsInput) exclusionsInput.value = '.DS_Store, Thumbs.db, *.tmp, *.bak';
+  } else if (templateKey === 'code_sync') {
+    if (nameInput && !nameInput.value) nameInput.value = 'Codebase Interval Sync';
+    if (modeSelect) modeSelect.value = 'synchronize';
+    if (schedSelect) schedSelect.value = 'interval';
+    if (intervalInput) intervalInput.value = '30';
+    if (exclusionsInput) exclusionsInput.value = 'node_modules, .git, target, .cache, dist, *.log';
+  } else if (templateKey === 'snapshot_archive') {
+    if (nameInput && !nameInput.value) nameInput.value = 'Daily Snapshot Vault';
+    if (modeSelect) modeSelect.value = 'subscribe';
+    if (schedSelect) schedSelect.value = 'daily';
+    if (dailyInput) dailyInput.value = '03:00';
+    if (exclusionsInput) exclusionsInput.value = '.DS_Store, Thumbs.db, *.tmp';
+  } else if (templateKey === 'media_vault') {
+    if (nameInput && !nameInput.value) nameInput.value = 'Hourly Media Vault';
+    if (modeSelect) modeSelect.value = 'contribute';
+    if (schedSelect) schedSelect.value = 'interval';
+    if (intervalInput) intervalInput.value = '60';
+    if (exclusionsInput) exclusionsInput.value = '.DS_Store, Thumbs.db, *.tmp, *.bak';
+  }
+  handleScheduleTypeChange();
+}
+
+function appendBpExclusion(pattern) {
+  const input = document.getElementById('bp-exclusions');
+  if (!input) return;
+  const current = input.value.split(',').map(s => s.trim()).filter(Boolean);
+  if (!current.includes(pattern)) {
+    current.push(pattern);
+    input.value = current.join(', ');
   }
 }
 
@@ -15122,6 +16348,7 @@ async function analyzeSync() {
   const verifyChecksum = document.getElementById('sync-opt-verify')?.checked ?? true;
   const archiveDir = document.getElementById('sync-opt-archive-dir')?.value.trim() || '_archive';
   const retentionDays = parseInt(document.getElementById('sync-opt-retention')?.value || '30', 10);
+  const exclusions = getActiveSyncExclusions();
 
   if (!source || !destination) {
     showToast('Please specify source and destination directories', 'warning');
@@ -15148,6 +16375,7 @@ async function analyzeSync() {
           delete_orphans: mode === 'echo',
           archive_dir: archiveDir,
           retention_days: retentionDays,
+          exclusions,
         }
       })
     });
@@ -15261,6 +16489,7 @@ async function executeSync() {
   const verifyChecksum = document.getElementById('sync-opt-verify')?.checked ?? true;
   const archiveDir = document.getElementById('sync-opt-archive-dir')?.value.trim() || '_archive';
   const retentionDays = parseInt(document.getElementById('sync-opt-retention')?.value || '30', 10);
+  const exclusions = getActiveSyncExclusions();
 
   if (!source || !destination) {
     showToast('Please specify source and destination directories', 'warning');
@@ -15284,6 +16513,7 @@ async function executeSync() {
           delete_orphans: mode === 'echo',
           archive_dir: archiveDir,
           retention_days: retentionDays,
+          exclusions,
         }
       })
     });
@@ -15315,6 +16545,7 @@ function openSaveCurrentSyncAsProfile() {
     source_dir: src,
     dest_dir: dest,
     profile_mode: mode,
+    exclusions: getActiveSyncExclusions().join(', '),
     block_delta: document.getElementById('sync-opt-delta')?.checked ?? true,
     verify_checksum: document.getElementById('sync-opt-verify')?.checked ?? true,
     archive_dir: document.getElementById('sync-opt-archive-dir')?.value || '_archive',
@@ -15328,20 +16559,42 @@ function openSaveCurrentSyncAsProfile() {
 }
 
 function openCreateBackupProfileModal(profile) {
-  document.getElementById('bp-id').value = profile?.id || '';
-  document.getElementById('bp-name').value = profile?.name || '';
-  document.getElementById('bp-source').value = profile?.source_dir || (panes[0]?.path || '');
-  document.getElementById('bp-dest').value = profile?.dest_dir || (panes[1]?.path || '');
-  document.getElementById('bp-mode').value = profile?.profile_mode || 'subscribe';
-  document.getElementById('bp-schedule-type').value = profile?.schedule_type || 'manual';
-  document.getElementById('bp-interval-mins').value = profile?.schedule_interval_mins || 60;
-  document.getElementById('bp-daily-time').value = profile?.schedule_time || '02:00';
-  document.getElementById('bp-block-delta').checked = profile?.block_delta ?? true;
-  document.getElementById('bp-verify').checked = profile?.verify_checksum ?? true;
-  document.getElementById('bp-enabled').checked = profile?.enabled ?? true;
-  document.getElementById('bp-webhook').value = profile?.webhook_url || '';
+  const p = profile || {};
+  const srcVal = p.source_dir || (App.panes && App.panes[0] ? App.panes[0].path : '');
+  const destVal = p.dest_dir || (App.panes && App.panes[1] ? App.panes[1].path : (App.panes && App.panes[0] ? App.panes[0].path : ''));
 
-  document.getElementById('backup-profile-modal-title').textContent = profile?.id ? 'Edit Backup Profile' : 'Create Backup Profile';
+  const idIn = document.getElementById('bp-id');
+  const nameIn = document.getElementById('bp-name');
+  const srcIn = document.getElementById('bp-source');
+  const destIn = document.getElementById('bp-dest');
+  const modeIn = document.getElementById('bp-mode');
+  const exclIn = document.getElementById('bp-exclusions');
+  const tmplSelect = document.getElementById('bp-template-select');
+  const schedIn = document.getElementById('bp-schedule-type');
+  const intervalIn = document.getElementById('bp-interval-mins');
+  const dailyIn = document.getElementById('bp-daily-time');
+  const deltaIn = document.getElementById('bp-block-delta');
+  const verifyIn = document.getElementById('bp-verify');
+  const enabledIn = document.getElementById('bp-enabled');
+  const webhookIn = document.getElementById('bp-webhook');
+
+  if (idIn) idIn.value = p.id || '';
+  if (nameIn) nameIn.value = p.name || '';
+  if (srcIn) srcIn.value = srcVal;
+  if (destIn) destIn.value = destVal;
+  if (modeIn) modeIn.value = p.profile_mode || 'subscribe';
+  if (exclIn) exclIn.value = p.exclusions || '';
+  if (tmplSelect) tmplSelect.value = '';
+  if (schedIn) schedIn.value = p.schedule_type || 'manual';
+  if (intervalIn) intervalIn.value = p.schedule_interval_mins || 60;
+  if (dailyIn) dailyIn.value = p.schedule_time || '02:00';
+  if (deltaIn) deltaIn.checked = p.block_delta ?? true;
+  if (verifyIn) verifyIn.checked = p.verify_checksum ?? true;
+  if (enabledIn) enabledIn.checked = p.enabled ?? true;
+  if (webhookIn) webhookIn.value = p.webhook_url || '';
+
+  const titleEl = document.getElementById('backup-profile-modal-title');
+  if (titleEl) titleEl.textContent = p.id ? 'Edit Backup Profile' : 'Create Backup Profile';
   handleScheduleTypeChange();
   showModal('backup-profile-modal');
   if (window.lucide) lucide.createIcons();
@@ -15361,6 +16614,7 @@ async function saveBackupProfileForm() {
   const source_dir = document.getElementById('bp-source')?.value.trim();
   const dest_dir = document.getElementById('bp-dest')?.value.trim();
   const profile_mode = document.getElementById('bp-mode')?.value || 'subscribe';
+  const exclusions = document.getElementById('bp-exclusions')?.value.trim() || null;
   const schedule_type = document.getElementById('bp-schedule-type')?.value || 'manual';
   const schedule_interval_mins = parseInt(document.getElementById('bp-interval-mins')?.value || '60', 10);
   const schedule_time = document.getElementById('bp-daily-time')?.value.trim() || '02:00';
@@ -15384,6 +16638,7 @@ async function saveBackupProfileForm() {
         source_dir,
         dest_dir,
         profile_mode,
+        exclusions,
         block_delta,
         verify_checksum,
         archive_dir: '_archive',
@@ -15412,6 +16667,14 @@ async function saveBackupProfileForm() {
   }
 }
 
+let currentBackupProfiles = [];
+
+function editBackupProfileByIndex(idx) {
+  if (currentBackupProfiles[idx]) {
+    openCreateBackupProfileModal(currentBackupProfiles[idx]);
+  }
+}
+
 async function loadBackupProfiles() {
   const tbody = document.getElementById('backup-profiles-body');
   if (tbody) tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 30px; color: var(--accent);"><i data-lucide="loader"></i> Loading profiles...</td></tr>`;
@@ -15428,13 +16691,15 @@ async function loadBackupProfiles() {
     }
 
     const profiles = await resp.json();
+    currentBackupProfiles = profiles || [];
+
     if (profiles.length === 0) {
       if (tbody) tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 40px; color: var(--text-dim);">No backup jobs configured yet. Click <b>New Backup Job</b> to create one.</td></tr>`;
       return;
     }
 
     if (tbody) {
-      tbody.innerHTML = profiles.map(p => {
+      tbody.innerHTML = profiles.map((p, idx) => {
         const modeBadge = {
           'synchronize': '<span class="badge" style="background: rgba(59,130,246,0.15); color: #60a5fa;">2-Way Sync</span>',
           'echo': '<span class="badge" style="background: rgba(239,68,68,0.15); color: #f87171;">Mirror (Echo)</span>',
@@ -15464,7 +16729,10 @@ async function loadBackupProfiles() {
 
         return `
           <tr style="border-bottom: 1px solid var(--border);">
-            <td style="padding: 8px 12px; font-weight: 600;">${escapeHtml(p.name)}</td>
+            <td style="padding: 8px 12px;">
+              <div style="font-weight: 600;">${escapeHtml(p.name)}</div>
+              ${p.exclusions ? `<div style="font-size: 10px; color: var(--text-dim); margin-top: 2px;" title="Exclusions: ${escapeHtml(p.exclusions)}"><i data-lucide="filter" style="width: 10px; height: 10px; display: inline-block; vertical-align: middle;"></i> ${escapeHtml(p.exclusions)}</div>` : ''}
+            </td>
             <td style="padding: 8px 12px; font-family: var(--font-mono); font-size: 11px; max-width: 280px; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(p.source_dir)} ➔ ${escapeHtml(p.dest_dir)}">
               <span style="color: var(--info);">${escapeHtml(p.source_dir)}</span> ➔ <span style="color: #c084fc;">${escapeHtml(p.dest_dir)}</span>
             </td>
@@ -15474,7 +16742,7 @@ async function loadBackupProfiles() {
             <td style="padding: 8px 12px; font-size: 11px; color: var(--text-muted);">${statusPill} ${lastRunStr}</td>
             <td style="padding: 8px 12px; text-align: right; white-space: nowrap;">
               <button class="btn btn-xs btn-accent" onclick="runBackupProfileNow('${p.id}')" title="Run Backup Now"><i data-lucide="play"></i></button>
-              <button class="btn btn-xs" onclick='openCreateBackupProfileModal(${JSON.stringify(p)})' title="Edit Profile"><i data-lucide="edit"></i></button>
+              <button class="btn btn-xs" onclick="editBackupProfileByIndex(${idx})" title="Edit Profile"><i data-lucide="edit"></i></button>
               <button class="btn btn-xs" onclick="deleteBackupProfile('${p.id}')" title="Delete Profile" style="color: var(--danger);"><i data-lucide="trash-2"></i></button>
             </td>
           </tr>
@@ -16531,11 +17799,11 @@ let spotlightItems = [];
 
 const SPOTLIGHT_STATIC_ACTIONS = [
   { id: 'notedog', title: 'NoteDog Notes Studio', sub: 'Hierarchical notes, markdown editor, interactive checklists, templates & versions', icon: 'book-open', cat: 'actions', action: () => openFloatingNoteDog() },
-  { id: 'calc', title: 'Calculator', sub: 'Interactive floating calculator with storage units & base conversions', icon: 'calculator', cat: 'actions', action: () => openFloatingCalculator() },
+  { id: 'calc', title: 'Calculator', sub: 'Interactive floating calculator with storage units & base conversions', icon: 'assets/calc.png', cat: 'actions', action: () => openFloatingCalculator() },
   { id: 'branch', title: 'Flat / Branch View', sub: 'Flatten all subdirectories into a single unified list (Ctrl+B)', icon: 'git-branch', cat: 'actions', action: () => toggleBranchView() },
   { id: 'tags', title: 'Color Labels & Custom Tags', sub: 'Assign color labels and custom tags to selected items', icon: 'tag', cat: 'actions', action: () => triggerEditTagsModal() },
-  { id: 'term', title: 'Terminal Console', sub: 'Open integrated interactive terminal (` or F4)', icon: 'terminal', cat: 'actions', action: () => toggleTerminal() },
-  { id: 'edit', title: 'EditorDog Multi-Tab', sub: 'Open floating EditorDog code & text editor (F4)', icon: 'code', cat: 'actions', action: () => openFloatingEditor() },
+  { id: 'term', title: 'Terminal Console', sub: 'Open integrated interactive terminal (` or F4)', icon: 'assets/term.png', cat: 'actions', action: () => toggleTerminal() },
+  { id: 'edit', title: 'EditorDog Multi-Tab', sub: 'Open floating EditorDog code & text editor (F4)', icon: 'assets/edit.png', cat: 'actions', action: () => openFloatingEditor() },
   { id: 'diff', title: 'File & Folder Diff', sub: 'Compare files or directories side-by-side (F9)', icon: 'git-compare', cat: 'actions', action: () => triggerDiff() },
   { id: 'search', title: 'Deep File Search', sub: 'Search files and folders recursively (Ctrl+F)', icon: 'search', cat: 'actions', action: () => openSearchModal() },
   { id: 'shares', title: 'Active Shares & Dropboxes', sub: 'Manage public share links and guest upload dropboxes', icon: 'share-2', cat: 'actions', action: () => openSharesManager() },
@@ -16543,13 +17811,15 @@ const SPOTLIGHT_STATIC_ACTIONS = [
   { id: 'du', title: 'Disk Usage & Storage Treemap Analyzer', sub: 'Inspect space consumption, largest folders & files', icon: 'pie-chart', cat: 'actions', action: () => openDiskUsageModal() },
   { id: 'syncthing', title: 'Syncthing Dashboard', sub: 'Continuous peer-to-peer file synchronization', icon: 'repeat', cat: 'actions', action: () => openSyncthingModal() },
   { id: 'convert', title: 'ConvertX File Converter', sub: 'Batch convert images, documents, audio, videos', icon: 'file-output', cat: 'actions', action: () => openConverterModal() },
-  { id: 'tasks', title: 'Background Transfers & Queue', sub: 'View active transfers, speeds, and queued jobs', icon: 'list-checks', cat: 'actions', action: () => openFloatingTaskManager() },
+  { id: 'tasks', title: 'Background Transfers & Queue', sub: 'View active transfers, speeds, and queued jobs', icon: 'assets/task.png', cat: 'actions', action: () => openFloatingTaskManager() },
   { id: 'settings', title: 'User Settings & Hub', sub: 'Themes, keybindings, and preferences (F10)', icon: 'settings', cat: 'actions', action: () => openSettingsModal() },
   { id: 'admin', title: 'Admin Control Panel', sub: 'User management, RBAC, mounts, audit logs', icon: 'shield-alert', cat: 'actions', action: () => openAdminPanel() },
   { id: 'profile', title: 'User Profile & Password', sub: 'Account credentials, session avatar, and security', icon: 'user', cat: 'actions', action: () => openUserProfileModal() },
   { id: 'lock', title: 'Lock Session', sub: 'Lock CommanderDog immediately (Ctrl+Alt+L)', icon: 'lock', cat: 'actions', action: () => lockSession() },
   { id: 'mkdir', title: 'New Folder', sub: 'Create a new directory in active pane (F7)', icon: 'folder-plus', cat: 'actions', action: () => triggerMkdir() },
   { id: 'newfile', title: 'New Text File', sub: 'Create a new empty text document', icon: 'file-plus', cat: 'actions', action: () => triggerNewFile() },
+  { id: 'new-template', title: 'New File from Template...', sub: 'Create a new file using Markdown, HTML, Shell, Python or custom templates', icon: 'file-code-2', cat: 'actions', action: () => triggerCreateFromTemplate('markdown') },
+  { id: 'manage-templates', title: 'Manage File Templates', sub: 'Configure boilerplate templates and dynamic variables', icon: 'file-code-2', cat: 'actions', action: () => { openSettings(); switchSettingsTab('tab-templates'); } },
   { id: 'vault-create', title: 'Create Encrypted Vault', sub: 'Create a password-protected AES-256-GCM encrypted vault (.cdvault)', icon: 'shield-check', cat: 'actions', action: () => openCreateVaultModal() },
   { id: 'compress', title: 'Compress to Archive', sub: 'Create .zip or .tar.gz from selected files', icon: 'archive', cat: 'actions', action: () => triggerCompressModal() },
   { id: 'perms', title: 'Permissions & Ownership', sub: 'Visual Unix chmod & chown editor', icon: 'shield', cat: 'actions', action: () => triggerPermissions() },
@@ -16850,7 +18120,7 @@ function renderSpotlightResults() {
     return `
       <div class="spotlight-item ${isSelected ? 'selected' : ''}" data-index="${idx}" onclick="executeSpotlightIndex(${idx})">
         <div class="spotlight-item-icon">
-          <i data-lucide="${it.icon || 'file'}"></i>
+          ${it.icon && it.icon.includes('.png') ? `<img src="${it.icon}" alt="" style="width: 16px; height: 16px; object-fit: contain;">` : `<i data-lucide="${it.icon || 'file'}"></i>`}
         </div>
         <div class="spotlight-item-content">
           <div class="spotlight-item-title">${escapeHtml(it.title)}</div>
@@ -17550,18 +18820,20 @@ function mountDockedTool(paneIndex) {
   if (tool === 'notedog') {
     mount.innerHTML = `
       <div class="docked-notedog-box" style="display: flex; flex-direction: column; width: 100%; height: 100%; overflow: hidden; background: var(--bg-panel);">
-        <div style="padding: 4px 8px; background: var(--bg-dark); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; font-size: 11px; gap: 4px;">
-          <div style="display: flex; align-items: center; gap: 4px;">
-            <button class="btn btn-xs btn-accent" onclick="saveActiveNoteDogNote()" title="Save Note (Ctrl+S)"><i data-lucide="save" style="width: 11px;"></i> Save</button>
-            <button class="btn btn-xs" onclick="promptCreateNote()" title="New Note"><i data-lucide="plus" style="width: 11px;"></i> Note</button>
-            <button class="btn btn-xs" onclick="openNoteDogVersionsModal()" title="Versions"><i data-lucide="history" style="width: 11px;"></i></button>
+        <div class="notedog-workspace-header" style="padding: 4px 6px; min-height: 32px;">
+          <div class="notedog-workspace-actions" style="display: flex; align-items: center; gap: 3px;">
+            <button class="btn btn-icon btn-accent" onclick="saveActiveNoteDogNote()" title="Save Note (Ctrl+S)"><i data-lucide="save"></i></button>
+            <button class="btn btn-icon" onclick="openNoteDogTemplatePicker(event)" title="Insert Template"><i data-lucide="layout-template"></i></button>
+            <button class="btn btn-icon" onclick="promptCreateNote()" title="New Note (Ctrl+N)"><i data-lucide="plus"></i></button>
+            <button class="btn btn-icon btn-danger-hover" onclick="promptDeleteCurrentNote()" title="Delete Current Note"><i data-lucide="trash-2"></i></button>
           </div>
-          <div style="font-size: 11px; color: var(--text-dim); max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" id="docked-notedog-title-${paneIndex}">
+          <div style="font-size: 11px; font-weight: 600; color: var(--text-main); max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" id="docked-notedog-title-${paneIndex}">
             ${escapeHtml(notedogState.activeNote?.name || 'NoteDog')}
           </div>
-          <div style="display: flex; gap: 2px;">
-            <button class="btn btn-xs" onclick="setNoteDogViewMode('edit')" title="Edit"><i data-lucide="edit-3" style="width: 10px;"></i></button>
-            <button class="btn btn-xs" onclick="setNoteDogViewMode('preview')" title="Preview"><i data-lucide="eye" style="width: 10px;"></i></button>
+          <div class="layout-btn-group" style="display: flex; gap: 2px;">
+            <button class="btn btn-icon notedog-mode-btn" onclick="setNoteDogViewMode('edit')" title="Editor Only"><i data-lucide="square"></i></button>
+            <button class="btn btn-icon notedog-mode-btn" onclick="setNoteDogViewMode('split')" title="Split View"><i data-lucide="columns-2"></i></button>
+            <button class="btn btn-icon notedog-mode-btn" onclick="setNoteDogViewMode('preview')" title="Preview"><i data-lucide="book-open"></i></button>
           </div>
         </div>
         <div style="flex: 1; display: flex; overflow: hidden; height: 100%;" id="docked-notedog-body-${paneIndex}">
@@ -17734,7 +19006,7 @@ function mountDockedTool(paneIndex) {
         <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-dark); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border);">
           <div style="display: flex; align-items: center; gap: 8px;">
             <span class="task-status-indicator" id="docked-task-indicator-${paneIndex}"></span>
-            <span style="font-weight: 700; font-size: 12px;" id="docked-task-title-${paneIndex}">⚡ Transfers (0 active)</span>
+            <span style="font-weight: 700; font-size: 12px; display: flex; align-items: center; gap: 4px;"><img src="assets/task.png" alt="Tasks" style="width: 14px; height: 14px; object-fit: contain;"> <span id="docked-task-title-${paneIndex}">Transfers (0 active)</span></span>
             <span class="task-speed-badge" id="docked-task-speed-${paneIndex}">0 B/s</span>
           </div>
           <div style="display: flex; gap: 4px;">
@@ -17821,7 +19093,7 @@ function renderDockedTasksForPane(paneIndex, list) {
   const indEl = document.getElementById(`docked-task-indicator-${paneIndex}`);
   const speedEl = document.getElementById(`docked-task-speed-${paneIndex}`);
 
-  if (titleEl) titleEl.textContent = `⚡ Transfers (${running.length} active${list.length > running.length ? `, ${list.length - running.length} done` : ''})`;
+  if (titleEl) titleEl.textContent = `Transfers (${running.length} active${list.length > running.length ? `, ${list.length - running.length} done` : ''})`;
   if (indEl) {
     if (running.length > 0) indEl.classList.add('active');
     else indEl.classList.remove('active');
@@ -18051,11 +19323,11 @@ async function fetchGitStatusForPane(paneIndex, path) {
           badge.title = `Git Branch: ${data.branch} | ${data.files.length} changed files`;
           badge.onclick = (e) => { e.stopPropagation(); openGitManager(paneIndex, data.root_path || path); };
           badge.innerHTML = `
-            <i data-lucide="git-branch" style="width:11px; height:11px;"></i>
+            <i data-lucide="git-branch" style="width:10px; height:10px;"></i>
             <span>${escapeHtml(data.branch)}</span>
-            ${data.ahead > 0 ? `<span style="color:#22c55e;">⇡${data.ahead}</span>` : ''}
-            ${data.behind > 0 ? `<span style="color:#ef4444;">⇣${data.behind}</span>` : ''}
-            ${!data.is_clean ? `<span style="color:#ef4444; font-size:12px; line-height:1;">●</span>` : ''}
+            ${data.ahead > 0 ? `<span style="color:#22c55e; font-size: 8.5px;">⇡${data.ahead}</span>` : ''}
+            ${data.behind > 0 ? `<span style="color:#ef4444; font-size: 8.5px;">⇣${data.behind}</span>` : ''}
+            ${!data.is_clean ? `<span style="color:#ef4444; font-size:10px; line-height:1;">●</span>` : ''}
           `;
           container.appendChild(badge);
           if (window.lucide) lucide.createIcons({ root: badge });

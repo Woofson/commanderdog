@@ -2,9 +2,9 @@
 
 > **Creator & Lab**: Bolt J Woofson @ Woofsons Lab ([www.arf.ac](https://www.arf.ac))  
 > **Slogan**: *Multi-Tab File Commander for Web & Native Desktop — By Woofson*  
-> **Current Version**: `v0.7.2-rc1 (Desktop & Web)`  
+> **Current Version**: `v0.7.3-rc5 (Desktop & Web)`  
 > **Publishing Prefix Rule**: All crates, binaries, and packages use the `arf-` or `arf_` prefix (e.g. `arf-cmdr`, `arf-remote`).  
-> **Release History**: For detailed release notes and changelogs of past versions (`v0.1.0` — `v0.7.1`), see [**`CHANGELOG.md`**](CHANGELOG.md).
+> **Release History**: For detailed release notes and changelogs of past versions (`v0.1.0` — `v0.7.2`), see [**`CHANGELOG.md`**](CHANGELOG.md).
 
 ---
 
@@ -81,7 +81,7 @@
 
 ```mermaid
 graph TD
-    A["v0.7.1 (Released: Viewers, Fonts, Themes)"] --> B["v0.7.2 (Current: Manuals, Chewtoy Polish, EditorDog)"]
+    A["v0.7.1 (Released: Viewers, Fonts, Themes)"] --> B["v0.7.2 (Current: Manuals, Chewtoy Polish, EditorDog, NoteDog)"]
     B --> C["v0.8.0 (Next: Enterprise OIDC SSO & Collaborative Office)"]
     C --> D["v1.0.0 (Planned: High-Performance P2P Cluster & Distributed Storage)"]
 ```
@@ -90,23 +90,54 @@ graph TD
 - [x] **Documentation Reorganization & `manuals/` Structure (`v0.7.2-rc1`)**:
   - Reorganized loose root documentation into dedicated [`manuals/`](manuals/README.md).
   - Merged todos directly into `ROADMAP.md` as the unified source of truth.
-- [ ] **EditorDog Polish**:
-  - Standardize Save, New, Find, and Save All buttons to uniform `28px` Chewtoy header styling.
-  - Replace dropdown view/layout menu with direct action buttons.
-  - Move language selection dropdown to the right of breadcrumbs; move language badge to statusbar.
-- [ ] **Terminal Console (Bite!)**:
-  - Handle `Ctrl+D` (EOF) / shell logout to close or cleanly disconnect the session.
-  - Fix any TUI app dimension artifacts on terminal pane resize.
-- [ ] **Notes Chewtoy (NoteDog)**:
-  - Add resize handles in PC viewport with refined subtle header controls.
-  - Remove redundant breadcrumb badge.
-  - Refine docked sidebar layout when docked into panel.
-- [ ] **Top Header Hostname Badge**:
-  - Add customizable hostname/environment badge next to the logo for multi-host deployments.
-- [ ] **Task Manager Polish**:
-  - Ensure fast completed tasks cleanly dismiss without stuck UI pills.
-- [ ] **Delta Backup & Sync Studio Templates**:
-  - Multi-device script templates and folder exclusion builder.
+- [x] **EditorDog Polish & Compact Canvas**:
+  - Compact Single-Header Layout: Removed redundant inner document pane sub-headers; tabs now connect directly to the editor canvas.
+  - Interactive Status Bar Language Selector: Moved syntax mode selector to the bottom status bar (`RUST ▾`, `JS / TS ▾`, `MARKDOWN ▾`, etc.) with auto-detection and 1-click override.
+  - Standardized Save, New, Find, and Save All buttons to uniform `28px` Chewtoy header styling.
+  - Replaced dropdown view/layout menu with right-aligned direct action toggle buttons (`Single`, `Dual Side`, `Dual Stack`, `Preview`).
+- [x] **Notes Chewtoy (NoteDog) Header & Layout (`v0.7.2-rc4`)**:
+  - Standardized NoteDog header to Chewtoy `28px` uniform height, rounded corners (`var(--radius)`), and full drag handle.
+  - Aligned view mode switcher (`Editor`, `Split`, `Preview`) to right-aligned icon-only buttons matching CommanderDog layout controls.
+  - Standardized note workspace sub-header buttons (`Save`, `Template`, `Delete`) to match panel toolbar button standards (`26px x 26px`).
+- [x] **Universal Chewtoys & Windows Header/Toolbar Standardization (`v0.7.2-rc5`, `v0.7.2-rc6`)**:
+  - Standardized all built-in Chewtoys and floating window headers (`Calculator`, `Image Viewer`, `Terminal`, `Task Manager`, `Diff Engine`, `Git Manager`, `Disk Usage`, `Sync Studio`, `ConvertX`, `PDF Studio`, `Deep Search`) to uniform `28px` square icon buttons with `border-radius: var(--radius)` (`6px`).
+  - Right-aligned icon-only layout switches and tool controls with active amber glow styling and flat, stealthy window control buttons (`panel-left-close`, `panel-left-open`, `minus`, `maximize-2`, `x`, `picture-in-picture`, `external-link`).
+  - Docked tool pane headers now use icon-only float buttons and 26px stealthy controls.
+  - Standardized all sub-headers and inner workspace toolbars (`26px x 26px`) across note workspace, git staging, diff filters, disk usage path bar, sync replication bar, and calculator units row.
+- [x] **Terminal Console (Bite!) Lifecycle & Exit Handling (`v0.7.2-rc6`)**:
+  - Handled `Ctrl+D` (EOF), shell `logout`, and `exit` commands to automatically close drawer / docked tool and cleanly reset the PTY terminal state.
+- [x] **ChewToy Design System & Layout Language Locking (`v0.7.2-rc7`)**:
+  - Locked ChewToy Design & Layout Language Specification permanently into `GEMINI.md` (Section 7) and `.agents/rules/` for all future agent interactions.
+  - Enforced 42px header bar with full drag handle, 28px square buttons, right-aligned icon-only layout groups, flat & stealthy window controls, 26px sub-headers, dual-mode docking, and lifecycle teardown protocols.
+- [x] **Top Header Hostname & Environment Badge (`v0.7.2-rc8`)**:
+  - Added dynamic hostname badge next to the logo in the top application header with platform info (OS/arch/user) and click-to-copy utility.
+  - Added UI & Backend configuration (`config.toml` `[ui] show_hostname_badge`, `[ui] hostname_badge`, `[server] server_name`) with in-browser custom environment overrides (e.g. `NAS-PROD`, `HOMELAB-01`).
+- [x] **Task Manager Polish & Auto-Dismiss (`v0.7.2-rc8`)**:
+  - Main header activity pill button retains full 32px height to balance the profile bar.
+  - Resolved stuck UI pills for fast background jobs; idle state now cleanly resets activity badge to 0 and immediately hides floating speed badges and pills.
+  - Added automatic completed tasks auto-pruning in backend and frontend.
+- [x] **Delta Backup & Sync Studio Templates & Visual Exclusion Builder (`v0.7.2-rc9`)**:
+  - **1-Click Profile Templates**: Added instant setup presets (`🪞 NAS Mirror`, `💻 Codebase Sync`, `📦 Snapshot Vault`, `📸 Media Backup`) across live diff studio and scheduled job creator.
+  - **Visual Exclusion Builder**: Interactive preset chips (`node_modules`, `.git`, `target/`, `.cache/`, `tmp/`, `*.tmp`, `.DS_Store`, `Thumbs.db`, `*.log`, `dist/`, `*.bak`) with dynamic custom wildcard tag adder and badge counter.
+  - **Backend Exclusion Filtering**: Integrated pattern matcher into source/destination analysis and replication execution engine.
+  - **SQLite Job Exclusions Persistence**: Updated `backup_profiles` schema with automated migration to persist exclusion patterns per job.
+- [x] **Compact Breadcrumbs & Sleek Panel Git Badges**:
+  - Tightened breadcrumb spacing (`gap: 2px;`), streamlined separator chips, and compacted storage root dropdown buttons.
+  - Minified panel git branch badge (9.5px, 17px height, 10px icons) for an uncluttered path navigation bar.
+- [x] **Universal "New ▶" Context Menu & File Template Engine**:
+  - Full-surface right-click access: "New ▶" submenu is accessible anywhere across all file rows, cards, compact items, and empty background space.
+  - Built-in rich templates for Plain Text (`.txt`), Markdown (`.md`), HTML5 (`.html`), CSS (`.css`), JavaScript (`.js`), TypeScript (`.ts`), Python (`.py`), Rust (`.rs`), Bash (`.sh`), JSON (`.json`), and YAML (`.yaml`).
+  - Dynamic variable expansion: `{{TITLE}}` (humanized title), `{{FILENAME}}`, `{{NAME}}`, `{{DATE}}` (`YYYY-MM-DD`), `{{TIME}}`, `{{USER}}`, `{{ISO_DATE}}`, `{{YEAR}}`, `{{MONTH}}`, `{{DAY}}`, `{{AUTHOR}}`.
+  - Interactive "Create from Template" dialog with real-time live preview code editor and instant EditorDog opening.
+  - Full "Templates" manager tab in Settings to create, edit, duplicate, test, or delete custom file templates, plus 1-click "Save Selected File as Template" action.
+
+### ⚡ Performance, Resource Scaling & Usability Backlog (Identified Technical Debt):
+- [ ] **Flat / Branch View (`Ctrl+B`) Performance & Seamless Revert Navigation**:
+  - **Resource Scaling & UI Freeze Prevention**: Flattening large/deep directory trees currently consumes massive system resources and locks the interface. Re-architect branch scanning in backend Rust using cancelable async streaming (`tokio` / `rayon`), progressive chunk delivery, and safety item thresholds (>10,000 files warning).
+  - **Direct Revert / Exit Mechanism**: Provide an explicit, high-visibility "Exit Flat View (Ctrl+B)" top banner and active mode badge on the panel header so users can instantly restore standard hierarchical folder browsing without altering panel configurations.
+- [ ] **Disk Usage & Storage Treemap Analyzer Optimization**:
+  - **High-Latency Deep Scanning**: Disk usage calculation on large storage volumes takes significant time to load.
+  - **Parallel Rayon Walker & Progressive Treemap Streaming**: Implement parallel multithreaded directory traversal with progressive chunk streaming to the frontend treemap and cached directory sizes for near-instant rendering.
 
 ---
 

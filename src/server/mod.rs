@@ -202,6 +202,46 @@ async fn handle_login(
     }
 }
 
+pub fn get_system_hostname() -> String {
+    if let Ok(h) = std::env::var("CD_HOSTNAME") {
+        let trimmed = h.trim();
+        if !trimmed.is_empty() {
+            return trimmed.to_string();
+        }
+    }
+    if let Ok(h) = std::env::var("HOSTNAME") {
+        let trimmed = h.trim();
+        if !trimmed.is_empty() {
+            return trimmed.to_string();
+        }
+    }
+    #[cfg(unix)]
+    {
+        let mut buf = [0u8; 256];
+        let res = unsafe { libc::gethostname(buf.as_mut_ptr() as *mut libc::c_char, buf.len()) };
+        if res == 0 {
+            if let Ok(s) = std::ffi::CStr::from_bytes_until_nul(&buf) {
+                if let Ok(str_slice) = s.to_str() {
+                    let trimmed = str_slice.trim();
+                    if !trimmed.is_empty() {
+                        return trimmed.to_string();
+                    }
+                }
+            }
+        }
+    }
+    #[cfg(windows)]
+    {
+        if let Ok(h) = std::env::var("COMPUTERNAME") {
+            let trimmed = h.trim();
+            if !trimmed.is_empty() {
+                return trimmed.to_string();
+            }
+        }
+    }
+    "localhost".to_string()
+}
+
 #[derive(Serialize)]
 pub struct SystemStatusResponse {
     pub version: String,
@@ -209,6 +249,15 @@ pub struct SystemStatusResponse {
     pub auth_enabled: bool,
     pub current_user: String,
     pub home_dir: String,
+    pub hostname: String,
+    pub os: String,
+    pub arch: String,
+    pub custom_hostname: Option<String>,
+    pub show_hostname_badge: bool,
+    pub hostname_color: Option<String>,
+    pub hostname_style: Option<String>,
+    pub hostname_icon: Option<String>,
+    pub hostname_size: Option<String>,
 }
 
 async fn handle_system_status(State(state): State<AppState>) -> Json<SystemStatusResponse> {
@@ -216,12 +265,30 @@ async fn handle_system_status(State(state): State<AppState>) -> Json<SystemStatu
     let home_dir = dirs::home_dir()
         .map(|p| p.to_string_lossy().to_string())
         .unwrap_or_else(|| "/".to_string());
+    let hostname = get_system_hostname();
+    let custom_hostname = if !state.config.ui.hostname_badge.trim().is_empty() {
+        Some(state.config.ui.hostname_badge.clone())
+    } else if !state.config.server.server_name.trim().is_empty() {
+        Some(state.config.server.server_name.clone())
+    } else {
+        None
+    };
+
     Json(SystemStatusResponse {
         version: env!("CARGO_PKG_VERSION").to_string(),
         standalone: state.config.server.standalone || !state.config.server.enable_auth,
         auth_enabled: state.config.server.enable_auth && !state.config.server.standalone,
         current_user,
         home_dir,
+        hostname,
+        os: std::env::consts::OS.to_string(),
+        arch: std::env::consts::ARCH.to_string(),
+        custom_hostname,
+        show_hostname_badge: state.config.ui.show_hostname_badge,
+        hostname_color: if !state.config.ui.hostname_color.trim().is_empty() { Some(state.config.ui.hostname_color.clone()) } else { None },
+        hostname_style: if !state.config.ui.hostname_style.trim().is_empty() { Some(state.config.ui.hostname_style.clone()) } else { None },
+        hostname_icon: if !state.config.ui.hostname_icon.trim().is_empty() { Some(state.config.ui.hostname_icon.clone()) } else { None },
+        hostname_size: if !state.config.ui.hostname_size.trim().is_empty() { Some(state.config.ui.hostname_size.clone()) } else { None },
     })
 }
 

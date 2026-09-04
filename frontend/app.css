@@ -58,6 +58,9 @@
   --font-mono: 'JetBrains Mono', 'JetBrainsMono Nerd Font', 'FiraCode Nerd Font', 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   --radius: 6px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
   --pane-border-width: 1px;
   --pane-active-ring-width: 1px;
   --shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
@@ -87,6 +90,9 @@
   --font-mono: 'JetBrains Mono', 'JetBrainsMono Nerd Font', 'FiraCode Nerd Font', 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   --radius: 6px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
   --pane-border-width: 1px;
   --pane-active-ring-width: 1px;
   --shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
@@ -180,6 +186,210 @@ body {
   color: var(--accent);
   letter-spacing: 0.5px;
   margin-right: auto;
+}
+
+.header-hostname-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 600;
+  padding: 2px 7px;
+  height: 22px;
+  font-size: 11px;
+  border-radius: var(--radius-sm, 4px);
+  letter-spacing: 0.3px;
+  font-family: var(--font-mono, monospace);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+  max-width: 220px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-sizing: border-box;
+  --badge-color: var(--accent, #f59e0b);
+  --badge-bg: rgba(245, 158, 11, 0.12);
+  --badge-border: rgba(245, 158, 11, 0.28);
+  --badge-hover: rgba(245, 158, 11, 0.22);
+  --badge-glow: rgba(245, 158, 11, 0.35);
+  background: var(--badge-bg);
+  color: var(--badge-color);
+  border: 1px solid var(--badge-border);
+}
+
+.header-hostname-badge:hover {
+  background: var(--badge-hover);
+  border-color: var(--badge-color);
+  transform: translateY(-1px);
+}
+
+.header-hostname-badge i,
+.header-hostname-badge svg {
+  width: 11px;
+  height: 11px;
+  stroke-width: 2.2;
+  flex-shrink: 0;
+}
+
+/* Badge Sizes */
+.header-hostname-badge.size-sm {
+  height: 18px;
+  font-size: 9.5px;
+  padding: 1px 5px;
+  gap: 3.5px;
+}
+.header-hostname-badge.size-sm i,
+.header-hostname-badge.size-sm svg {
+  width: 9.5px;
+  height: 9.5px;
+}
+
+.header-hostname-badge.size-md {
+  height: 22px;
+  font-size: 11px;
+  padding: 2px 7px;
+  gap: 5px;
+}
+
+.header-hostname-badge.size-lg {
+  height: 26px;
+  font-size: 12px;
+  padding: 3px 9px;
+  gap: 6px;
+  font-weight: 700;
+}
+.header-hostname-badge.size-lg i,
+.header-hostname-badge.size-lg svg {
+  width: 13px;
+  height: 13px;
+}
+
+/* Badge Color Themes */
+.header-hostname-badge.color-amber {
+  --badge-color: #f59e0b;
+  --badge-bg: rgba(245, 158, 11, 0.12);
+  --badge-border: rgba(245, 158, 11, 0.28);
+  --badge-hover: rgba(245, 158, 11, 0.22);
+  --badge-glow: rgba(245, 158, 11, 0.35);
+}
+
+.header-hostname-badge.color-emerald {
+  --badge-color: #10b981;
+  --badge-bg: rgba(16, 185, 129, 0.12);
+  --badge-border: rgba(16, 185, 129, 0.32);
+  --badge-hover: rgba(16, 185, 129, 0.22);
+  --badge-glow: rgba(16, 185, 129, 0.35);
+}
+
+.header-hostname-badge.color-sky {
+  --badge-color: #0ea5e9;
+  --badge-bg: rgba(14, 165, 233, 0.12);
+  --badge-border: rgba(14, 165, 233, 0.32);
+  --badge-hover: rgba(14, 165, 233, 0.22);
+  --badge-glow: rgba(14, 165, 233, 0.35);
+}
+
+.header-hostname-badge.color-purple {
+  --badge-color: #a855f7;
+  --badge-bg: rgba(168, 85, 247, 0.12);
+  --badge-border: rgba(168, 85, 247, 0.32);
+  --badge-hover: rgba(168, 85, 247, 0.22);
+  --badge-glow: rgba(168, 85, 247, 0.35);
+}
+
+.header-hostname-badge.color-rose {
+  --badge-color: #f43f5e;
+  --badge-bg: rgba(244, 63, 94, 0.12);
+  --badge-border: rgba(244, 63, 94, 0.32);
+  --badge-hover: rgba(244, 63, 94, 0.22);
+  --badge-glow: rgba(244, 63, 94, 0.35);
+}
+
+.header-hostname-badge.color-orange {
+  --badge-color: #f97316;
+  --badge-bg: rgba(249, 115, 22, 0.12);
+  --badge-border: rgba(249, 115, 22, 0.32);
+  --badge-hover: rgba(249, 115, 22, 0.22);
+  --badge-glow: rgba(249, 115, 22, 0.35);
+}
+
+.header-hostname-badge.color-cyan {
+  --badge-color: #06b6d4;
+  --badge-bg: rgba(6, 182, 212, 0.12);
+  --badge-border: rgba(6, 182, 212, 0.32);
+  --badge-hover: rgba(6, 182, 212, 0.22);
+  --badge-glow: rgba(6, 182, 212, 0.35);
+}
+
+.header-hostname-badge.color-slate {
+  --badge-color: #94a3b8;
+  --badge-bg: rgba(148, 163, 184, 0.12);
+  --badge-border: rgba(148, 163, 184, 0.3);
+  --badge-hover: rgba(148, 163, 184, 0.2);
+  --badge-glow: rgba(148, 163, 184, 0.3);
+}
+
+/* Badge Visual Styles / Variants */
+.header-hostname-badge.style-subtle {
+  background: var(--badge-bg);
+  color: var(--badge-color);
+  border: 1px solid var(--badge-border);
+}
+.header-hostname-badge.style-subtle:hover {
+  background: var(--badge-hover);
+  border-color: var(--badge-color);
+}
+
+.header-hostname-badge.style-solid {
+  background: var(--badge-color);
+  color: #0d0f12 !important;
+  font-weight: 700;
+  border: 1px solid transparent;
+}
+.header-hostname-badge.style-solid:hover {
+  filter: brightness(1.1);
+  box-shadow: 0 2px 8px var(--badge-glow);
+}
+
+.header-hostname-badge.style-outline {
+  background: transparent;
+  color: var(--badge-color);
+  border: 1.5px solid var(--badge-color);
+}
+.header-hostname-badge.style-outline:hover {
+  background: var(--badge-bg);
+}
+
+.header-hostname-badge.style-pill {
+  border-radius: 999px;
+  background: var(--badge-bg);
+  color: var(--badge-color);
+  border: 1px solid var(--badge-border);
+  padding-left: 9px;
+  padding-right: 9px;
+}
+.header-hostname-badge.style-pill:hover {
+  background: var(--badge-hover);
+  border-color: var(--badge-color);
+}
+
+.header-hostname-badge.style-glow {
+  background: var(--badge-bg);
+  color: var(--badge-color);
+  border: 1px solid var(--badge-color);
+  box-shadow: 0 0 10px var(--badge-glow);
+}
+.header-hostname-badge.style-glow:hover {
+  background: var(--badge-hover);
+  box-shadow: 0 0 15px var(--badge-glow);
+}
+
+@media (max-width: 480px) {
+  .header-hostname-badge {
+    max-width: 120px;
+    font-size: 10px;
+    padding: 1px 5px;
+  }
 }
 
 .header-actions {
@@ -413,7 +623,7 @@ body {
   height: 26px !important;
   min-height: 26px !important;
   max-height: 26px !important;
-  border-radius: 4px !important;
+  border-radius: var(--radius) !important;
   font-size: 12px;
   display: inline-flex;
   align-items: center;
@@ -468,7 +678,7 @@ body {
 .pane-breadcrumbs {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   overflow-x: auto;
   white-space: nowrap;
   scrollbar-width: none;
@@ -481,6 +691,7 @@ body {
   cursor: pointer;
   padding: 1px 3px;
   border-radius: 2px;
+  transition: all 0.1s ease;
 }
 
 .crumb:hover {
@@ -490,6 +701,9 @@ body {
 
 .crumb-sep {
   color: var(--text-dim);
+  padding: 0 1px;
+  opacity: 0.55;
+  user-select: none;
 }
 
 .pane-path-input {
@@ -814,43 +1028,128 @@ body {
   font-weight: 600;
 }
 
-/* Universal Modal & Window Header Close (X) Buttons - Neat, Calm & Lean */
+/* Universal Modal & Chewtoy Window Header Controls & Action Buttons (28px Chewtoy Standard) */
+.modal-header > button.btn-icon,
+.modal-header .btn-icon,
+.calc-header .btn-icon,
+.calc-header-actions .btn-icon,
+.terminal-header .btn-icon,
+.image-viewer-toolbar .btn-icon,
+.doc-viewer-header .btn-icon,
+.doc-viewer-actions-right .btn-icon,
+.diff-modal-header .btn-icon,
+.diff-header-actions .btn-icon,
+.task-win-header .btn-icon,
+.task-win-controls .btn-task-control,
+.editor-header-right .btn-icon,
+.editor-header-left .btn-icon,
+.notedog-header-actions .btn-icon,
+.notedog-header-left .btn-icon {
+  width: 28px !important;
+  height: 28px !important;
+  min-width: 28px !important;
+  min-height: 28px !important;
+  max-width: 28px !important;
+  max-height: 28px !important;
+  padding: 0 !important;
+  border-radius: var(--radius) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  box-sizing: border-box !important;
+}
+
+.modal-header .btn-icon i,
+.modal-header .btn-icon svg,
+.calc-header .btn-icon i,
+.calc-header .btn-icon svg,
+.calc-header-actions .btn-icon i,
+.calc-header-actions .btn-icon svg,
+.terminal-header .btn-icon i,
+.terminal-header .btn-icon svg,
+.image-viewer-toolbar .btn-icon i,
+.image-viewer-toolbar .btn-icon svg,
+.doc-viewer-header .btn-icon i,
+.doc-viewer-header .btn-icon svg,
+.doc-viewer-actions-right .btn-icon i,
+.doc-viewer-actions-right .btn-icon svg,
+.diff-modal-header .btn-icon i,
+.diff-modal-header .btn-icon svg,
+.diff-header-actions .btn-icon i,
+.diff-header-actions .btn-icon svg,
+.task-win-header .btn-icon i,
+.task-win-header .btn-icon svg,
+.task-win-controls .btn-task-control i,
+.task-win-controls .btn-task-control svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Universal Stealthy Window Controls (Maximize, Minimize, Dock, Float, Close) - Flat & Calm */
+.modal-header button:has(i[data-lucide="minus"]),
+.modal-header button:has(svg.lucide-minus),
+.modal-header button:has(i[data-lucide="maximize-2"]),
+.modal-header button:has(svg.lucide-maximize-2),
+.modal-header button:has(i[data-lucide="maximize"]),
+.modal-header button:has(svg.lucide-maximize),
+.modal-header button:has(i[data-lucide="panel-left-close"]),
+.modal-header button:has(svg.lucide-panel-left-close),
+.modal-header button:has(i[data-lucide="panel-left-open"]),
+.modal-header button:has(svg.lucide-panel-left-open),
+.modal-header button:has(i[data-lucide="picture-in-picture"]),
+.modal-header button:has(svg.lucide-picture-in-picture),
+.modal-header button:has(i[data-lucide="external-link"]),
+.modal-header button:has(svg.lucide-external-link),
+.modal-header button:has(i[data-lucide="x"]),
+.modal-header button:has(svg.lucide-x),
 .modal-header > button.btn,
 .modal-header > button.btn-icon,
 .modal-header .modal-close-btn,
 .modal-header .btn-modal-close,
-.modal-header button:has(i[data-lucide="x"]),
-.modal-header button:has(svg.lucide-x),
-.modal-header .btn:has(i[data-lucide="x"]),
-.modal-header .btn:has(svg.lucide-x),
-.modal-header .btn-icon:has(i[data-lucide="x"]),
-.modal-header .btn-icon:has(svg.lucide-x),
-.terminal-header button:has(i[data-lucide="x"]),
-.terminal-header button:has(svg.lucide-x),
+.terminal-header button,
+.editor-header button:has(i[data-lucide="panel-left-close"]),
+.editor-header button:has(svg.lucide-panel-left-close),
 .editor-header button:has(i[data-lucide="x"]),
 .editor-header button:has(svg.lucide-x),
-.calc-header-actions button:has(i[data-lucide="x"]),
-.calc-header-actions button:has(svg.lucide-x),
+.notedog-header button:has(i[data-lucide="panel-left-close"]),
+.notedog-header button:has(svg.lucide-panel-left-close),
+.notedog-header button:has(i[data-lucide="minus"]),
+.notedog-header button:has(svg.lucide-minus),
+.notedog-header button:has(i[data-lucide="maximize-2"]),
+.notedog-header button:has(svg.lucide-maximize-2),
+.notedog-header button:has(i[data-lucide="x"]),
+.notedog-header button:has(svg.lucide-x),
+.calc-header-actions button,
+.image-viewer-toolbar button:has(i[data-lucide="picture-in-picture"]),
+.image-viewer-toolbar button:has(svg.lucide-picture-in-picture),
 .image-viewer-toolbar button:has(i[data-lucide="x"]),
 .image-viewer-toolbar button:has(svg.lucide-x),
-.media-inspector-header button:has(i[data-lucide="x"]),
-.media-inspector-header button:has(svg.lucide-x),
+.doc-viewer-actions-right button:has(i[data-lucide="picture-in-picture"]),
+.doc-viewer-actions-right button:has(svg.lucide-picture-in-picture),
+.doc-viewer-actions-right button:has(i[data-lucide="maximize-2"]),
+.doc-viewer-actions-right button:has(svg.lucide-maximize-2),
+.doc-viewer-actions-right button:has(i[data-lucide="x"]),
+.doc-viewer-actions-right button:has(svg.lucide-x),
+.diff-modal-header button:has(i[data-lucide="x"]),
+.diff-modal-header button:has(svg.lucide-x),
+.task-win-controls button,
+.btn-task-control,
 .modal-close-btn,
 .btn-modal-close,
 .btn-task-close {
-  width: 22px !important;
-  height: 22px !important;
-  min-width: 22px !important;
-  min-height: 22px !important;
-  max-width: 22px !important;
-  max-height: 22px !important;
+  width: 28px !important;
+  height: 28px !important;
+  min-width: 28px !important;
+  min-height: 28px !important;
+  max-width: 28px !important;
+  max-height: 28px !important;
   padding: 0 !important;
   margin: 0 !important;
   background: transparent !important;
   border: 1px solid transparent !important;
-  border-radius: 4px !important;
+  border-radius: var(--radius) !important;
   color: var(--text-muted) !important;
-  opacity: 0.55 !important;
+  opacity: 0.7 !important;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -859,56 +1158,83 @@ body {
   transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1) !important;
   flex-shrink: 0;
   line-height: 1 !important;
+  box-sizing: border-box !important;
 }
 
-.modal-header > button.btn i,
-.modal-header > button.btn svg,
-.modal-header > button.btn-icon i,
-.modal-header > button.btn-icon svg,
-.modal-header .modal-close-btn i,
-.modal-header .modal-close-btn svg,
-.modal-header .btn-modal-close i,
-.modal-header .btn-modal-close svg,
-.modal-header button:has(i[data-lucide="x"]) i,
-.modal-header button:has(i[data-lucide="x"]) svg,
-.modal-header button:has(svg.lucide-x) svg,
-.modal-header .btn:has(i[data-lucide="x"]) i,
-.modal-header .btn:has(i[data-lucide="x"]) svg,
-.modal-header .btn:has(svg.lucide-x) svg,
-.modal-header .btn-icon:has(i[data-lucide="x"]) i,
-.modal-header .btn-icon:has(i[data-lucide="x"]) svg,
-.modal-header .btn-icon:has(svg.lucide-x) svg,
-.terminal-header button:has(i[data-lucide="x"]) i,
-.terminal-header button:has(i[data-lucide="x"]) svg,
-.terminal-header button:has(svg.lucide-x) svg,
-.editor-header button:has(i[data-lucide="x"]) i,
-.editor-header button:has(i[data-lucide="x"]) svg,
-.editor-header button:has(svg.lucide-x) svg,
-.calc-header-actions button:has(i[data-lucide="x"]) i,
-.calc-header-actions button:has(i[data-lucide="x"]) svg,
-.calc-header-actions button:has(svg.lucide-x) svg,
-.image-viewer-toolbar button:has(i[data-lucide="x"]) i,
-.image-viewer-toolbar button:has(i[data-lucide="x"]) svg,
-.image-viewer-toolbar button:has(svg.lucide-x) svg,
+.modal-header button i,
+.modal-header button svg,
+.terminal-header button i,
+.terminal-header button svg,
+.editor-header button i,
+.editor-header button svg,
+.notedog-header button i,
+.notedog-header button svg,
+.calc-header-actions button i,
+.calc-header-actions button svg,
+.image-viewer-toolbar button i,
+.image-viewer-toolbar button svg,
+.doc-viewer-actions-right button i,
+.doc-viewer-actions-right button svg,
+.diff-modal-header button i,
+.diff-modal-header button svg,
+.task-win-controls button i,
+.task-win-controls button svg,
+.btn-task-control i,
+.btn-task-control svg,
 .modal-close-btn i,
 .modal-close-btn svg,
 .btn-modal-close i,
 .btn-modal-close svg,
 .btn-task-close i,
 .btn-task-close svg {
-  width: 13px !important;
-  height: 13px !important;
+  width: 14px !important;
+  height: 14px !important;
   stroke-width: 1.8px !important;
   display: block !important;
   color: inherit !important;
   transition: transform 0.15s ease, color 0.15s ease;
 }
 
-/* Hover: soft, calming feedback */
-.modal-header > button.btn:hover,
-.modal-header > button.btn-icon:hover,
-.modal-header .modal-close-btn:hover,
-.modal-header .btn-modal-close:hover,
+/* Hover: subtle feedback for stealthy window controls (maximize, minimize, dock, float) */
+.modal-header button:has(i[data-lucide="minus"]):hover,
+.modal-header button:has(svg.lucide-minus):hover,
+.modal-header button:has(i[data-lucide="maximize-2"]):hover,
+.modal-header button:has(svg.lucide-maximize-2):hover,
+.modal-header button:has(i[data-lucide="maximize"]):hover,
+.modal-header button:has(svg.lucide-maximize):hover,
+.modal-header button:has(i[data-lucide="panel-left-close"]):hover,
+.modal-header button:has(svg.lucide-panel-left-close):hover,
+.modal-header button:has(i[data-lucide="panel-left-open"]):hover,
+.modal-header button:has(svg.lucide-panel-left-open):hover,
+.modal-header button:has(i[data-lucide="picture-in-picture"]):hover,
+.modal-header button:has(svg.lucide-picture-in-picture):hover,
+.modal-header button:has(i[data-lucide="external-link"]):hover,
+.modal-header button:has(svg.lucide-external-link):hover,
+.terminal-header button:not(:has(i[data-lucide="x"])):not(:has(svg.lucide-x)):hover,
+.editor-header button:has(i[data-lucide="panel-left-close"]):hover,
+.editor-header button:has(svg.lucide-panel-left-close):hover,
+.notedog-header button:has(i[data-lucide="panel-left-close"]):hover,
+.notedog-header button:has(svg.lucide-panel-left-close):hover,
+.notedog-header button:has(i[data-lucide="minus"]):hover,
+.notedog-header button:has(svg.lucide-minus):hover,
+.notedog-header button:has(i[data-lucide="maximize-2"]):hover,
+.notedog-header button:has(svg.lucide-maximize-2):hover,
+.calc-header-actions button:not(:has(i[data-lucide="x"])):not(:has(svg.lucide-x)):hover,
+.image-viewer-toolbar button:has(i[data-lucide="picture-in-picture"]):hover,
+.image-viewer-toolbar button:has(svg.lucide-picture-in-picture):hover,
+.doc-viewer-actions-right button:has(i[data-lucide="picture-in-picture"]):hover,
+.doc-viewer-actions-right button:has(svg.lucide-picture-in-picture):hover,
+.doc-viewer-actions-right button:has(i[data-lucide="maximize-2"]):hover,
+.doc-viewer-actions-right button:has(svg.lucide-maximize-2):hover,
+.btn-task-control:not(.btn-task-close):hover,
+.pane-header .btn-panel-control:not(.modal-close-btn):hover {
+  opacity: 1 !important;
+  color: var(--text-main) !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+}
+
+/* Hover: soft calming red feedback for Close (X) button */
 .modal-header button:has(i[data-lucide="x"]):hover,
 .modal-header button:has(svg.lucide-x):hover,
 .modal-header .btn:has(i[data-lucide="x"]):hover,
@@ -919,10 +1245,14 @@ body {
 .terminal-header button:has(svg.lucide-x):hover,
 .editor-header button:has(i[data-lucide="x"]):hover,
 .editor-header button:has(svg.lucide-x):hover,
+.notedog-header button:has(i[data-lucide="x"]):hover,
+.notedog-header button:has(svg.lucide-x):hover,
 .calc-header-actions button:has(i[data-lucide="x"]):hover,
 .calc-header-actions button:has(svg.lucide-x):hover,
 .image-viewer-toolbar button:has(i[data-lucide="x"]):hover,
 .image-viewer-toolbar button:has(svg.lucide-x):hover,
+.diff-modal-header button:has(i[data-lucide="x"]):hover,
+.diff-modal-header button:has(svg.lucide-x):hover,
 .modal-close-btn:hover,
 .btn-modal-close:hover,
 .btn-task-close:hover {
@@ -932,42 +1262,88 @@ body {
   border-color: rgba(244, 63, 94, 0.2) !important;
 }
 
-.modal-header > button.btn:hover i,
-.modal-header > button.btn:hover svg,
-.modal-header > button.btn-icon:hover i,
-.modal-header > button.btn-icon:hover svg,
-.modal-header .modal-close-btn:hover i,
-.modal-header .modal-close-btn:hover svg,
+.modal-header button:hover i,
+.modal-header button:hover svg,
+.terminal-header button:hover i,
+.terminal-header button:hover svg,
+.editor-header button:hover i,
+.editor-header button:hover svg,
+.notedog-header button:hover i,
+.notedog-header button:hover svg,
+.calc-header-actions button:hover i,
+.calc-header-actions button:hover svg,
+.image-viewer-toolbar button:hover i,
+.image-viewer-toolbar button:hover svg,
+.diff-modal-header button:hover i,
+.diff-modal-header button:hover svg,
 .modal-close-btn:hover i,
 .modal-close-btn:hover svg,
 .btn-modal-close:hover i,
 .btn-modal-close:hover svg,
 .btn-task-close:hover i,
 .btn-task-close:hover svg {
-  transform: scale(1.1);
+  transform: scale(1.08);
 }
 
-/* Active Press */
-.modal-header > button.btn:active,
-.modal-header > button.btn-icon:active,
-.modal-header .modal-close-btn:active,
-.modal-header .btn-modal-close:active,
+/* Active / Press States */
+.modal-header button:has(i[data-lucide="minus"]):active,
+.modal-header button:has(svg.lucide-minus):active,
+.modal-header button:has(i[data-lucide="maximize-2"]):active,
+.modal-header button:has(svg.lucide-maximize-2):active,
+.modal-header button:has(i[data-lucide="panel-left-close"]):active,
+.modal-header button:has(svg.lucide-panel-left-close):active,
+.modal-header button:has(i[data-lucide="picture-in-picture"]):active,
+.modal-header button:has(svg.lucide-picture-in-picture):active,
+.modal-header button:has(i[data-lucide="external-link"]):active,
+.modal-header button:has(svg.lucide-external-link):active,
+.btn-task-control:not(.btn-task-close):active,
+.pane-header .btn-panel-control:not(.modal-close-btn):active {
+  background: rgba(255, 255, 255, 0.16) !important;
+  transform: scale(0.94) !important;
+}
+
 .modal-header button:has(i[data-lucide="x"]):active,
 .modal-header button:has(svg.lucide-x):active,
 .terminal-header button:has(i[data-lucide="x"]):active,
 .terminal-header button:has(svg.lucide-x):active,
 .editor-header button:has(i[data-lucide="x"]):active,
 .editor-header button:has(svg.lucide-x):active,
+.notedog-header button:has(i[data-lucide="x"]):active,
+.notedog-header button:has(svg.lucide-x):active,
 .calc-header-actions button:has(i[data-lucide="x"]):active,
 .calc-header-actions button:has(svg.lucide-x):active,
 .image-viewer-toolbar button:has(i[data-lucide="x"]):active,
 .image-viewer-toolbar button:has(svg.lucide-x):active,
+.diff-modal-header button:has(i[data-lucide="x"]):active,
+.diff-modal-header button:has(svg.lucide-x):active,
 .modal-close-btn:active,
 .btn-modal-close:active,
 .btn-task-close:active {
   background: rgba(244, 63, 94, 0.22) !important;
   color: #f43f5e !important;
-  transform: scale(0.92) !important;
+  transform: scale(0.94) !important;
+}
+
+/* Docked Tool In-Pane Header Controls (26px) */
+.pane-header .btn-panel-control {
+  width: 26px !important;
+  height: 26px !important;
+  min-width: 26px !important;
+  min-height: 26px !important;
+  max-width: 26px !important;
+  max-height: 26px !important;
+  border-radius: var(--radius) !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  color: var(--text-muted) !important;
+  opacity: 0.7 !important;
+}
+
+.pane-header .btn-panel-control i,
+.pane-header .btn-panel-control svg {
+  width: 13px !important;
+  height: 13px !important;
 }
 
 .modal-body {
@@ -1246,7 +1622,7 @@ body {
 }
 
 .editor-header {
-  padding: 8px 14px;
+  padding: 6px 12px;
   background: var(--bg-header);
   border-bottom: 1px solid var(--border);
   display: flex;
@@ -1255,25 +1631,123 @@ body {
   gap: 10px;
   flex-shrink: 0;
   user-select: none;
+  cursor: grab;
+  min-height: 42px;
+}
+
+.editor-header:active {
+  cursor: grabbing;
 }
 
 .editor-header-left,
 .editor-header-right {
   display: flex;
   align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
+  gap: 4px;
+  flex-wrap: nowrap;
 }
 
+.editor-header-left button,
+.editor-header-left .btn,
+.editor-header-left select,
+.editor-header-right button,
+.editor-header-right .btn,
+.editor-header-right select {
+  height: 28px !important;
+  line-height: 26px !important;
+  font-size: 11px !important;
+  box-sizing: border-box;
+  cursor: pointer;
+}
+
+.editor-header-right .btn-icon,
+.editor-header-left .btn-icon {
+  width: 28px !important;
+  height: 28px !important;
+  min-width: 28px !important;
+  min-height: 28px !important;
+  max-width: 28px !important;
+  max-height: 28px !important;
+  padding: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: var(--radius) !important;
+}
+
+.editor-header-right .btn-icon i,
+.editor-header-right .btn-icon svg,
+.editor-header-left .btn-icon i,
+.editor-header-left .btn-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Save button accent standard styling */
+.editor-header-right #btn-save-editor.btn-accent {
+  background-color: var(--accent) !important;
+  color: #121214 !important;
+  border-color: var(--accent) !important;
+}
+
+.editor-header-right #btn-save-editor.btn-accent:hover {
+  background-color: var(--accent-hover) !important;
+  border-color: var(--accent-hover) !important;
+}
+
+.editor-header-right #btn-save-editor.btn-saved {
+  background-color: #22c55e !important;
+  color: #121214 !important;
+  border-color: #22c55e !important;
+}
+
+/* Right-aligned Layout Switcher Button Group in Editor Header */
+.editor-header-right .layout-btn-group {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+}
+
+.editor-header-right .editor-view-mode-btn {
+  width: 28px !important;
+  height: 28px !important;
+  min-width: 28px !important;
+  min-height: 28px !important;
+  padding: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: var(--radius) !important;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.editor-header-right .editor-view-mode-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-main);
+  border-color: var(--border-bright);
+}
+
+.editor-header-right .editor-view-mode-btn.active {
+  background: rgba(245, 158, 11, 0.18) !important;
+  color: var(--accent) !important;
+  border-color: var(--accent) !important;
+  font-weight: 600 !important;
+}
+
+/* Multi-Tab Bar Strip */
 /* Multi-Tab Bar Strip */
 .editor-tab-strip {
   display: flex;
   align-items: center;
-  background: #15161b;
+  background: #14161a;
   border-bottom: 1px solid var(--border);
   overflow: hidden;
   flex-shrink: 0;
-  height: 34px;
+  height: 26px;
 }
 
 .editor-tabs-scroll {
@@ -1293,8 +1767,8 @@ body {
 .editor-tab {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 0 12px;
+  gap: 5px;
+  padding: 0 10px;
   height: 100%;
   font-size: 11px;
   font-weight: 500;
@@ -1322,16 +1796,16 @@ body {
 }
 
 .editor-tab-dirty {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
   background: var(--accent);
   display: inline-block;
 }
 
 .editor-tab-close {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   border-radius: 3px;
   display: inline-flex;
   align-items: center;
@@ -1351,7 +1825,7 @@ body {
   background: transparent;
   border: none;
   color: var(--text-dim);
-  width: 32px;
+  width: 26px;
   height: 100%;
   display: flex;
   align-items: center;
@@ -1437,6 +1911,7 @@ body {
   font-size: 11px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
+  gap: 8px;
 }
 
 .editor-pane-title {
@@ -1445,6 +1920,7 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  flex: 1;
 }
 
 .editor-pane-tag {
@@ -1453,6 +1929,25 @@ body {
   background: rgba(255, 255, 255, 0.05);
   padding: 1px 5px;
   border-radius: 3px;
+}
+
+.editor-pane-lang-select {
+  height: 22px;
+  line-height: 20px;
+  font-size: 10.5px;
+  padding: 0 6px;
+  background: var(--bg-dark);
+  color: var(--text-main);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  cursor: pointer;
+  outline: none;
+  max-width: 150px;
+}
+
+.editor-pane-lang-select:focus {
+  border-color: var(--accent);
 }
 
 .editor-body-wrapper {
@@ -1532,6 +2027,50 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.editor-status-lang-picker {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.editor-status-lang-select {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  z-index: 2;
+  font-family: var(--font-mono);
+}
+
+.editor-status-lang-badge {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--accent);
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  background: rgba(245, 158, 11, 0.12);
+  padding: 1px 7px;
+  border-radius: 4px;
+  border: 1px solid rgba(245, 158, 11, 0.28);
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.editor-status-lang-picker:hover .editor-status-lang-badge {
+  background: rgba(245, 158, 11, 0.22);
+  border-color: var(--accent);
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.25);
 }
 
 .status-sep {
@@ -1929,11 +2468,13 @@ body {
   background: var(--bg-header);
   border-bottom: 1px solid var(--border);
   padding: 6px 12px;
+  min-height: 42px;
   display: flex;
   justify-content: space-between;
   align-items: center;
   font-size: 11px;
   font-family: var(--font-mono);
+  box-sizing: border-box;
 }
 
 .terminal-body {
@@ -3408,6 +3949,85 @@ body {
   font-weight: 600;
 }
 
+.sync-template-btn {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  color: var(--text-main);
+  border-radius: var(--radius-sm, 4px);
+  padding: 2px 7px;
+  font-size: 10.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.sync-template-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--bg-hover);
+  transform: translateY(-1px);
+}
+
+.sync-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 12px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 10.5px;
+  font-family: var(--font-mono);
+  cursor: pointer;
+  transition: all 0.12s ease;
+  user-select: none;
+}
+
+.sync-chip:hover {
+  border-color: var(--accent);
+  color: var(--text-main);
+}
+
+.sync-chip.active {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #f87171;
+  font-weight: 600;
+}
+
+.sync-chip-sm {
+  font-size: 9.5px;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.sync-custom-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 12px;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  color: var(--accent);
+  font-size: 10.5px;
+  font-family: var(--font-mono);
+}
+
+.sync-custom-tag-remove {
+  cursor: pointer;
+  font-weight: 700;
+  margin-left: 2px;
+  color: var(--accent);
+  opacity: 0.7;
+}
+
+.sync-custom-tag-remove:hover {
+  opacity: 1;
+  color: #ef4444;
+}
+
 /* ---------------- VISUAL DISK USAGE TREEMAP & BAR ANALYZER ---------------- */
 .disk-usage-box {
   width: 850px;
@@ -4083,8 +4703,81 @@ body {
 .tools-dropdown-menu {
   right: 0;
   left: auto;
-  min-width: 250px;
+  min-width: 270px;
   max-width: calc(100vw - 20px);
+  max-height: 520px;
+  overflow-y: auto;
+}
+
+.tools-dropdown-menu .dropdown-item {
+  gap: 12px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.tools-dropdown-menu .dropdown-item i,
+.tools-dropdown-menu .dropdown-item svg,
+.tools-dropdown-menu .dropdown-item img {
+  width: 18px !important;
+  height: 18px !important;
+  min-width: 18px !important;
+  min-height: 18px !important;
+  display: inline-block !important;
+  flex-shrink: 0 !important;
+  object-fit: contain;
+}
+
+/* Tools Launchpad Customizer Drag-and-Drop & Rows */
+.tool-reorder-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--bg-dark);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+  user-select: none;
+}
+
+.tool-reorder-row:hover {
+  background: var(--bg-hover);
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+.tool-reorder-row.is-hidden {
+  opacity: 0.55;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.tool-reorder-row.dragging {
+  opacity: 0.35;
+  border: 1px dashed var(--accent);
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.tool-reorder-row.drag-over {
+  border-top: 2px solid var(--accent);
+  background: rgba(245, 158, 11, 0.12);
+  transform: translateY(2px);
+}
+
+.tool-drag-handle {
+  cursor: grab;
+  color: var(--text-dim);
+  font-size: 15px;
+  user-select: none;
+  padding: 2px 4px;
+  transition: color 0.1s ease;
+}
+
+.tool-drag-handle:active {
+  cursor: grabbing;
+}
+
+.tool-reorder-row:hover .tool-drag-handle {
+  color: var(--accent);
 }
 
 .profile-dropdown-menu {
@@ -4440,6 +5133,18 @@ body {
   flex-shrink: 0;
 }
 
+.diff-action-buttons button,
+.diff-action-buttons .btn {
+  height: 26px !important;
+  min-height: 26px !important;
+  border-radius: var(--radius) !important;
+  font-size: 11px !important;
+  padding: 0 10px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px;
+}
+
 .diff-filter-bar {
   display: flex;
   gap: 6px;
@@ -4458,8 +5163,10 @@ body {
   background: var(--bg-dark);
   border: 1px solid var(--border);
   color: var(--text-main);
-  padding: 4px 10px;
-  border-radius: 4px;
+  padding: 0 10px;
+  height: 26px;
+  min-height: 26px;
+  border-radius: var(--radius);
   font-size: 11px;
   cursor: pointer;
   display: inline-flex;
@@ -4468,6 +5175,7 @@ body {
   white-space: nowrap;
   flex-shrink: 0;
   transition: all 0.15s ease;
+  box-sizing: border-box;
 }
 
 .diff-filter-btn:hover {
@@ -4840,6 +5548,7 @@ body {
 }
 
 .header-task-btn #header-task-icon,
+.header-task-btn img,
 .header-task-btn svg,
 .header-task-btn i {
   width: 15px !important;
@@ -4847,6 +5556,7 @@ body {
   min-width: 15px !important;
   display: inline-block !important;
   flex-shrink: 0 !important;
+  object-fit: contain;
   color: var(--text-main);
 }
 
@@ -4857,6 +5567,7 @@ body {
 }
 
 .header-task-btn.has-running #header-task-icon,
+.header-task-btn.has-running img,
 .header-task-btn.has-running svg,
 .header-task-btn.has-running i {
   color: var(--accent) !important;
@@ -5083,9 +5794,9 @@ body {
   background: transparent;
   border: none;
   color: var(--text-muted);
-  width: 26px;
-  height: 26px;
-  border-radius: 4px;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -5094,7 +5805,8 @@ body {
   transition: all 0.15s ease;
 }
 
-.btn-task-control i {
+.btn-task-control i,
+.btn-task-control svg {
   width: 14px;
   height: 14px;
 }
@@ -5108,10 +5820,10 @@ body {
   background: transparent;
   color: var(--text-muted);
   border: 1px solid transparent;
-  width: 22px;
-  height: 22px;
-  opacity: 0.55;
-  border-radius: 4px;
+  width: 28px;
+  height: 28px;
+  opacity: 0.7;
+  border-radius: var(--radius);
 }
 
 .btn-task-control.btn-task-close:hover {
@@ -5828,9 +6540,30 @@ body {
   gap: 2px;
   background: var(--bg-dark);
   border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 2px 4px;
+  border-radius: var(--radius);
+  padding: 1px 4px;
+  height: 28px;
+  box-sizing: border-box;
   flex-shrink: 0;
+}
+
+.image-viewer-nav-pill button,
+.image-viewer-nav-pill .btn-icon {
+  width: 24px !important;
+  height: 24px !important;
+  min-width: 24px !important;
+  min-height: 24px !important;
+  border-radius: var(--radius-sm, 4px) !important;
+  padding: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.image-viewer-nav-pill button i,
+.image-viewer-nav-pill button svg {
+  width: 12px;
+  height: 12px;
 }
 
 .image-viewer-actions-group {
@@ -5904,16 +6637,16 @@ body {
   }
 
   .editor-tab-strip {
-    height: 38px;
+    height: 30px;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
   }
 
   .editor-tab {
-    padding: 0 12px;
+    padding: 0 10px;
     font-size: 11px;
     max-width: 160px;
-    min-height: 30px;
+    min-height: 26px;
   }
 
   .editor-find-bar {
@@ -6136,13 +6869,15 @@ body {
 }
 
 .calc-header {
-  padding: 8px 12px;
-  background: var(--bg-dark);
+  padding: 6px 12px;
+  min-height: 42px;
+  background: var(--bg-header);
   border-bottom: 1px solid var(--border);
   display: flex;
   justify-content: space-between;
   align-items: center;
   cursor: grab;
+  box-sizing: border-box;
 }
 
 .calc-header:active {
@@ -6160,7 +6895,7 @@ body {
 .calc-display-panel {
   background: #050608;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius);
   padding: 8px 10px;
   display: flex;
   flex-direction: column;
@@ -6184,6 +6919,18 @@ body {
   gap: 6px;
 }
 
+.calc-copy-btn {
+  width: 26px !important;
+  height: 26px !important;
+  min-width: 26px !important;
+  min-height: 26px !important;
+  border-radius: var(--radius) !important;
+  padding: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
 .calc-result-input {
   flex: 1;
   background: transparent;
@@ -6203,7 +6950,7 @@ body {
   gap: 4px;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 6px;
+  border-radius: var(--radius);
   padding: 5px 8px;
   font-family: var(--font-mono);
   font-size: 10px;
@@ -6238,15 +6985,21 @@ body {
 
 .calc-unit-btn {
   flex: 1;
+  height: 26px;
+  min-height: 26px;
   font-size: 10px;
   font-family: var(--font-mono);
   font-weight: 700;
-  padding: 4px 0;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: rgba(245, 158, 11, 0.12);
   color: var(--accent);
   border: 1px solid rgba(245, 158, 11, 0.25);
-  border-radius: 4px;
+  border-radius: var(--radius);
   cursor: pointer;
+  box-sizing: border-box;
 }
 
 .calc-unit-btn:hover {
@@ -6464,17 +7217,102 @@ body {
 }
 
 .notedog-header {
-  padding: 8px 12px;
-  background: var(--bg-dark);
+  padding: 6px 12px;
+  background: var(--bg-header);
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 10px;
+  flex-shrink: 0;
+  user-select: none;
   cursor: grab;
+  min-height: 42px;
+  box-sizing: border-box;
 }
 
 .notedog-header:active {
   cursor: grabbing;
+}
+
+.notedog-header-left,
+.notedog-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: nowrap;
+}
+
+.notedog-header-actions button,
+.notedog-header-actions .btn,
+.notedog-header-left button,
+.notedog-header-left .btn {
+  height: 28px !important;
+  line-height: 26px !important;
+  font-size: 11px !important;
+  box-sizing: border-box;
+  cursor: pointer;
+}
+
+.notedog-header-actions .btn-icon,
+.notedog-header-left .btn-icon {
+  width: 28px !important;
+  height: 28px !important;
+  min-width: 28px !important;
+  min-height: 28px !important;
+  max-width: 28px !important;
+  max-height: 28px !important;
+  padding: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: var(--radius) !important;
+  box-sizing: border-box;
+}
+
+.notedog-header-actions .btn-icon i,
+.notedog-header-actions .btn-icon svg,
+.notedog-header-left .btn-icon i,
+.notedog-header-left .btn-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Layout switchers in NoteDog Header */
+.notedog-header-actions .layout-btn-group {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+}
+
+.notedog-header-actions .notedog-mode-btn {
+  width: 28px !important;
+  height: 28px !important;
+  min-width: 28px !important;
+  min-height: 28px !important;
+  padding: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: var(--radius) !important;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.notedog-header-actions .notedog-mode-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-main);
+  border-color: var(--border-bright);
+}
+
+.notedog-header-actions .notedog-mode-btn.active {
+  background: rgba(245, 158, 11, 0.18) !important;
+  color: var(--accent) !important;
+  border-color: var(--accent) !important;
+  font-weight: 600 !important;
 }
 
 .notedog-badge-tag {
@@ -6483,7 +7321,7 @@ body {
   padding: 2px 8px;
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: var(--radius);
   color: var(--text-dim);
   max-width: 220px;
   overflow: hidden;
@@ -6598,13 +7436,83 @@ body {
 }
 
 .notedog-workspace-header {
-  padding: 6px 12px;
+  padding: 4px 8px;
   background: var(--bg-header);
   border-bottom: 1px solid var(--border);
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 8px;
+  min-height: 34px;
+}
+
+.notedog-workspace-actions {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.notedog-workspace-actions button,
+.notedog-workspace-actions .btn,
+.notedog-workspace-actions .btn-icon {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0 !important;
+  width: 26px !important;
+  min-width: 26px !important;
+  max-width: 26px !important;
+  height: 26px !important;
+  min-height: 26px !important;
+  max-height: 26px !important;
+  border-radius: var(--radius) !important;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  margin: 0;
+  line-height: 1;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.notedog-workspace-actions button:hover,
+.notedog-workspace-actions .btn:hover,
+.notedog-workspace-actions .btn-icon:hover {
+  background: var(--bg-hover);
+  color: var(--text-main);
+  border-color: var(--accent);
+}
+
+.notedog-workspace-actions button i,
+.notedog-workspace-actions button svg,
+.notedog-workspace-actions .btn-icon i,
+.notedog-workspace-actions .btn-icon svg {
+  width: 14px;
+  height: 14px;
+  display: block;
+}
+
+.notedog-workspace-actions #btn-save-notedog.btn-accent,
+.notedog-workspace-actions .btn-accent {
+  background-color: var(--accent) !important;
+  color: #121214 !important;
+  border-color: var(--accent) !important;
+}
+
+.notedog-workspace-actions #btn-save-notedog.btn-accent:hover,
+.notedog-workspace-actions .btn-accent:hover {
+  background-color: var(--accent-hover) !important;
+  border-color: var(--accent-hover) !important;
+}
+
+.notedog-workspace-actions .btn-danger-hover:hover {
+  background: rgba(239, 68, 68, 0.15) !important;
+  color: #ef4444 !important;
+  border-color: #ef4444 !important;
 }
 
 .notedog-note-title-input {
@@ -6867,22 +7775,25 @@ body {
 .pane-git-badge {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
   background: rgba(245, 158, 11, 0.12);
-  border: 1px solid rgba(245, 158, 11, 0.35);
+  border: 1px solid rgba(245, 158, 11, 0.3);
   color: var(--accent);
-  font-size: 10.5px;
-  font-weight: 700;
-  padding: 2px 7px;
-  border-radius: 12px;
+  font-size: 9.5px;
+  font-weight: 600;
+  padding: 1px 5px;
+  height: 17px;
+  line-height: 15px;
+  border-radius: 4px;
   cursor: pointer;
   white-space: nowrap;
   user-select: none;
   transition: all 0.15s ease;
+  margin-left: 2px;
 }
 
 .pane-git-badge:hover {
-  background: rgba(245, 158, 11, 0.25);
+  background: rgba(245, 158, 11, 0.22);
   border-color: var(--accent);
 }
 
@@ -7137,13 +8048,16 @@ body {
 .crumb-root-dropdown-btn {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  gap: 2px;
   cursor: pointer;
-  padding: 1px 6px;
+  padding: 0 5px;
+  height: 18px;
+  line-height: 16px;
   border-radius: 3px;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid var(--border);
   color: var(--text-main);
+  font-size: 10.5px;
   font-weight: 600;
   transition: all 0.1s ease;
 }
@@ -7156,17 +8070,76 @@ body {
 
 .crumb-sep-dropdown {
   cursor: pointer;
-  padding: 1px 3px;
+  padding: 0 2px;
+  margin: 0 1px;
   border-radius: 2px;
   color: var(--text-dim);
   display: inline-flex;
   align-items: center;
   transition: all 0.1s ease;
+  user-select: none;
 }
 
 .crumb-sep-dropdown:hover {
   background: var(--bg-hover);
   color: var(--accent);
+}
+
+/* ---------------- FILE TEMPLATES STYLING ---------------- */
+.template-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+
+.template-card:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(245, 158, 11, 0.4);
+}
+
+.template-badge {
+  font-size: 9.5px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.template-badge.builtin {
+  background: rgba(245, 158, 11, 0.12);
+  color: var(--accent);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.template-badge.custom {
+  background: rgba(56, 189, 248, 0.12);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+}
+
+.var-chip {
+  cursor: pointer;
+  background: var(--bg-dark);
+  border: 1px solid var(--border);
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-main);
+  transition: all 0.12s ease;
+  user-select: none;
+}
+
+.var-chip:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(245, 158, 11, 0.08);
 }
 
 .breadcrumb-popover {

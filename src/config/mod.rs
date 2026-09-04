@@ -70,6 +70,8 @@ pub struct ServerConfig {
     pub session_duration_hours: u64,
     #[serde(default = "default_db_path")]
     pub database_path: String,
+    #[serde(default)]
+    pub server_name: String,
 }
 
 impl Default for ServerConfig {
@@ -84,6 +86,7 @@ impl Default for ServerConfig {
             jwt_secret: default_jwt_secret(),
             session_duration_hours: default_session_hours(),
             database_path: default_db_path(),
+            server_name: String::new(),
         }
     }
 }
@@ -445,6 +448,18 @@ pub struct UiConfig {
     pub window_decorations: bool, // Tiled WM / Hyprland toggle (decorations on/off)
     #[serde(default = "default_false")]
     pub show_global_refresh: bool, // Global header refresh button toggle
+    #[serde(default = "default_true")]
+    pub show_hostname_badge: bool, // Top header hostname badge toggle
+    #[serde(default)]
+    pub hostname_badge: String, // Custom label for hostname badge (empty = auto)
+    #[serde(default)]
+    pub hostname_color: String, // "amber", "emerald", "sky", "purple", "rose", "orange", "cyan", "slate"
+    #[serde(default)]
+    pub hostname_style: String, // "subtle", "solid", "outline", "pill", "glow"
+    #[serde(default)]
+    pub hostname_icon: String,  // "server", "hard-drive", "cpu", "terminal", "cloud", "shield", "box", "home", "globe", "radio", "none"
+    #[serde(default)]
+    pub hostname_size: String,  // "sm", "md", "lg"
 }
 
 impl Default for UiConfig {
@@ -456,6 +471,12 @@ impl Default for UiConfig {
             default_view_mode: default_view_mode(),
             window_decorations: true,
             show_global_refresh: false,
+            show_hostname_badge: true,
+            hostname_badge: String::new(),
+            hostname_color: "amber".to_string(),
+            hostname_style: "subtle".to_string(),
+            hostname_icon: "server".to_string(),
+            hostname_size: "md".to_string(),
         }
     }
 }

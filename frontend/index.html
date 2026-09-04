@@ -37,6 +37,10 @@
     <div class="logo-area" style="display: flex; align-items: center; gap: 8px;">
       <img src="assets/logo.png" alt="CommanderDog" style="height: 22px; width: auto; object-fit: contain; vertical-align: middle;">
       <span class="app-logo-text" style="font-weight: 700;">CommanderDog</span>
+      <span class="header-hostname-badge" id="header-hostname-badge" onclick="copyHostnameBadge()" title="Host Environment (Click to copy)" style="display: none;">
+        <i data-lucide="server"></i>
+        <span id="header-hostname-text">localhost</span>
+      </span>
     </div>
 
     <!-- Right-Aligned Tools & Controls (Desktop & Mobile) -->
@@ -70,7 +74,7 @@
 
       <!-- 4. Task-List Header Button (Desktop & Mobile) -->
       <button class="btn header-task-btn" id="btn-header-tasks" onclick="toggleFloatingTaskManager()" title="Background Tasks & Transfers (Click to toggle)">
-        <i data-lucide="activity" id="header-task-icon"></i>
+        <img src="assets/task.png" id="header-task-icon" alt="Tasks" style="width: 15px; height: 15px; object-fit: contain; vertical-align: middle;">
         <span class="header-task-badge" id="header-task-count">0</span>
         <span class="header-task-speed" id="header-task-speed" style="display: none;">0 B/s</span>
       </button>
@@ -78,16 +82,16 @@
       <!-- 5. Application Tools Suite & Launchpad -->
       <div class="tools-dropdown-wrapper">
         <button class="btn btn-icon" id="btn-tools-menu" onclick="toggleToolsMenu(event)" title="Tools & Utilities (Terminal, Editor, Calculator, Git, Sync, Search)">
-          <i data-lucide="layout-grid"></i>
+          <img src="assets/tool.png" alt="Tools & Utilities" style="width: 17px; height: 17px; object-fit: contain; vertical-align: middle;">
         </button>
         <div class="tools-dropdown-menu" id="tools-dropdown-menu">
           <div class="dropdown-item" onclick="openSpotlightModal()"><i data-lucide="sparkles" style="color: var(--accent);"></i> Spotlight Quick-Switcher (Ctrl+K)</div>
           <div class="dropdown-item" onclick="toggleFolderTree()"><i data-lucide="folder-tree" style="color: var(--accent);"></i> Folder Hierarchy Tree (Ctrl+T)</div>
           <div class="dropdown-item" onclick="toggleBranchView()"><i data-lucide="git-branch" style="color: var(--accent);"></i> Flat / Branch View (Ctrl+B)</div>
           <div class="dropdown-item" onclick="openFloatingNoteDog()"><i data-lucide="book-open" style="color: var(--accent);"></i> NoteDog Notes & Markdown</div>
-          <div class="dropdown-item" onclick="openFloatingCalculator()"><i data-lucide="calculator" style="color: var(--accent);"></i> Calculator</div>
-          <div class="dropdown-item" onclick="toggleTerminal()"><i data-lucide="terminal"></i> Terminal Console (`)</div>
-          <div class="dropdown-item" onclick="openFloatingEditor()"><i data-lucide="code"></i> EditorDog Multi-Tab (F4)</div>
+          <div class="dropdown-item" onclick="openFloatingCalculator()"><img src="assets/calc.png" alt="Calculator" style="width: 15px; height: 15px; object-fit: contain; flex-shrink: 0;"> Calculator</div>
+          <div class="dropdown-item" onclick="toggleTerminal()"><img src="assets/term.png" alt="Terminal" style="width: 15px; height: 15px; object-fit: contain; flex-shrink: 0;"> Terminal Console (`)</div>
+          <div class="dropdown-item" onclick="openFloatingEditor()"><img src="assets/edit.png" alt="EditorDog" style="width: 15px; height: 15px; object-fit: contain; flex-shrink: 0;"> EditorDog Multi-Tab (F4)</div>
           <div class="dropdown-item" onclick="triggerDiff()"><i data-lucide="git-compare"></i> Compare / Diff (F9)</div>
           <div class="dropdown-item" onclick="openSearchModal()"><i data-lucide="search"></i> Deep File Search (Ctrl+F)</div>
           <div class="dropdown-item" onclick="openSharesManager()"><i data-lucide="share-2"></i> Active Shares & Dropboxes</div>
@@ -96,7 +100,7 @@
           <div class="dropdown-item" onclick="openSyncthingModal()"><i data-lucide="repeat"></i> Syncthing Dashboard</div>
           <div class="dropdown-item" onclick="openConverterModal()"><i data-lucide="file-output"></i> ConvertX Converters</div>
           <div class="dropdown-item" onclick="openPdfToolModal()"><i data-lucide="file-text" style="color: #ef4444;"></i> PDF Power Studio (Merge & Split)</div>
-          <div class="dropdown-item" onclick="openFloatingTaskManager()"><i data-lucide="list-checks"></i> Background Transfers & Queue</div>
+          <div class="dropdown-item" onclick="openFloatingTaskManager()"><img src="assets/task.png" alt="Tasks" style="width: 15px; height: 15px; object-fit: contain; flex-shrink: 0;"> Background Transfers & Queue</div>
         </div>
       </div>
 
@@ -789,13 +793,15 @@
         <button class="btn" onclick="closeModal('settings-modal')"><i data-lucide="x"></i></button>
       </div>
       
-      <!-- User Settings Tabs Header (7 Compact Desktop Tabs) -->
+      <!-- User Settings Tabs Header (8 Compact Desktop Tabs) -->
       <div class="settings-tabs">
         <button class="settings-tab-btn active" onclick="switchSettingsTab('tab-general')"><i data-lucide="sliders"></i> General</button>
         <button class="settings-tab-btn" onclick="switchSettingsTab('tab-palette')"><i data-lucide="palette"></i> Themes</button>
         <button class="settings-tab-btn" onclick="switchSettingsTab('tab-icons')"><i data-lucide="sparkles"></i> Icons & Filetypes</button>
+        <button class="settings-tab-btn" onclick="switchSettingsTab('tab-tools')"><i data-lucide="wrench"></i> Tools Menu</button>
         <button class="settings-tab-btn" onclick="switchSettingsTab('tab-openwith')"><i data-lucide="external-link"></i> Open With</button>
         <button class="settings-tab-btn" onclick="switchSettingsTab('tab-context')"><i data-lucide="mouse-pointer"></i> Context Menu</button>
+        <button class="settings-tab-btn" onclick="switchSettingsTab('tab-templates')"><i data-lucide="file-code-2"></i> Templates</button>
         <button class="settings-tab-btn" onclick="switchSettingsTab('tab-bookmarks')"><i data-lucide="bookmark"></i> Bookmarks</button>
         <button class="settings-tab-btn" onclick="switchSettingsTab('tab-keys')"><i data-lucide="keyboard"></i> Keybindings</button>
       </div>
@@ -841,6 +847,81 @@
               <label style="font-weight: normal;"><input type="checkbox" id="setting-show-parent-dir" checked> <b>Parent Directory ("..") Row:</b> Show ".." parent entry at the top of file tables</label>
               <label style="font-weight: normal;"><input type="checkbox" id="setting-auto-open-tasks" checked> <b>Floating Transfer Window:</b> Automatically open floating transfer manager on background jobs</label>
               <label style="font-weight: normal;"><input type="checkbox" id="setting-show-global-refresh" onchange="toggleGlobalRefreshButton(this.checked)"> <b>Global Header Refresh:</b> Show global "Refresh All" button in top header bar (off by default)</label>
+              <label style="font-weight: normal;"><input type="checkbox" id="setting-show-hostname-badge" checked onchange="toggleHostnameBadgeSetting(this.checked)"> <b>Hostname / Environment Badge:</b> Show host badge next to logo in header</label>
+              
+              <!-- Hostname Badge Customizer Card -->
+              <div id="wrapper-custom-hostname" style="margin-left: 24px; margin-top: 4px; padding: 12px; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; display: flex; flex-direction: column; gap: 10px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap;">
+                  <span style="font-size: 11px; font-weight: 700; color: var(--text-main);">Badge Customization & Styling:</span>
+                  <div style="display: flex; align-items: center; gap: 6px;">
+                    <span style="font-size: 10.5px; color: var(--text-dim);">Live Preview:</span>
+                    <span id="hostname-settings-preview-badge" class="header-hostname-badge color-amber style-subtle size-md" style="display: inline-flex;">
+                      <i data-lucide="server"></i>
+                      <span id="hostname-preview-text">localhost</span>
+                    </span>
+                  </div>
+                </div>
+
+                <div>
+                  <label for="setting-custom-hostname-label" style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 2px;">Custom Environment / Hostname Label (Optional):</label>
+                  <input type="text" id="setting-custom-hostname-label" class="pane-quick-filter" style="width: 100%; padding: 4px 8px; font-family: var(--font-mono); font-size: 11px;" placeholder="Leave empty for auto-detected system hostname" oninput="handleHostnameSettingChange()">
+                  <div class="form-hint" style="font-size: 10.5px; color: var(--text-dim); margin-top: 2px;">Customize the environment name shown in the top header (e.g. <code>NAS-PROD</code>, <code>HOMELAB-01</code>, <code>DEV-BOX</code>).</div>
+                </div>
+
+                <!-- Customization Grid: Color, Style, Icon, Size -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px;">
+                  <div>
+                    <label style="font-size: 10.5px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 2px;">Badge Color:</label>
+                    <select id="setting-hostname-color" class="pane-quick-filter" style="width: 100%; font-size: 11px; padding: 4px 6px;" onchange="handleHostnameSettingChange()">
+                      <option value="amber">🔶 Amber (Default)</option>
+                      <option value="emerald">🟢 Emerald Green</option>
+                      <option value="sky">🔷 Sky Blue</option>
+                      <option value="purple">🟣 Purple</option>
+                      <option value="rose">🔴 Rose Red</option>
+                      <option value="orange">🟧 Orange</option>
+                      <option value="cyan">💠 Cyan</option>
+                      <option value="slate">⚪ Slate Grey</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style="font-size: 10.5px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 2px;">Visual Style:</label>
+                    <select id="setting-hostname-style" class="pane-quick-filter" style="width: 100%; font-size: 11px; padding: 4px 6px;" onchange="handleHostnameSettingChange()">
+                      <option value="subtle">Subtle Tint (Default)</option>
+                      <option value="solid">Solid Fill</option>
+                      <option value="outline">Outline Border</option>
+                      <option value="pill">Pill Capsule</option>
+                      <option value="glow">Neon Glow</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style="font-size: 10.5px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 2px;">Badge Icon:</label>
+                    <select id="setting-hostname-icon" class="pane-quick-filter" style="width: 100%; font-size: 11px; padding: 4px 6px;" onchange="handleHostnameSettingChange()">
+                      <option value="server">🖥️ Server</option>
+                      <option value="hard-drive">💽 Hard Drive (NAS)</option>
+                      <option value="cpu">⚡ CPU / Compute</option>
+                      <option value="terminal">💻 Terminal / Dev</option>
+                      <option value="cloud">☁️ Cloud / VPS</option>
+                      <option value="shield">🛡️ Shield / Secure</option>
+                      <option value="box">📦 Container / Box</option>
+                      <option value="home">🏠 Homelab / Home</option>
+                      <option value="globe">🌐 Globe / Gateway</option>
+                      <option value="radio">📻 Radio / Remote</option>
+                      <option value="none">🚫 No Icon (Text Only)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style="font-size: 10.5px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 2px;">Badge Size:</label>
+                    <select id="setting-hostname-size" class="pane-quick-filter" style="width: 100%; font-size: 11px; padding: 4px 6px;" onchange="handleHostnameSettingChange()">
+                      <option value="sm">Small (Compact 18px)</option>
+                      <option value="md" selected>Medium (Standard 22px)</option>
+                      <option value="lg">Large (Prominent 26px)</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -1091,6 +1172,64 @@
               <button class="btn btn-accent btn-sm" onclick="saveCustomShellAction()"><i data-lucide="check"></i> Save Action</button>
               <button class="btn btn-sm" onclick="hideCustomActionForm()">Cancel</button>
             </div>
+          </div>
+        </div>
+
+        <!-- Tab: File & Document Templates Customizer -->
+        <div class="settings-tab-content" id="tab-templates" style="padding: 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <div>
+              <h4 style="margin: 0; font-size: 13px; font-weight: 700; color: var(--accent); display: flex; align-items: center; gap: 6px;">
+                <i data-lucide="file-code-2" style="width: 16px; height: 16px;"></i> File & Document Templates
+              </h4>
+              <div class="form-hint" style="margin-top: 2px;">Create new files with boilerplate headers, dynamic dates, and variable replacement anywhere via right-click.</div>
+            </div>
+            <div style="display: flex; gap: 6px;">
+              <button class="btn btn-sm btn-accent" onclick="openCreateTemplateModal()"><i data-lucide="plus"></i> + New Template</button>
+              <button class="btn btn-sm" onclick="resetFileTemplatesToDefault()"><i data-lucide="rotate-ccw"></i> Reset Defaults</button>
+            </div>
+          </div>
+
+          <div style="margin-bottom: 14px; padding: 10px 12px; background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.25); border-radius: 6px; font-size: 11px;">
+            <div style="font-weight: 700; color: var(--accent); margin-bottom: 4px;">Dynamic Template Variables:</div>
+            <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+              <span class="var-chip" onclick="copyVariableTag('{{TITLE}}')"><code>{{TITLE}}</code> Title</span>
+              <span class="var-chip" onclick="copyVariableTag('{{FILENAME}}')"><code>{{FILENAME}}</code> Filename</span>
+              <span class="var-chip" onclick="copyVariableTag('{{NAME}}')"><code>{{NAME}}</code> Base Name</span>
+              <span class="var-chip" onclick="copyVariableTag('{{DATE}}')"><code>{{DATE}}</code> YYYY-MM-DD</span>
+              <span class="var-chip" onclick="copyVariableTag('{{TIME}}')"><code>{{TIME}}</code> HH:MM:SS</span>
+              <span class="var-chip" onclick="copyVariableTag('{{USER}}')"><code>{{USER}}</code> Username</span>
+              <span class="var-chip" onclick="copyVariableTag('{{ISO_DATE}}')"><code>{{ISO_DATE}}</code> ISO8601</span>
+              <span class="var-chip" onclick="copyVariableTag('{{YEAR}}')"><code>{{YEAR}}</code> Year</span>
+            </div>
+          </div>
+
+          <div id="settings-templates-list" style="display: flex; flex-direction: column; gap: 8px;">
+            <!-- Populated dynamically via JS -->
+          </div>
+        </div>
+
+        <!-- Tab: Tools & ChewToys Launchpad Customizer -->
+        <div class="settings-tab-content" id="tab-tools" style="padding: 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <div>
+              <h4 style="margin: 0; font-size: 13px; font-weight: 700; color: var(--accent); display: flex; align-items: center; gap: 6px;">
+                <i data-lucide="wrench" style="width: 16px; height: 16px;"></i> Tools & ChewToys Launchpad Customizer
+              </h4>
+              <div class="form-hint" style="margin-top: 2px;">Rearrange tool order, toggle menu visibility, or reset the Tools & Utilities launchpad dropdown.</div>
+            </div>
+            <div style="display: flex; gap: 6px;">
+              <button class="btn btn-sm" onclick="resetToolsMenuToDefault()"><i data-lucide="rotate-ccw"></i> Reset Defaults</button>
+            </div>
+          </div>
+
+          <div style="margin-bottom: 12px; padding: 8px 12px; background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.25); border-radius: 6px; font-size: 11px; display: flex; align-items: center; justify-content: space-between;">
+            <span>💡 <strong>Tip:</strong> Drag items up/down or use arrow buttons to reorder. Uncheck boxes to hide tools from the menu.</span>
+            <span id="tools-visible-counter" style="font-weight: 700; color: var(--accent);">16 / 16 Visible</span>
+          </div>
+
+          <div id="settings-tools-list" style="display: flex; flex-direction: column; gap: 6px;">
+            <!-- Populated dynamically via JS -->
           </div>
         </div>
 
@@ -1720,57 +1859,39 @@
     <div class="modal-header editor-header" id="editor-header">
       <div class="editor-header-left">
         <span class="editor-header-drag-handle" style="font-weight: 700; display: flex; align-items: center; gap: 6px; cursor: grab;">
-          <i data-lucide="code-2" style="color: var(--accent); width: 16px;"></i>
+          <img src="assets/edit.png" alt="EditorDog" style="width: 16px; height: 16px; object-fit: contain;">
           <span>EditorDog</span>
         </span>
 
-        <!-- Desktop Direct Selectors -->
-        <div class="desktop-only" style="display: flex; align-items: center; gap: 6px;">
-          <!-- Split View Layout Selector -->
-          <select id="editor-view-mode" class="btn btn-sm" onchange="handleEditorViewModeChange(this.value)" title="Change Editor Layout">
-            <option value="single-editor">Single View</option>
-            <option value="dual-vertical">Dual View (Side-by-Side)</option>
-            <option value="dual-horizontal">Dual View (Stacked)</option>
-            <option value="split-markdown">Markdown & Live Mermaid</option>
-          </select>
-
-          <!-- Syntax Language Selector -->
-          <select id="editor-language-select" class="btn btn-sm" onchange="handleEditorLanguageChange(this.value)" title="Syntax Highlighting Mode">
-            <option value="auto">Language: Auto</option>
-            <option value="rust">Rust</option>
-            <option value="python">Python</option>
-            <option value="javascript">JavaScript / TypeScript</option>
-            <option value="html">HTML / XML</option>
-            <option value="css">CSS / SCSS</option>
-            <option value="json">JSON</option>
-            <option value="yaml">YAML</option>
-            <option value="toml">TOML</option>
-            <option value="bash">Bash / Shell</option>
-            <option value="sql">SQL</option>
-            <option value="markdown">Markdown</option>
-            <option value="clike">C / C++</option>
-            <option value="docker">Dockerfile</option>
-            <option value="ini">INI / Conf</option>
-          </select>
-
-          <!-- conf.d Section Quick Jump Selector (Visible for assembled configs) -->
-          <select id="editor-confd-jump" class="btn btn-sm" style="display: none; max-width: 170px;" onchange="jumpToConfdSection(this.value)" title="Jump to Config Section">
-            <option value="">Jump to Section...</option>
-          </select>
-        </div>
+        <!-- conf.d Section Quick Jump Selector (Visible for assembled configs) -->
+        <select id="editor-confd-jump" class="btn btn-sm" style="display: none; max-width: 170px;" onchange="jumpToConfdSection(this.value)" title="Jump to Config Section">
+          <option value="">Jump to Section...</option>
+        </select>
       </div>
 
       <div class="editor-header-right" style="display: flex; align-items: center; gap: 4px;">
-        <button class="btn btn-sm btn-accent" id="btn-save-editor" onclick="saveActiveEditorTab()" title="Save Current Tab (Ctrl+S)"><i data-lucide="save"></i> <span>Save</span></button>
-        <button class="btn btn-sm" onclick="createNewEditorTab()" title="New Tab (Ctrl+N)"><i data-lucide="plus"></i> <span class="desktop-only">New</span></button>
-        <button class="btn btn-sm" onclick="toggleFindBar()" title="Find & Replace (Ctrl+F / Ctrl+H)"><i data-lucide="search"></i> <span class="desktop-only">Find</span></button>
-        <button class="btn btn-sm desktop-only" onclick="saveAllEditorTabs()" title="Save All Open Tabs (Ctrl+Shift+S)"><i data-lucide="save-all"></i> Save All</button>
+        <!-- 1. Layout Switcher (Desktop Only, Icon-Only, Right Aligned) -->
+        <div class="layout-btn-group desktop-only" id="editor-layout-btn-group">
+          <button type="button" class="btn btn-icon editor-view-mode-btn active" id="btn-view-single" onclick="handleEditorViewModeChange('single-editor')" title="Single Editor View"><i data-lucide="square"></i></button>
+          <button type="button" class="btn btn-icon editor-view-mode-btn" id="btn-view-dual-v" onclick="handleEditorViewModeChange('dual-vertical')" title="Dual Side-by-Side View"><i data-lucide="columns-2"></i></button>
+          <button type="button" class="btn btn-icon editor-view-mode-btn" id="btn-view-dual-h" onclick="handleEditorViewModeChange('dual-horizontal')" title="Dual Stacked View"><i data-lucide="rows-2"></i></button>
+          <button type="button" class="btn btn-icon editor-view-mode-btn" id="btn-view-preview" onclick="handleEditorViewModeChange('split-markdown')" title="Markdown & Live Preview"><i data-lucide="book-open"></i></button>
+        </div>
 
-        <!-- Touch & Mobile Viewports Tools Dropdown -->
+        <div class="header-sep desktop-only"></div>
+
+        <!-- 2. Action Controls (Icon-Only, Uniform 28px Chewtoy Standard) -->
+        <button class="btn btn-icon btn-accent" id="btn-save-editor" onclick="saveActiveEditorTab()" title="Save Current Tab (Ctrl+S)"><i data-lucide="save"></i></button>
+        <button class="btn btn-icon desktop-only" id="btn-save-all-editor" onclick="saveAllEditorTabs()" title="Save All Open Tabs (Ctrl+Shift+S)"><i data-lucide="save-all"></i></button>
+        <button class="btn btn-icon" id="btn-new-tab-editor" onclick="createNewEditorTab()" title="New Tab (Ctrl+N)"><i data-lucide="plus"></i></button>
+        <button class="btn btn-icon" id="btn-find-editor" onclick="toggleFindBar()" title="Find & Replace (Ctrl+F / Ctrl+H)"><i data-lucide="search"></i></button>
+
+        <div class="header-sep desktop-only"></div>
+
+        <!-- 3. Touch & Mobile Viewports Tools Dropdown -->
         <div class="dropdown-container mobile-foldable-tool" id="editor-actions-dropdown-container" style="position: relative;">
-          <button class="btn btn-sm" id="btn-editor-touch-tools" onclick="toggleEditorActionsDropdown(event)" title="Editor Tools, Layout & Languages" style="display: flex; align-items: center; gap: 4px; padding: 5px 8px;">
-            <i data-lucide="sliders-horizontal" style="width: 14px; height: 14px;"></i>
-            <span style="font-size: 11px;">Tools ▾</span>
+          <button class="btn btn-icon" id="btn-editor-touch-tools" onclick="toggleEditorActionsDropdown(event)" title="Editor Tools, Layout & Languages">
+            <i data-lucide="sliders-horizontal"></i>
           </button>
           <div class="dropdown-menu editor-touch-menu" id="editor-actions-dropdown-menu" style="display: none; right: 0; min-width: 230px; z-index: 1700;">
             <div class="dropdown-item" onclick="saveActiveEditorTab(); closeEditorActionsDropdown();"><i data-lucide="save"></i> 💾 Save Active File (Ctrl+S)</div>
@@ -1781,7 +1902,8 @@
             <div class="context-sep"></div>
             <div style="padding: 6px 12px; font-size: 10px; color: var(--text-dim); text-transform: uppercase; font-weight: 700;">Layout & View</div>
             <div class="dropdown-item" onclick="handleEditorViewModeChange('single-editor'); closeEditorActionsDropdown();"><i data-lucide="square"></i> Single View</div>
-            <div class="dropdown-item" onclick="handleEditorViewModeChange('dual-horizontal'); closeEditorActionsDropdown();"><i data-lucide="rows"></i> Dual Stacked View</div>
+            <div class="dropdown-item" onclick="handleEditorViewModeChange('dual-vertical'); closeEditorActionsDropdown();"><i data-lucide="columns-2"></i> Dual Side-by-Side View</div>
+            <div class="dropdown-item" onclick="handleEditorViewModeChange('dual-horizontal'); closeEditorActionsDropdown();"><i data-lucide="rows-2"></i> Dual Stacked View</div>
             <div class="dropdown-item" onclick="handleEditorViewModeChange('split-markdown'); closeEditorActionsDropdown();"><i data-lucide="book-open"></i> Markdown & Live Preview</div>
             <div class="context-sep"></div>
             <div style="padding: 6px 12px; font-size: 10px; color: var(--text-dim); text-transform: uppercase; font-weight: 700;">Syntax Language</div>
@@ -1809,10 +1931,11 @@
           </div>
         </div>
 
-        <button class="btn btn-sm btn-icon desktop-only" onclick="dockEditorToActivePane()" title="Dock Editor into Active Pane (Keep browsing on other pane)"><i data-lucide="panel-left-close"></i></button>
-        <button class="btn btn-sm btn-icon desktop-only" onclick="minimizeFloatingEditor()" title="Minimize to Pill"><i data-lucide="minus"></i></button>
-        <button class="btn btn-sm btn-icon desktop-only" onclick="maximizeFloatingEditor()" title="Maximize / Restore Window"><i data-lucide="maximize-2"></i></button>
-        <button class="btn btn-sm btn-icon modal-close-btn" onclick="closeEditorModal()" title="Close Editor"><i data-lucide="x"></i></button>
+        <!-- 4. Window Controls -->
+        <button class="btn btn-icon desktop-only" onclick="dockEditorToActivePane()" title="Dock Editor into Active Pane (Keep browsing on other pane)"><i data-lucide="panel-left-close"></i></button>
+        <button class="btn btn-icon desktop-only" onclick="minimizeFloatingEditor()" title="Minimize to Pill"><i data-lucide="minus"></i></button>
+        <button class="btn btn-icon desktop-only" onclick="maximizeFloatingEditor()" title="Maximize / Restore Window"><i data-lucide="maximize-2"></i></button>
+        <button class="btn btn-icon modal-close-btn" onclick="closeEditorModal()" title="Close Editor"><i data-lucide="x"></i></button>
       </div>
     </div>
 
@@ -1855,10 +1978,6 @@
     <div class="editor-grid single-mode" id="editor-grid-container">
       <!-- Left / Primary Editor Pane -->
       <div class="editor-pane" id="editor-left-pane">
-        <div class="editor-pane-header" id="editor-pane-header-left">
-          <span class="editor-pane-title" id="editor-file-title-left">Untitled-1</span>
-          <span class="editor-pane-tag" id="editor-file-tag-left">UTF-8</span>
-        </div>
         <div class="editor-body-wrapper">
           <div class="editor-gutter" id="editor-gutter-left">1</div>
           <textarea class="editor-textarea" id="editor-text-left" spellcheck="false" placeholder="Write code, text or markdown..." oninput="handleEditorInput('left')" onscroll="syncGutterScroll('left')" onkeydown="handleEditorKeyDown(event, 'left')" onclick="handleEditorClick('left')" onkeyup="handleEditorClick('left')"></textarea>
@@ -1867,10 +1986,6 @@
 
       <!-- Right / Secondary Editor Pane (Dual-File or Markdown Preview) -->
       <div class="editor-pane" id="editor-right-pane" style="display: none;">
-        <div class="editor-pane-header" id="editor-pane-header-right">
-          <span class="editor-pane-title" id="editor-file-title-right">Live Markdown & Mermaid Preview</span>
-          <span class="editor-pane-tag" id="editor-file-tag-right">PREVIEW</span>
-        </div>
         <div class="markdown-preview-pane" id="editor-preview-container"></div>
         <div class="editor-body-wrapper" id="editor-body-wrapper-right" style="display: none;">
           <div class="editor-gutter" id="editor-gutter-right">1</div>
@@ -1889,6 +2004,27 @@
       <div class="editor-status-right">
         <span id="editor-confd-status" style="display: none; color: var(--accent); font-weight: 600;">🧩 conf.d Assembled View</span>
         <span class="status-sep" id="editor-confd-sep" style="display: none;">|</span>
+        <div class="editor-status-lang-picker" title="Click to Change Language Syntax Mode">
+          <select id="editor-language-select" class="editor-status-lang-select" onchange="handleEditorLanguageChange(this.value)" title="Change Syntax Highlighting Mode">
+            <option value="auto">Auto Detect</option>
+            <option value="rust">Rust</option>
+            <option value="python">Python</option>
+            <option value="javascript">JavaScript / TypeScript</option>
+            <option value="html">HTML / XML</option>
+            <option value="css">CSS / SCSS</option>
+            <option value="json">JSON</option>
+            <option value="yaml">YAML</option>
+            <option value="toml">TOML</option>
+            <option value="bash">Bash / Shell</option>
+            <option value="sql">SQL</option>
+            <option value="markdown">Markdown</option>
+            <option value="clike">C / C++</option>
+            <option value="docker">Dockerfile</option>
+            <option value="ini">INI / Conf</option>
+          </select>
+          <span id="editor-language-badge" class="editor-status-lang-badge">AUTO ▾</span>
+        </div>
+        <span class="status-sep">|</span>
         <span id="editor-indent-info" onclick="cycleEditorTabSize()" style="cursor: pointer;" title="Click to toggle tab width">Spaces: 2</span>
         <span class="status-sep">|</span>
         <span id="editor-encoding-info">UTF-8</span>
@@ -1900,8 +2036,8 @@
 
   <!-- Minimized Editor Floating Pill -->
   <div class="editor-pill" id="editor-pill" style="display: none;" onclick="restoreFloatingEditor()" title="Click to restore EditorDog (F4)">
-    <i data-lucide="code-2" style="color: var(--accent); width: 14px; height: 14px;"></i>
-    <span id="editor-pill-text">📝 EditorDog (1 file)</span>
+    <img src="assets/edit.png" alt="EditorDog" style="width: 14px; height: 14px; object-fit: contain; vertical-align: middle;">
+    <span id="editor-pill-text">EditorDog (1 file)</span>
     <span class="editor-pill-dirty" id="editor-pill-dirty" style="display: none;"></span>
   </div>
 
@@ -1911,16 +2047,17 @@
     <div class="modal-header calc-header" id="calc-header">
       <div class="calc-header-left" style="display: flex; align-items: center; gap: 6px;">
         <span class="calc-header-drag-handle" style="font-weight: 700; display: flex; align-items: center; gap: 6px; cursor: grab;">
-          <span style="font-size: 14px;">🧮</span>
+          <img src="assets/calc.png" alt="Calculator" style="width: 16px; height: 16px; object-fit: contain;">
           <span>Calculator</span>
         </span>
       </div>
 
       <div class="calc-header-actions" style="display: flex; align-items: center; gap: 4px;">
-        <button class="btn btn-icon btn-xs" onclick="toggleCalcHistory()" id="btn-calc-history-toggle" title="Calculation History"><i data-lucide="history" style="width: 13px;"></i></button>
-        <button class="btn btn-icon btn-xs" onclick="dockCalculatorToActivePane()" title="Dock Calculator into Active Pane"><i data-lucide="panel-left-close" style="width: 13px;"></i></button>
-        <button class="btn btn-icon btn-xs" onclick="minimizeFloatingCalculator()" title="Minimize to Taskbar"><i data-lucide="minus" style="width: 13px;"></i></button>
-        <button class="btn btn-icon btn-xs" onclick="closeFloatingCalculator()" title="Close Calculator"><i data-lucide="x" style="width: 13px;"></i></button>
+        <button class="btn btn-icon" onclick="toggleCalcHistory()" id="btn-calc-history-toggle" title="Calculation History"><i data-lucide="history"></i></button>
+        <div class="header-sep"></div>
+        <button class="btn btn-icon" onclick="dockCalculatorToActivePane()" title="Dock Calculator into Active Pane"><i data-lucide="panel-left-close"></i></button>
+        <button class="btn btn-icon" onclick="minimizeFloatingCalculator()" title="Minimize to Taskbar"><i data-lucide="minus"></i></button>
+        <button class="btn btn-icon modal-close-btn" onclick="closeFloatingCalculator()" title="Close Calculator"><i data-lucide="x"></i></button>
       </div>
     </div>
 
@@ -2001,7 +2138,7 @@
 
   <!-- Minimized Calculator Floating Pill -->
   <div class="calc-pill" id="calc-pill" style="display: none;" onclick="restoreFloatingCalculator()" title="Click to restore Calculator">
-    <span>🧮</span>
+    <img src="assets/calc.png" alt="Calculator" style="width: 14px; height: 14px; object-fit: contain; vertical-align: middle;">
     <span id="calc-pill-text">Calculator</span>
   </div>
 
@@ -2020,30 +2157,37 @@
     <div class="modal-header notedog-header" id="notedog-header">
       <div class="notedog-header-left" style="display: flex; align-items: center; gap: 8px;">
         <span class="notedog-header-drag-handle" style="font-weight: 700; display: flex; align-items: center; gap: 6px; cursor: grab;">
-          <span style="font-size: 15px;">📝</span>
-          <span style="color: var(--accent); font-weight: 800;">Notes</span>
+          <i data-lucide="book-open" style="color: var(--accent); width: 16px;"></i>
+          <span>NoteDog</span>
         </span>
       </div>
 
-      <div class="notedog-header-center" style="flex: 1; max-width: 300px; margin: 0 10px; position: relative;">
+      <div class="notedog-header-center" style="flex: 1; max-width: 260px; margin: 0 8px; position: relative;">
         <i data-lucide="search" style="position: absolute; left: 8px; top: 50%; transform: translateY(-50%); width: 13px; height: 13px; color: var(--text-dim);"></i>
-        <input type="text" id="notedog-search-input" class="pane-quick-filter" placeholder="Search notes..." style="width: 100%; padding-left: 26px; font-size: 11px; height: 24px;" oninput="handleNoteDogSearch(this.value)">
+        <input type="text" id="notedog-search-input" class="pane-quick-filter" placeholder="Search notes..." style="width: 100%; padding-left: 26px; font-size: 11px; height: 28px; box-sizing: border-box;" oninput="handleNoteDogSearch(this.value)">
       </div>
 
       <div class="notedog-header-actions" style="display: flex; align-items: center; gap: 4px;">
-        <button class="btn btn-xs" onclick="openNoteDogNewMenu(event)" title="New Notebook, Section or Note"><i data-lucide="plus" style="width: 12px;"></i> New</button>
-        
-        <div class="notedog-mode-toggle-group" style="display: flex; background: var(--bg-dark); border-radius: 4px; padding: 2px; border: 1px solid var(--border);">
-          <button class="btn btn-xs notedog-mode-btn" id="notedog-mode-edit" onclick="setNoteDogViewMode('edit')" title="Markdown Editor Only"><i data-lucide="edit-3" style="width: 11px;"></i></button>
-          <button class="btn btn-xs notedog-mode-btn active" id="notedog-mode-split" onclick="setNoteDogViewMode('split')" title="Side-by-Side Split View"><i data-lucide="columns" style="width: 11px;"></i></button>
-          <button class="btn btn-xs notedog-mode-btn" id="notedog-mode-preview" onclick="setNoteDogViewMode('preview')" title="Rendered Markdown Preview Only"><i data-lucide="eye" style="width: 11px;"></i></button>
+        <!-- 1. Layout Switcher (Desktop Only, Icon-Only, Right-Aligned) -->
+        <div class="layout-btn-group desktop-only" id="notedog-layout-btn-group">
+          <button type="button" class="btn btn-icon notedog-mode-btn" id="notedog-mode-edit" onclick="setNoteDogViewMode('edit')" title="Editor Only View (1)"><i data-lucide="square"></i></button>
+          <button type="button" class="btn btn-icon notedog-mode-btn active" id="notedog-mode-split" onclick="setNoteDogViewMode('split')" title="Side-by-Side Split View (2V)"><i data-lucide="columns-2"></i></button>
+          <button type="button" class="btn btn-icon notedog-mode-btn" id="notedog-mode-preview" onclick="setNoteDogViewMode('preview')" title="Live Markdown Preview (Preview)"><i data-lucide="book-open"></i></button>
         </div>
 
-        <button class="btn btn-icon btn-xs" onclick="openNoteDogVersionsModal()" title="Revision History & Live Diffs"><i data-lucide="history" style="width: 13px;"></i></button>
-        <button class="btn btn-icon btn-xs" onclick="dockNoteDogToActivePane()" title="Dock NoteDog into Active Pane"><i data-lucide="panel-left-close" style="width: 13px;"></i></button>
-        <button class="btn btn-icon btn-xs" onclick="minimizeFloatingNoteDog()" title="Minimize to Taskbar"><i data-lucide="minus" style="width: 13px;"></i></button>
-        <button class="btn btn-icon btn-xs" onclick="maximizeFloatingNoteDog()" title="Maximize / Restore Window"><i data-lucide="maximize-2" style="width: 13px;"></i></button>
-        <button class="btn btn-icon btn-xs modal-close-btn" onclick="closeFloatingNoteDog()" title="Close NoteDog"><i data-lucide="x" style="width: 13px;"></i></button>
+        <div class="header-sep desktop-only"></div>
+
+        <!-- 2. Action Controls (Icon-Only, Uniform 28px Chewtoy Standard) -->
+        <button class="btn btn-icon btn-accent" onclick="openNoteDogNewMenu(event)" title="New Notebook, Section or Note (Ctrl+N)"><i data-lucide="plus"></i></button>
+        <button class="btn btn-icon desktop-only" onclick="openNoteDogVersionsModal()" title="Revision History & Live Diffs"><i data-lucide="history"></i></button>
+
+        <div class="header-sep desktop-only"></div>
+
+        <!-- 3. Window Controls -->
+        <button class="btn btn-icon desktop-only" onclick="dockNoteDogToActivePane()" title="Dock NoteDog into Active Pane"><i data-lucide="panel-left-close"></i></button>
+        <button class="btn btn-icon desktop-only" onclick="minimizeFloatingNoteDog()" title="Minimize to Pill"><i data-lucide="minus"></i></button>
+        <button class="btn btn-icon desktop-only" onclick="maximizeFloatingNoteDog()" title="Maximize / Restore Window"><i data-lucide="maximize-2"></i></button>
+        <button class="btn btn-icon modal-close-btn" onclick="closeFloatingNoteDog()" title="Close NoteDog"><i data-lucide="x"></i></button>
       </div>
     </div>
 
@@ -2093,10 +2237,10 @@
             <span class="notedog-save-status" id="notedog-save-status">Saved</span>
           </div>
 
-          <div style="display: flex; align-items: center; gap: 4px;">
-            <button class="btn btn-xs btn-accent" onclick="saveActiveNoteDogNote()" title="Save Note (Ctrl+S)"><i data-lucide="save" style="width: 12px;"></i> Save</button>
-            <button class="btn btn-xs" onclick="openNoteDogTemplatePicker(event)" title="Insert Template"><i data-lucide="layout-template" style="width: 12px;"></i> Template</button>
-            <button class="btn btn-icon btn-xs" onclick="promptDeleteCurrentNote()" title="Delete Current Note"><i data-lucide="trash-2" style="width: 12px;"></i></button>
+          <div class="notedog-workspace-actions" style="display: flex; align-items: center; gap: 3px;">
+            <button class="btn btn-icon btn-accent" id="btn-save-notedog" onclick="saveActiveNoteDogNote()" title="Save Note (Ctrl+S)"><i data-lucide="save"></i></button>
+            <button class="btn btn-icon" id="btn-template-notedog" onclick="openNoteDogTemplatePicker(event)" title="Insert Template"><i data-lucide="layout-template"></i></button>
+            <button class="btn btn-icon btn-danger-hover" id="btn-delete-notedog" onclick="promptDeleteCurrentNote()" title="Delete Current Note"><i data-lucide="trash-2"></i></button>
           </div>
         </div>
 
@@ -2171,13 +2315,14 @@
   <div class="modal-overlay" id="diff-modal" style="z-index: 2840;">
     <div class="modal-box diff-modal-box" id="diff-modal-box">
       <div class="modal-header diff-modal-header">
-        <div class="diff-header-title-group">
-          <i data-lucide="git-compare" class="diff-header-icon"></i>
-          <span class="diff-header-title">Comparison & Diff Engine</span>
+        <div class="diff-header-title-group" style="display: flex; align-items: center; gap: 8px;">
+          <i data-lucide="git-compare" class="diff-header-icon" style="color: var(--accent); width: 16px; height: 16px;"></i>
+          <span class="diff-header-title" style="font-weight: 700; font-size: 13px;">Comparison & Diff Engine</span>
         </div>
-        <div class="diff-header-actions">
-          <button class="btn btn-sm btn-outline diff-deep-btn" onclick="triggerDiff(true)" title="Deep Recursive SHA-256 Hash Compare"><i data-lucide="shield-check"></i> <span class="diff-btn-label">Deep Hash</span></button>
-          <button class="btn btn-icon" onclick="closeModal('diff-modal')"><i data-lucide="x"></i></button>
+        <div class="diff-header-actions" style="display: flex; align-items: center; gap: 4px;">
+          <button class="btn btn-icon" id="diff-deep-btn" onclick="triggerDiff(true)" title="Deep Recursive SHA-256 Hash Compare"><i data-lucide="shield-check"></i></button>
+          <div class="header-sep"></div>
+          <button class="btn btn-icon modal-close-btn" onclick="closeModal('diff-modal')" title="Close Diff Engine (Esc)"><i data-lucide="x"></i></button>
         </div>
       </div>
       <div class="modal-body diff-modal-body" id="diff-modal-body"></div>
@@ -2188,8 +2333,11 @@
   <div class="modal-overlay" id="converter-modal">
     <div class="modal-box" style="width: 520px;">
       <div class="modal-header">
-        <span>🔄 ConvertX File & Image Converter</span>
-        <button class="btn" onclick="closeModal('converter-modal')"><i data-lucide="x"></i></button>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <i data-lucide="refresh-cw" style="color: var(--accent); width: 18px; height: 18px;"></i>
+          <span style="font-weight: 700; font-size: 14px;">ConvertX File & Image Converter</span>
+        </div>
+        <button class="btn btn-icon modal-close-btn" onclick="closeModal('converter-modal')" title="Close (Esc)"><i data-lucide="x"></i></button>
       </div>
       <div class="modal-body">
         <div class="converter-preview-box">
@@ -2293,19 +2441,19 @@
         </div>
 
         <div class="image-viewer-actions-group">
-          <!-- Desktop Direct Transform Buttons -->
-          <div class="desktop-only" style="display: flex; align-items: center; gap: 4px;">
-            <button class="btn btn-icon btn-sm" onclick="zoomImage(0.2)" title="Zoom In (+)"><i data-lucide="zoom-in"></i></button>
-            <button class="btn btn-icon btn-sm" onclick="zoomImage(-0.2)" title="Zoom Out (-)"><i data-lucide="zoom-out"></i></button>
-            <button class="btn btn-icon btn-sm" onclick="resetImageTransform()" title="Reset 1:1 View"><i data-lucide="refresh-cw"></i></button>
-            <button class="btn btn-icon btn-sm" onclick="rotateImage(90)" title="Rotate Clockwise 90°"><i data-lucide="rotate-cw"></i></button>
-            <button class="btn btn-icon btn-sm" onclick="flipImage('h')" title="Flip Horizontal"><i data-lucide="flip-horizontal"></i></button>
-            <button class="btn btn-icon btn-sm" onclick="flipImage('v')" title="Flip Vertical"><i data-lucide="flip-vertical"></i></button>
+          <!-- Desktop Direct Transform Buttons (Layout Switcher / Transform Group) -->
+          <div class="layout-btn-group desktop-only" id="img-transform-btn-group">
+            <button class="btn btn-icon" onclick="zoomImage(0.2)" title="Zoom In (+)"><i data-lucide="zoom-in"></i></button>
+            <button class="btn btn-icon" onclick="zoomImage(-0.2)" title="Zoom Out (-)"><i data-lucide="zoom-out"></i></button>
+            <button class="btn btn-icon" onclick="resetImageTransform()" title="Reset 1:1 View"><i data-lucide="refresh-cw"></i></button>
+            <button class="btn btn-icon" onclick="rotateImage(90)" title="Rotate Clockwise 90°"><i data-lucide="rotate-cw"></i></button>
+            <button class="btn btn-icon" onclick="flipImage('h')" title="Flip Horizontal"><i data-lucide="flip-horizontal"></i></button>
+            <button class="btn btn-icon" onclick="flipImage('v')" title="Flip Vertical"><i data-lucide="flip-vertical"></i></button>
           </div>
 
           <!-- Mobile / Foldable Consolidated Transform Dropdown -->
           <div class="dropdown-container mobile-only" id="img-transform-dropdown-container" style="position: relative;">
-            <button class="btn btn-sm" onclick="toggleImgTransformDropdown(event)" title="Transform Tools"><i data-lucide="sliders"></i> Tools ▾</button>
+            <button class="btn btn-icon" onclick="toggleImgTransformDropdown(event)" title="Transform Tools"><i data-lucide="sliders-horizontal"></i></button>
             <div class="dropdown-menu" id="img-transform-dropdown-menu" style="display: none; right: 0; min-width: 170px;">
               <div class="dropdown-item" onclick="zoomImage(0.2); closeImgTransformDropdown();"><i data-lucide="zoom-in"></i> Zoom In (+)</div>
               <div class="dropdown-item" onclick="zoomImage(-0.2); closeImgTransformDropdown();"><i data-lucide="zoom-out"></i> Zoom Out (-)</div>
@@ -2316,12 +2464,12 @@
             </div>
           </div>
 
-          <div style="width: 1px; height: 16px; background: var(--border); margin: 0 2px;"></div>
-          <button class="btn btn-icon btn-sm" id="btn-img-wheel-mode" onclick="toggleImgWheelMode()" title="Toggle Wheel Mode: Browse Images vs Direct Zoom"><i data-lucide="mouse"></i></button>
-          <button class="btn btn-icon btn-sm" onclick="inspectCurrentImage()" title="Inspect EXIF & GPS Metadata"><i data-lucide="info"></i></button>
-          <a id="img-viewer-download-link" class="btn btn-icon btn-sm" href="#" download title="Download Image"><i data-lucide="download"></i></a>
-          <button class="btn btn-icon btn-sm" id="btn-img-viewer-float" onclick="toggleImageViewerFloating()" title="Toggle Floating Window / Overlay (⇱ / ⇲)"><i data-lucide="picture-in-picture"></i></button>
-          <button class="btn btn-icon btn-sm" onclick="closeModal('image-viewer-modal')" title="Close Viewer (Esc)"><i data-lucide="x"></i></button>
+          <div class="header-sep desktop-only"></div>
+          <button class="btn btn-icon" id="btn-img-wheel-mode" onclick="toggleImgWheelMode()" title="Toggle Wheel Mode: Browse Images vs Direct Zoom"><i data-lucide="mouse"></i></button>
+          <button class="btn btn-icon" onclick="inspectCurrentImage()" title="Inspect EXIF & GPS Metadata"><i data-lucide="info"></i></button>
+          <a id="img-viewer-download-link" class="btn btn-icon" href="#" download title="Download Image"><i data-lucide="download"></i></a>
+          <button class="btn btn-icon desktop-only" id="btn-img-viewer-float" onclick="toggleImageViewerFloating()" title="Toggle Floating Window / Overlay (⇱ / ⇲)"><i data-lucide="picture-in-picture"></i></button>
+          <button class="btn btn-icon modal-close-btn" onclick="closeModal('image-viewer-modal')" title="Close Viewer (Esc)"><i data-lucide="x"></i></button>
         </div>
       </div>
 
@@ -2462,15 +2610,15 @@
           <div style="display: flex; align-items: center; gap: 8px;">
             <i data-lucide="refresh-cw" style="color: var(--accent); width: 18px; height: 18px;"></i>
             <span style="font-weight: 700; font-size: 14px;">SyncToy & Bvckup 2 Delta Backup Studio</span>
-            <span id="sync-version-badge" class="badge" style="background: rgba(34, 197, 94, 0.15); color: #22c55e; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px;">v0.7.1</span>
+            <span id="sync-version-badge" class="badge" style="background: rgba(34, 197, 94, 0.15); color: #22c55e; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px;">v0.7.2</span>
           </div>
           <div class="sync-nav-tabs" style="display: flex; gap: 4px; margin-left: 12px;">
-            <button class="btn btn-sm sync-tab-btn active" id="sync-tab-btn-diff" onclick="switchSyncTab('diff')"><i data-lucide="split"></i> Live Diff & Replication</button>
-            <button class="btn btn-sm sync-tab-btn" id="sync-tab-btn-profiles" onclick="switchSyncTab('profiles')"><i data-lucide="layers"></i> Backup Jobs & Scheduler</button>
-            <button class="btn btn-sm sync-tab-btn" id="sync-tab-btn-history" onclick="switchSyncTab('history')"><i data-lucide="history"></i> Run History & Logs</button>
+            <button class="btn btn-sm sync-tab-btn active" id="sync-tab-btn-diff" onclick="switchSyncTab('diff')"><i data-lucide="split"></i> Live Diff</button>
+            <button class="btn btn-sm sync-tab-btn" id="sync-tab-btn-profiles" onclick="switchSyncTab('profiles')"><i data-lucide="layers"></i> Backup Jobs</button>
+            <button class="btn btn-sm sync-tab-btn" id="sync-tab-btn-history" onclick="switchSyncTab('history')"><i data-lucide="history"></i> Run Logs</button>
           </div>
         </div>
-        <button class="btn btn-icon" onclick="closeModal('sync-modal')"><i data-lucide="x"></i></button>
+        <button class="btn btn-icon modal-close-btn" onclick="closeModal('sync-modal')" title="Close Backup Studio (Esc)"><i data-lucide="x"></i></button>
       </div>
 
       <!-- TAB 1: Live Diff & Replication Studio -->
@@ -2489,6 +2637,53 @@
               <input type="text" id="sync-dest-input" class="pane-quick-filter" style="flex: 1; border: none; background: transparent; outline: none; font-size: 12px; font-family: var(--font-mono);" placeholder="/path/to/destination">
               <button class="btn btn-xs" onclick="useInactivePanePath('sync-dest-input')" title="Use Inactive Pane Path" style="font-size: 10px; padding: 2px 6px;">Target</button>
             </div>
+          </div>
+
+          <!-- Quick Replication Profile Templates & Exclusions Toggle Row -->
+          <div class="sync-template-row" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+              <span style="font-weight: 700; font-size: 11px; color: var(--accent); display: inline-flex; align-items: center; gap: 4px;"><i data-lucide="sparkles" style="width: 13px; height: 13px;"></i> Templates:</span>
+              <button class="btn sync-template-btn" onclick="applySyncTemplate('nas_mirror')" title="Mirror Source to NAS / Backup Target (Echo mode, verify checksums, delete orphans)">🪞 NAS Mirror</button>
+              <button class="btn sync-template-btn" onclick="applySyncTemplate('code_sync')" title="Developer Two-Way Sync (Synchronize mode, delta copy, ignore node_modules, .git, target)">💻 Codebase Sync</button>
+              <button class="btn sync-template-btn" onclick="applySyncTemplate('snapshot_archive')" title="Historical Versioning Vault (Subscribe mode, 30 days retention, archive snapshot)">📦 Snapshot Vault</button>
+              <button class="btn sync-template-btn" onclick="applySyncTemplate('media_vault')" title="Media & Photo Backup (Contribute additive mode, never delete from destination)">📸 Media Backup</button>
+            </div>
+            <button class="btn btn-xs" id="btn-toggle-sync-exclusions" onclick="toggleSyncExclusionsPanel()" title="Toggle Visual File & Folder Exclusion Filters" style="display: inline-flex; align-items: center; gap: 5px; font-weight: 600;">
+              <i data-lucide="filter" style="width: 12px; height: 12px;"></i>
+              <span>Exclusions (<span id="sync-exclusions-badge">0</span>)</span>
+            </button>
+          </div>
+
+          <!-- Visual File & Folder Exclusion Rule Builder Panel -->
+          <div id="sync-exclusions-panel" style="display: none; flex-direction: column; gap: 6px; padding: 8px 12px; background: var(--bg-input); border: 1px solid var(--border); border-radius: 6px; font-size: 11px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="font-weight: 700; color: var(--text-main); display: inline-flex; align-items: center; gap: 5px;">
+                <i data-lucide="shield-alert" style="width: 13px; height: 13px; color: var(--accent);"></i>
+                Excluded Folders & Patterns:
+              </span>
+              <span style="font-size: 10.5px; color: var(--text-dim);">Files matching active chips will be skipped during analysis and replication</span>
+            </div>
+            <!-- Preset Exclusion Chips -->
+            <div class="sync-exclusion-preset-chips" style="display: flex; flex-wrap: wrap; gap: 5px; margin-top: 2px;">
+              <span class="sync-chip" data-pattern="node_modules" onclick="toggleExclusionChip(this)">node_modules</span>
+              <span class="sync-chip" data-pattern=".git" onclick="toggleExclusionChip(this)">.git</span>
+              <span class="sync-chip" data-pattern="target" onclick="toggleExclusionChip(this)">target/</span>
+              <span class="sync-chip" data-pattern=".cache" onclick="toggleExclusionChip(this)">.cache/</span>
+              <span class="sync-chip" data-pattern="tmp" onclick="toggleExclusionChip(this)">tmp/</span>
+              <span class="sync-chip" data-pattern="*.tmp" onclick="toggleExclusionChip(this)">*.tmp</span>
+              <span class="sync-chip" data-pattern=".DS_Store" onclick="toggleExclusionChip(this)">.DS_Store</span>
+              <span class="sync-chip" data-pattern="Thumbs.db" onclick="toggleExclusionChip(this)">Thumbs.db</span>
+              <span class="sync-chip" data-pattern="*.log" onclick="toggleExclusionChip(this)">*.log</span>
+              <span class="sync-chip" data-pattern="dist" onclick="toggleExclusionChip(this)">dist/</span>
+              <span class="sync-chip" data-pattern="*.bak" onclick="toggleExclusionChip(this)">*.bak</span>
+            </div>
+            <!-- Custom Pattern Input and Active Tags -->
+            <div style="display: flex; align-items: center; gap: 6px; margin-top: 2px;">
+              <input type="text" id="sync-custom-exclusion-input" class="pane-quick-filter" style="flex: 1; padding: 4px 8px; font-size: 11px; font-family: var(--font-mono);" placeholder="Add custom pattern (e.g. *.iso, build/, secret.key) and press Enter" onkeydown="if(event.key==='Enter'){event.preventDefault();addCustomExclusionPattern();}">
+              <button class="btn btn-xs" onclick="addCustomExclusionPattern()"><i data-lucide="plus" style="width: 12px; height: 12px;"></i> Add</button>
+              <button class="btn btn-xs btn-outline" onclick="clearAllSyncExclusions()"><i data-lucide="trash-2" style="width: 12px; height: 12px;"></i> Clear All</button>
+            </div>
+            <div id="sync-active-custom-tags" style="display: flex; flex-wrap: wrap; gap: 4px;"></div>
           </div>
 
           <!-- 4 Core Replication Profile Radio Cards -->
@@ -2657,9 +2852,20 @@
       </div>
       <div style="padding: 16px; display: flex; flex-direction: column; gap: 12px; font-size: 12px;">
         <input type="hidden" id="bp-id" value="">
-        <div>
-          <label style="font-weight: 600; display: block; margin-bottom: 4px;">Job / Profile Name</label>
-          <input type="text" id="bp-name" class="pane-quick-filter" style="width: 100%; padding: 6px 8px;" placeholder="e.g. Daily Project Mirror">
+        <div style="display: flex; justify-content: space-between; align-items: flex-end; gap: 8px;">
+          <div style="flex: 1;">
+            <label style="font-weight: 600; display: block; margin-bottom: 4px;">Job / Profile Name</label>
+            <input type="text" id="bp-name" class="pane-quick-filter" style="width: 100%; padding: 6px 8px;" placeholder="e.g. Daily Project Mirror">
+          </div>
+          <div>
+            <select id="bp-template-select" class="pane-quick-filter" style="font-size: 11px; padding: 6px 8px; font-weight: 600; background: var(--bg-panel);" onchange="applyJobModalTemplate(this.value)">
+              <option value="">⚡ Load Template...</option>
+              <option value="nas_mirror">🪞 NAS Mirror</option>
+              <option value="code_sync">💻 Codebase Sync</option>
+              <option value="snapshot_archive">📦 Snapshot Vault</option>
+              <option value="media_vault">📸 Media Backup</option>
+            </select>
+          </div>
         </div>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
           <div>
@@ -2669,6 +2875,21 @@
           <div>
             <label style="font-weight: 600; display: block; margin-bottom: 4px;">Destination Directory</label>
             <input type="text" id="bp-dest" class="pane-quick-filter" style="width: 100%; padding: 6px 8px; font-family: var(--font-mono);" placeholder="/path/to/destination">
+          </div>
+        </div>
+        <!-- Exclusions for Backup Job -->
+        <div>
+          <label style="font-weight: 600; display: block; margin-bottom: 4px;">Exclusions & Ignored Patterns (Comma-separated)</label>
+          <input type="text" id="bp-exclusions" class="pane-quick-filter" style="width: 100%; padding: 6px 8px; font-family: var(--font-mono); font-size: 11px;" placeholder="e.g. node_modules, .git, target, *.tmp, .DS_Store">
+          <div class="sync-exclusion-preset-chips" style="display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px;">
+            <span class="sync-chip sync-chip-sm" onclick="appendBpExclusion('node_modules')">+ node_modules</span>
+            <span class="sync-chip sync-chip-sm" onclick="appendBpExclusion('.git')">+ .git</span>
+            <span class="sync-chip sync-chip-sm" onclick="appendBpExclusion('target')">+ target/</span>
+            <span class="sync-chip sync-chip-sm" onclick="appendBpExclusion('.cache')">+ .cache/</span>
+            <span class="sync-chip sync-chip-sm" onclick="appendBpExclusion('*.tmp')">+ *.tmp</span>
+            <span class="sync-chip sync-chip-sm" onclick="appendBpExclusion('.DS_Store')">+ .DS_Store</span>
+            <span class="sync-chip sync-chip-sm" onclick="appendBpExclusion('Thumbs.db')">+ Thumbs.db</span>
+            <span class="sync-chip sync-chip-sm" onclick="appendBpExclusion('*.log')">+ *.log</span>
           </div>
         </div>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
@@ -2730,17 +2951,21 @@
       <div class="modal-header" style="padding: 10px 16px; background: var(--bg-header); border-bottom: 1px solid var(--border);">
         <div style="display: flex; align-items: center; gap: 8px;">
           <i data-lucide="pie-chart" style="color: var(--accent); width: 16px;"></i>
-          <span style="font-weight: 700; font-size: 13px;">Visual Disk Usage & Storage Treemap Analyzer</span>
+          <span style="font-weight: 700; font-size: 13px;">Visual Disk Usage Analyzer</span>
         </div>
-        <button class="btn btn-icon" onclick="closeModal('disk-usage-modal')"><i data-lucide="x"></i></button>
+        <div style="display: flex; align-items: center; gap: 4px;">
+          <button class="btn btn-icon" onclick="runDiskUsageScan(document.getElementById('du-path-input').value)" title="Rescan Disk Usage"><i data-lucide="refresh-cw"></i></button>
+          <div class="header-sep"></div>
+          <button class="btn btn-icon modal-close-btn" onclick="closeModal('disk-usage-modal')" title="Close (Esc)"><i data-lucide="x"></i></button>
+        </div>
       </div>
 
-      <div class="du-top-bar">
+      <div class="du-top-bar" style="padding: 8px 16px; display: flex; align-items: center; gap: 8px; background: var(--bg-panel); border-bottom: 1px solid var(--border);">
         <div style="display: flex; align-items: center; gap: 8px; flex: 1;">
           <span style="font-size: 11px; color: var(--text-muted); font-weight: 600;">Scan Path:</span>
-          <input type="text" id="du-path-input" class="pane-quick-filter" style="flex: 1; font-family: var(--font-mono);" placeholder="/path/to/folder" onkeydown="if(event.key==='Enter') runDiskUsageScan(this.value)">
+          <input type="text" id="du-path-input" class="pane-quick-filter" style="flex: 1; font-family: var(--font-mono); height: 26px;" placeholder="/path/to/folder" onkeydown="if(event.key==='Enter') runDiskUsageScan(this.value)">
         </div>
-        <button class="btn btn-sm" onclick="runDiskUsageScan(document.getElementById('du-path-input').value)"><i data-lucide="refresh-cw"></i> Rescan</button>
+        <button class="btn btn-xs" onclick="runDiskUsageScan(document.getElementById('du-path-input').value)" style="height: 26px; padding: 0 10px; font-weight: 600;"><i data-lucide="refresh-cw" style="width: 12px; margin-right: 4px;"></i> Rescan</button>
       </div>
 
       <!-- Stats Summary Card -->
@@ -2783,8 +3008,11 @@
   <div class="modal-overlay" id="search-modal">
     <div class="modal-box" style="width: 780px; max-height: 85vh; display: flex; flex-direction: column;">
       <div class="modal-header">
-        <span style="color: var(--accent); font-weight: 700;">🔍 Global File & Content Search</span>
-        <button class="btn" onclick="closeModal('search-modal')"><i data-lucide="x"></i></button>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <i data-lucide="search" style="color: var(--accent); width: 18px; height: 18px;"></i>
+          <span style="font-weight: 700; font-size: 14px;">Deep Search: File & Content Search</span>
+        </div>
+        <button class="btn btn-icon modal-close-btn" onclick="closeModal('search-modal')" title="Close Search (Esc)"><i data-lucide="x"></i></button>
       </div>
 
       <div class="modal-body" style="padding: 12px; display: flex; flex-direction: column; gap: 10px;">
@@ -3051,7 +3279,7 @@
     <div class="modal-box" style="width: 400px;">
       <div class="modal-header">
         <span style="display: flex; align-items: center; gap: 6px;"><img src="assets/folder-closed.png" style="width: 16px; height: 16px;"> Create New Folder (F7)</span>
-        <button class="btn" onclick="closeModal('mkdir-modal')"><i data-lucide="x"></i></button>
+        <button class="btn btn-icon modal-close-btn" onclick="closeModal('mkdir-modal')" title="Close (Esc)"><i data-lucide="x"></i></button>
       </div>
       <div class="modal-body">
         <label style="display: block; margin-bottom: 6px; font-size: 12px;">Folder Name:</label>
@@ -3060,6 +3288,122 @@
       <div class="modal-footer">
         <button class="btn" onclick="closeModal('mkdir-modal')">Cancel</button>
         <button class="btn btn-accent" id="btn-confirm-mkdir">Create</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Create New File from Template Modal -->
+  <div class="modal-overlay" id="new-from-template-modal">
+    <div class="modal-box" style="width: 580px; max-width: 95vw;">
+      <div class="modal-header">
+        <span style="display: flex; align-items: center; gap: 8px;">
+          <i data-lucide="file-code-2" id="template-modal-icon" style="width: 16px; height: 16px; color: var(--accent);"></i>
+          <span id="template-modal-title" style="font-weight: 700;">New File from Template</span>
+        </span>
+        <button class="btn btn-icon modal-close-btn" onclick="closeModal('new-from-template-modal')" title="Close (Esc)"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body" style="padding: 16px; display: flex; flex-direction: column; gap: 12px;">
+        <div style="font-size: 11px; color: var(--text-dim); display: flex; align-items: center; gap: 4px;">
+          <i data-lucide="folder" style="width: 12px; height: 12px;"></i> Destination:
+          <span id="template-modal-dest" style="font-family: var(--font-mono); color: var(--text-main); font-weight: 600;">/</span>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <div class="form-group">
+            <label style="font-weight: 700; font-size: 11.5px;">Filename:</label>
+            <input type="text" id="template-filename-input" class="pane-quick-filter" style="width: 100%; padding: 6px 8px; font-family: var(--font-mono);" placeholder="document.md" oninput="updateTemplateLivePreview()">
+          </div>
+          <div class="form-group">
+            <label style="font-weight: 700; font-size: 11.5px;">Document Title ({{TITLE}}):</label>
+            <input type="text" id="template-title-input" class="pane-quick-filter" style="width: 100%; padding: 6px 8px;" placeholder="Humanized Title" oninput="updateTemplateLivePreview()">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+            <label style="font-weight: 700; font-size: 11.5px;">Live Content Preview / Edit:</label>
+            <span style="font-size: 10px; color: var(--text-dim);">Variables expanded in real-time</span>
+          </div>
+          <textarea id="template-preview-code" class="pane-quick-filter" style="width: 100%; height: 160px; font-family: var(--font-mono); font-size: 11px; line-height: 1.4; padding: 8px; resize: vertical; white-space: pre; tab-size: 2;"></textarea>
+        </div>
+
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <label style="display: flex; align-items: center; gap: 6px; font-size: 11.5px; cursor: pointer;">
+            <input type="checkbox" id="template-open-editor-chk" checked>
+            <span>Open in Editor immediately after creation</span>
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer" style="padding: 10px 16px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px;">
+        <button class="btn" onclick="closeModal('new-from-template-modal')">Cancel</button>
+        <button class="btn btn-accent" id="btn-confirm-create-template" onclick="executeCreateFromTemplate()"><i data-lucide="check"></i> Create File</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add / Edit Custom Template Modal -->
+  <div class="modal-overlay" id="template-edit-modal">
+    <div class="modal-box" style="width: 600px; max-width: 95vw;">
+      <div class="modal-header">
+        <span style="display: flex; align-items: center; gap: 8px;">
+          <i data-lucide="file-code" style="width: 16px; height: 16px; color: var(--accent);"></i>
+          <span id="edit-template-header-title" style="font-weight: 700;">Edit File Template</span>
+        </span>
+        <button class="btn btn-icon modal-close-btn" onclick="closeModal('template-edit-modal')" title="Close (Esc)"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body" style="padding: 16px; display: flex; flex-direction: column; gap: 12px;">
+        <input type="hidden" id="edit-template-id">
+        
+        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 12px;">
+          <div class="form-group">
+            <label style="font-weight: 700; font-size: 11.5px;">Template Display Name:</label>
+            <input type="text" id="edit-template-name" class="pane-quick-filter" style="width: 100%; padding: 6px 8px;" placeholder="e.g. Meeting Minutes (.md)">
+          </div>
+          <div class="form-group">
+            <label style="font-weight: 700; font-size: 11.5px;">File Extension:</label>
+            <input type="text" id="edit-template-ext" class="pane-quick-filter" style="width: 100%; padding: 6px 8px; font-family: var(--font-mono);" placeholder="md, py, json, etc.">
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 12px;">
+          <div class="form-group">
+            <label style="font-weight: 700; font-size: 11.5px;">Default Filename Pattern:</label>
+            <input type="text" id="edit-template-default-filename" class="pane-quick-filter" style="width: 100%; padding: 6px 8px; font-family: var(--font-mono);" placeholder="e.g. meeting_{{DATE}}.md">
+          </div>
+          <div class="form-group">
+            <label style="font-weight: 700; font-size: 11.5px;">Lucide Icon:</label>
+            <select id="edit-template-icon" class="pane-quick-filter" style="width: 100%; padding: 6px 8px;">
+              <option value="file-text">file-text (Document)</option>
+              <option value="file-code">file-code (Code)</option>
+              <option value="terminal">terminal (Script)</option>
+              <option value="terminal-square">terminal-square (Shell)</option>
+              <option value="globe">globe (Web/HTML)</option>
+              <option value="palette">palette (CSS/Design)</option>
+              <option value="cpu">cpu (Rust/C)</option>
+              <option value="database">database (SQL/Data)</option>
+              <option value="table">table (CSV/Sheets)</option>
+              <option value="shield">shield (Security)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+            <label style="font-weight: 700; font-size: 11.5px;">Template Content Boilerplate:</label>
+            <div style="display: flex; gap: 4px; font-size: 10px;">
+              <span class="btn btn-xs" onclick="insertVariableIntoEditTemplate('{{TITLE}}')">+ {{TITLE}}</span>
+              <span class="btn btn-xs" onclick="insertVariableIntoEditTemplate('{{DATE}}')">+ {{DATE}}</span>
+              <span class="btn btn-xs" onclick="insertVariableIntoEditTemplate('{{TIME}}')">+ {{TIME}}</span>
+              <span class="btn btn-xs" onclick="insertVariableIntoEditTemplate('{{USER}}')">+ {{USER}}</span>
+              <span class="btn btn-xs" onclick="insertVariableIntoEditTemplate('{{ISO_DATE}}')">+ {{ISO_DATE}}</span>
+            </div>
+          </div>
+          <textarea id="edit-template-content" class="pane-quick-filter" style="width: 100%; height: 180px; font-family: var(--font-mono); font-size: 11px; line-height: 1.4; padding: 8px; resize: vertical; white-space: pre; tab-size: 2;" placeholder="# {{TITLE}}&#10;&#10;Created: {{DATE}} by {{USER}}"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer" style="padding: 10px 16px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px;">
+        <button class="btn" onclick="closeModal('template-edit-modal')">Cancel</button>
+        <button class="btn btn-accent" onclick="saveTemplateFromModal()"><i data-lucide="check"></i> Save Template</button>
       </div>
     </div>
   </div>
@@ -3336,15 +3680,16 @@
   <div class="terminal-drawer" id="terminal-drawer">
     <div class="terminal-header">
       <div style="display: flex; align-items: center; gap: 8px;">
-        <img src="assets/logo.png" alt="CommanderDog" style="height: 18px; width: auto; object-fit: contain; vertical-align: middle;">
+        <img src="assets/term.png" alt="Terminal" style="height: 18px; width: 18px; object-fit: contain; vertical-align: middle;">
         <span style="color: var(--accent); font-weight: 700;">Woofson Terminal Console</span>
         <span style="color: var(--text-dim);" id="terminal-cwd-indicator">~</span>
       </div>
-      <div style="display: flex; gap: 4px;">
-        <button class="btn btn-icon" onclick="dockTerminalToActivePane()" title="Dock Terminal into Active Pane"><i data-lucide="panel-left-close" style="width:12px;"></i></button>
-        <button class="btn btn-icon" onclick="toggleTerminalFullscreen()" title="Toggle Maximize"><i data-lucide="maximize-2" style="width:12px;"></i></button>
-        <button class="btn btn-icon" onclick="clearTerminal()" title="Clear Terminal"><i data-lucide="trash" style="width:12px;"></i></button>
-        <button class="btn btn-icon" onclick="toggleTerminal(false)" title="Close Terminal"><i data-lucide="x" style="width:12px;"></i></button>
+      <div style="display: flex; align-items: center; gap: 4px;">
+        <button class="btn btn-icon" onclick="clearTerminal()" title="Clear Terminal"><i data-lucide="trash-2"></i></button>
+        <div class="header-sep"></div>
+        <button class="btn btn-icon" onclick="dockTerminalToActivePane()" title="Dock Terminal into Active Pane"><i data-lucide="panel-left-close"></i></button>
+        <button class="btn btn-icon" onclick="toggleTerminalFullscreen()" title="Toggle Maximize"><i data-lucide="maximize-2"></i></button>
+        <button class="btn btn-icon modal-close-btn" onclick="toggleTerminal(false)" title="Close Terminal"><i data-lucide="x"></i></button>
       </div>
     </div>
     <div class="terminal-body" id="terminal-output" tabindex="0"></div>
@@ -3360,7 +3705,7 @@
           <img src="assets/logo.png" alt="CommanderDog" style="height: 18px; width: auto; object-fit: contain; vertical-align: middle;">
           <span style="font-weight: 700; font-size: 14px;">About CommanderDog</span>
         </div>
-        <button class="btn" onclick="closeModal('about-modal')"><i data-lucide="x"></i></button>
+        <button class="btn btn-icon modal-close-btn" onclick="closeModal('about-modal')" title="Close (Esc)"><i data-lucide="x"></i></button>
       </div>
       <div class="modal-body" style="padding: 20px; overflow-y: auto;">
         <!-- Banner & Version Header -->
@@ -3718,17 +4063,18 @@
     </div>
 
     <div class="task-win-header" id="task-win-header">
-      <div class="task-win-title">
+      <div class="task-win-title" style="display: flex; align-items: center; gap: 6px;">
+        <img src="assets/task.png" alt="Tasks" style="width: 16px; height: 16px; object-fit: contain;">
         <span class="task-status-indicator" id="task-status-indicator"></span>
-        <span id="task-header-title">⚡ Transfers (0 active)</span>
+        <span id="task-header-title">Transfers (0 active)</span>
         <span id="task-paranoid-badge" style="display: none; color: #22c55e; font-size: 12px; margin-left: 2px;" title="Paranoid SHA-256 Active">🛡️</span>
         <span class="task-speed-badge" id="task-speed-badge">0 B/s</span>
       </div>
-      <div class="task-win-controls">
-        <button class="btn-task-control desktop-only" onclick="dockTasksToActivePane()" title="Dock Tasks into Active Pane"><i data-lucide="panel-left-close"></i></button>
-        <button class="btn-task-control desktop-only" onclick="minimizeFloatingTaskManager()" title="Minimize to Pill"><i data-lucide="minus"></i></button>
-        <button class="btn-task-control desktop-only" onclick="maximizeFloatingTaskManager()" title="Expand / Restore"><i data-lucide="maximize-2"></i></button>
-        <button class="btn-task-control btn-task-close" onclick="closeFloatingTaskManager()" title="Close Transfer Window"><i data-lucide="x"></i></button>
+      <div class="task-win-controls" style="display: flex; align-items: center; gap: 4px;">
+        <button class="btn btn-icon btn-task-control desktop-only" onclick="dockTasksToActivePane()" title="Dock Tasks into Active Pane"><i data-lucide="panel-left-close"></i></button>
+        <button class="btn btn-icon btn-task-control desktop-only" onclick="minimizeFloatingTaskManager()" title="Minimize to Pill"><i data-lucide="minus"></i></button>
+        <button class="btn btn-icon btn-task-control desktop-only" onclick="maximizeFloatingTaskManager()" title="Expand / Restore"><i data-lucide="maximize-2"></i></button>
+        <button class="btn btn-icon btn-task-control btn-task-close modal-close-btn" onclick="closeFloatingTaskManager()" title="Close Transfer Window"><i data-lucide="x"></i></button>
       </div>
     </div>
 
@@ -3791,7 +4137,7 @@
   <!-- Sleek Floating Minimized Pill Widget -->
   <div class="tasks-pill" id="tasks-pill" onclick="restoreFloatingTaskManager()" title="Click to open Transfer Manager">
     <div class="tasks-pill-pulse" id="tasks-pill-pulse"></div>
-    <i data-lucide="activity" style="width: 14px; height: 14px; color: var(--accent);"></i>
+    <img src="assets/task.png" alt="Tasks" style="width: 14px; height: 14px; object-fit: contain; vertical-align: middle;">
     <span id="tasks-pill-text">0 Transfers</span>
     <span class="tasks-pill-speed" id="tasks-pill-speed">0 B/s</span>
   </div>
@@ -4013,11 +4359,12 @@
           <span style="font-weight: 700; font-size: 14px;" id="git-modal-title">Git Manager</span>
           <span class="badge" id="git-modal-branch-badge" style="font-size: 10px; text-transform: uppercase;">main</span>
         </div>
-        <div style="display: flex; align-items: center; gap: 6px;">
-          <button class="btn btn-sm" onclick="gitPullCurrentRepo()" title="Pull changes from remote"><i data-lucide="download"></i> Pull</button>
-          <button class="btn btn-sm" onclick="gitPushCurrentRepo()" title="Push commits to remote"><i data-lucide="upload"></i> Push</button>
-          <button class="btn btn-sm btn-icon desktop-only" onclick="dockGitToActivePane()" title="Dock Git Manager into Active Pane"><i data-lucide="panel-left-close"></i></button>
-          <button class="btn btn-icon" onclick="closeModal('git-modal')"><i data-lucide="x"></i></button>
+        <div style="display: flex; align-items: center; gap: 4px;">
+          <button class="btn btn-icon" onclick="gitPullCurrentRepo()" title="Pull changes from remote (Git Pull)"><i data-lucide="download"></i></button>
+          <button class="btn btn-icon" onclick="gitPushCurrentRepo()" title="Push commits to remote (Git Push)"><i data-lucide="upload"></i></button>
+          <div class="header-sep desktop-only"></div>
+          <button class="btn btn-icon desktop-only" onclick="dockGitToActivePane()" title="Dock Git Manager into Active Pane"><i data-lucide="panel-left-close"></i></button>
+          <button class="btn btn-icon modal-close-btn" onclick="closeModal('git-modal')" title="Close Git Manager (Esc)"><i data-lucide="x"></i></button>
         </div>
       </div>
 
@@ -4032,8 +4379,8 @@
           <div style="padding: 8px 12px; font-size: 11px; font-weight: 700; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
             <span id="git-changes-count">Changes</span>
             <div style="display: flex; gap: 4px;">
-              <button class="btn btn-xs btn-accent" onclick="gitStageAll()" title="Stage all changes">Stage All (+)</button>
-              <button class="btn btn-xs" onclick="gitUnstageAll()" title="Unstage all changes">Unstage All</button>
+              <button class="btn btn-xs btn-accent" onclick="gitStageAll()" title="Stage all changes" style="height: 26px; padding: 0 8px; font-weight: 600;">Stage All (+)</button>
+              <button class="btn btn-xs" onclick="gitUnstageAll()" title="Unstage all changes" style="height: 26px; padding: 0 8px; font-weight: 600;">Unstage All</button>
             </div>
           </div>
           <div id="git-files-list" style="flex: 1; overflow-y: auto; padding: 4px 0;"></div>
@@ -4164,9 +4511,9 @@
       <div class="modal-header">
         <div style="display: flex; align-items: center; gap: 8px;">
           <i data-lucide="file-text" style="color: #ef4444; width: 18px; height: 18px;"></i>
-          <span style="font-weight: 700; font-size: 14px;">📄 PDF Power Studio: Merge & Split</span>
+          <span style="font-weight: 700; font-size: 14px;">PDF Power Studio: Merge & Split</span>
         </div>
-        <button class="btn btn-icon" onclick="closeModal('pdf-tool-modal')"><i data-lucide="x"></i></button>
+        <button class="btn btn-icon modal-close-btn" onclick="closeModal('pdf-tool-modal')" title="Close PDF Studio (Esc)"><i data-lucide="x"></i></button>
       </div>
 
       <!-- Tabs Header -->

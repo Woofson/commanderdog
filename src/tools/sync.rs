@@ -28,6 +28,8 @@ pub struct SyncOptions {
     pub archive_dir: Option<String>,
     #[serde(default)]
     pub retention_days: Option<u32>,
+    #[serde(default)]
+    pub exclusions: Vec<String>,
 }
 
 fn default_true() -> bool {
@@ -44,8 +46,62 @@ impl Default for SyncOptions {
             delete_orphans: false,
             archive_dir: Some("_archive".to_string()),
             retention_days: Some(30),
+            exclusions: Vec::new(),
         }
     }
+}
+
+/// Checks if a relative path or file matches any configured exclusion patterns
+pub fn matches_exclusion(rel_path: &Path, filename: &str, exclusions: &[String]) -> bool {
+    if exclusions.is_empty() {
+        return false;
+    }
+    let rel_str = rel_path.to_string_lossy().to_string();
+    let rel_lower = rel_str.to_lowercase();
+    let file_lower = filename.to_lowercase();
+
+    for pattern in exclusions {
+        let pat = pattern.trim();
+        if pat.is_empty() {
+            continue;
+        }
+        let pat_lower = pat.to_lowercase();
+        let pat_clean = pat_lower.trim_start_matches('/').trim_end_matches('/');
+
+        if file_lower == pat_clean || rel_lower == pat_clean {
+            return true;
+        }
+
+        // Check path components (e.g. "node_modules", ".git", "target", ".cache")
+        for comp in rel_path.components() {
+            let comp_str = comp.as_os_str().to_string_lossy().to_lowercase();
+            if comp_str == pat_clean {
+                return true;
+            }
+        }
+
+        // Wildcard extension matching (e.g. "*.tmp", "*.log", "*.bak", "*.iso")
+        if pat_clean.starts_with("*.") {
+            let ext = &pat_clean[1..];
+            if file_lower.ends_with(ext) || rel_lower.ends_with(ext) {
+                return true;
+            }
+        }
+
+        // Wildcard prefix matching (e.g. "~*")
+        if pat_clean.ends_with('*') && pat_clean.len() > 1 {
+            let prefix = &pat_clean[..pat_clean.len() - 1];
+            if file_lower.starts_with(prefix) {
+                return true;
+            }
+        }
+
+        // Substring / folder contains match
+        if rel_lower.contains(pat_clean) {
+            return true;
+        }
+    }
+    false
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -101,6 +157,8 @@ pub struct BackupProfile {
     pub last_status: Option<String>,
     pub last_result: Option<String>,
     pub created_at: i64,
+    #[serde(default)]
+    pub exclusions: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -158,6 +216,11 @@ impl DirectorySyncEngine {
                     continue;
                 }
 
+                let filename = entry.file_name().to_string_lossy().to_string();
+                if matches_exclusion(&rel, &filename, &options.exclusions) {
+                    continue;
+                }
+
                 src_rel_set.insert(rel.clone());
 
                 let target_file = dest_path.join(&rel);
@@ -169,7 +232,6 @@ impl DirectorySyncEngine {
                     .map(|d| d.as_secs())
                     .unwrap_or(0);
 
-                let filename = entry.file_name().to_string_lossy().to_string();
                 let rel_str = rel.to_string_lossy().to_string();
 
                 if !target_file.exists() {
@@ -276,9 +338,13 @@ impl DirectorySyncEngine {
                         continue;
                     }
 
+                    let filename = entry.file_name().to_string_lossy().to_string();
+                    if matches_exclusion(&rel, &filename, &options.exclusions) {
+                        continue;
+                    }
+
                     if !src_rel_set.contains(&rel) {
                         let rel_str = rel.to_string_lossy().to_string();
-                        let filename = entry.file_name().to_string_lossy().to_string();
                         let dest_meta = entry.metadata().ok();
                         let dest_size = dest_meta.as_ref().map(|m| m.len()).unwrap_or(0);
                         let dest_mtime = dest_meta.as_ref()
@@ -563,10 +629,14 @@ impl BackupManager {
                 last_run INTEGER,
                 last_status TEXT,
                 last_result TEXT,
-                created_at INTEGER NOT NULL
+                created_at INTEGER NOT NULL,
+                exclusions TEXT
             )",
             [],
         ).map_err(|e| format!("Failed to create backup_profiles table: {}", e))?;
+
+        // Migration: add exclusions column if it didn't exist in older databases
+        let _ = conn.execute("ALTER TABLE backup_profiles ADD COLUMN exclusions TEXT", []);
 
         conn.execute(
             "CREATE TABLE IF NOT EXISTS backup_history (
@@ -598,7 +668,7 @@ impl BackupManager {
         };
 
         let mut stmt = match conn.prepare(
-            "SELECT id, name, source_dir, dest_dir, profile_mode, block_delta, verify_checksum, archive_dir, retention_days, schedule_type, schedule_interval_mins, schedule_time, webhook_url, enabled, last_run, last_status, last_result, created_at FROM backup_profiles ORDER BY created_at DESC"
+            "SELECT id, name, source_dir, dest_dir, profile_mode, block_delta, verify_checksum, archive_dir, retention_days, schedule_type, schedule_interval_mins, schedule_time, webhook_url, enabled, last_run, last_status, last_result, created_at, exclusions FROM backup_profiles ORDER BY created_at DESC"
         ) {
             Ok(s) => s,
             Err(_) => return Vec::new(),
@@ -624,6 +694,7 @@ impl BackupManager {
                 last_status: row.get(15)?,
                 last_result: row.get(16)?,
                 created_at: row.get(17)?,
+                exclusions: row.get(18).ok().flatten(),
             })
         });
 
@@ -636,7 +707,7 @@ impl BackupManager {
     pub fn get_profile(&self, id: &str) -> Option<BackupProfile> {
         let conn = self.db.lock().ok()?;
         conn.query_row(
-            "SELECT id, name, source_dir, dest_dir, profile_mode, block_delta, verify_checksum, archive_dir, retention_days, schedule_type, schedule_interval_mins, schedule_time, webhook_url, enabled, last_run, last_status, last_result, created_at FROM backup_profiles WHERE id = ?1",
+            "SELECT id, name, source_dir, dest_dir, profile_mode, block_delta, verify_checksum, archive_dir, retention_days, schedule_type, schedule_interval_mins, schedule_time, webhook_url, enabled, last_run, last_status, last_result, created_at, exclusions FROM backup_profiles WHERE id = ?1",
             params![id],
             |row| {
                 Ok(BackupProfile {
@@ -658,6 +729,7 @@ impl BackupManager {
                     last_status: row.get(15)?,
                     last_result: row.get(16)?,
                     created_at: row.get(17)?,
+                    exclusions: row.get(18).ok().flatten(),
                 })
             }
         ).optional().ok().flatten()
@@ -673,8 +745,8 @@ impl BackupManager {
         }
 
         conn.execute(
-            "INSERT INTO backup_profiles (id, name, source_dir, dest_dir, profile_mode, block_delta, verify_checksum, archive_dir, retention_days, schedule_type, schedule_interval_mins, schedule_time, webhook_url, enabled, last_run, last_status, last_result, created_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)
+            "INSERT INTO backup_profiles (id, name, source_dir, dest_dir, profile_mode, block_delta, verify_checksum, archive_dir, retention_days, schedule_type, schedule_interval_mins, schedule_time, webhook_url, enabled, last_run, last_status, last_result, created_at, exclusions)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19)
              ON CONFLICT(id) DO UPDATE SET
                 name = excluded.name,
                 source_dir = excluded.source_dir,
@@ -688,7 +760,8 @@ impl BackupManager {
                 schedule_interval_mins = excluded.schedule_interval_mins,
                 schedule_time = excluded.schedule_time,
                 webhook_url = excluded.webhook_url,
-                enabled = excluded.enabled",
+                enabled = excluded.enabled,
+                exclusions = excluded.exclusions",
             params![
                 profile.id,
                 profile.name,
@@ -708,6 +781,7 @@ impl BackupManager {
                 profile.last_status,
                 profile.last_result,
                 profile.created_at,
+                profile.exclusions,
             ],
         ).map_err(|e| format!("Failed to save backup profile: {}", e))?;
 
@@ -856,6 +930,14 @@ impl BackupManager {
         let run_id = Uuid::new_v4().to_string();
         let started_at = Utc::now().timestamp();
 
+        let exclusions: Vec<String> = profile.exclusions
+            .as_deref()
+            .unwrap_or("")
+            .split([',', '\n', ';'])
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
+
         let sync_options = SyncOptions {
             mode: profile.profile_mode.clone(),
             dry_run: false,
@@ -864,6 +946,7 @@ impl BackupManager {
             delete_orphans: profile.profile_mode == "echo",
             archive_dir: profile.archive_dir.clone().or_else(|| Some("_archive".to_string())),
             retention_days: Some(profile.retention_days),
+            exclusions,
         };
 
         info!("Starting backup profile execution: '{}' ({})", profile.name, profile.profile_mode);
@@ -1052,6 +1135,7 @@ mod tests {
             delete_orphans: true,
             archive_dir: None,
             retention_days: None,
+            exclusions: vec!["*.tmp".to_string(), "node_modules".to_string()],
         };
 
         let res = DirectorySyncEngine::execute_sync(
@@ -1078,6 +1162,7 @@ mod tests {
             delete_orphans: false,
             archive_dir: Some("_archive".to_string()),
             retention_days: Some(30),
+            exclusions: Vec::new(),
         };
 
         let sub_res = DirectorySyncEngine::execute_sync(
@@ -1122,6 +1207,7 @@ mod tests {
             last_status: None,
             last_result: None,
             created_at: 1725130000,
+            exclusions: Some("node_modules, .git, target".to_string()),
         };
 
         // Save

@@ -246,7 +246,26 @@ impl TaskManager {
         map.retain(|_, task| task.status == "running" || task.status == "paused");
     }
 
+    pub async fn prune_old_completed(&self) {
+        let now = Utc::now().timestamp();
+        let mut map = self.tasks.write().await;
+        if map.len() > 15 {
+            map.retain(|_, task| {
+                if task.status == "running" || task.status == "paused" {
+                    return true;
+                }
+                if let Some(finished) = task.finished_at {
+                    if now - finished > 60 {
+                        return false;
+                    }
+                }
+                true
+            });
+        }
+    }
+
     pub async fn list_tasks(&self) -> Vec<TaskInfo> {
+        self.prune_old_completed().await;
         let map = self.tasks.read().await;
         let mut list: Vec<TaskInfo> = map.values().cloned().collect();
         list.sort_by(|a, b| b.started_at.cmp(&a.started_at));
