@@ -67,7 +67,7 @@ services:
       - /media:/mnt/media:rw
       
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:3140/ || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:3140/api/system/status || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
