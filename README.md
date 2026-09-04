@@ -92,7 +92,7 @@
   - Selected files only diff and full deep cryptographic hash comparison.
   - Side-by-side text diff with line-by-line additions, deletions, and inline token highlighting.
 - **Extensible Theme Engine & Palette Customizer**:
-  - 12 built-in themes: **Woofson Charcoal (Dark - Default)**, **Woofson Zink (Light)**, **Gruvbox Dark**, **Catppuccin Mocha**, **Catppuccin Latte (Light)**, **Tokyo Night**, **Monokai Pro**, **Solarized Dark**, **Ayu Dark**, **Nord Frost**, **Dracula Dark**, **Midnight Commander Blue**.
+  - 12 built-in themes: **Woofsons Amber Charcoal (Dark - Default)**, **Woofsons Amber Zink (Light)**, **Gruvbox Dark**, **Catppuccin Mocha**, **Catppuccin Latte (Light)**, **Tokyo Night**, **Monokai Pro**, **Solarized Dark**, **Ayu Dark**, **Nord Frost**, **Dracula Dark**, **Midnight Commander Blue**.
   - **External TOML Themes**: Drop custom `.toml` themes into `~/.config/commanderdog/themes/` or `/etc/commanderdog/themes/`.
   - **Web Custom Theme Creator**: Build, preview, and export custom themes directly within the Web UI.
 - **Unified Fast-Path XDG Configuration**:
@@ -100,7 +100,7 @@
 - **Native Desktop Window & Tiling WM Support**:
   - Standalone native window mode via WebKitGTK / WebView2 (`commanderdog --standalone`).
   - Seamless borderless / frameless mode for tiling window managers (Hyprland, Sway, i3) via `--no-decorations`.
-- **Docker, Proxmox & LXC Ready**: Standalone single binary with embedded web frontend, Arch AUR package (`commanderdog`), Docker images on GHCR (`ghcr.io/woofson/commanderdog`), Debian `.deb`, Alpine `.apk`, and Proxmox deployment guide (`LXC.md`).
+- **Docker, Proxmox & LXC Ready**: Standalone single binary with embedded web frontend, Arch AUR package (`commanderdog`), Docker images on GHCR (`ghcr.io/woofson/commanderdog`), Debian `.deb`, Alpine `.apk`, and Proxmox deployment guide (`manuals/lxc-proxmox.md`).
 
 ---
 
@@ -133,7 +133,7 @@ Default credentials:
   paru -S commanderdog
   ```
 - **Debian / Ubuntu**: Install pre-built `.deb` (`sudo dpkg -i commanderdog_*.deb`).
-- **Proxmox VE / Linux LXC**: See the complete [LXC.md](LXC.md) guide or run `scripts/lxc-install.sh`.
+- **Proxmox VE / Linux LXC**: See the complete [manuals/lxc-proxmox.md](manuals/lxc-proxmox.md) guide or run `scripts/lxc-install.sh`.
 
 ---
 
@@ -161,13 +161,13 @@ docker compose up -d
 ## Reverse Proxies, Tailscale & NetBird
 
 CommanderDog is engineered to run seamlessly behind reverse proxies, mesh VPNs, and tunnels:
-- **[Tailscale Setup Guide](REVERSE_PROXY.md#1-tailscale)**: MagicDNS HTTPS with `tailscale serve` or `tailscale funnel`.
-- **[NetBird Setup Guide](REVERSE_PROXY.md#2-netbird)**: WireGuard peer-to-peer overlay network access.
-- **[Caddy 2 Guide](REVERSE_PROXY.md#3-caddy-2-recommended)**: 3-line automatic TLS & WebSocket reverse proxy.
-- **[Nginx & NPM Guide](REVERSE_PROXY.md#4-nginx)**: WebSocket upgrade, buffer tuning, and timeout configurations.
-- **[Traefik v2/v3 Guide](REVERSE_PROXY.md#6-traefik-v2--v3)**: Docker compose labels and buffering middleware.
-- **[Cloudflare Tunnel Guide](REVERSE_PROXY.md#7-cloudflare-tunnel-cloudflared)**: Zero-trust tunneling with WebSockets.
-- **[Proxmox LXC Guide](LXC.md)**: 1-click Proxmox VE / Debian container deployment.
+- **[Tailscale Setup Guide](manuals/reverse-proxy.md#1-tailscale)**: MagicDNS HTTPS with `tailscale serve` or `tailscale funnel`.
+- **[NetBird Setup Guide](manuals/reverse-proxy.md#2-netbird)**: WireGuard peer-to-peer overlay network access.
+- **[Caddy 2 Guide](manuals/reverse-proxy.md#3-caddy-2-recommended)**: 3-line automatic TLS & WebSocket reverse proxy.
+- **[Nginx & NPM Guide](manuals/reverse-proxy.md#4-nginx)**: WebSocket upgrade, buffer tuning, and timeout configurations.
+- **[Traefik v2/v3 Guide](manuals/reverse-proxy.md#6-traefik-v2--v3)**: Docker compose labels and buffering middleware.
+- **[Cloudflare Tunnel Guide](manuals/reverse-proxy.md#7-cloudflare-tunnel-cloudflared)**: Zero-trust tunneling with WebSockets.
+- **[Proxmox LXC Guide](manuals/lxc-proxmox.md)**: 1-click Proxmox VE / Debian container deployment.
 
 ---
 
@@ -236,12 +236,16 @@ default_theme = "amber-charcoal" # Active theme ID or custom theme from themes/
 
 ---
 
-## Documentation & Manuals
+## Documentation & User Manuals
+All detailed operational runbooks, platform guides, and security documentation are located in [**`manuals/`**](manuals/README.md):
 
-- [**Windows Native Desktop & Packaging Guide**](WINDOWS.md) — Winget, Scoop, NSIS Setup, MSI, and Portable ZIP.
-- [**Transparent Encrypted Vaults Guide (AES-256-GCM / Argon2id)**](VAULT.md) — Create, unlock, edit, and secure encrypted containers.
-- [**Docker Deployment Guide**](DOCKER.md) — Multi-arch Debian and Alpine container setup.
-- [**LXC / Proxmox Guide**](LXC.md) — Standalone Linux container deployment.
+- [**Power Tools & ChewToys Manual**](manuals/chewtoys.md) — Notes Studio, Bite! Terminal, Delta Backup, PDF Toolkit, Vaults.
+- [**Windows Native Desktop & Packaging Guide**](manuals/windows.md) — Winget, Scoop, NSIS Setup, MSI, and Portable ZIP.
+- [**Transparent Encrypted Vaults Guide (AES-256-GCM / Argon2id)**](manuals/vaults.md) — Create, unlock, edit, and secure encrypted containers.
+- [**Docker Deployment Guide**](manuals/docker.md) — Multi-arch Debian and Alpine container setup.
+- [**LXC / Proxmox Guide**](manuals/lxc-proxmox.md) — Standalone Linux container deployment.
+- [**Reverse Proxy & Mesh VPN Guide**](manuals/reverse-proxy.md) — Tailscale, NetBird, Caddy 2, Nginx, Traefik, Cloudflare.
+- [**Themes & Palette Guide**](manuals/themes-and-palette.md) — Woofsons Amber design tokens and custom theme authoring.
 - [**Product Roadmap**](ROADMAP.md) — Architecture milestones & feature timeline.
 - [**Changelog**](CHANGELOG.md) — Release notes and version history.
 

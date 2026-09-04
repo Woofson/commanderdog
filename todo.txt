@@ -10,12 +10,12 @@ ToDos for Commanderdog many points also applicable to RemoteDog.
 Some points might be duplicates or serves the same purpose - just merge.
 
 Themes:
-WOOFSONS_AMBER.md is the new palette templates, implement charcoal and zink to Commanderdog and RemoteDog.
-Some users want to keep a light theme so I made Zink yes, with a K.
+- [x] `manuals/themes-and-palette.md` is the official palette template. Implemented `Woofsons Amber Charcoal` (Dark) and `Woofsons Amber Zink` (Light) to CommanderDog.
+- [x] Auto-merge default themes into user configs on disk.
 
-
-CommanderDog and RemoteDog has the same login-screen background now, I love them.
-But; can we randomize the pattern on them both on every reload? So they never looks the same exactly twice, unless the algoritm lands on the exact same parameters twice by any chance.
+Login Screen:
+- [x] Procedurally randomized background geometric glow pattern on every reload.
+- [x] Automated version badge sync from backend on startup.
 
 Viewport definitions:
 What do we call the various viewports, so we can speak the same language - teminology?
@@ -78,7 +78,7 @@ Points of Improvement:
   - Sometimes tasks that are completed really fast gets stuck and the UI elements are left on screen. Like when drag-n-drop files the upload "bubble" gets stuck at "Uploading..." after the file has completed.
   - Hub for all messages, actions, tasks etc.
 - Viewer
-  - Float and resizable
+  - [x] Float and resizable (with geometry persistence, tail -f, -n line count filtering, uniform 28px buttons)
 - Calculator
 - Delta Backup and Sync Studio -> Sync & Backup
   - Templates for scripts/automation, one-click jobs, scheduled jobs or action based jobs.
@@ -86,4 +86,5 @@ Points of Improvement:
        \\device\c$\program files (x86)\norcontrol\ (search recursively, copy only certain files and folders, if folders are empty or files/folders not found - ignore. AND/OR ignore certain files/file-extensions).
        As foolproof as possible, so maybe a tree/folder-view structure to visualize, and tickboxes to select files and folders (recursively or not), and generate a script.
 - CommanderDog
-  - Ability to right click and save/download files.
+  - [x] Ability to right click and save/download files.
+  - [x] Move manuals and user guides into dedicated manuals/ directory.
