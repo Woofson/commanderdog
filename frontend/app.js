@@ -159,6 +159,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   renderToolsMenu();
   const urlTheme = new URLSearchParams(window.location.search).get('theme');
   applyTheme(urlTheme || localStorage.getItem('cd_theme') || 'amber-charcoal');
+  updateHostnameBadge();
   fetchAppVersion();
   startTasksPolling();
   initInactivityTracker();
@@ -325,9 +326,14 @@ function getHostnameBadgeSettings() {
 function updateHostnameBadge() {
   const badge = document.getElementById('header-hostname-badge');
   const textEl = document.getElementById('header-hostname-text');
+  const logoArea = document.querySelector('.logo-area');
   if (!badge) return;
 
   const cfg = getHostnameBadgeSettings();
+
+  if (logoArea) {
+    logoArea.classList.toggle('has-hostname-badge', Boolean(cfg.show));
+  }
 
   if (!cfg.show) {
     badge.style.display = 'none';
@@ -781,12 +787,12 @@ function createPaneElement(pane, index) {
   if (pane.dockedTool) {
     const tool = pane.dockedTool;
     const toolTitles = {
-      'editor': '<img src="assets/edit.png" alt="EditorDog" style="width: 14px; height: 14px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> EditorDog',
-      'notedog': '<img src="assets/note.png" alt="NoteDog" style="width: 14px; height: 14px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> NoteDog',
-      'terminal': '<img src="assets/term.png" alt="Terminal" style="width: 14px; height: 14px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> Terminal Console',
-      'calculator': '<img src="assets/calc.png" alt="Calculator" style="width: 14px; height: 14px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> Calculator',
+      'editor': '<img src="assets/edit.webp" alt="EditorDog" style="width: 14px; height: 14px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> EditorDog',
+      'notedog': '<img src="assets/note.webp" alt="NoteDog" style="width: 14px; height: 14px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> NoteDog',
+      'terminal': '<img src="assets/term.webp" alt="Terminal" style="width: 14px; height: 14px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> Terminal Console',
+      'calculator': '<img src="assets/calc.webp" alt="Calculator" style="width: 14px; height: 14px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> Calculator',
       'git': '🌲 Git Manager',
-      'tasks': '<img src="assets/task.png" alt="Tasks" style="width: 14px; height: 14px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> Transfers & Queue'
+      'tasks': '<img src="assets/task.webp" alt="Tasks" style="width: 14px; height: 14px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> Transfers & Queue'
     };
     el.innerHTML = `
       ${mobileTabs}
@@ -1802,7 +1808,7 @@ function renderPaneTable(paneIndex) {
       pCard.className = 'grid-gallery-card parent-dir-card';
       pCard.innerHTML = `
         <div class="grid-thumb-wrapper">
-          <img src="assets/folder-open.png" style="width: 44px; height: 44px; object-fit: contain;" alt="..">
+          <img src="assets/folder-open.webp" style="width: 44px; height: 44px; object-fit: contain;" alt="..">
         </div>
         <div class="grid-card-name" style="font-weight: 700; color: var(--accent);">..</div>
         <div class="grid-card-meta">&lt;UP&gt;</div>
@@ -1819,7 +1825,7 @@ function renderPaneTable(paneIndex) {
 
       let thumbHtml = '';
       if (!entry.is_dir && isImageFile(entry.name)) {
-        thumbHtml = `<img src="/api/files/download?path=${encodeURIComponent(entry.path)}" class="grid-thumb-img" loading="lazy" alt="${escapeHtml(entry.name)}" onerror="this.src='assets/logo.png'">`;
+        thumbHtml = `<img src="/api/files/download?path=${encodeURIComponent(entry.path)}" class="grid-thumb-img" loading="lazy" alt="${escapeHtml(entry.name)}" onerror="this.src='assets/logo.webp'">`;
       } else {
         thumbHtml = renderFileIconHtml(entry.name, entry.is_dir, entry.is_archive, entry.path, 'lg');
       }
@@ -1932,7 +1938,7 @@ function renderPaneTable(paneIndex) {
       const pItem = document.createElement('div');
       pItem.className = 'compact-list-item parent-dir-item';
       pItem.innerHTML = `
-        <img src="assets/folder-open.png" style="width: 15px; height: 15px; object-fit: contain;">
+        <img src="assets/folder-open.webp" style="width: 15px; height: 15px; object-fit: contain;">
         <span style="font-weight: 700; color: var(--accent);">..</span>
       `;
 
@@ -2129,7 +2135,7 @@ function renderPaneTable(paneIndex) {
       parentTr.innerHTML = `
         <td class="file-cell file-cell-icon">
           <div class="row-icon-wrapper">
-            <img src="assets/folder-open.png" class="file-icon-img" alt="Parent Directory" style="width: 17px; height: 17px;">
+            <img src="assets/folder-open.webp" class="file-icon-img" alt="Parent Directory" style="width: 17px; height: 17px;">
           </div>
         </td>
         <td class="file-cell file-cell-name">
@@ -2662,7 +2668,7 @@ function getFileIconDetails(name, is_dir, is_archive) {
     if (lower === 'videos') return { icon: 'video', type: 'folder', color: '#06b6d4' };
     if (lower === '.trash' || lower === 'trash') return { icon: 'trash-2', type: 'folder', color: '#ef4444' };
     if (lower === 'desktop') return { icon: 'monitor', type: 'folder', color: '#f59e0b' };
-    return { icon: null, type: 'folder-img', src: 'assets/folder-closed.png' };
+    return { icon: null, type: 'folder-img', src: 'assets/folder-closed.webp' };
   }
 
   if (isVaultFile(name)) {
@@ -8037,22 +8043,22 @@ function updateLogoutOrExitButton() {
 
 // ---------------- TOOLS & CHEWTOYS LAUNCHPAD MENU CUSTOMIZER ----------------
 const DEFAULT_TOOLS_MENU = [
-  { id: 'spotlight', label: 'Spot!', icon: 'assets/spot.png', action: 'openSpotlightModal()', desc: 'Instant search across files, tools & themes (Ctrl+K)', visible: true },
+  { id: 'spotlight', label: 'Spot!', icon: 'assets/spot.webp', action: 'openSpotlightModal()', desc: 'Instant search across files, tools & themes (Ctrl+K)', visible: true },
   { id: 'tree', label: 'Tree', icon: 'folder-tree', iconColor: 'var(--accent)', action: 'toggleFolderTree()', desc: 'Collapsible directory navigation tree (Ctrl+T)', visible: true },
   { id: 'branch', label: 'Flat', icon: 'git-branch', iconColor: 'var(--accent)', action: 'toggleBranchView()', desc: 'Flatten recursive subfolders into single list (Ctrl+B)', visible: true },
-  { id: 'notedog', label: 'NoteDog', icon: 'assets/note.png', action: 'openFloatingNoteDog()', desc: 'Notes, checklists, templates & markdown studio', visible: true },
-  { id: 'calc', label: 'Calculator', icon: 'assets/calc.png', action: 'openFloatingCalculator()', desc: 'Storage units, conversions & live history', visible: true },
-  { id: 'terminal', label: 'Terminal', icon: 'assets/term.png', action: 'toggleTerminal()', desc: 'Interactive slide-up & floating PTY shell (\`)', visible: true },
-  { id: 'editor', label: 'EditorDog', icon: 'assets/edit.png', action: 'openFloatingEditor()', desc: 'Multi-tab text and code editor with syntax mode (F4)', visible: true },
-  { id: 'diff', label: 'Compare', icon: 'assets/diff.png', action: 'triggerDiff()', desc: 'Visual side-by-side file and folder diff (F9)', visible: true },
-  { id: 'search', label: 'Search', icon: 'search', action: 'openSearchModal()', desc: 'Recursive filename, regex & size filter (Ctrl+F)', visible: true },
-  { id: 'shares', label: 'Share Manager', icon: 'assets/sharemgr.png', action: 'openSharesManager()', desc: 'Manage public share links and guest dropboxes', visible: true },
-  { id: 'sync', label: 'Backup', icon: 'assets/sync.png', action: 'openSyncModal()', desc: 'Two-way sync, mirrors, snapshot archives & cron (SyncToy / Bvckup 2)', visible: true },
+  { id: 'notedog', label: 'NoteDog', icon: 'assets/note.webp', action: 'openFloatingNoteDog()', desc: 'Notes, checklists, templates & markdown studio', visible: true },
+  { id: 'calc', label: 'Calculator', icon: 'assets/calc.webp', action: 'openFloatingCalculator()', desc: 'Storage units, conversions & live history', visible: true },
+  { id: 'terminal', label: 'Terminal', icon: 'assets/term.webp', action: 'toggleTerminal()', desc: 'Interactive slide-up & floating PTY shell (\`)', visible: true },
+  { id: 'editor', label: 'EditorDog', icon: 'assets/edit.webp', action: 'openFloatingEditor()', desc: 'Multi-tab text and code editor with syntax mode (F4)', visible: true },
+  { id: 'diff', label: 'Compare', icon: 'assets/diff.webp', action: 'triggerDiff()', desc: 'Visual side-by-side file and folder diff (F9)', visible: true },
+  { id: 'search', label: 'Search', icon: 'assets/search.webp', action: 'openSearchModal()', desc: 'Recursive filename, regex & size filter (Ctrl+F)', visible: true },
+  { id: 'shares', label: 'Share Manager', icon: 'assets/sharemgr.webp', action: 'openSharesManager()', desc: 'Manage public share links and guest dropboxes', visible: true },
+  { id: 'sync', label: 'Backup', icon: 'assets/sync.webp', action: 'openSyncModal()', desc: 'Two-way sync, mirrors, snapshot archives & cron (SyncToy / Bvckup 2)', visible: true },
   { id: 'du', label: 'Stats', icon: 'pie-chart', iconColor: 'var(--accent)', action: 'openDiskUsageModal()', desc: 'Treemap visualizer and heavy space consumer analyzer', visible: true },
-  { id: 'syncthing', label: 'Syncthing', icon: 'repeat', action: 'openSyncthingModal()', desc: 'Continuous peer-to-peer file synchronization', visible: true },
-  { id: 'converter', label: 'ConvertX', icon: 'file-output', action: 'openConverterModal()', desc: 'Batch file format conversions for media & docs', visible: true },
-  { id: 'pdf', label: 'PDFDog', icon: 'assets/amber-pdftool.png', action: 'openPdfToolModal()', desc: 'Merge, split, extract pages & inspect PDFs (PDF Power Studio)', visible: true },
-  { id: 'tasks', label: 'Task Manager', icon: 'assets/task.png', action: 'openFloatingTaskManager()', desc: 'Active transfers, speeds & queue control', visible: true }
+  { id: 'syncthing', label: 'Syncthing', icon: 'assets/syncthing.webp', action: 'openSyncthingModal()', desc: 'Continuous peer-to-peer file synchronization', visible: true },
+  { id: 'converter', label: 'ConvertX', icon: 'assets/convertx.webp', action: 'openConverterModal()', desc: 'Batch file format conversions for media & docs', visible: true },
+  { id: 'pdf', label: 'PDFDog', icon: 'assets/amber-pdftool.webp', action: 'openPdfToolModal()', desc: 'Merge, split, extract pages & inspect PDFs (PDF Power Studio)', visible: true },
+  { id: 'tasks', label: 'Task Manager', icon: 'assets/task.webp', action: 'openFloatingTaskManager()', desc: 'Active transfers, speeds & queue control', visible: true }
 ];
 
 function getToolsMenuConfig() {
@@ -8105,7 +8111,7 @@ function resetToolsMenuToDefault() {
 
 function renderToolIconHtml(icon, iconColor = '', size = 18) {
   if (!icon) return `<i data-lucide="wrench" style="width:${size}px; height:${size}px;"></i>`;
-  if (icon.endsWith('.png') || icon.startsWith('assets/')) {
+  if (icon.endsWith('.png') || icon.endsWith('.webp') || icon.startsWith('assets/')) {
     return `<img src="${icon}" alt="" style="width: ${size}px; height: ${size}px; object-fit: contain; flex-shrink: 0; vertical-align: middle;">`;
   }
   const colorStyle = iconColor ? `color: ${iconColor};` : '';
@@ -8192,7 +8198,7 @@ function renderToolsSettingsTab() {
           <div style="display: flex; flex-direction: column; min-width: 0; flex: 1;">
             <div style="font-weight: 600; font-size: 12px; color: ${isVisible ? 'var(--text-main)' : 'var(--text-muted)'}; display: flex; align-items: center; gap: 6px;">
               <span>${escapeHtml(item.label)}</span>
-              ${item.icon.includes('.png') ? '<span class="badge" style="font-size: 9px; padding: 1px 4px; background: rgba(245,158,11,0.15); color: var(--accent);">ChewToy</span>' : ''}
+              ${item.icon.includes('.webp') || item.icon.includes('.png') ? '<span class="badge" style="font-size: 9px; padding: 1px 4px; background: rgba(245,158,11,0.15); color: var(--accent);">ChewToy</span>' : ''}
             </div>
             ${item.desc ? `<div style="font-size: 10px; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(item.desc)}</div>` : ''}
           </div>
@@ -9281,7 +9287,7 @@ function showContextMenu(x, y) {
         <div class="context-sep"></div>
         <div class="context-item" onclick="saveContextItemAsTemplate(); hideContextMenu();"><i data-lucide="bookmark-plus" style="width: 13px; color: var(--accent);"></i> Save File as Template...</div>
         <div class="context-item" onclick="openCreateTemplateModal(); hideContextMenu();"><i data-lucide="file-code-2" style="width: 13px;"></i> + Create Template...</div>
-        <div class="context-item" onclick="openSettings(); switchSettingsTab('tab-templates'); hideContextMenu();"><img src="assets/conf.png" alt="Settings" style="width: 13px; height: 13px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> Manage Templates...</div>
+        <div class="context-item" onclick="openSettings(); switchSettingsTab('tab-templates'); hideContextMenu();"><img src="assets/conf.webp" alt="Settings" style="width: 13px; height: 13px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> Manage Templates...</div>
       </div>
     </div>
     <div class="context-sep"></div>
@@ -9295,7 +9301,7 @@ function showContextMenu(x, y) {
       </div>
     </div>
     <div class="context-item" onclick="triggerView()"><i data-lucide="eye" style="width: 14px;"></i> Quick View (F3)</div>
-    <div class="context-item" onclick="triggerEditor()"><img src="assets/edit.png" alt="Edit" style="width: 14px; height: 14px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> Edit (F4)</div>
+    <div class="context-item" onclick="triggerEditor()"><img src="assets/edit.webp" alt="Edit" style="width: 14px; height: 14px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> Edit (F4)</div>
     <div class="context-item" onclick="triggerDownloadContextItem()"><i data-lucide="download" style="width: 14px; color: var(--accent);"></i> Save / Download File</div>
     <div class="context-item" onclick="triggerProperties()"><i data-lucide="info" style="width: 14px; color: var(--accent);"></i> Properties (Alt+Enter)</div>
     <div class="context-sep"></div>
@@ -9351,11 +9357,11 @@ function showContextMenu(x, y) {
 
     <!-- Group 4: Tools Submenu -->
     <div class="context-item has-submenu" onmouseenter="adjustSubmenuPosition(this)" onclick="toggleContextSubmenu(event, this)">
-      <div style="display:flex; align-items:center; gap:8px;"><img src="assets/chewtoy.png" alt="Tools" style="width: 14px; height: 14px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> Tools</div>
+      <div style="display:flex; align-items:center; gap:8px;"><img src="assets/chewtoy.webp" alt="Tools" style="width: 14px; height: 14px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> Tools</div>
       <i data-lucide="chevron-right" class="submenu-chevron" style="width: 12px;"></i>
       <div class="context-submenu">
-        <div class="context-item" onclick="openSearchModal()"><i data-lucide="search" style="width: 13px;"></i> Advanced Search (Ctrl+F)</div>
-        <div class="context-item" onclick="triggerDiff()"><img src="assets/diff.png" alt="Compare" style="width: 13px; height: 13px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> Compare / Diff (F9)</div>
+        <div class="context-item" onclick="openSearchModal()"><img src="assets/search.webp" alt="Search" style="width: 13px; height: 13px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> Advanced Search (Ctrl+F)</div>
+        <div class="context-item" onclick="triggerDiff()"><img src="assets/diff.webp" alt="Compare" style="width: 13px; height: 13px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> Compare / Diff (F9)</div>
         <div class="context-item" onclick="triggerBulkRename()"><i data-lucide="tags" style="width: 13px;"></i> Advanced Rename (Shift+F6)</div>
         <div class="context-item has-submenu" onmouseenter="adjustSubmenuPosition(this)" onclick="toggleContextSubmenu(event, this)">
           <div style="display:flex; align-items:center; gap:8px;"><i data-lucide="terminal-square" style="width: 13px; color: var(--accent);"></i> Custom Script Actions</div>
@@ -9373,10 +9379,10 @@ function showContextMenu(x, y) {
             <div class="context-item" onclick="runPredefinedAction('wc -l &quot;{file}&quot;', 'Line Count')"><i data-lucide="list-ordered" style="width:13px;"></i> Count Lines (wc -l)</div>
           </div>
         </div>
-        <div class="context-item" onclick="openPdfToolModal(App.contextItem ? App.contextItem.path : null)"><img src="assets/amber-pdftool.png" alt="PDFDog" style="width: 13px; height: 13px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> PDFDog (Merge & Split)</div>
+        <div class="context-item" onclick="openPdfToolModal(App.contextItem ? App.contextItem.path : null)"><img src="assets/amber-pdftool.webp" alt="PDFDog" style="width: 13px; height: 13px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> PDFDog (Merge & Split)</div>
         <div class="context-item" onclick="triggerFileSplit()"><i data-lucide="scissors" style="width: 13px;"></i> Split Large File...</div>
         <div class="context-item" onclick="triggerFileCombine()"><i data-lucide="merge" style="width: 13px;"></i> Combine Part Files (.001, .002)...</div>
-        <div class="context-item" onclick="openSyncModal()"><img src="assets/sync.png" alt="Backup" style="width: 13px; height: 13px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> Backup (Sync & Replication)...</div>
+        <div class="context-item" onclick="openSyncModal()"><img src="assets/sync.webp" alt="Backup" style="width: 13px; height: 13px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> Backup (Sync & Replication)...</div>
         <div class="context-item" onclick="openDiskUsageModal()"><i data-lucide="pie-chart" style="width: 13px;"></i> Stats (Disk Usage & Treemap)</div>
         <div class="context-item" onclick="triggerGitManager()"><i data-lucide="git-branch" style="width: 13px;"></i> Git Manager & Diff</div>
       </div>
@@ -9938,7 +9944,7 @@ function showEmptySpaceContextMenu(x, y, paneIndex) {
 
   menu.innerHTML = `
     <div style="padding: 6px 12px; font-size: 11px; font-weight: 700; color: var(--accent); border-bottom: 1px solid var(--border); font-family: var(--font-mono); text-overflow: ellipsis; overflow: hidden; white-space: nowrap; display: flex; align-items: center; gap: 6px;">
-      <img src="assets/folder-closed.png" style="width: 14px; height: 14px;">
+      <img src="assets/folder-closed.webp" style="width: 14px; height: 14px;">
       <span>${escapeHtml(pane.path.split('/').pop() || pane.path || '/')}</span>
     </div>
     <div class="context-item" onclick="openSpotlightModal()"><i data-lucide="sparkles" style="width: 14px; color: var(--accent);"></i> Spotlight Quick-Switcher (Ctrl+K)...</div>
@@ -9959,7 +9965,7 @@ function showEmptySpaceContextMenu(x, y, paneIndex) {
         ${generateTemplateSubmenuItems()}
         <div class="context-sep"></div>
         <div class="context-item" onclick="openCreateTemplateModal(); hideContextMenu();"><i data-lucide="file-code-2" style="width: 13px;"></i> + Create Template...</div>
-        <div class="context-item" onclick="openSettings(); switchSettingsTab('tab-templates'); hideContextMenu();"><img src="assets/conf.png" alt="Settings" style="width: 13px; height: 13px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> Manage Templates...</div>
+        <div class="context-item" onclick="openSettings(); switchSettingsTab('tab-templates'); hideContextMenu();"><img src="assets/conf.webp" alt="Settings" style="width: 13px; height: 13px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> Manage Templates...</div>
       </div>
     </div>
     <div class="context-item" onclick="openCreateVaultModal()"><i data-lucide="shield-check" style="width: 14px; color: var(--accent);"></i> Create Encrypted Vault (.cdvault)...</div>
@@ -9968,9 +9974,9 @@ function showEmptySpaceContextMenu(x, y, paneIndex) {
     </div>
     <div class="context-item" onclick="refreshPane(${paneIndex})"><i data-lucide="rotate-cw" style="width: 14px;"></i> Refresh Directory</div>
     <div class="context-sep"></div>
-    <div class="context-item" onclick="openTerminalInPath('${escapeHtml(pane.path)}')"><img src="assets/term.png" alt="Terminal" style="width: 14px; height: 14px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> Open in Terminal (\`)</div>
-    <div class="context-item" onclick="openSearchModal()"><i data-lucide="search" style="width: 14px;"></i> Search in Directory (Ctrl+F)</div>
-    <div class="context-item" onclick="openSyncModal()"><img src="assets/sync.png" alt="Backup" style="width: 14px; height: 14px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> Backup (Sync & Replication)...</div>
+    <div class="context-item" onclick="openTerminalInPath('${escapeHtml(pane.path)}')"><img src="assets/term.webp" alt="Terminal" style="width: 14px; height: 14px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> Open in Terminal (\`)</div>
+    <div class="context-item" onclick="openSearchModal()"><img src="assets/search.webp" alt="Search" style="width: 14px; height: 14px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> Search in Directory (Ctrl+F)</div>
+    <div class="context-item" onclick="openSyncModal()"><img src="assets/sync.webp" alt="Backup" style="width: 14px; height: 14px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> Backup (Sync & Replication)...</div>
     <div class="context-item" onclick="openDiskUsageModal('${escapeHtml(pane.path)}')"><i data-lucide="pie-chart" style="width: 14px; color: var(--accent);"></i> Stats (Disk Usage & Treemap)...</div>
     <div class="context-item" onclick="openRemoteModal(${paneIndex})"><i data-lucide="network" style="width: 14px;"></i> Mount Remote Storage Here...</div>
     ${pane.path.includes('://') ? `<div class="context-item" onclick="disconnectPaneRemote(${paneIndex})" style="color: var(--danger, #ef4444);"><i data-lucide="log-out" style="width: 14px; color: var(--danger, #ef4444);"></i> Disconnect Remote Storage</div>` : ''}
@@ -11239,7 +11245,7 @@ function resetGlobalFolderIcon() {
 function selectGlobalFolderPreset(preset) {
   const input = document.getElementById('setting-global-folder-icon');
   if (input) {
-    input.value = preset === 'assets/folder-open.png' ? '' : preset;
+    input.value = preset === 'assets/folder-open.webp' ? '' : preset;
     saveGlobalFolderIcon();
   }
 }
@@ -11619,7 +11625,7 @@ function triggerCopy() {
   };
 
   const summary = document.getElementById('deltacopy-source-summary');
-  if (summary) summary.innerHTML = paths.map(p => `<div style="display: flex; align-items: center; gap: 4px;"><img src="assets/folder-closed.png" style="width: 12px; height: 12px;"> ${escapeHtml(p)}</div>`).join('');
+  if (summary) summary.innerHTML = paths.map(p => `<div style="display: flex; align-items: center; gap: 4px;"><img src="assets/folder-closed.webp" style="width: 12px; height: 12px;"> ${escapeHtml(p)}</div>`).join('');
   const destInput = document.getElementById('deltacopy-dest-input');
   if (destInput) destInput.value = targetPane.path;
 
@@ -17537,103 +17543,315 @@ async function loadBackupHistory() {
 }
 
 // ---------------- VISUAL DISK USAGE TREEMAP & BAR ANALYZER ----------------
+let duCurrentData = null;
+let duCurrentPath = '';
+let duViewMode = 'split'; // 'split', 'treemap', 'list'
+let duFilterQuery = '';
+let duAbortController = null;
+
+const DU_PALETTE = [
+  { bg: 'linear-gradient(135deg, rgba(245, 158, 11, 0.28), rgba(217, 119, 6, 0.15))', border: '#f59e0b', bar: '#f59e0b', text: '#fbbf24' },
+  { bg: 'linear-gradient(135deg, rgba(16, 185, 129, 0.28), rgba(5, 150, 105, 0.15))', border: '#10b981', bar: '#10b981', text: '#34d399' },
+  { bg: 'linear-gradient(135deg, rgba(56, 189, 248, 0.28), rgba(2, 132, 199, 0.15))', border: '#38bdf8', bar: '#38bdf8', text: '#7dd3fc' },
+  { bg: 'linear-gradient(135deg, rgba(168, 85, 247, 0.28), rgba(147, 51, 234, 0.15))', border: '#a855f7', bar: '#a855f7', text: '#c084fc' },
+  { bg: 'linear-gradient(135deg, rgba(236, 72, 153, 0.28), rgba(219, 39, 119, 0.15))', border: '#ec4899', bar: '#ec4899', text: '#f472b6' },
+  { bg: 'linear-gradient(135deg, rgba(249, 115, 22, 0.28), rgba(234, 88, 12, 0.15))', border: '#f97316', bar: '#f97316', text: '#fb923c' },
+  { bg: 'linear-gradient(135deg, rgba(99, 102, 241, 0.28), rgba(79, 70, 229, 0.15))', border: '#6366f1', bar: '#6366f1', text: '#818cf8' },
+  { bg: 'linear-gradient(135deg, rgba(20, 184, 166, 0.28), rgba(13, 148, 136, 0.15))', border: '#14b8a6', bar: '#14b8a6', text: '#2dd4bf' }
+];
+
 function openDiskUsageModal(path) {
   const targetPath = path || App.panes[App.activePaneIndex]?.path || '/';
-  const pathIn = document.getElementById('du-path-input');
-  if (pathIn) pathIn.value = sanitizeCredentials(targetPath);
-
   showModal('disk-usage-modal');
   runDiskUsageScan(targetPath);
 }
 
+function setDiskUsageViewMode(mode) {
+  duViewMode = mode;
+  ['split', 'treemap', 'list'].forEach(m => {
+    const btn = document.getElementById(`du-view-btn-${m}`);
+    if (btn) {
+      if (m === mode) btn.classList.add('active');
+      else btn.classList.remove('active');
+    }
+  });
+
+  const treemapSec = document.getElementById('du-treemap-section');
+  const listSec = document.getElementById('du-list-section');
+  const largestSec = document.getElementById('du-largest-section');
+
+  if (treemapSec) treemapSec.style.display = (mode === 'split' || mode === 'treemap') ? 'block' : 'none';
+  if (listSec) listSec.style.display = (mode === 'split' || mode === 'list') ? 'block' : 'none';
+  if (largestSec) largestSec.style.display = (mode === 'split' || mode === 'list') ? 'block' : 'none';
+}
+
+function toggleDiskUsageMaximize() {
+  const box = document.getElementById('disk-usage-box');
+  const btn = document.getElementById('du-maximize-btn');
+  if (!box) return;
+
+  box.classList.toggle('maximized');
+  const isMax = box.classList.contains('maximized');
+  if (btn) {
+    btn.innerHTML = isMax ? '<i data-lucide="minimize-2" style="width: 14px; height: 14px;"></i>' : '<i data-lucide="maximize-2" style="width: 14px; height: 14px;"></i>';
+    btn.title = isMax ? 'Restore Window' : 'Maximize Window';
+    if (window.lucide) lucide.createIcons();
+  }
+}
+
+function navigateDiskUsageParent() {
+  if (!duCurrentPath || duCurrentPath === '/') return;
+  const clean = duCurrentPath.replace(/\/+$/, '');
+  const lastSlash = clean.lastIndexOf('/');
+  const parent = lastSlash <= 0 ? '/' : clean.substring(0, lastSlash);
+  runDiskUsageScan(parent);
+}
+
+function navigateDiskUsageActivePane() {
+  const p = App.panes[App.activePaneIndex]?.path || '/';
+  runDiskUsageScan(p);
+}
+
+function renderDiskUsageBreadcrumbs(path) {
+  const container = document.getElementById('du-breadcrumbs');
+  if (!container) return;
+
+  const clean = sanitizeCredentials(path);
+  const parts = clean.split('/').filter(Boolean);
+  let html = `<button class="du-crumb-btn ${parts.length === 0 ? 'active' : ''}" onclick="runDiskUsageScan('/')" title="Root (/)"><i data-lucide="hard-drive" style="width: 12px; height: 12px;"></i> /</button>`;
+
+  let currentAcc = '';
+  parts.forEach((seg, idx) => {
+    currentAcc += '/' + seg;
+    const isLast = idx === parts.length - 1;
+    const p = currentAcc;
+    html += `<span class="du-crumb-sep">/</span>`;
+    html += `<button class="du-crumb-btn ${isLast ? 'active' : ''}" onclick="runDiskUsageScan('${escapeHtml(p)}')" title="${escapeHtml(p)}">${escapeHtml(seg)}</button>`;
+  });
+
+  container.innerHTML = html;
+  if (window.lucide) lucide.createIcons();
+}
+
+function filterDiskUsageItems(val) {
+  duFilterQuery = (val || '').toLowerCase().trim();
+  renderDiskUsageData();
+}
+
+function jumpToPaneFromDiskUsage(path) {
+  closeModal('disk-usage-modal');
+  navigatePane(App.activePaneIndex, path);
+}
+
+function openTerminalFromDiskUsage(path) {
+  closeModal('disk-usage-modal');
+  openTerminalInPath(path);
+}
+
 async function runDiskUsageScan(path) {
   if (!path) return;
+  
+  if (duAbortController) {
+    duAbortController.abort();
+  }
+  duAbortController = new AbortController();
+
+  let targetPath = path;
+  if (targetPath === '~') {
+    targetPath = `/home/${App.user?.username || 'bolt'}`;
+  }
+
+  duCurrentPath = targetPath;
   const pathIn = document.getElementById('du-path-input');
-  if (pathIn) pathIn.value = sanitizeCredentials(path);
-  const authPath = resolveAuthUri(path);
+  if (pathIn) pathIn.value = sanitizeCredentials(targetPath);
+
+  renderDiskUsageBreadcrumbs(targetPath);
+
+  const rescanBtn = document.getElementById('du-rescan-btn');
+  if (rescanBtn) rescanBtn.classList.add('btn-loading');
+
+  const durationBadge = document.getElementById('du-scan-duration-badge');
+  if (durationBadge) durationBadge.style.display = 'none';
 
   const totalSpaceEl = document.getElementById('du-total-space');
   const totalFilesEl = document.getElementById('du-total-files');
   const totalDirsEl = document.getElementById('du-total-dirs');
+  const largestStatEl = document.getElementById('du-largest-stat');
   const itemsList = document.getElementById('du-items-list');
+  const treemapContainer = document.getElementById('du-treemap-container');
+  const multiBar = document.getElementById('du-multi-bar');
   const largestList = document.getElementById('du-largest-files');
 
-  if (itemsList) itemsList.innerHTML = '<div style="padding: 24px; text-align: center; color: var(--accent);"><i data-lucide="loader"></i> Scanning directory storage consumption...</div>';
+  if (itemsList) itemsList.innerHTML = '<div style="padding: 24px; text-align: center; color: var(--accent);"><i data-lucide="loader-2" class="spin" style="width: 20px; height: 20px;"></i><div style="margin-top: 6px; font-size: 11.5px;">Scanning directory with multi-threaded parallel engine...</div></div>';
+  if (treemapContainer) treemapContainer.innerHTML = '<div style="padding: 24px; text-align: center; color: var(--text-dim); width: 100%;">Calculating proportional treemap tiles...</div>';
+  if (multiBar) multiBar.innerHTML = '';
   if (largestList) largestList.innerHTML = '';
   if (window.lucide) lucide.createIcons();
 
+  const authPath = resolveAuthUri(targetPath);
+
   try {
     const resp = await fetch(`/api/tools/disk-usage?path=${encodeURIComponent(authPath)}`, {
-      headers: { 'Authorization': `Bearer ${App.token}` }
+      headers: { 'Authorization': `Bearer ${App.token}` },
+      signal: duAbortController.signal
     });
 
+    if (rescanBtn) rescanBtn.classList.remove('btn-loading');
+
     if (!resp.ok) {
-      if (itemsList) itemsList.innerHTML = `<div style="padding: 24px; text-align: center; color: var(--danger);">Scan failed: ${escapeHtml(sanitizeCredentials(await resp.text()))}</div>`;
+      const errText = await resp.text();
+      if (itemsList) itemsList.innerHTML = `<div style="padding: 24px; text-align: center; color: var(--danger);">Scan failed: ${escapeHtml(sanitizeCredentials(errText))}</div>`;
+      if (treemapContainer) treemapContainer.innerHTML = '';
       return;
     }
 
     const data = await resp.json();
+    duCurrentData = data;
+
+    if (durationBadge && data.scan_duration_ms !== undefined) {
+      durationBadge.textContent = `${data.scan_duration_ms}ms`;
+      durationBadge.style.display = 'inline-flex';
+    }
 
     if (totalSpaceEl) totalSpaceEl.textContent = data.formatted_total;
     if (totalFilesEl) totalFilesEl.textContent = data.total_files.toLocaleString();
     if (totalDirsEl) totalDirsEl.textContent = data.total_dirs.toLocaleString();
-
-    if (itemsList) {
-      if (!data.items || data.items.length === 0) {
-        itemsList.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-dim);">Directory is empty.</div>';
-      } else {
-        itemsList.innerHTML = data.items.map(it => {
-          const icon = it.is_dir ? '📁' : '📄';
-          const subInfo = it.is_dir ? `${it.file_count} files • ${it.dir_count} subdirs` : 'Single file';
-          const pct = Math.max(1, Math.min(100, Math.round(it.percentage)));
-          const clickAction = it.is_dir ? `onclick="runDiskUsageScan('${escapeHtml(it.path)}')"` : '';
-
-          return `
-            <div class="du-item-row" ${clickAction} title="${it.is_dir ? 'Click to drill down' : ''}">
-              <div style="font-size: 16px;">${icon}</div>
-              <div class="du-item-name-col">
-                <div class="du-item-name">${escapeHtml(it.name)}</div>
-                <div class="du-item-sub">${escapeHtml(subInfo)}</div>
-              </div>
-              <div class="du-item-bar-wrapper">
-                <div class="du-item-bar-fill" style="width: ${pct}%;"></div>
-              </div>
-              <div class="du-item-size-col">${escapeHtml(it.formatted_size)}</div>
-              <div class="du-item-pct-col">${it.percentage.toFixed(1)}%</div>
-            </div>
-          `;
-        }).join('');
-      }
+    if (largestStatEl) {
+      const top = data.items && data.items.length > 0 ? data.items[0] : null;
+      largestStatEl.textContent = top ? `${top.name} (${top.formatted_size})` : '-';
     }
 
-    if (largestList) {
-      if (!data.largest_files || data.largest_files.length === 0) {
-        largestList.innerHTML = '<div style="padding: 12px; text-align: center; color: var(--text-dim);">No files found.</div>';
-      } else {
-        largestList.innerHTML = data.largest_files.map(it => {
-          const pct = Math.max(1, Math.min(100, Math.round(it.percentage)));
-          return `
-            <div class="du-item-row" style="cursor: default;">
-              <div style="font-size: 16px;">📄</div>
-              <div class="du-item-name-col">
-                <div class="du-item-name">${escapeHtml(it.name)}</div>
-                <div class="du-item-sub">${escapeHtml(it.path)}</div>
-              </div>
-              <div class="du-item-bar-wrapper">
-                <div class="du-item-bar-fill" style="width: ${pct}%; background: #38bdf8;"></div>
-              </div>
-              <div class="du-item-size-col">${escapeHtml(it.formatted_size)}</div>
-              <div class="du-item-pct-col">${it.percentage.toFixed(1)}%</div>
-            </div>
-          `;
-        }).join('');
-      }
-    }
-
-    if (window.lucide) lucide.createIcons();
+    renderDiskUsageData();
   } catch (e) {
-    if (itemsList) itemsList.innerHTML = `<div style="padding: 24px; text-align: center; color: var(--danger);">Error: ${escapeHtml(String(e))}</div>`;
+    if (e.name === 'AbortError') return;
+    if (rescanBtn) rescanBtn.classList.remove('btn-loading');
+    if (itemsList) itemsList.innerHTML = `<div style="padding: 24px; text-align: center; color: var(--danger);">Error scanning: ${escapeHtml(String(e))}</div>`;
   }
+}
+
+function renderDiskUsageData() {
+  if (!duCurrentData) return;
+  const data = duCurrentData;
+
+  const itemsList = document.getElementById('du-items-list');
+  const treemapContainer = document.getElementById('du-treemap-container');
+  const multiBar = document.getElementById('du-multi-bar');
+  const largestList = document.getElementById('du-largest-files');
+  const countBadge = document.getElementById('du-items-count');
+
+  let filteredItems = data.items || [];
+  if (duFilterQuery) {
+    filteredItems = filteredItems.filter(it => it.name.toLowerCase().includes(duFilterQuery));
+  }
+
+  if (countBadge) countBadge.textContent = filteredItems.length;
+
+  // 1. Render Proportional Multi-Color Stack Bar
+  if (multiBar) {
+    const topSlices = (data.items || []).slice(0, 10).filter(it => it.percentage >= 0.5);
+    multiBar.innerHTML = topSlices.map((it, idx) => {
+      const color = DU_PALETTE[idx % DU_PALETTE.length];
+      const pct = it.percentage.toFixed(1);
+      return `<div class="du-bar-segment" style="width: ${it.percentage}%; background: ${color.bar};" title="${escapeHtml(it.name)}: ${escapeHtml(it.formatted_size)} (${pct}%)" onclick="${it.is_dir ? `runDiskUsageScan('${escapeHtml(it.path)}')` : ''}"></div>`;
+    }).join('');
+  }
+
+  // 2. Render Interactive Proportional Treemap Tiles
+  if (treemapContainer) {
+    if (!data.items || data.items.length === 0) {
+      treemapContainer.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-dim); width: 100%;">Directory is empty.</div>';
+    } else {
+      const treemapItems = filteredItems.filter(it => it.percentage >= 0.2).slice(0, 24);
+      if (treemapItems.length === 0) {
+        treemapContainer.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-dim); width: 100%;">No items match filter.</div>';
+      } else {
+        treemapContainer.innerHTML = treemapItems.map((it, idx) => {
+          const color = DU_PALETTE[idx % DU_PALETTE.length];
+          const pct = it.percentage.toFixed(1);
+          const flexGrow = Math.max(1, Math.min(10, Math.round(it.percentage / 3)));
+          const flexBasis = Math.max(90, Math.min(320, Math.round(it.percentage * 4.5)));
+          const icon = it.is_dir ? '📁' : '📄';
+
+          return `
+            <div class="du-treemap-tile" style="flex: ${flexGrow} 1 ${flexBasis}px; background: ${color.bg}; border-color: ${color.border};" onclick="${it.is_dir ? `runDiskUsageScan('${escapeHtml(it.path)}')` : ''}" title="${escapeHtml(it.name)} • ${escapeHtml(it.formatted_size)} (${pct}%) ${it.is_dir ? '\nClick to drill down' : ''}">
+              <div class="du-treemap-title">
+                <span>${icon}</span>
+                <span>${escapeHtml(it.name)}</span>
+              </div>
+              <div class="du-treemap-meta">
+                <span style="color: ${color.text}; font-weight: 700;">${escapeHtml(it.formatted_size)}</span>
+                <span style="opacity: 0.85;">${pct}%</span>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+    }
+  }
+
+  // 3. Render Detailed Item List
+  if (itemsList) {
+    if (filteredItems.length === 0) {
+      itemsList.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-dim);">No items found.</div>';
+    } else {
+      itemsList.innerHTML = filteredItems.map((it, idx) => {
+        const color = DU_PALETTE[idx % DU_PALETTE.length];
+        const icon = it.is_dir ? '📁' : '📄';
+        const subInfo = it.is_dir ? `${it.file_count.toLocaleString()} files • ${it.dir_count.toLocaleString()} subdirs` : 'Single file';
+        const pct = Math.max(1, Math.min(100, Math.round(it.percentage)));
+        const clickAction = it.is_dir ? `runDiskUsageScan('${escapeHtml(it.path)}')` : '';
+
+        return `
+          <div class="du-item-row" onclick="${clickAction}" title="${it.is_dir ? 'Click to drill down into folder' : ''}">
+            <div style="font-size: 15px; flex-shrink: 0;">${icon}</div>
+            <div class="du-item-name-col">
+              <div class="du-item-name">${escapeHtml(it.name)}</div>
+              <div class="du-item-sub">${escapeHtml(subInfo)}</div>
+            </div>
+            <div class="du-item-bar-wrapper">
+              <div class="du-item-bar-fill" style="width: ${pct}%; background: ${color.bar};"></div>
+            </div>
+            <div class="du-item-size-col">${escapeHtml(it.formatted_size)}</div>
+            <div class="du-item-pct-col" style="color: ${color.bar};">${it.percentage.toFixed(1)}%</div>
+            <div class="du-item-actions" onclick="event.stopPropagation()">
+              <button class="du-action-btn" onclick="jumpToPaneFromDiskUsage('${escapeHtml(it.path)}')" title="Open in Active File Panel"><i data-lucide="folder-input" style="width: 12px; height: 12px;"></i></button>
+              <button class="du-action-btn" onclick="openTerminalFromDiskUsage('${escapeHtml(it.path)}')" title="Open in Terminal"><i data-lucide="terminal" style="width: 12px; height: 12px;"></i></button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+  }
+
+  // 4. Render Top 20 Largest Files
+  if (largestList) {
+    if (!data.largest_files || data.largest_files.length === 0) {
+      largestList.innerHTML = '<div style="padding: 12px; text-align: center; color: var(--text-dim);">No files found.</div>';
+    } else {
+      largestList.innerHTML = data.largest_files.map(it => {
+        const pct = Math.max(1, Math.min(100, Math.round(it.percentage)));
+        return `
+          <div class="du-item-row" style="cursor: default;">
+            <div style="font-size: 15px; flex-shrink: 0;">📄</div>
+            <div class="du-item-name-col">
+              <div class="du-item-name">${escapeHtml(it.name)}</div>
+              <div class="du-item-sub">${escapeHtml(it.path)}</div>
+            </div>
+            <div class="du-item-bar-wrapper">
+              <div class="du-item-bar-fill" style="width: ${pct}%; background: #38bdf8;"></div>
+            </div>
+            <div class="du-item-size-col">${escapeHtml(it.formatted_size)}</div>
+            <div class="du-item-pct-col" style="color: #38bdf8;">${it.percentage.toFixed(1)}%</div>
+            <div class="du-item-actions">
+              <button class="du-action-btn" onclick="jumpToPaneFromDiskUsage('${escapeHtml(it.path.substring(0, it.path.lastIndexOf('/')) || '/')}')" title="Reveal in Active Panel"><i data-lucide="folder-input" style="width: 12px; height: 12px;"></i></button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+  }
+
+  if (window.lucide) lucide.createIcons();
 }
 
 // ---------------- GLOBAL SEARCH ENGINE ----------------
@@ -18541,23 +18759,23 @@ let spotlightSelectedIndex = 0;
 let spotlightItems = [];
 
 const SPOTLIGHT_STATIC_ACTIONS = [
-  { id: 'notedog', title: 'NoteDog', sub: 'Hierarchical notes, markdown editor, interactive checklists, templates & versions', icon: 'assets/note.png', cat: 'actions', action: () => openFloatingNoteDog() },
-  { id: 'calc', title: 'Calculator', sub: 'Interactive floating calculator with storage units & base conversions', icon: 'assets/calc.png', cat: 'actions', action: () => openFloatingCalculator() },
+  { id: 'notedog', title: 'NoteDog', sub: 'Hierarchical notes, markdown editor, interactive checklists, templates & versions', icon: 'assets/note.webp', cat: 'actions', action: () => openFloatingNoteDog() },
+  { id: 'calc', title: 'Calculator', sub: 'Interactive floating calculator with storage units & base conversions', icon: 'assets/calc.webp', cat: 'actions', action: () => openFloatingCalculator() },
   { id: 'branch', title: 'Flat', sub: 'Flatten all subdirectories into a single unified list (Ctrl+B)', icon: 'git-branch', cat: 'actions', action: () => toggleBranchView() },
   { id: 'tree', title: 'Tree', sub: 'Collapsible directory navigation tree (Ctrl+T)', icon: 'folder-tree', cat: 'actions', action: () => toggleFolderTree() },
   { id: 'tags', title: 'Color Labels & Custom Tags', sub: 'Assign color labels and custom tags to selected items', icon: 'tag', cat: 'actions', action: () => triggerEditTagsModal() },
-  { id: 'term', title: 'Terminal', sub: 'Open integrated interactive terminal (` or F4)', icon: 'assets/term.png', cat: 'actions', action: () => toggleTerminal() },
-  { id: 'edit', title: 'EditorDog', sub: 'Open floating EditorDog code & text editor (F4)', icon: 'assets/edit.png', cat: 'actions', action: () => openFloatingEditor() },
-  { id: 'diff', title: 'Compare', sub: 'Compare files or directories side-by-side (F9)', icon: 'assets/diff.png', cat: 'actions', action: () => triggerDiff() },
-  { id: 'search', title: 'Search', sub: 'Search files and folders recursively (Ctrl+F)', icon: 'search', cat: 'actions', action: () => openSearchModal() },
-  { id: 'shares', title: 'Share Manager', sub: 'Manage public share links and guest upload dropboxes', icon: 'assets/sharemgr.png', cat: 'actions', action: () => openSharesManager() },
-  { id: 'sync', title: 'Backup', sub: 'Delta Backup & Sync Studio: Two-Way Sync, Mirror, Contribute & Versioning (SyncToy / Bvckup 2)', icon: 'assets/sync.png', cat: 'actions', action: () => openSyncModal() },
+  { id: 'term', title: 'Terminal', sub: 'Open integrated interactive terminal (` or F4)', icon: 'assets/term.webp', cat: 'actions', action: () => toggleTerminal() },
+  { id: 'edit', title: 'EditorDog', sub: 'Open floating EditorDog code & text editor (F4)', icon: 'assets/edit.webp', cat: 'actions', action: () => openFloatingEditor() },
+  { id: 'diff', title: 'Compare', sub: 'Compare files or directories side-by-side (F9)', icon: 'assets/diff.webp', cat: 'actions', action: () => triggerDiff() },
+  { id: 'search', title: 'Search', sub: 'Search files and folders recursively (Ctrl+F)', icon: 'assets/search.webp', cat: 'actions', action: () => openSearchModal() },
+  { id: 'shares', title: 'Share Manager', sub: 'Manage public share links and guest upload dropboxes', icon: 'assets/sharemgr.webp', cat: 'actions', action: () => openSharesManager() },
+  { id: 'sync', title: 'Backup', sub: 'Delta Backup & Sync Studio: Two-Way Sync, Mirror, Contribute & Versioning (SyncToy / Bvckup 2)', icon: 'assets/sync.webp', cat: 'actions', action: () => openSyncModal() },
   { id: 'du', title: 'Stats', sub: 'Disk Usage & Storage Treemap Analyzer: inspect space consumption', icon: 'pie-chart', cat: 'actions', action: () => openDiskUsageModal() },
-  { id: 'syncthing', title: 'Syncthing', sub: 'Continuous peer-to-peer file synchronization dashboard', icon: 'repeat', cat: 'actions', action: () => openSyncthingModal() },
-  { id: 'convert', title: 'ConvertX', sub: 'Universal transcoder: batch convert images, documents, audio, videos', icon: 'file-output', cat: 'actions', action: () => openConverterModal() },
-  { id: 'pdf', title: 'PDFDog', sub: 'PDF Power Studio: visual merge, split, extract pages & inspect PDFs', icon: 'assets/amber-pdftool.png', cat: 'actions', action: () => openPdfToolModal() },
-  { id: 'tasks', title: 'Task Manager', sub: 'View active background transfers, speeds, and queued jobs', icon: 'assets/task.png', cat: 'actions', action: () => openFloatingTaskManager() },
-  { id: 'settings', title: 'User Settings & Preferences', sub: 'Themes, keybindings, and preferences (F10)', icon: 'assets/conf.png', cat: 'actions', action: () => openSettingsModal() },
+  { id: 'syncthing', title: 'Syncthing', sub: 'Continuous peer-to-peer file synchronization dashboard', icon: 'assets/syncthing.webp', cat: 'actions', action: () => openSyncthingModal() },
+  { id: 'convert', title: 'ConvertX', sub: 'Universal transcoder: batch convert images, documents, audio, videos', icon: 'assets/convertx.webp', cat: 'actions', action: () => openConverterModal() },
+  { id: 'pdf', title: 'PDFDog', sub: 'PDF Power Studio: visual merge, split, extract pages & inspect PDFs', icon: 'assets/amber-pdftool.webp', cat: 'actions', action: () => openPdfToolModal() },
+  { id: 'tasks', title: 'Task Manager', sub: 'View active background transfers, speeds, and queued jobs', icon: 'assets/task.webp', cat: 'actions', action: () => openFloatingTaskManager() },
+  { id: 'settings', title: 'User Settings & Preferences', sub: 'Themes, keybindings, and preferences (F10)', icon: 'assets/conf.webp', cat: 'actions', action: () => openSettingsModal() },
   { id: 'admin', title: 'Admin Control Panel', sub: 'User management, RBAC, mounts, audit logs', icon: 'shield-alert', cat: 'actions', action: () => openAdminPanel() },
   { id: 'profile', title: 'User Profile & Password', sub: 'Account credentials, session avatar, and security', icon: 'user', cat: 'actions', action: () => openUserProfileModal() },
   { id: 'lock', title: 'Lock Session', sub: 'Lock CommanderDog immediately (Ctrl+Alt+L)', icon: 'lock', cat: 'actions', action: () => lockSession() },
@@ -19751,7 +19969,7 @@ function mountDockedTool(paneIndex) {
         <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-dark); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border);">
           <div style="display: flex; align-items: center; gap: 8px;">
             <span class="task-status-indicator" id="docked-task-indicator-${paneIndex}"></span>
-            <span style="font-weight: 700; font-size: 12px; display: flex; align-items: center; gap: 4px;"><img src="assets/task.png" alt="Tasks" style="width: 14px; height: 14px; object-fit: contain;"> <span id="docked-task-title-${paneIndex}">Transfers (0 active)</span></span>
+            <span style="font-weight: 700; font-size: 12px; display: flex; align-items: center; gap: 4px;"><img src="assets/task.webp" alt="Tasks" style="width: 14px; height: 14px; object-fit: contain;"> <span id="docked-task-title-${paneIndex}">Transfers (0 active)</span></span>
             <span class="task-speed-badge" id="docked-task-speed-${paneIndex}">0 B/s</span>
           </div>
           <div style="display: flex; gap: 4px;">

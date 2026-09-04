@@ -491,7 +491,7 @@ dependencies = [
 
 [[package]]
 name = "commanderdog"
-version = "0.7.3-rc10"
+version = "0.7.3"
 dependencies = [
  "aes-gcm",
  "argon2",
@@ -518,6 +518,7 @@ dependencies = [
  "parking_lot",
  "portable-pty",
  "rand 0.8.7",
+ "rayon",
  "regex",
  "reqwest",
  "rusqlite",

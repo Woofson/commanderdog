@@ -4030,8 +4030,9 @@ body {
 
 /* ---------------- VISUAL DISK USAGE TREEMAP & BAR ANALYZER ---------------- */
 .disk-usage-box {
-  width: 850px;
+  width: 920px;
   max-width: 95vw;
+  height: 88vh;
   max-height: 88vh;
   display: flex;
   flex-direction: column;
@@ -4041,72 +4042,210 @@ body {
   border-radius: var(--radius);
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.85);
   overflow: hidden;
+  transition: width 0.2s ease, height 0.2s ease;
+}
+
+.disk-usage-box.maximized {
+  width: 98vw !important;
+  max-width: 98vw !important;
+  height: 96vh !important;
+  max-height: 96vh !important;
+}
+
+.du-modal-header {
+  height: 42px;
+  min-height: 42px;
+  cursor: grab;
+  padding: 0 14px;
+  background: var(--bg-header);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  user-select: none;
+}
+.du-modal-header:active {
+  cursor: grabbing;
 }
 
 .du-top-bar {
-  padding: 12px 16px;
-  background: var(--bg-dark);
+  padding: 8px 14px;
+  background: var(--bg-panel);
   border-bottom: 1px solid var(--border);
   display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.du-breadcrumbs {
+  display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 4px;
+  overflow-x: auto;
+  white-space: nowrap;
+  scrollbar-width: thin;
+}
+
+.du-crumb-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.du-crumb-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--border);
+  color: var(--accent);
+}
+.du-crumb-btn.active {
+  color: var(--text-main);
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.25);
+}
+
+.du-crumb-sep {
+  color: var(--text-dim);
+  font-size: 10px;
+  user-select: none;
 }
 
 .du-stats-summary {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-  padding: 12px 16px;
-  background: var(--bg-panel);
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  padding: 8px 14px;
+  background: var(--bg-dark);
   border-bottom: 1px solid var(--border);
 }
 
 .du-stat-card {
-  background: var(--bg-dark);
+  background: var(--bg-panel);
   border: 1px solid var(--border);
   border-radius: 4px;
-  padding: 8px 12px;
+  padding: 6px 10px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
 }
 
 .du-stat-label {
-  font-size: 10px;
+  font-size: 9.5px;
   color: var(--text-dim);
   text-transform: uppercase;
   font-weight: 700;
 }
 
 .du-stat-val {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 800;
   color: var(--accent);
   font-family: var(--font-mono);
 }
 
+.du-multi-bar {
+  height: 8px;
+  width: 100%;
+  display: flex;
+  background: rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+  border-bottom: 1px solid var(--border);
+}
+
+.du-bar-segment {
+  height: 100%;
+  transition: opacity 0.15s ease;
+  cursor: pointer;
+}
+.du-bar-segment:hover {
+  filter: brightness(1.25);
+}
+
 .du-content-body {
   flex: 1;
   overflow-y: auto;
-  padding: 16px;
+  padding: 14px;
+}
+
+/* Interactive Proportional Treemap Tiles */
+.du-treemap-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 140px;
+  padding: 8px;
+  background: var(--bg-dark);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-bottom: 12px;
+}
+
+.du-treemap-tile {
+  min-height: 58px;
+  border-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 6px 10px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  cursor: pointer;
+  transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+  user-select: none;
+  overflow: hidden;
+  position: relative;
+}
+
+.du-treemap-tile:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+  border-color: var(--accent);
+  z-index: 2;
+}
+
+.du-treemap-title {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.du-treemap-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10.5px;
+  font-family: var(--font-mono);
+  color: rgba(255, 255, 255, 0.85);
 }
 
 .du-items-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 
 .du-item-row {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 8px 12px;
+  gap: 10px;
+  padding: 6px 10px;
   background: var(--bg-dark);
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: 5px;
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  transition: background 0.12s ease, border-color 0.12s ease;
 }
 
 .du-item-row:hover {
@@ -4119,11 +4258,11 @@ body {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
 }
 
 .du-item-name {
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 600;
   color: var(--text-main);
   text-overflow: ellipsis;
@@ -4138,34 +4277,60 @@ body {
 }
 
 .du-item-bar-wrapper {
-  width: 140px;
-  height: 8px;
+  width: 120px;
+  height: 6px;
   background: rgba(255, 255, 255, 0.05);
-  border-radius: 4px;
+  border-radius: 3px;
   overflow: hidden;
 }
 
 .du-item-bar-fill {
   height: 100%;
-  background: var(--accent);
-  border-radius: 4px;
+  border-radius: 3px;
 }
 
 .du-item-size-col {
-  width: 80px;
+  width: 75px;
   text-align: right;
-  font-size: 11.5px;
+  font-size: 11px;
   font-weight: 700;
   color: var(--text-main);
   font-family: var(--font-mono);
 }
 
 .du-item-pct-col {
-  width: 50px;
+  width: 45px;
   text-align: right;
-  font-size: 11px;
+  font-size: 10.5px;
   color: var(--accent);
   font-family: var(--font-mono);
+  font-weight: 600;
+}
+
+.du-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.du-action-btn {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+.du-action-btn:hover {
+  background: var(--bg-panel);
+  border-color: var(--border);
+  color: var(--accent);
 }
 
 /* Selected row icon checkmark styling strictly for mobile / narrow touch screens */
@@ -4402,12 +4567,17 @@ body {
     margin-right: auto;
   }
 
-  .app-header .logo-area span {
+  .app-header .logo-area .app-logo-text {
     display: inline-block !important;
     font-size: 13.5px !important;
     font-weight: 700 !important;
     letter-spacing: 0.3px !important;
     white-space: nowrap !important;
+  }
+
+  /* On phone/mobile: hide brand name text when hostname badge is active to prevent pushing menu buttons */
+  .app-header .logo-area.has-hostname-badge .app-logo-text {
+    display: none !important;
   }
 
   /* ---------------- NARROW MOBILE SCREENS (<= 600px, e.g. Folded Outer Phone Screen) ---------------- */
@@ -4658,8 +4828,8 @@ body {
     display: none !important;
   }
 
-  .header .logo-area span:not(.dog-badge),
-  .app-header .logo-area span:not(.dog-badge) {
+  .header .logo-area .app-logo-text,
+  .app-header .logo-area .app-logo-text {
     font-size: 13px;
   }
 

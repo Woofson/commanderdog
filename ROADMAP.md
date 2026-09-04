@@ -2,7 +2,7 @@
 
 > **Creator & Lab**: Bolt J Woofson @ Woofsons Lab ([www.arf.ac](https://www.arf.ac))  
 > **Slogan**: *Multi-Tab File Commander for Web & Native Desktop — By Woofson*  
-> **Current Version**: `v0.7.3-rc10 (Desktop & Web)`  
+> **Current Version**: `v0.7.3 (Desktop & Web)`  
 > **Publishing Prefix Rule**: All crates, binaries, and packages use the `arf-` or `arf_` prefix (e.g. `arf-cmdr`, `arf-remote`).  
 > **Release History**: For detailed release notes and changelogs of past versions (`v0.1.0` — `v0.7.2`), see [**`CHANGELOG.md`**](CHANGELOG.md).
 
@@ -166,9 +166,11 @@ graph TD
 - [x] **NoteDog Encrypted Notes & Cross-TUI Compatibility** (Shipped in `v0.7.3-rc8`):
   - **Encrypted Notebooks & Sections**: Support unlocking, editing, and saving encrypted notes and notebook sections using ChaCha20-Poly1305 / Argon2id container standards (`.md.enc` format, `.encrypted` section markers).
   - **NoteDog TUI Cross-Compatibility**: Full interoperability and symmetric decrypt/encrypt parity between the CommanderDog NoteDog ChewToy and the NoteDog TUI terminal client.
-- [ ] **Disk Usage & Storage Treemap Analyzer Optimization**:
-  - **High-Latency Deep Scanning**: Disk usage calculation on large storage volumes takes significant time to load.
-  - **Parallel Rayon Walker & Progressive Treemap Streaming**: Implement parallel multithreaded directory traversal with progressive chunk streaming to the frontend treemap and cached directory sizes for near-instant rendering.
+- [x] **Disk Usage & Storage Treemap Analyzer Optimization (`Stats` ChewToy)** (Shipped in `v0.7.3-rc12`):
+  - **Parallel Rayon Walker & Bounded Memory Allocation**: Implemented multi-threaded parallel directory traversal with `rayon` par_iter and bounded top-20 heap tracking for zero-allocation safety.
+  - **Interactive Proportional Treemap & Multi-Color Distribution**: Added responsive proportional squarified/flex treemap tiles with category gradients, 1-click drill-down, and stacked multi-colored storage proportion bar.
+  - **Interactive Navigation & Breadcrumbs**: Added full breadcrumb path navigation chips, parent directory (`Up ..`) jump button, real-time live filter, quick panel jump, and terminal launcher.
+  - **ChewToy Standards Alignment**: Standardized 42px drag handle header, right-aligned 28px view switchers (`Split`, `Treemap`, `List`), maximize/restore toggle, and 26px sub-header toolbars.
 
 ---
 

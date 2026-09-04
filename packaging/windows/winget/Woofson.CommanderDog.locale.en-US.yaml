@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.6.0.schema.json
 
 PackageIdentifier: Woofson.CommanderDog
-PackageVersion: 0.7.0
+PackageVersion: 0.7.3
 PackageLocale: en-US
 Publisher: Woofson
 PublisherUrl: https://github.com/woofson

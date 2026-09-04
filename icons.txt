@@ -14,3 +14,6 @@ amber-media - multimedia and photos
 amber-syntaxedit - editordog
 amber-pdftool - pdfdog
 amber-chewtoy-2 - chewtoys launcher header button only
+amber-search - deep search & filter
+amber-convertx - convertx batch file converter
+amber-syncthing - syncthing continuous sync dashboard (amber-synctoy)

@@ -3220,9 +3220,13 @@ async fn handle_disk_usage(
     let raw_path = query.get("path").ok_or((StatusCode::BAD_REQUEST, "Missing path param".to_string()))?;
     let path = validate_path_access(&state, &headers, raw_path, false)?;
 
-    crate::tools::disk_usage::DiskUsageEngine::analyze(&path)
-        .map(Json)
-        .map_err(|e| (StatusCode::BAD_REQUEST, format!("Disk usage analysis failed: {}", e)))
+    tokio::task::spawn_blocking(move || {
+        crate::tools::disk_usage::DiskUsageEngine::analyze(&path)
+    })
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Task join error: {}", e)))?
+    .map(Json)
+    .map_err(|e| (StatusCode::BAD_REQUEST, format!("Disk usage analysis failed: {}", e)))
 }
 
 async fn handle_search(
