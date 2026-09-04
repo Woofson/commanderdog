@@ -1,9 +1,10 @@
-# <img src="assets/logo.png" alt="CommanderDog Logo" height="40" style="vertical-align: -6px; margin-right: 8px;" /> CommanderDog Product Roadmap & Task Backlog
+# <img src="assets/logo.png" alt="CommanderDog Logo" height="40" style="vertical-align: -6px; margin-right: 8px;" /> CommanderDog Product Roadmap & Active Backlog
 
 > **Creator & Lab**: Bolt J Woofson @ Woofsons Lab ([www.arf.ac](https://www.arf.ac))  
 > **Slogan**: *Multi-Tab File Commander for Web & Native Desktop — By Woofson*  
 > **Current Version**: `v0.7.2-rc1 (Desktop & Web)`  
-> **Publishing Prefix Rule**: All crates, binaries, and packages use the `arf-` or `arf_` prefix (e.g. `arf-cmdr`, `arf-remote`).
+> **Publishing Prefix Rule**: All crates, binaries, and packages use the `arf-` or `arf_` prefix (e.g. `arf-cmdr`, `arf-remote`).  
+> **Release History**: For detailed release notes and changelogs of past versions (`v0.1.0` — `v0.7.1`), see [**`CHANGELOG.md`**](CHANGELOG.md).
 
 ---
 
@@ -85,11 +86,10 @@ graph TD
     C --> D["v1.0.0 (Planned: High-Performance P2P Cluster & Distributed Storage)"]
 ```
 
-### Active Tasks (`v0.7.2`):
-- [x] **Documentation Reorganization & `manuals/` Directory (`v0.7.2-rc1`)**:
+### Active Sprint Items (`v0.7.2`):
+- [x] **Documentation Reorganization & `manuals/` Structure (`v0.7.2-rc1`)**:
   - Reorganized loose root documentation into dedicated [`manuals/`](manuals/README.md).
-  - Created [`manuals/chewtoys.md`](manuals/chewtoys.md), [`manuals/docker.md`](manuals/docker.md), [`manuals/lxc-proxmox.md`](manuals/lxc-proxmox.md), [`manuals/windows.md`](manuals/windows.md), [`manuals/reverse-proxy.md`](manuals/reverse-proxy.md), [`manuals/vaults.md`](manuals/vaults.md), [`manuals/themes-and-palette.md`](manuals/themes-and-palette.md), and [`manuals/qa-testing.md`](manuals/qa-testing.md).
-  - Merged `todo.txt` directly into `ROADMAP.md` as the unified source of truth.
+  - Merged todos directly into `ROADMAP.md` as the unified source of truth.
 - [ ] **EditorDog Polish**:
   - Standardize Save, New, Find, and Save All buttons to uniform `28px` Chewtoy header styling.
   - Replace dropdown view/layout menu with direct action buttons.
@@ -122,119 +122,26 @@ graph TD
 
 ---
 
-## 5. 📜 Completed Milestones (v0.1.0 — v0.7.1)
+## 5. 📊 Release Version Matrix
 
-### Universal Floating Viewers, Live Log Streaming, Offline Nerd Fonts & Theme Engine (`v0.7.1`)
-- [x] **Universal Floating & Resizable Viewers**:
-  - Detachable floating window mode for Universal Document/Text viewer and Image viewer with window geometry persistence in `localStorage`.
-  - Non-fiddly, full title bar drag handle and desktop edge/corner resizing.
-  - Live log follow mode (`tail -f`) with custom line count filtering (`-n 50`, `100`, `250`, `500`, `1000`, `All`), glowing live indicator, and word-wrap toggle.
-  - Unified right-aligned header layout with uniform `28px` control buttons.
-- [x] **Bundled Offline JetBrainsMono Nerd Fonts**:
-  - Embedded local `JetBrainsMono Nerd Font` and `Symbols Nerd Font` into the binary via `rust_embed` for native out-of-the-box `eza --icons`, `starship`, and `fish` powerline glyphs without requiring client OS font installations.
-- [x] **Official Woofsons Amber Palette & Auto-Merge Engine**:
-  - Added official **Woofsons Amber Charcoal** (Dark) and **Woofsons Amber Zink** (Light) themes.
-  - Automatic configuration merge ensuring new built-in themes are dynamically available even on existing installations with prior `config.toml` files.
-- [x] **Direct File Panel Download & Dynamic Login Screen**:
-  - 1-click **Save / Download File** directly from the panel right-click context menu.
-  - Procedurally randomized geometric gradient background on login/lock screen with centralized version badge sync.
-
-### NoteDog Notes Studio & Orthodox Power Tools Suite (`v0.7.0`)
-- [x] **NoteDog Hierarchical Markdown Notes Studio**:
-  - Tree organizer notebook with subdirectories, drag-and-drop hierarchy, and fast keyword indexing.
-  - Interactive checklists (`- [ ]`) and task tracking with instant DOM state persistence.
-  - Built-in note templates (Meeting Notes, Project Plan, Checklist / SOP, Daily Journal).
-  - Automated revision history snapshot engine under `.notedog_versions/` with side-by-side diff preview and 1-click restore.
-- [x] **Color Labels, Tags & Workspaces**:
-  - Direct metadata tagging with persistent SQLite indexes and custom color pills.
-  - Quick filter toggles and workspace layout persistence.
-
-### Bvckup 2 & SyncToy Delta Backup Engine, Background Daemons & Folder Watchers (`v0.6.9`)
-- [x] **4 Core Replication Profiles (SyncToy & Bvckup 2)**:
-  - `synchronize`: Smart bidirectional 2-way sync with newer-file conflict resolution.
-  - `echo`: 1-way mirror making destination an exact replica, deleting destination orphans.
-  - `contribute`: Additive replication copying additions & modifications, keeping destination orphans.
-  - `subscribe`: Historical versioning archiving modified/deleted files into timestamped `_archive/` snapshot trees with automated retention pruning.
-- [x] **Block-Level In-Place Binary Delta Copy Engine (Bvckup 2 Speed)**:
-  - 64KB CRC32 chunk hashing skipping unmodified blocks and patching modified byte blocks in-place directly on disk.
-  - Post-transfer cryptographic verification (CRC32/SHA-256).
-- [x] **Automated Backup Profiles, Scheduler & Webhooks**:
-  - SQLite persistent profile management with interval, daily (HH:MM), and continuous real-time triggers.
-  - Webhook dispatchers (Discord/Slack/Telegram/generic JSON POST) alerting on completion or failure.
-  - Execution history & audit logs tracking files copied, archived, deleted, and duration.
-- [x] **Sync & Backup Studio Modal**:
-  - 3-tab layout (Live Diff & Replication, Backup Jobs & Scheduler, Run History & Logs) with interactive mode cards and action filters.
-
-### Resizable Columns, Custom Column Chooser, Multi-Size Grid & Folder Tree Sidebar (`v0.6.8`)
-- [x] **Interactive Drag-to-Resize Table Columns**:
-  - Grab-and-drag divider handles on all table headers (`Name`, `Ext`, `Size`, `Modified`, `Created`, `Mode`, `Owner`, `Group`, `SHA-256`, `Tags`).
-  - Double-click resizer auto-fit scanning DOM content widths and fitting the column perfectly.
-  - Sticky width layout saved to `localStorage` per pane and globally.
-- [x] **Custom Column Builder & Header Settings Popover**:
-  - Right-click column header chooser popover with checkbox toggles for instant customization.
-  - Support for *Date Created*, *SHA-256 Checksums*, and *Color Labels / Custom Tags* in table rows.
-- [x] **Thumbnail Gallery Multi-Size View Modes**:
-  - 4 card preview sizes: Small (`90px`), Medium (`130px`), Large (`180px`), Extra Large (`260px`).
-- [x] **Collapsible Directory Tree Sidebar Per Pane**:
-  - Toggle folder tree button `[ 🌳 ]` on any pane header with dynamic asynchronous subfolder expansion.
-
-### Orthodox Context Menus, Properties Dialog & GFM Markdown (`v0.6.7`)
-- [x] **Orthodox Right-Click Context Menu & Submenus**:
-  - Full-width viewport & touch fix: Dynamic collision detection flipping submenus near screen edges.
-- [x] **Windows-Style Properties Dialog (`Alt+Enter`)**:
-  - 4-tabbed modal: General & Media/EXIF, Security & Permissions, Checksums, Color labels & Custom tags.
-- [x] **GitHub-Flavored Markdown (GFM) & HTML Rendering in EditorDog**:
-  - Full raw HTML tags (`<details>`, `<summary>`, `<kbd>`, `<img>`, `<table>`, `<div>`, etc.).
-
-### Windows Service, Autostart Management & Rich Filetype Icon Suite (`v0.6.6`)
-- [x] **Windows Background Service & Autostart Management**:
-  - Integrated Windows Service controller (`commanderdog.exe --service install|start|stop|uninstall`).
-- [x] **Rich MIME & File Extension Icon Engine**:
-  - 50+ distinctive filetype icons with color-coded badges.
-
-### Pure-Rust PDF Split & Merger, Mouse-Wheel Image Viewer & Dynamic Statusbar (`v0.6.5`)
-- [x] **Pure-Rust PDF Engine (`lopdf`)**:
-  - Merge arbitrary PDF documents with visual reordering and bookmark outlines.
-  - Split by page ranges, extract each page, or split into $N$-page bundles.
-- [x] **Image Viewer Mouse Wheel Navigation**:
-  - Scroll mouse wheel up/down to flip through previous/next images in folder.
-  - `Ctrl`+wheel cursor-centered focal zoom with instant toggle.
-
-### Windows Native Desktop, Installers & Packaging (`v0.6.0`)
-- [x] **Native Windows Desktop Integration (`CommanderDog.exe`)**:
-  - Rust + Microsoft WebView2 standalone desktop integration via Tauri v2 with embedded local server.
-  - Automated NSIS & WiX installer packages (`.msi` / `.exe`), portable `.zip`, Winget, and Scoop bucket.
-
-### Transparent Encrypted Vaults & Subsystem Deletions (`v0.5.5`)
-- [x] **Transparent Encrypted Vaults (`.cdvault` / `.cdv`)**:
-  - Zero-knowledge AES-256-GCM authenticated encryption + Argon2id RAM-only VFS with zero plaintext disk leakage.
-
-### Security, UI Modernization & Streamlined UX (`v0.5.0`)
-- [x] **Zero-Leakage Credential Security & URI Sanitization**:
-  - Ephemeral in-memory auth routing (`resolveAuthUri`) keeping passwords out of DOM and history.
-
----
-
-## 6. 📊 Release Version Matrix
-
-| Version | Milestone Focus | Status |
-| :--- | :--- | :--- |
-| **`v0.3.0`** | In-Pane Tool Docking, ConvertX, Dual-Pane Editor | **Released** |
-| **`v0.3.5`** | Wayland Native Windowing, GDK Error 71 Fix, AUR Automated Sync | **Released** |
-| **`v0.3.6`** | XDG Fast-Path Config, External TOML Themes, Web Theme Creator, Tiling WM Frameless | **Released** |
-| **`v0.4.0`** | Multi-Part File Splitter & Combiner, Integrated Git Client, Auto-$HOME Startup | **Released** |
-| **`v0.4.1`** | Configurable Storage Roots, Filesystem Sandboxing, Per-User Root RBAC, Multi-Arch Alpine/Debian GHCR | **Released** |
-| **`v0.4.2`** | Multi-Tier SSH/SFTP Auth, Dynamic PAM Zero-Dependency Engine, SFTP $HOME Resolution | **Released** |
-| **`v0.5.0`** | Zero-Leakage In-Memory Credentials, Leftmost Unified Pane Customizer, Modern Navbar, Tauri Tray | **Released** |
-| **`v0.5.5`** | Transparent Encrypted Vaults (AES-256-GCM / Argon2id), Cross-Mount Deletion Engine | **Released** |
-| **`v0.6.0`** | Windows Native Build & Release (MSI, Portable ZIP, Winget, Scoop, WebView2) | **Released** |
-| **`v0.6.5`** | PDF Split/Merger, Mouse-Wheel Image Navigation & Dynamic Statusbar Selection | **Released** |
-| **`v0.6.6`** | Windows Service, Autostart Management & Rich Filetype Icon Suite | **Released** |
-| **`v0.6.7`** | Orthodox Context Menu, Properties Dialog, GFM & Raw HTML Editor, Tags & Colors | **Released** |
-| **`v0.6.8`** | Resizable Columns, Custom Chooser, Multi-Size Grid & Tree Sidebar | **Released** |
-| **`v0.6.9`** | Bvckup 2 & SyncToy Delta Backup, Background Daemons, Scheduled Tasks & Automation | **Released** |
-| **`v0.7.0`** | NoteDog Notes Studio, Tags & Colors, Custom Workspaces & Power Suite | **Released** |
-| **`v0.7.1`** | Universal Floating Viewers, Live Tail Follow, Bundled Fonts & Theme Engine | **Released** |
-| **`v0.7.2`** | Documentation Reorganization & Chewtoy UI/UX Refinements | **In Progress** |
-| **`v0.8.0`** | Enterprise OIDC SSO, Collaborative Office (WOPI) & Automation Engine | *Planned* |
-| **`v1.0.0`** | High-Performance P2P Cluster & Distributed Virtual Storage | *Planned* |
+| Version | Milestone Focus | Status | Changelog |
+| :--- | :--- | :--- | :--- |
+| **`v0.3.0`** | In-Pane Tool Docking, ConvertX, Dual-Pane Editor | **Released** | [View Notes](CHANGELOG.md#030---2026-08-15) |
+| **`v0.3.5`** | Wayland Windowing, GDK Fix, AUR Automated Sync | **Released** | [View Notes](CHANGELOG.md#035---2026-08-18) |
+| **`v0.3.6`** | XDG Fast-Path Config, External TOML Themes, Web Theme Creator | **Released** | [View Notes](CHANGELOG.md#036---2026-08-20) |
+| **`v0.4.0`** | Multi-Part Splitter, Integrated Git Client, Auto-$HOME Startup | **Released** | [View Notes](CHANGELOG.md#040---2026-08-22) |
+| **`v0.4.1`** | Storage Roots, Sandboxing, Per-User Root RBAC, Alpine GHCR | **Released** | [View Notes](CHANGELOG.md#041---2026-08-24) |
+| **`v0.4.2`** | Multi-Tier SSH/SFTP Auth, Dynamic PAM Engine, $HOME Resolution | **Released** | [View Notes](CHANGELOG.md#042---2026-08-26) |
+| **`v0.5.0`** | Zero-Leakage Credentials, Leftmost Pane Customizer, Modern Navbar | **Released** | [View Notes](CHANGELOG.md#050---2026-08-28) |
+| **`v0.5.5`** | Transparent Encrypted Vaults (.cdvault), Cross-Mount Deletions | **Released** | [View Notes](CHANGELOG.md#055---2026-08-29) |
+| **`v0.6.0`** | Windows Native Build & Release (MSI, ZIP, Winget, Scoop, WebView2) | **Released** | [View Notes](CHANGELOG.md#060---2026-08-30) |
+| **`v0.6.5`** | PDF Split/Merger, Mouse-Wheel Image Navigation & Dynamic Statusbar | **Released** | [View Notes](CHANGELOG.md#065---2026-08-31) |
+| **`v0.6.6`** | Windows Service, Autostart Management & Rich Icon Suite | **Released** | [View Notes](CHANGELOG.md#066---2026-08-31) |
+| **`v0.6.7`** | Orthodox Context Menu, Properties Dialog, GFM & HTML Editor | **Released** | [View Notes](CHANGELOG.md#067---2026-09-01) |
+| **`v0.6.8`** | Resizable Columns, Custom Chooser, Multi-Size Grid & Tree Sidebar | **Released** | [View Notes](CHANGELOG.md#068---2026-09-01) |
+| **`v0.6.9`** | Bvckup 2 & SyncToy Delta Backup, Background Daemons & Automation | **Released** | [View Notes](CHANGELOG.md#069---2026-09-01) |
+| **`v0.7.0`** | NoteDog Notes Studio, Tags & Colors, Custom Workspaces | **Released** | [View Notes](CHANGELOG.md#070---2026-09-01) |
+| **`v0.7.1`** | Universal Floating Viewers, Live Tail Follow, Bundled Fonts & Themes | **Released** | [View Notes](CHANGELOG.md#071---2026-09-03) |
+| **`v0.7.2`** | Documentation Reorganization & Chewtoy UI/UX Refinements | **In Progress** | — |
+| **`v0.8.0`** | Enterprise OIDC SSO, Collaborative Office (WOPI) & Automation | *Planned* | — |
+| **`v1.0.0`** | High-Performance P2P Cluster & Distributed Virtual Storage | *Planned* | — |
