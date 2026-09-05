@@ -1,4 +1,5 @@
-Todos from Woofson 04.09.2026:
+Todos from Woofson 05.09.2026:
 
-Badge on the phone screen pushes the menu buttons out of viewport.
-Add the badge over the branding on an angle, like a badge just slapped on there..?
+- [x] Drag and select - on PC viewport - or when mouse input.
+- [x] Select-shift-select selects multiple in a row, not like ctrl+select selects multiple here and there.
+- [x] Drag and drop default action, move or copy, with or without paranoid, never ask again - can be changed in Settings (F10)

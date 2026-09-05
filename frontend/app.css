@@ -843,6 +843,18 @@ body {
   outline: 1px dotted var(--accent);
 }
 
+/* Rubberband / Marquee Drag-Selection Box */
+.marquee-selection-box {
+  position: fixed;
+  border: 1px solid var(--accent);
+  background: rgba(245, 158, 11, 0.18);
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.25);
+  pointer-events: none;
+  z-index: 99999;
+  border-radius: 3px;
+  box-sizing: border-box;
+}
+
 .file-cell {
   padding: 0 8px;
   white-space: nowrap;

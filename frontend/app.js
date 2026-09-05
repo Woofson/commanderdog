@@ -31,6 +31,9 @@ const App = {
   iconTheme: localStorage.getItem('cd_icon_theme') || 'default',
   globalFolderIcon: localStorage.getItem('cd_global_folder_icon') || '',
   customFileIcons: JSON.parse(localStorage.getItem('cd_custom_file_icons') || '{}'),
+  dndDefaultAction: localStorage.getItem('cd_dnd_default_action') || 'ask',
+  dndPromptMode: localStorage.getItem('cd_dnd_prompt_mode') || 'ask',
+  dndParanoidPrompt: localStorage.getItem('cd_dnd_paranoid_prompt') !== 'false',
 };
 
 function getBasename(path) {
@@ -67,6 +70,7 @@ class PaneState {
     this.entries = [];
     this.selected = new Set();
     this.cursorIndex = 0;
+    this.anchorIndex = 0;
     this.filterText = '';
     this.showFilter = false;
     this.history = [this.path];
@@ -1050,9 +1054,123 @@ function createPaneElement(pane, index) {
       isPulling = false;
       pullDistance = 0;
     }, { passive: true });
+
+    initPaneMarqueeSelection(mainView, index);
   }
 
   return el;
+}
+
+// ---------------- 🖱️ MARQUEE / RUBBERBAND DRAG-AND-SELECT ----------------
+function initPaneMarqueeSelection(mainViewEl, paneIndex) {
+  if (!mainViewEl) return;
+
+  mainViewEl.addEventListener('mousedown', (e) => {
+    // Only primary left mouse button
+    if (e.button !== 0) return;
+
+    // Ignore touch or interactive controls / resizers / headers
+    const isTouch = window.innerWidth <= 768 || window.matchMedia('(pointer: coarse)').matches;
+    if (isTouch) return;
+
+    if (e.target.closest('input, button, select, textarea, .col-resizer, .pane-tree-resizer, .pane-filter-wrapper, thead, .pull-refresh-indicator')) {
+      return;
+    }
+
+    const clickedRow = e.target.closest('tr.file-row, .grid-gallery-card, .compact-list-item');
+    const pane = App.panes[paneIndex];
+    if (!pane) return;
+
+    // If clicking parent dir row (..), skip marquee
+    if (clickedRow && (clickedRow.classList.contains('parent-dir-row') || clickedRow.classList.contains('parent-dir-item'))) {
+      return;
+    }
+
+    // If clicking an already-selected row without shift/ctrl/alt, allow HTML5 drag-and-drop
+    const isAlreadySelected = clickedRow && clickedRow.classList.contains('selected');
+    if (isAlreadySelected && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+      return;
+    }
+
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const initialSelected = new Set(pane.selected);
+    let marqueeBox = null;
+    let isMarqueeActive = false;
+
+    function onMouseMove(moveEvent) {
+      const dx = Math.abs(moveEvent.clientX - startX);
+      const dy = Math.abs(moveEvent.clientY - startY);
+
+      if (!isMarqueeActive) {
+        if (dx > 5 || dy > 5) {
+          isMarqueeActive = true;
+          marqueeBox = document.createElement('div');
+          marqueeBox.className = 'marquee-selection-box';
+          document.body.appendChild(marqueeBox);
+        } else {
+          return;
+        }
+      }
+
+      const mLeft = Math.min(startX, moveEvent.clientX);
+      const mTop = Math.min(startY, moveEvent.clientY);
+      const mWidth = Math.abs(moveEvent.clientX - startX);
+      const mHeight = Math.abs(moveEvent.clientY - startY);
+
+      marqueeBox.style.left = mLeft + 'px';
+      marqueeBox.style.top = mTop + 'px';
+      marqueeBox.style.width = mWidth + 'px';
+      marqueeBox.style.height = mHeight + 'px';
+
+      const items = mainViewEl.querySelectorAll('tr.file-row:not(.parent-dir-row), .grid-gallery-card, .compact-list-item:not(.parent-dir-item)');
+      const newlySelected = new Set(moveEvent.ctrlKey || moveEvent.metaKey || moveEvent.shiftKey ? initialSelected : []);
+
+      items.forEach((itemEl) => {
+        const path = itemEl.dataset.path;
+        if (!path) return;
+        const rect = itemEl.getBoundingClientRect();
+        const intersects = !(rect.right < mLeft || rect.left > (mLeft + mWidth) || rect.bottom < mTop || rect.top > (mTop + mHeight));
+
+        if (intersects) {
+          if (moveEvent.ctrlKey || moveEvent.metaKey) {
+            if (initialSelected.has(path)) newlySelected.delete(path);
+            else newlySelected.add(path);
+          } else {
+            newlySelected.add(path);
+          }
+          itemEl.classList.add('selected');
+        } else {
+          if (!moveEvent.ctrlKey && !moveEvent.metaKey && !moveEvent.shiftKey) {
+            newlySelected.delete(path);
+            itemEl.classList.remove('selected');
+          } else if (initialSelected.has(path)) {
+            itemEl.classList.add('selected');
+          } else {
+            itemEl.classList.remove('selected');
+          }
+        }
+      });
+
+      pane.selected = newlySelected;
+      updatePaneFooter(paneIndex);
+    }
+
+    function onMouseUp() {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+
+      if (isMarqueeActive && marqueeBox) {
+        marqueeBox.remove();
+        marqueeBox = null;
+        renderPaneTable(paneIndex);
+        updateMobileBottomBar();
+      }
+    }
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  });
 }
 
 function setActivePane(index) {
@@ -1822,6 +1940,8 @@ function renderPaneTable(paneIndex) {
       const card = document.createElement('div');
       card.className = `grid-gallery-card ${isSelected ? 'selected' : ''} ${idx === pane.cursorIndex ? 'cursor-focus' : ''}`;
       card.draggable = !isTouchDevice;
+      card.dataset.path = entry.path;
+      card.dataset.index = idx;
 
       let thumbHtml = '';
       if (!entry.is_dir && isImageFile(entry.name)) {
@@ -1858,6 +1978,7 @@ function renderPaneTable(paneIndex) {
             pane.selected.add(entry.path);
           }
           pane.cursorIndex = idx;
+          pane.anchorIndex = idx;
           renderPaneTable(paneIndex);
           updateMobileBottomBar();
           if (navigator.vibrate) navigator.vibrate(40);
@@ -1888,6 +2009,7 @@ function renderPaneTable(paneIndex) {
           if (pane.selected.size > 0) {
             if (pane.selected.has(entry.path)) pane.selected.delete(entry.path);
             else pane.selected.add(entry.path);
+            pane.anchorIndex = idx;
             renderPaneTable(paneIndex);
             updateMobileBottomBar();
             return;
@@ -1900,14 +2022,30 @@ function renderPaneTable(paneIndex) {
         const isTouch = window.innerWidth <= 768 || window.matchMedia('(pointer: coarse)').matches;
         if (isTouch) return;
         setActivePane(paneIndex);
-        if (e.shiftKey || e.ctrlKey) {
+        if (e.shiftKey) {
+          const anchor = (typeof pane.anchorIndex === 'number' && pane.anchorIndex >= 0 && pane.anchorIndex < filtered.length)
+            ? pane.anchorIndex
+            : (pane.cursorIndex >= 0 ? pane.cursorIndex : 0);
+          const start = Math.min(anchor, idx);
+          const end = Math.max(anchor, idx);
+          if (!e.ctrlKey && !e.metaKey) {
+            pane.selected.clear();
+          }
+          for (let i = start; i <= end; i++) {
+            if (filtered[i]) pane.selected.add(filtered[i].path);
+          }
+          pane.cursorIndex = idx;
+        } else if (e.ctrlKey || e.metaKey) {
           if (pane.selected.has(entry.path)) pane.selected.delete(entry.path);
           else pane.selected.add(entry.path);
+          pane.anchorIndex = idx;
+          pane.cursorIndex = idx;
         } else {
           pane.selected.clear();
           pane.selected.add(entry.path);
+          pane.anchorIndex = idx;
+          pane.cursorIndex = idx;
         }
-        pane.cursorIndex = idx;
         renderPaneTable(paneIndex);
       };
 
@@ -1922,8 +2060,11 @@ function renderPaneTable(paneIndex) {
         if (!pane.selected.has(entry.path)) {
           pane.selected.clear();
           pane.selected.add(entry.path);
+          pane.anchorIndex = idx;
           pane.cursorIndex = idx;
           renderPaneTable(paneIndex);
+        } else {
+          pane.cursorIndex = idx;
         }
         App.contextItem = entry;
         App.contextPaneIndex = paneIndex;
@@ -1982,6 +2123,8 @@ function renderPaneTable(paneIndex) {
       const isSelected = pane.selected.has(entry.path);
       const item = document.createElement('div');
       item.className = `compact-list-item ${isSelected ? 'selected' : ''} ${idx === pane.cursorIndex ? 'cursor-focus' : ''}`;
+      item.dataset.path = entry.path;
+      item.dataset.index = idx;
       
       const iconHtml = renderFileIconHtml(entry.name, entry.is_dir, entry.is_archive, entry.path, 'sm');
 
@@ -2017,6 +2160,7 @@ function renderPaneTable(paneIndex) {
           if (pane.selected.size > 0) {
             if (pane.selected.has(entry.path)) pane.selected.delete(entry.path);
             else pane.selected.add(entry.path);
+            pane.anchorIndex = idx;
             renderPaneTable(paneIndex);
             updateMobileBottomBar();
             return;
@@ -2029,14 +2173,30 @@ function renderPaneTable(paneIndex) {
         const isTouch = window.innerWidth <= 768 || window.matchMedia('(pointer: coarse)').matches;
         if (isTouch) return;
         setActivePane(paneIndex);
-        if (e.shiftKey || e.ctrlKey) {
+        if (e.shiftKey) {
+          const anchor = (typeof pane.anchorIndex === 'number' && pane.anchorIndex >= 0 && pane.anchorIndex < filtered.length)
+            ? pane.anchorIndex
+            : (pane.cursorIndex >= 0 ? pane.cursorIndex : 0);
+          const start = Math.min(anchor, idx);
+          const end = Math.max(anchor, idx);
+          if (!e.ctrlKey && !e.metaKey) {
+            pane.selected.clear();
+          }
+          for (let i = start; i <= end; i++) {
+            if (filtered[i]) pane.selected.add(filtered[i].path);
+          }
+          pane.cursorIndex = idx;
+        } else if (e.ctrlKey || e.metaKey) {
           if (pane.selected.has(entry.path)) pane.selected.delete(entry.path);
           else pane.selected.add(entry.path);
+          pane.anchorIndex = idx;
+          pane.cursorIndex = idx;
         } else {
           pane.selected.clear();
           pane.selected.add(entry.path);
+          pane.anchorIndex = idx;
+          pane.cursorIndex = idx;
         }
-        pane.cursorIndex = idx;
         renderPaneTable(paneIndex);
       };
 
@@ -2049,8 +2209,11 @@ function renderPaneTable(paneIndex) {
         if (!pane.selected.has(entry.path)) {
           pane.selected.clear();
           pane.selected.add(entry.path);
+          pane.anchorIndex = idx;
           pane.cursorIndex = idx;
           renderPaneTable(paneIndex);
+        } else {
+          pane.cursorIndex = idx;
         }
         App.contextItem = entry;
         App.contextPaneIndex = paneIndex;
@@ -2171,6 +2334,8 @@ function renderPaneTable(paneIndex) {
       const tr = document.createElement('tr');
       tr.className = `file-row ${isSelected ? 'selected' : ''} ${idx === pane.cursorIndex ? 'cursor-focus' : ''} ${colorClass}`;
       tr.draggable = !isTouchDevice;
+      tr.dataset.path = entry.path;
+      tr.dataset.index = idx;
 
       if (!isTouchDevice) {
         tr.ondragstart = (e) => {
@@ -2231,6 +2396,7 @@ function renderPaneTable(paneIndex) {
             pane.selected.add(entry.path);
           }
           pane.cursorIndex = idx;
+          pane.anchorIndex = idx;
           renderPaneTable(paneIndex);
           updateMobileBottomBar();
           if (navigator.vibrate) navigator.vibrate(40);
@@ -2266,6 +2432,7 @@ function renderPaneTable(paneIndex) {
             } else {
               pane.selected.add(entry.path);
             }
+            pane.anchorIndex = idx;
             renderPaneTable(paneIndex);
             updateMobileBottomBar();
             return;
@@ -2279,14 +2446,30 @@ function renderPaneTable(paneIndex) {
         if (isTouch) return;
 
         setActivePane(paneIndex);
-        if (e.shiftKey || e.ctrlKey) {
+        if (e.shiftKey) {
+          const anchor = (typeof pane.anchorIndex === 'number' && pane.anchorIndex >= 0 && pane.anchorIndex < filtered.length)
+            ? pane.anchorIndex
+            : (pane.cursorIndex >= 0 ? pane.cursorIndex : 0);
+          const start = Math.min(anchor, idx);
+          const end = Math.max(anchor, idx);
+          if (!e.ctrlKey && !e.metaKey) {
+            pane.selected.clear();
+          }
+          for (let i = start; i <= end; i++) {
+            if (filtered[i]) pane.selected.add(filtered[i].path);
+          }
+          pane.cursorIndex = idx;
+        } else if (e.ctrlKey || e.metaKey) {
           if (pane.selected.has(entry.path)) pane.selected.delete(entry.path);
           else pane.selected.add(entry.path);
+          pane.anchorIndex = idx;
+          pane.cursorIndex = idx;
         } else {
           pane.selected.clear();
           pane.selected.add(entry.path);
+          pane.anchorIndex = idx;
+          pane.cursorIndex = idx;
         }
-        pane.cursorIndex = idx;
         renderPaneTable(paneIndex);
         updateMobileBottomBar();
       };
@@ -2305,6 +2488,7 @@ function renderPaneTable(paneIndex) {
         if (!pane.selected.has(entry.path)) {
           pane.selected.clear();
           pane.selected.add(entry.path);
+          pane.anchorIndex = idx;
           pane.cursorIndex = idx;
           renderPaneTable(paneIndex);
         } else {
@@ -4111,12 +4295,33 @@ async function handlePaneDrop(e, targetPaneIndex, subfolderPath) {
 
       if (e.shiftKey) {
         executeInterpaneDrop('move');
-      } else if (e.altKey) {
+        return;
+      } else if (e.altKey || (e.ctrlKey && !e.metaKey)) {
         executeInterpaneDrop('copy');
+        return;
+      }
+
+      const defaultAction = App.dndDefaultAction || 'ask';
+      const promptMode = App.dndPromptMode || 'ask';
+
+      if (defaultAction !== 'ask' && promptMode === 'direct') {
+        executeInterpaneDrop(defaultAction);
       } else {
         const msgEl = document.getElementById('interpane-drop-msg');
         if (msgEl) {
           msgEl.innerHTML = `Transfer <strong>${paths.length} item(s)</strong> to: <br><code style="background:var(--bg-dark); padding:3px 6px; border-radius:4px; display:inline-block; margin-top:6px; word-break:break-all;">${escapeHtml(destPath)}</code>`;
+        }
+
+        const btnMove = document.getElementById('btn-interpane-move');
+        const btnCopy = document.getElementById('btn-interpane-copy');
+        if (btnMove && btnCopy) {
+          if (defaultAction === 'move') {
+            btnMove.className = 'btn btn-accent';
+            btnCopy.className = 'btn';
+          } else {
+            btnCopy.className = 'btn btn-accent';
+            btnMove.className = 'btn';
+          }
         }
         showModal('interpane-drop-modal');
       }
@@ -4132,7 +4337,7 @@ function executeInterpaneDrop(action) {
   const { paths, destination, targetPaneIndex } = pendingInterpaneTransfer;
   pendingInterpaneTransfer = null;
 
-  if (App.paranoidMode) {
+  if (App.paranoidMode && App.dndParanoidPrompt) {
     showParanoidConfirm(action, paths, destination, () => {
       executeTransfer(action, paths, destination, targetPaneIndex);
     });
@@ -4237,14 +4442,48 @@ function setupKeyboardNavigation() {
       case 'ArrowDown':
         e.preventDefault();
         if (pane.cursorIndex < pane.entries.length - 1) {
+          const prevCursor = pane.cursorIndex;
           pane.cursorIndex++;
+          if (e.shiftKey) {
+            const anchor = (typeof pane.anchorIndex === 'number' && pane.anchorIndex >= 0 && pane.anchorIndex < pane.entries.length)
+              ? pane.anchorIndex
+              : prevCursor;
+            pane.anchorIndex = anchor;
+            const start = Math.min(anchor, pane.cursorIndex);
+            const end = Math.max(anchor, pane.cursorIndex);
+            if (!e.ctrlKey && !e.metaKey) pane.selected.clear();
+            for (let i = start; i <= end; i++) {
+              if (pane.entries[i]) pane.selected.add(pane.entries[i].path);
+            }
+          } else if (!e.ctrlKey && !e.metaKey) {
+            pane.anchorIndex = pane.cursorIndex;
+            pane.selected.clear();
+            if (pane.entries[pane.cursorIndex]) pane.selected.add(pane.entries[pane.cursorIndex].path);
+          }
           renderPaneTable(App.activePaneIndex);
         }
         break;
       case 'ArrowUp':
         e.preventDefault();
         if (pane.cursorIndex > 0) {
+          const prevCursor = pane.cursorIndex;
           pane.cursorIndex--;
+          if (e.shiftKey) {
+            const anchor = (typeof pane.anchorIndex === 'number' && pane.anchorIndex >= 0 && pane.anchorIndex < pane.entries.length)
+              ? pane.anchorIndex
+              : prevCursor;
+            pane.anchorIndex = anchor;
+            const start = Math.min(anchor, pane.cursorIndex);
+            const end = Math.max(anchor, pane.cursorIndex);
+            if (!e.ctrlKey && !e.metaKey) pane.selected.clear();
+            for (let i = start; i <= end; i++) {
+              if (pane.entries[i]) pane.selected.add(pane.entries[i].path);
+            }
+          } else if (!e.ctrlKey && !e.metaKey) {
+            pane.anchorIndex = pane.cursorIndex;
+            pane.selected.clear();
+            if (pane.entries[pane.cursorIndex]) pane.selected.add(pane.entries[pane.cursorIndex].path);
+          }
           renderPaneTable(App.activePaneIndex);
         }
         break;
@@ -11200,9 +11439,43 @@ function openSettingsModal() {
     notedogFolderInput.value = localStorage.getItem('cd_notedog_folder') || notedogState.rootFolder || '~/Notes';
   }
 
+  const dndActionSel = document.getElementById('setting-dnd-default-action');
+  if (dndActionSel) {
+    dndActionSel.value = App.dndDefaultAction || 'ask';
+  }
+
+  const dndPromptSel = document.getElementById('setting-dnd-prompt-mode');
+  if (dndPromptSel) {
+    dndPromptSel.value = App.dndPromptMode || 'ask';
+  }
+
+  const dndParanoidChk = document.getElementById('setting-dnd-paranoid-prompt');
+  if (dndParanoidChk) {
+    dndParanoidChk.checked = App.dndParanoidPrompt !== false;
+  }
+
   updateColumnCheckboxes();
   renderIconSettingsTab();
   showModal('settings-modal');
+}
+
+function handleDndSettingChange() {
+  const actionSel = document.getElementById('setting-dnd-default-action');
+  const promptSel = document.getElementById('setting-dnd-prompt-mode');
+  const paranoidChk = document.getElementById('setting-dnd-paranoid-prompt');
+
+  if (actionSel) {
+    App.dndDefaultAction = actionSel.value;
+    localStorage.setItem('cd_dnd_default_action', actionSel.value);
+  }
+  if (promptSel) {
+    App.dndPromptMode = promptSel.value;
+    localStorage.setItem('cd_dnd_prompt_mode', promptSel.value);
+  }
+  if (paranoidChk) {
+    App.dndParanoidPrompt = paranoidChk.checked;
+    localStorage.setItem('cd_dnd_paranoid_prompt', paranoidChk.checked ? 'true' : 'false');
+  }
 }
 
 function renderIconSettingsTab() {

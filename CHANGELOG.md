@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.7.4-rc1] - 2026-09-05
+
+### 🚀 Marquee Drag-Selection, Shift Multi-Select & Configurable Drag-and-Drop
+- **Marquee / Rubberband Drag-and-Select**:
+  - Implemented smooth visual rubberband drag-selection with amber highlight rectangle on mouse input across table, grid, and compact view modes.
+  - Real-time bounding box intersection detection dynamically selects files and updates pane footer badges.
+  - Full modifier key support (<kbd>Shift</kbd> to add to selection, <kbd>Ctrl</kbd>/<kbd>Cmd</kbd> to toggle individual items).
+- **Continuous Row Range Selection (<kbd>Shift</kbd> + Click / Arrow Keys)**:
+  - Added Windows File Explorer / Total Commander standard range selection preserving anchor index for intuitive range expansion and shrinking.
+  - Keyboard range selection support via <kbd>Shift</kbd> + <kbd>ArrowUp</kbd> / <kbd>Shift</kbd> + <kbd>ArrowDown</kbd>.
+- **Configurable Drag-and-Drop Defaults & "No Asking" Direct Mode**:
+  - Added Drag-and-Drop & Transfer Defaults section in Settings (<kbd>F10</kbd>).
+  - Selectable default action: `Ask Every Time`, `Move`, or `Copy`.
+  - Confirmation prompt modes: `Always Ask / Show Confirmation Dialog` or `Direct Execution (No Asking / Silent Action)`.
+  - Configurable paranoid SHA-256 prompt behavior on drag-and-drop.
+- **TetraDog (Arcade Tetris ChewToy) Roadmap Integration**:
+  - Added full technical specifications for `TetraDog` arcade Tetris ChewToy to `ROADMAP.md`, `manuals/chewtoys.md`, and `manuals/wishlist.md`.
+
 ## [0.7.3] - 2026-09-04
 
 ### 🚀 Milestone 0.7.3 Release: WebP Power Suite, High-DPI ChewToys & Visual Disk Analyzer

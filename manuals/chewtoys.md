@@ -57,3 +57,12 @@
 ## 7. ✂️ Multi-Part File Splitter & Combiner
 * **Chunk Splitting**: Split oversized files into fixed-size chunks (e.g. for FAT32 filesystem limits, email attachments, or multi-part uploads).
 * **Integrity Combining**: 1-click SHA-256 verified re-assembly back to the original file.
+
+---
+
+## 8. 🕹️ TetraDog (Arcade Tetris Studio & Leaderboard)
+* **Ultra-Responsive 60 FPS Engine**: HTML5 canvas rendering driven by a fixed-timestep physics loop for lag-free performance at Level 15+ / 20G gravity.
+* **DAS & ARR Tuning**: Configurable Delayed Auto Shift and Auto Repeat Rate for competitive, instant piece movement without OS keyboard lag.
+* **Full Guideline Mechanics**: Fair 7-bag randomizer, Super Rotation System (SRS) with wall kicks, ghost piece projection, hold queue, and lock delay.
+* **High Scores & Leaderboard**: Local and server-synchronized high score tracking (lines, scores, levels).
+* **Web Audio Synthesis**: Integrated 8-bit retro sound effect synthesizer with zero external audio assets.

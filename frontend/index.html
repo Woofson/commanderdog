@@ -925,6 +925,45 @@
             </div>
           </div>
 
+          <!-- Drag-and-Drop & Transfer Defaults -->
+          <div class="form-group" style="padding-top: 10px; border-top: 1px dashed var(--border);">
+            <label style="display: flex; align-items: center; gap: 6px; font-weight: 700; color: var(--accent);">
+              <i data-lucide="move" style="width: 15px; height: 15px;"></i>
+              <span>Drag-and-Drop & Transfer Defaults:</span>
+            </label>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin-top: 8px;">
+              <div>
+                <label style="font-size: 11px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 3px;">Default Drag-and-Drop Action:</label>
+                <select id="setting-dnd-default-action" class="pane-quick-filter" style="width: 100%;" onchange="handleDndSettingChange()">
+                  <option value="ask">❓ Ask Every Time (Prompt for Move / Copy)</option>
+                  <option value="move">📦 Move (Move files to destination)</option>
+                  <option value="copy">📋 Copy (Copy files to destination)</option>
+                </select>
+                <div class="form-hint" style="font-size: 10.5px; color: var(--text-dim); margin-top: 3px;">
+                  Keyboard overrides: <kbd>Shift</kbd> = Force Move, <kbd>Alt</kbd> / <kbd>Ctrl</kbd> = Force Copy.
+                </div>
+              </div>
+
+              <div>
+                <label style="font-size: 11px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 3px;">Confirmation Prompt (No Asking):</label>
+                <select id="setting-dnd-prompt-mode" class="pane-quick-filter" style="width: 100%;" onchange="handleDndSettingChange()">
+                  <option value="ask">💬 Always Ask / Show Confirmation Dialog</option>
+                  <option value="direct">⚡ Direct Execution (No Asking / Silent Action)</option>
+                </select>
+                <div class="form-hint" style="font-size: 10.5px; color: var(--text-dim); margin-top: 3px;">
+                  Direct execution performs the default action immediately upon mouse drop without displaying a confirmation modal.
+                </div>
+              </div>
+            </div>
+
+            <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 6px;">
+              <label style="font-weight: normal; display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                <input type="checkbox" id="setting-dnd-paranoid-prompt" checked onchange="handleDndSettingChange()">
+                <span><b>Paranoid Mode Prompt on Drag-and-Drop:</b> Show modal before paranoid SHA-256 verification (uncheck for "no asking" / direct background verification)</span>
+              </label>
+            </div>
+          </div>
+
           <div class="form-group">
             <label>🗑️ Trash Bin Configuration:</label>
             <div style="display: flex; flex-direction: column; gap: 8px;">

@@ -52,6 +52,10 @@
 ├────────────────────────┼─────────────────────────────┼─────────────────────────────────────┤
 │ Obsidian / Joplin      │ NoteDog Notes Studio        │ Hierarchical Markdown notebook,     │
 │                        │                             │ checklists, revision diff history   │
+├────────────────────────┼─────────────────────────────┼─────────────────────────────────────┤
+│ Classic Arcade Tetris  │ TetraDog (Arcade ChewToy)   │ Authentic classic Tetris clone,     │
+│ & Desktop Distraction  │                             │ 60 FPS canvas engine, SRS/NES modes,│
+│                        │                             │ DAS/ARR tuning, high scores & audio │
 └────────────────────────┴─────────────────────────────┴─────────────────────────────────────┘
 ```
 
@@ -146,7 +150,7 @@ graph TD
   - **Settings & Config Identity**: Integrate dedicated asset `assets/conf.png` for Settings modal triggers, menu actions, and header buttons.
   - **ChewToys Suite Launcher**: Update the Tools/ChewToys suite button and header icons with dedicated asset `assets/chewtoy.png`.
 - [x] **ChewToy Unified Shortened Nomenclature** (Shipped in `v0.7.3-rc7`):
-  - Standardize and harmonize the 16 built-in power utilities across all dropdown menus, tooltips, settings, and Spotlight search (`Ctrl+K`):
+  - Standardize and harmonize the 17 built-in power utilities across all dropdown menus, tooltips, settings, and Spotlight search (`Ctrl+K`):
     - `Spot!` (Spotlight Quick-Shifter `Ctrl+K`)
     - `Task Manager` (Background Transfers & Queue)
     - `Terminal` (Slide-Up PTY Web Terminal `'`)
@@ -163,6 +167,7 @@ graph TD
     - `Syncthing` (Live Syncthing Dashboard)
     - `ConvertX` (Universal Transcoder & Converters)
     - `PDFDog` (PDF Power Studio - Merge & Split)
+    - `TetraDog` (Classic Arcade Tetris & Leaderboard)
 - [x] **NoteDog Encrypted Notes & Cross-TUI Compatibility** (Shipped in `v0.7.3-rc8`):
   - **Encrypted Notebooks & Sections**: Support unlocking, editing, and saving encrypted notes and notebook sections using ChaCha20-Poly1305 / Argon2id container standards (`.md.enc` format, `.encrypted` section markers).
   - **NoteDog TUI Cross-Compatibility**: Full interoperability and symmetric decrypt/encrypt parity between the CommanderDog NoteDog ChewToy and the NoteDog TUI terminal client.
@@ -171,6 +176,25 @@ graph TD
   - **Interactive Proportional Treemap & Multi-Color Distribution**: Added responsive proportional squarified/flex treemap tiles with category gradients, 1-click drill-down, and stacked multi-colored storage proportion bar.
   - **Interactive Navigation & Breadcrumbs**: Added full breadcrumb path navigation chips, parent directory (`Up ..`) jump button, real-time live filter, quick panel jump, and terminal launcher.
   - **ChewToy Standards Alignment**: Standardized 42px drag handle header, right-aligned 28px view switchers (`Split`, `Treemap`, `List`), maximize/restore toggle, and 26px sub-header toolbars.
+- [ ] **TetraDog (Authentic Classic Tetris ChewToy & Leaderboard)**:
+  - **Frame-Accurate 60 FPS HTML5 Canvas Engine**: Zero-lag fixed-timestep game loop (`requestAnimationFrame`) engineered for ultra-responsive control and razor-sharp inputs during high-speed master gravity (Level 15+ up to 20G instant drop).
+  - **Competitive Input Ergonomics (DAS & ARR Tuning)**: Sub-millisecond keyboard event handling with customizable Delayed Auto Shift (DAS, ~133ms default) and Auto Repeat Rate (ARR, ~16ms/0ms instant repeat), customizable keybindings (Arrow keys, WASD, Numpad, Space hard drop, Shift/C hold), and responsive touch D-pad for Phone/Tablet viewports.
+  - **Authentic Mechanics & Guideline Parity**:
+    - **Fair 7-Bag Randomizer**: True 7-bag piece distribution preventing prolonged piece droughts.
+    - **Rotation & Wall Kicks**: Super Rotation System (SRS) with standard 5-point wall kicks, plus optional toggle for classic NES single-rotation.
+    - **Guideline Features**: Ghost piece projection, Hold queue (1-swap per turn), Lock Delay (0.5s with maneuver reset limit), and full/mini T-Spin detection.
+  - **Authentic Scoring System & Progressive Gravity**:
+    - Original scoring curve: Single (100×L), Double (300×L), Triple (500×L), Tetris 4-line clears (800×L), Back-to-Back bonuses, Hard/Soft drop points, and T-Spin bonuses.
+    - Progressive gravity scaling across Levels 1–20+ with progressive line clear level-up thresholds.
+  - **High Score Leaderboards**:
+    - **Local Scoreboard**: Persistent `localStorage` tracking personal Top 10 high scores, cleared lines, max level, and timestamps.
+    - **Server-Wide High Scores**: Optional SQLite backend integration (`/api/chewtoys/tetris/scores`) sharing instance-wide leaderboards.
+  - **Zero-Dependency 8-Bit Web Audio Synthesizer**:
+    - Retro synthesized audio effects (movement bleeps, hard drop slam, line clear fanfare, level-up arpeggio, game over chime) using the browser Web Audio API oscillator with 1-click sound mute.
+  - **ChewToy Standards Compliance**:
+    - Dual-mode architecture: Freely floating draggable/resizable window (`42px` drag handle header) or docked directly into Panel 1 / Panel 2.
+    - Uniform `28px` stealth window action buttons (Pause, Restart, Leaderboard, Audio, Settings, Dock/Float, Close).
+    - Retro theme palettes: `Woofsons Amber Charcoal` (default amber glow), `Game Boy Monochrome Green`, `NES 8-Bit Retro`, and `Arcade Cyberpunk`.
 
 ---
 
@@ -206,6 +230,8 @@ graph TD
 | **`v0.6.9`** | Bvckup 2 & SyncToy Delta Backup, Background Daemons & Automation | **Released** | [View Notes](CHANGELOG.md#069---2026-09-01) |
 | **`v0.7.0`** | NoteDog Notes Studio, Tags & Colors, Custom Workspaces | **Released** | [View Notes](CHANGELOG.md#070---2026-09-01) |
 | **`v0.7.1`** | Universal Floating Viewers, Live Tail Follow, Bundled Fonts & Themes | **Released** | [View Notes](CHANGELOG.md#071---2026-09-03) |
-| **`v0.7.2`** | Documentation Reorganization & Chewtoy UI/UX Refinements | **In Progress** | — |
+| **`v0.7.2`** | Documentation Reorganization & Chewtoy UI/UX Refinements | **Released** | [View Notes](CHANGELOG.md#072---2026-09-04) |
+| **`v0.7.3`** | WebP Icon Suite, Visual Disk Treemap, NoteDog Encryption & Release Automation | **Released** | [View Notes](CHANGELOG.md#073---2026-09-04) |
+| **`v0.7.4`** | TetraDog (Classic Arcade Tetris ChewToy & Leaderboard) | **In Progress** | — |
 | **`v0.8.0`** | Enterprise OIDC SSO, Collaborative Office (WOPI) & Automation | *Planned* | — |
 | **`v1.0.0`** | High-Performance P2P Cluster & Distributed Virtual Storage | *Planned* | — |

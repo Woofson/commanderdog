@@ -21,6 +21,7 @@
 | **FastStone / Feh Viewer** | **High-DPI Media Quick View** | ✅ Mouse wheel folder browsing, focal zoom, slideshow, audio/video playback |
 | **Beyond Compare / WinMerge** | **DiffDog File & Directory Compare** | ✅ Side-by-side text/code diffs with unified diff viewer; visual directory diff table |
 | **HandBrake / FFmpeg GUI** | **ConvertX Media Transcoder** | ✅ In-browser media conversion (images, audio, video, documents) |
+| **Classic Arcade Tetris** | **TetraDog (Arcade Tetris ChewToy)** | 📋 60 FPS canvas clone, SRS/NES rotation, DAS/ARR tuning, high scores & synth audio |
 
 ---
 
@@ -52,6 +53,12 @@
 - [ ] **Virtual Archive VFS**: Browse inside `.zip`, `.tar.gz`, `.7z`, `.rar`, `.iso` without full extraction.
 - [ ] **Multi-Tab Workspaces**: Save and restore multi-pane arrangements and open directories as named workspace profiles.
 - [ ] **Type-Ahead Quick Filter**: Instant keyboard search filtering visible rows with wildcard and regex support.
+- [ ] **TetraDog (Arcade Tetris Studio & Leaderboard)**:
+  - 60 FPS HTML5 canvas engine with fixed-timestep game loop for ultra-responsiveness at master speeds.
+  - DAS (Delayed Auto Shift) & ARR (Auto Repeat Rate) calibration with customizable keybindings.
+  - 7-Bag randomizer, SRS wall kicks, ghost piece, hold queue, lock delay, and authentic scoring formulas.
+  - Local and server-wide persistent Top 10 High Score Leaderboards.
+  - Synthesized 8-bit retro Web Audio effects and multiple color palettes (Amber Charcoal, Game Boy, NES, Cyberpunk).
 
 ### 4. Security & Enterprise
 - [ ] **Enterprise OIDC SSO**: Authentik, Authelia, Keycloak, Okta, and Google Workspace integration alongside PAM.
