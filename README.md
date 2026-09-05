@@ -13,7 +13,7 @@
 - **Leftmost Unified Pane Customization (`[ 1 ]`, `[ 2 ]`, ...)**:
   - Clean non-redundant pane identifiers placed at the far left of each toolbar.
   - 1-Click popover: In-place renaming, 9 color presets + custom hex color picker, border width (`1px`–`4px`), and active ring styles.
-- **Orthodox Commander Keybindings**: Full keyboard control (`Tab` switch pane, `F1` Help, `F2` Rename, `F3` Quick View, `F4` Dual-Pane Editor, `F5` Copy, `F6` Move, `F7` Mkdir, `F8` Delete/Trash, `F9`/`Ctrl+D` Diff, `F10` Settings, `Insert`/`Space` multi-select, `Shift+F6` Bulk Rename, `Ctrl+C`/`X`/`V` Clipboard, `Ctrl+K` Spotlight).
+- **Orthodox Commander Keybindings**: Full keyboard control (`Tab` switch pane, `F1` Help, `F2` Rename, `F3` Quick View, `F4` Dual-Pane Editor, `F5` Copy, `F6` Move, `F7` Mkdir, `F8` Delete/Trash, `F9`/`Ctrl+D` Diff, `F10` Settings, `Ctrl+Q` Quit/Close, `Insert`/`Space` multi-select, `Shift+F6` Bulk Rename, `Ctrl+C`/`X`/`V` Clipboard, `Ctrl+K` Spotlight).
 - **Enhanced Mouse & Touch Controls**:
   - **Double-Click Empty Space Navigation**: Double-click anywhere on empty panel space to jump up one directory level.
   - **Empty-Space Context Menu**: Right-click blank space to create new files/folders, paste clipboard items, open terminal, or analyze disk usage.

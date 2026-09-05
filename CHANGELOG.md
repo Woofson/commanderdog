@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.7.4-rc4] - 2026-09-05
+
+### 🛑 Global Clean Quit / Exit Shortcut (<kbd>Ctrl+Q</kbd> / <kbd>Cmd+Q</kbd>)
+- **Global Clean Termination**:
+  - Wired <kbd>Ctrl+Q</kbd> / <kbd>Cmd+Q</kbd> to initiate clean application shutdown across native desktop standalone mode and web sessions.
+  - Features an elegant confirmation modal (`showConfirmDialog`) before sending graceful `POST /api/system/exit` termination.
+  - Added <kbd>Ctrl+Q</kbd> to Keybindings reference table in Settings (<kbd>F10</kbd>) and `README.md`.
+
 ## [0.7.4-rc3] - 2026-09-05
 
 ### 🎯 Strict Drag-and-Drop & Drag-and-Select Separation

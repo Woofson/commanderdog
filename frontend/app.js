@@ -4461,6 +4461,11 @@ function setupKeyboardNavigation() {
         hideContextMenu();
         closeModal();
       }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'q' || e.key === 'Q')) {
+        e.preventDefault();
+        confirmExitCommanderDog();
+        return;
+      }
       return;
     }
 
@@ -4491,6 +4496,11 @@ function setupKeyboardNavigation() {
     }
 
     if (e.ctrlKey || e.metaKey) {
+      if (e.key === 'q' || e.key === 'Q') {
+        e.preventDefault();
+        confirmExitCommanderDog();
+        return;
+      }
       if (e.altKey && (e.key === 'l' || e.key === 'L')) {
         e.preventDefault();
         lockSession();
@@ -18998,7 +19008,17 @@ function handleLogoutOrExit() {
 }
 
 async function confirmExitCommanderDog() {
-  const confirmed = confirm("Are you sure you want to quit CommanderDog?");
+  const isStandalone = App.config?.server?.standalone || window.__TAURI__ !== undefined || window.__WRY__ !== undefined || document.body.classList.contains('standalone-mode');
+
+  const confirmed = await showConfirmDialog({
+    title: 'Quit CommanderDog',
+    subtitle: isStandalone ? 'Terminate native application' : 'Clean session shutdown',
+    message: 'Are you sure you want to quit CommanderDog and terminate the process?',
+    icon: 'power',
+    type: 'danger',
+    confirmText: 'Quit Application',
+    cancelText: 'Cancel'
+  });
   if (!confirmed) return;
 
   try {
@@ -19017,11 +19037,13 @@ async function confirmExitCommanderDog() {
       window.__TAURI__.process.exit(0);
     } catch (e) {}
   } else {
-    window.close();
+    try {
+      window.close();
+    } catch (_) {}
     document.body.innerHTML = `
       <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: var(--bg-dark, #0b0f14); color: var(--text-main, #e1e7ec); font-family: sans-serif; text-align: center; padding: 20px;">
         <h2 style="color: var(--accent, #f59e0b); margin-bottom: 8px;">🐕 CommanderDog Closed</h2>
-        <p style="color: var(--text-muted, #7a889b); font-size: 13px;">The application process has been terminated. You can safely close this window.</p>
+        <p style="color: var(--text-muted, #7a889b); font-size: 13px;">The application process has been terminated cleanly. You can safely close this window.</p>
       </div>
     `;
   }
