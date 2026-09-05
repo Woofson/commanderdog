@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.7.4-rc8] - 2026-09-05
+
+### 🎨 Frameless Icon Suite & 128px Amber Asset Integration
+- **New Frameless & 128px Amber Icon Suite**:
+  - Integrated full set of 128x128 lossless `.webp` icons across both root `assets/` and embedded `frontend/assets/128/`.
+  - **Frameless Apps / ChewToys Launchpad**: Updated main header launchpad trigger (`#btn-tools-menu`), Settings Tools tab, and context menus with modern frameless apps icon (`amber-frameless-apps.webp`).
+  - **Frameless Settings & Config**: Updated Settings modal header, profile menu item, and context menu template actions with crisp frameless settings icon (`amber-frameless-settings.webp`).
+  - **Frameless Admin & Security**: Integrated frameless administrator shield icon into Admin Control Panel modal header and profile dropdown (`amber-frameless-admin.webp`).
+  - **Frameless Search & Quick-Switcher**: Replaced mobile Spotlight trigger with frameless search icon (`amber-frameless-search.webp`).
+  - **About & Info**: Added dedicated info badge icon to About CommanderDog modal header, profile menu, and Spotlight actions (`amber-info.webp`).
+  - **Folder Tree & Flat Branch Views**: Integrated dedicated amber folder tree (`amber-folder-tree.webp`) and Git branch (`amber-git-branch.webp`) icons into Tools dropdown, tree sidebar header, branch banner, and Spotlight.
+  - **Stats & Disk Usage Treemap**: Integrated dedicated amber piechart icon (`amber-piechart.webp`) into Disk Usage ChewToy modal header, Tools launchpad menu, and context menus.
+
 ## [0.7.4-rc7] - 2026-09-05
 
 ### 🖼️ Enhanced Photo/Image Viewer Mouse Scroll & In-Viewer File Operations

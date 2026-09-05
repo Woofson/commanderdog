@@ -1880,7 +1880,7 @@ function renderPaneTable(paneIndex) {
         : '';
       branchBanner.innerHTML = `
         <div class="branch-banner-info">
-          <i data-lucide="git-branch" class="branch-banner-icon"></i>
+          <img src="assets/amber-git-branch.webp" class="branch-banner-icon" alt="Branch" style="width: 14px; height: 14px; object-fit: contain; vertical-align: middle;">
           <span class="branch-banner-title">Flat Branch View</span>
           <span class="branch-banner-count">&bull; ${count} items flattened</span>
           ${truncatedBadge}
@@ -8489,8 +8489,8 @@ function updateLogoutOrExitButton() {
 // ---------------- TOOLS & CHEWTOYS LAUNCHPAD MENU CUSTOMIZER ----------------
 const DEFAULT_TOOLS_MENU = [
   { id: 'spotlight', label: 'Spot!', icon: 'assets/spot.webp', action: 'openSpotlightModal()', desc: 'Instant search across files, tools & themes (Ctrl+K)', visible: true },
-  { id: 'tree', label: 'Tree', icon: 'folder-tree', iconColor: 'var(--accent)', action: 'toggleFolderTree()', desc: 'Collapsible directory navigation tree (Ctrl+T)', visible: true },
-  { id: 'branch', label: 'Flat', icon: 'git-branch', iconColor: 'var(--accent)', action: 'toggleBranchView()', desc: 'Flatten recursive subfolders into single list (Ctrl+B)', visible: true },
+  { id: 'tree', label: 'Tree', icon: 'assets/amber-folder-tree.webp', action: 'toggleFolderTree()', desc: 'Collapsible directory navigation tree (Ctrl+T)', visible: true },
+  { id: 'branch', label: 'Flat', icon: 'assets/amber-git-branch.webp', action: 'toggleBranchView()', desc: 'Flatten recursive subfolders into single list (Ctrl+B)', visible: true },
   { id: 'notedog', label: 'NoteDog', icon: 'assets/note.webp', action: 'openFloatingNoteDog()', desc: 'Notes, checklists, templates & markdown studio', visible: true },
   { id: 'calc', label: 'Calculator', icon: 'assets/calc.webp', action: 'openFloatingCalculator()', desc: 'Storage units, conversions & live history', visible: true },
   { id: 'terminal', label: 'Terminal', icon: 'assets/term.webp', action: 'toggleTerminal()', desc: 'Interactive slide-up & floating PTY shell (\`)', visible: true },
@@ -8499,7 +8499,7 @@ const DEFAULT_TOOLS_MENU = [
   { id: 'search', label: 'Search', icon: 'assets/search.webp', action: 'openSearchModal()', desc: 'Recursive filename, regex & size filter (Ctrl+F)', visible: true },
   { id: 'shares', label: 'Share Manager', icon: 'assets/sharemgr.webp', action: 'openSharesManager()', desc: 'Manage public share links and guest dropboxes', visible: true },
   { id: 'sync', label: 'Backup', icon: 'assets/sync.webp', action: 'openSyncModal()', desc: 'Two-way sync, mirrors, snapshot archives & cron (SyncToy / Bvckup 2)', visible: true },
-  { id: 'du', label: 'Stats', icon: 'pie-chart', iconColor: 'var(--accent)', action: 'openDiskUsageModal()', desc: 'Treemap visualizer and heavy space consumer analyzer', visible: true },
+  { id: 'du', label: 'Stats', icon: 'assets/amber-piechart.webp', action: 'openDiskUsageModal()', desc: 'Treemap visualizer and heavy space consumer analyzer', visible: true },
   { id: 'syncthing', label: 'Syncthing', icon: 'assets/syncthing.webp', action: 'openSyncthingModal()', desc: 'Continuous peer-to-peer file synchronization', visible: true },
   { id: 'converter', label: 'ConvertX', icon: 'assets/convertx.webp', action: 'openConverterModal()', desc: 'Batch file format conversions for media & docs', visible: true },
   { id: 'pdf', label: 'PDFDog', icon: 'assets/amber-pdftool.webp', action: 'openPdfToolModal()', desc: 'Merge, split, extract pages & inspect PDFs (PDF Power Studio)', visible: true },
@@ -9732,7 +9732,7 @@ function showContextMenu(x, y) {
         <div class="context-sep"></div>
         <div class="context-item" onclick="saveContextItemAsTemplate(); hideContextMenu();"><i data-lucide="bookmark-plus" style="width: 13px; color: var(--accent);"></i> Save File as Template...</div>
         <div class="context-item" onclick="openCreateTemplateModal(); hideContextMenu();"><i data-lucide="file-code-2" style="width: 13px;"></i> + Create Template...</div>
-        <div class="context-item" onclick="openSettings(); switchSettingsTab('tab-templates'); hideContextMenu();"><img src="assets/conf.webp" alt="Settings" style="width: 13px; height: 13px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> Manage Templates...</div>
+        <div class="context-item" onclick="openSettings(); switchSettingsTab('tab-templates'); hideContextMenu();"><img src="assets/amber-frameless-settings.webp" alt="Settings" style="width: 13px; height: 13px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> Manage Templates...</div>
       </div>
     </div>
     <div class="context-sep"></div>
@@ -9802,7 +9802,7 @@ function showContextMenu(x, y) {
 
     <!-- Group 4: Tools Submenu -->
     <div class="context-item has-submenu" onmouseenter="adjustSubmenuPosition(this)" onclick="toggleContextSubmenu(event, this)">
-      <div style="display:flex; align-items:center; gap:8px;"><img src="assets/chewtoy.webp" alt="Tools" style="width: 14px; height: 14px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> Tools</div>
+      <div style="display:flex; align-items:center; gap:8px;"><img src="assets/amber-frameless-apps.webp" alt="Tools" style="width: 14px; height: 14px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> Tools</div>
       <i data-lucide="chevron-right" class="submenu-chevron" style="width: 12px;"></i>
       <div class="context-submenu">
         <div class="context-item" onclick="openSearchModal()"><img src="assets/search.webp" alt="Search" style="width: 13px; height: 13px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> Advanced Search (Ctrl+F)</div>
@@ -9828,7 +9828,7 @@ function showContextMenu(x, y) {
         <div class="context-item" onclick="triggerFileSplit()"><i data-lucide="scissors" style="width: 13px;"></i> Split Large File...</div>
         <div class="context-item" onclick="triggerFileCombine()"><i data-lucide="merge" style="width: 13px;"></i> Combine Part Files (.001, .002)...</div>
         <div class="context-item" onclick="openSyncModal()"><img src="assets/sync.webp" alt="Backup" style="width: 13px; height: 13px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> Backup (Sync & Replication)...</div>
-        <div class="context-item" onclick="openDiskUsageModal()"><i data-lucide="pie-chart" style="width: 13px;"></i> Stats (Disk Usage & Treemap)</div>
+        <div class="context-item" onclick="openDiskUsageModal()"><img src="assets/amber-piechart.webp" alt="Stats" style="width: 13px; height: 13px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> Stats (Disk Usage & Treemap)</div>
         <div class="context-item" onclick="triggerGitManager()"><i data-lucide="git-branch" style="width: 13px;"></i> Git Manager & Diff</div>
       </div>
     </div>
@@ -10410,7 +10410,7 @@ function showEmptySpaceContextMenu(x, y, paneIndex) {
         ${generateTemplateSubmenuItems()}
         <div class="context-sep"></div>
         <div class="context-item" onclick="openCreateTemplateModal(); hideContextMenu();"><i data-lucide="file-code-2" style="width: 13px;"></i> + Create Template...</div>
-        <div class="context-item" onclick="openSettings(); switchSettingsTab('tab-templates'); hideContextMenu();"><img src="assets/conf.webp" alt="Settings" style="width: 13px; height: 13px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> Manage Templates...</div>
+        <div class="context-item" onclick="openSettings(); switchSettingsTab('tab-templates'); hideContextMenu();"><img src="assets/amber-frameless-settings.webp" alt="Settings" style="width: 13px; height: 13px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> Manage Templates...</div>
       </div>
     </div>
     <div class="context-item" onclick="openCreateVaultModal()"><i data-lucide="shield-check" style="width: 14px; color: var(--accent);"></i> Create Encrypted Vault (.cdvault)...</div>
@@ -10422,7 +10422,7 @@ function showEmptySpaceContextMenu(x, y, paneIndex) {
     <div class="context-item" onclick="openTerminalInPath('${escapeHtml(pane.path)}')"><img src="assets/term.webp" alt="Terminal" style="width: 14px; height: 14px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> Open in Terminal (\`)</div>
     <div class="context-item" onclick="openSearchModal()"><img src="assets/search.webp" alt="Search" style="width: 14px; height: 14px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> Search in Directory (Ctrl+F)</div>
     <div class="context-item" onclick="openSyncModal()"><img src="assets/sync.webp" alt="Backup" style="width: 14px; height: 14px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> Backup (Sync & Replication)...</div>
-    <div class="context-item" onclick="openDiskUsageModal('${escapeHtml(pane.path)}')"><i data-lucide="pie-chart" style="width: 14px; color: var(--accent);"></i> Stats (Disk Usage & Treemap)...</div>
+    <div class="context-item" onclick="openDiskUsageModal('${escapeHtml(pane.path)}')"><img src="assets/amber-piechart.webp" alt="Stats" style="width: 14px; height: 14px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> Stats (Disk Usage & Treemap)...</div>
     <div class="context-item" onclick="openRemoteModal(${paneIndex})"><i data-lucide="network" style="width: 14px;"></i> Mount Remote Storage Here...</div>
     ${pane.path.includes('://') ? `<div class="context-item" onclick="disconnectPaneRemote(${paneIndex})" style="color: var(--danger, #ef4444);"><i data-lucide="log-out" style="width: 14px; color: var(--danger, #ef4444);"></i> Disconnect Remote Storage</div>` : ''}
     <div class="context-item" onclick="addCurrentPaneToQuickDest()"><i data-lucide="bookmark-plus" style="width: 14px;"></i> Bookmark Current Path</div>
@@ -19643,8 +19643,8 @@ let spotlightItems = [];
 const SPOTLIGHT_STATIC_ACTIONS = [
   { id: 'notedog', title: 'NoteDog', sub: 'Hierarchical notes, markdown editor, interactive checklists, templates & versions', icon: 'assets/note.webp', cat: 'actions', action: () => openFloatingNoteDog() },
   { id: 'calc', title: 'Calculator', sub: 'Interactive floating calculator with storage units & base conversions', icon: 'assets/calc.webp', cat: 'actions', action: () => openFloatingCalculator() },
-  { id: 'branch', title: 'Flat', sub: 'Flatten all subdirectories into a single unified list (Ctrl+B)', icon: 'git-branch', cat: 'actions', action: () => toggleBranchView() },
-  { id: 'tree', title: 'Tree', sub: 'Collapsible directory navigation tree (Ctrl+T)', icon: 'folder-tree', cat: 'actions', action: () => toggleFolderTree() },
+  { id: 'branch', title: 'Flat', sub: 'Flatten all subdirectories into a single unified list (Ctrl+B)', icon: 'assets/amber-git-branch.webp', cat: 'actions', action: () => toggleBranchView() },
+  { id: 'tree', title: 'Tree', sub: 'Collapsible directory navigation tree (Ctrl+T)', icon: 'assets/amber-folder-tree.webp', cat: 'actions', action: () => toggleFolderTree() },
   { id: 'tags', title: 'Color Labels & Custom Tags', sub: 'Assign color labels and custom tags to selected items', icon: 'tag', cat: 'actions', action: () => triggerEditTagsModal() },
   { id: 'term', title: 'Terminal', sub: 'Open integrated interactive terminal (` or F4)', icon: 'assets/term.webp', cat: 'actions', action: () => toggleTerminal() },
   { id: 'edit', title: 'EditorDog', sub: 'Open floating EditorDog code & text editor (F4)', icon: 'assets/edit.webp', cat: 'actions', action: () => openFloatingEditor() },
@@ -19652,13 +19652,14 @@ const SPOTLIGHT_STATIC_ACTIONS = [
   { id: 'search', title: 'Search', sub: 'Search files and folders recursively (Ctrl+F)', icon: 'assets/search.webp', cat: 'actions', action: () => openSearchModal() },
   { id: 'shares', title: 'Share Manager', sub: 'Manage public share links and guest upload dropboxes', icon: 'assets/sharemgr.webp', cat: 'actions', action: () => openSharesManager() },
   { id: 'sync', title: 'Backup', sub: 'Delta Backup & Sync Studio: Two-Way Sync, Mirror, Contribute & Versioning (SyncToy / Bvckup 2)', icon: 'assets/sync.webp', cat: 'actions', action: () => openSyncModal() },
-  { id: 'du', title: 'Stats', sub: 'Disk Usage & Storage Treemap Analyzer: inspect space consumption', icon: 'pie-chart', cat: 'actions', action: () => openDiskUsageModal() },
+  { id: 'du', title: 'Stats', sub: 'Disk Usage & Storage Treemap Analyzer: inspect space consumption', icon: 'assets/amber-piechart.webp', cat: 'actions', action: () => openDiskUsageModal() },
   { id: 'syncthing', title: 'Syncthing', sub: 'Continuous peer-to-peer file synchronization dashboard', icon: 'assets/syncthing.webp', cat: 'actions', action: () => openSyncthingModal() },
   { id: 'convert', title: 'ConvertX', sub: 'Universal transcoder: batch convert images, documents, audio, videos', icon: 'assets/convertx.webp', cat: 'actions', action: () => openConverterModal() },
   { id: 'pdf', title: 'PDFDog', sub: 'PDF Power Studio: visual merge, split, extract pages & inspect PDFs', icon: 'assets/amber-pdftool.webp', cat: 'actions', action: () => openPdfToolModal() },
   { id: 'tasks', title: 'Task Manager', sub: 'View active background transfers, speeds, and queued jobs', icon: 'assets/task.webp', cat: 'actions', action: () => openFloatingTaskManager() },
-  { id: 'settings', title: 'User Settings & Preferences', sub: 'Themes, keybindings, and preferences (F10)', icon: 'assets/conf.webp', cat: 'actions', action: () => openSettingsModal() },
-  { id: 'admin', title: 'Admin Control Panel', sub: 'User management, RBAC, mounts, audit logs', icon: 'shield-alert', cat: 'actions', action: () => openAdminPanel() },
+  { id: 'settings', title: 'User Settings & Preferences', sub: 'Themes, keybindings, and preferences (F10)', icon: 'assets/amber-frameless-settings.webp', cat: 'actions', action: () => openSettingsModal() },
+  { id: 'admin', title: 'Admin Control Panel', sub: 'User management, RBAC, mounts, audit logs', icon: 'assets/amber-frameless-admin.webp', cat: 'actions', action: () => openAdminPanel() },
+  { id: 'about', title: 'About CommanderDog', sub: 'Version, architecture, developer info, and MIT license details', icon: 'assets/amber-frameless-info.webp', cat: 'actions', action: () => openAboutModal() },
   { id: 'profile', title: 'User Profile & Password', sub: 'Account credentials, session avatar, and security', icon: 'user', cat: 'actions', action: () => openUserProfileModal() },
   { id: 'lock', title: 'Lock Session', sub: 'Lock CommanderDog immediately (Ctrl+Alt+L)', icon: 'lock', cat: 'actions', action: () => lockSession() },
   { id: 'mkdir', title: 'New Folder', sub: 'Create a new directory in active pane (F7)', icon: 'folder-plus', cat: 'actions', action: () => triggerMkdir() },

@@ -1,7 +1,7 @@
-# <img src="assets/logo.png" alt="CommanderDog Logo" height="40" style="vertical-align: -6px; margin-right: 8px;" /> CommanderDog
+# <img src="assets/logo.png" alt="CommanderDog Logo" height="36" valign="middle" /> CommanderDog
 
 <div align="center">
-  <img src="assets/CommanderDogWin.png" alt="CommanderDog Windows Desktop Edition" width="800" style="border-radius: 8px; box-shadow: 0 12px 32px rgba(0,0,0,0.6);" />
+  <img src="assets/CommanderDogWin.png" alt="CommanderDog Windows Desktop Edition" width="800" />
   <p><em>Multi-Tab File Commander for Web & Native Desktop (Windows & Linux) — By Woofson</em></p>
 </div>
 
@@ -24,7 +24,7 @@
 - **Transparent Encrypted Vaults (AES-256-GCM / Argon2id)**:
   - Create self-contained, password-protected virtual filesystem containers (`.cdvault` / `.cdv`).
   - Decrypts and encrypts files **on-the-fly in volatile RAM** with zero plaintext artifacts touching the disk.
-  - Automatic inactivity lock timers, 1-click breadcrumb lock, and seamless in-memory editing with EditorDog. See [**VAULT.md**](VAULT.md) for full guide.
+  - Automatic inactivity lock timers, 1-click breadcrumb lock, and seamless in-memory editing with EditorDog. See [**`manuals/vaults.md`**](manuals/vaults.md) for the full guide.
 - **Zero-Leakage In-Memory Credential Security**:
   - Volatile in-memory authentication router (`resolveAuthUri`) prevents passwords from ever being stored in `localStorage`, URL history, search inputs, or DOM attributes.
   - Automated URI sanitization across all displays, toasts, and backend endpoints.
@@ -39,7 +39,7 @@
   - Live throughput calculations (MB/s), dynamic ETA countdowns, animated progress bars, and cancellation controls.
 - **Pure-Rust PDF Split & Merger Studio**:
   - Merge arbitrary PDF documents with visual reordering and bookmark outlines.
-  - Extract individual pages, custom page ranges (e.g. `1-3, 5, 8-10`), or $N$-page bundles.
+  - Extract individual pages, custom page ranges (e.g. `1-3, 5, 8-10`), or N-page bundles.
   - Visual page organizer grid with 90° rotation controls per page.
 - **Built-in Rich Image Viewer**:
   - Supports `.png`, `.jpg`, `.jpeg`, `.webp`, `.svg`, `.gif`, `.bmp`, `.ico`, `.avif`, `.tiff`.
@@ -52,7 +52,7 @@
   - **Extension Management**: Batch normalize extensions.
   - **Conflict Prevention**: Real-time side-by-side preview with collision warning.
 - **Slide-Up Native Web Terminal (PTY)**:
-  - Toggle with `Ctrl+\`` or from the Tools menu.
+  - Toggle with <kbd>Ctrl+`</kbd> or from the Tools menu.
   - Native pseudo-terminal running `bash`/`sh` on Linux or `powershell`/`cmd.exe` on Windows over WebSockets, starting in the active pane's current directory.
 - **Protocols & Cloud Object Storage Manager**:
   - **Local Filesystem** (with Zero-Dependency Dynamic PAM login)
@@ -143,7 +143,7 @@ Default credentials:
   paru -S commanderdog
   ```
 - **Debian / Ubuntu**: Install pre-built `.deb` (`sudo dpkg -i commanderdog_*.deb`).
-- **Proxmox VE / Linux LXC**: See the complete [manuals/lxc-proxmox.md](manuals/lxc-proxmox.md) guide or run `scripts/lxc-install.sh`.
+- **Proxmox VE / Linux LXC**: See the complete [**`manuals/lxc-proxmox.md`**](manuals/lxc-proxmox.md) guide or run `scripts/lxc-install.sh`.
 
 ---
 
@@ -225,24 +225,25 @@ default_theme = "amber-charcoal" # Active theme ID or custom theme from themes/
 
 | Key | Action |
 | :--- | :--- |
-| **`Tab` / `Shift+Tab`** | Switch Active Pane |
+| **`Tab`** / **`Shift+Tab`** | Switch Active Pane |
 | **`F1`** | Help & Keybindings Modal |
 | **`F2`** | Rename Selected Entry |
 | **`F3`** | Quick View / Rich Image Viewer |
 | **`F4`** | Built-in Dual-Pane Editor & Markdown Viewer |
 | **`F5`** | DeltaCopy / Transfer Modal (TeraCopy / RoboCopy engine) |
 | **`F6`** | Move Selected Items to Target Pane |
-| **`Shift+F6` / `Ctrl+M`** | Advanced Multi-File Bulk Renamer |
+| **`Shift+F6`** / **`Ctrl+M`** | Advanced Multi-File Bulk Renamer |
 | **`F7`** | Create New Folder |
-| **`F8` / `Delete`** | Delete / Move to Trash |
-| **`F9` / `Ctrl+D`** | Folder & File Comparison (Diff) |
+| **`F8`** / **`Delete`** | Delete / Move to Trash |
+| **`F9`** / **`Ctrl+D`** | Folder & File Comparison (Diff) |
 | **`F10`** | Settings Hub (General, Desktop, Palette, Bookmarks, Keys) |
-| **`Ctrl+C` / `Ctrl+X` / `Ctrl+V`** | Copy, Cut, and Paste files across panels |
-| **`Ctrl+\``** | Toggle Slide-Up Native Web Terminal (PTY) |
-| **`Alt+1` .. `Alt+4`** | Jump to Pane 1, 2, 3, or 4 |
-| **`Insert` / `Space`** | Toggle Item Selection & Step Down |
+| **`Ctrl+C`** / **`Ctrl+X`** / **`Ctrl+V`** | Copy, Cut, and Paste files across panels |
+| **<kbd>Ctrl+`</kbd>** | Toggle Slide-Up Native Web Terminal (PTY) |
+| **`Alt+1`** .. **`Alt+4`** | Jump to Pane 1, 2, 3, or 4 |
+| **`Insert`** / **`Space`** | Toggle Item Selection & Step Down |
 | **`Ctrl+A`** | Select All in Active Pane |
 | **`Ctrl+P`** | Toggle Paranoid File Handling Mode |
+| **`Ctrl+Q`** / **`Cmd+Q`** | Clean Exit / Quit CommanderDog |
 
 ---
 

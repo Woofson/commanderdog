@@ -1,9 +1,0 @@
-Todos from Woofson 05.09.2026:
-
-- [x] Drag and select - on PC viewport - or when mouse input.
-- [x] Select-shift-select selects multiple in a row, not like ctrl+select selects multiple here and there.
-- [x] Drag and drop default action, move or copy, with or without paranoid, never ask again - can be changed in Settings (F10)
-- [x] collision on drag-and-drop and drag-and-select (drag-and-select strictly starts on empty space)
-- [x] mouse scroll in the viewer/photoviewer.
-- [x] file actions from the viewer, delete, move to... copy to... etc. confirmation z-index..
-
