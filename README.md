@@ -106,13 +106,23 @@
 
 ## Quick Start
 
-### Build & Run Locally (Rust)
+> 📦 For comprehensive native desktop, tiling window manager, Arch AUR, Windows, and Docker guides, see [**`INSTALL.md`**](INSTALL.md).
 
+### 1. Native Desktop Mode (Linux / Tiling WMs)
 ```bash
-# Build release binary
+# Build native standalone desktop app
+cargo build --release --features gui
+
+# Run in borderless standalone mode (Hyprland / Sway / i3)
+./target/release/commanderdog -s --frameless
+```
+
+### 2. Headless Server & Web Commander
+```bash
+# Build release binary (no WebKit dependencies required)
 cargo build --release
 
-# Run CommanderDog
+# Run CommanderDog server
 ./target/release/commanderdog
 ```
 

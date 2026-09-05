@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.7.4-rc3] - 2026-09-05
+
+### 🎯 Strict Drag-and-Drop & Drag-and-Select Separation
+- **Strict Empty-Space Starting Requirement for Marquee Selection**:
+  - Drag-and-select (rubberband marquee) now exclusively starts when mouse interaction originates on **empty space** (blank background, margins, or space below file rows/cards).
+  - Dragging starting on any file row, card, or item seamlessly triggers **HTML5 Drag-and-Drop** transfers to target folders and panes without collision.
+- **Unified Drag-and-Drop Across All View Modes**:
+  - Added full HTML5 drag-and-drop support (`dragstart`, `dragover`, `dragleave`, `drop`) and visual drag-hover cues (`.drag-over-card`, `.drag-over-item`) to Grid Gallery and Compact List views.
+
+## [0.7.4-rc2] - 2026-09-05
+
+### 🖱️ Mouse Deselection & Dedicated Installation Guide
+- **Mouse Deselection on Empty Space & Single Clicks**:
+  - Clicking on empty space (outside files or below lists) now cleanly deselects all selected items in table, grid, and compact list views.
+  - Clicking a single row without modifier keys deselects all other selected items and focuses the target item.
+  - Pressing <kbd>Escape</kbd> when no modal/menu is active now instantly deselects all selected items in the active pane.
+  - Fixed grid card and compact list item propagation on double click and context menus.
+- **Dedicated Comprehensive `INSTALL.md`**:
+  - Documented native desktop builds (`cargo build --release --features gui`), tiling window manager borderless execution (`commanderdog -s --frameless`), Hyprland window rules, Arch AUR packages, Windows installers, and headless server mode.
+  - Indexed across `README.md` and `manuals/README.md`.
+
 ## [0.7.4-rc1] - 2026-09-05
 
 ### 🚀 Marquee Drag-Selection, Shift Multi-Select & Configurable Drag-and-Drop

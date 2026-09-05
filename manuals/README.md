@@ -8,6 +8,7 @@ Welcome to the official **CommanderDog** manual and documentation index.
 
 | Document | Description | Target Audience |
 | :--- | :--- | :--- |
+| [**`INSTALL.md`**](../INSTALL.md) | Centralized installation guide: Native Desktop (`--features gui`), Tiling WMs (`-s --frameless`), AUR, Windows, Docker | All Users & Developers |
 | [**`chewtoys.md`**](chewtoys.md) | Comprehensive manual for NoteDog Notes, Bite! Terminal, Delta Backup Studio, PDF Toolkit, and Vaults | All Users & Administrators |
 | [**`docker.md`**](docker.md) | Multi-arch Docker & GHCR container deployment with Compose, Portainer, and volume persistence | DevOps & Homelab Admins |
 | [**`lxc-proxmox.md`**](lxc-proxmox.md) | 1-click Proxmox VE & Debian LXC container setup, TurnKey Linux, and systemd service management | Homelab & Virtualization |

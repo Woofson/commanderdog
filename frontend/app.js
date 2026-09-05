@@ -735,7 +735,20 @@ function createPaneElement(pane, index) {
   const el = document.createElement('div');
   el.className = `pane ${index === App.activePaneIndex ? 'active' : ''}`;
   el.id = `pane-${index}`;
-  el.onclick = () => setActivePane(index);
+  el.onclick = (e) => {
+    setActivePane(index);
+    if (!e.target.closest('tr.file-row, .grid-gallery-card, .compact-list-item, input, button, select, textarea, .col-resizer, .pane-tree-resizer, .pane-filter-wrapper, thead, .pull-refresh-indicator, .context-menu, .tree-node, .tree-item, .pane-tab-item, .breadcrumb-item, .pane-toolbar')) {
+      if (!e.shiftKey && !e.ctrlKey && !e.metaKey) {
+        const p = App.panes[index];
+        if (p && p.selected.size > 0) {
+          p.selected.clear();
+          p.cursorIndex = -1;
+          renderPaneTable(index);
+          updateMobileBottomBar();
+        }
+      }
+    }
+  };
 
   // Enable HTML5 Drag & Drop Target
   el.ondragover = (e) => {
@@ -961,7 +974,7 @@ function createPaneElement(pane, index) {
   const content = el.querySelector('.pane-content');
   if (content) {
     content.ondblclick = (e) => {
-      if (e.target.closest('tr.file-row')) return;
+      if (e.target.closest('tr.file-row, .grid-gallery-card, .compact-list-item')) return;
       if (App.dblclickUpDir) {
         navPaneUp(index);
       }
@@ -971,7 +984,7 @@ function createPaneElement(pane, index) {
       e.stopPropagation();
       const isTouch = window.innerWidth <= 768 || window.matchMedia('(pointer: coarse)').matches;
       if (isTouch) return false;
-      if (e.target.closest('tr.file-row')) return;
+      if (e.target.closest('tr.file-row, .grid-gallery-card, .compact-list-item')) return;
       setActivePane(index);
       showEmptySpaceContextMenu(e.clientX, e.clientY, index);
     };
@@ -1073,24 +1086,15 @@ function initPaneMarqueeSelection(mainViewEl, paneIndex) {
     const isTouch = window.innerWidth <= 768 || window.matchMedia('(pointer: coarse)').matches;
     if (isTouch) return;
 
-    if (e.target.closest('input, button, select, textarea, .col-resizer, .pane-tree-resizer, .pane-filter-wrapper, thead, .pull-refresh-indicator')) {
+    // Drag-and-select MUST ALWAYS start on "empty" space!
+    // If clicking directly on any file row, card, item, or parent dir, let drag-and-drop / click handle it.
+    const clickedRow = e.target.closest('tr.file-row, .grid-gallery-card, .compact-list-item, .parent-dir-row, .parent-dir-card, .parent-dir-item');
+    if (clickedRow) {
       return;
     }
 
-    const clickedRow = e.target.closest('tr.file-row, .grid-gallery-card, .compact-list-item');
     const pane = App.panes[paneIndex];
     if (!pane) return;
-
-    // If clicking parent dir row (..), skip marquee
-    if (clickedRow && (clickedRow.classList.contains('parent-dir-row') || clickedRow.classList.contains('parent-dir-item'))) {
-      return;
-    }
-
-    // If clicking an already-selected row without shift/ctrl/alt, allow HTML5 drag-and-drop
-    const isAlreadySelected = clickedRow && clickedRow.classList.contains('selected');
-    if (isAlreadySelected && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
-      return;
-    }
 
     const startX = e.clientX;
     const startY = e.clientY;
@@ -1165,6 +1169,15 @@ function initPaneMarqueeSelection(mainViewEl, paneIndex) {
         marqueeBox = null;
         renderPaneTable(paneIndex);
         updateMobileBottomBar();
+      } else if (!e.shiftKey && !e.ctrlKey && !e.metaKey) {
+        // Direct click on empty space outside files deselects selection
+        setActivePane(paneIndex);
+        if (pane.selected.size > 0) {
+          pane.selected.clear();
+          pane.cursorIndex = -1;
+          renderPaneTable(paneIndex);
+          updateMobileBottomBar();
+        }
       }
     }
 
@@ -1956,6 +1969,40 @@ function renderPaneTable(paneIndex) {
         <div class="grid-card-meta">${entry.is_dir ? '&lt;DIR&gt;' : formatBytes(entry.size)}</div>
       `;
 
+      if (!isTouchDevice) {
+        card.ondragstart = (e) => {
+          const selectedPaths = pane.selected.size > 0 ? Array.from(pane.selected) : [entry.path];
+          e.dataTransfer.setData('text/plain', JSON.stringify({
+            sourcePane: paneIndex,
+            paths: selectedPaths
+          }));
+          e.dataTransfer.effectAllowed = 'copyMove';
+        };
+
+        card.ondragover = (e) => {
+          if (entry.is_dir) {
+            e.preventDefault();
+            e.stopPropagation();
+            card.classList.add('drag-over-card');
+          }
+        };
+
+        card.ondragleave = () => {
+          if (entry.is_dir) {
+            card.classList.remove('drag-over-card');
+          }
+        };
+
+        card.ondrop = (e) => {
+          if (entry.is_dir) {
+            e.preventDefault();
+            e.stopPropagation();
+            card.classList.remove('drag-over-card');
+            handlePaneDrop(e, paneIndex, entry.path);
+          }
+        };
+      }
+
       let cTouchStart = 0;
       let cTouchStartX = 0;
       let cTouchStartY = 0;
@@ -2126,12 +2173,47 @@ function renderPaneTable(paneIndex) {
       item.dataset.path = entry.path;
       item.dataset.index = idx;
       
+      item.draggable = !isTouchDevice;
       const iconHtml = renderFileIconHtml(entry.name, entry.is_dir, entry.is_archive, entry.path, 'sm');
 
       item.innerHTML = `
         ${iconHtml}
         <span class="compact-item-name" title="${escapeHtml(entry.name)}" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(entry.name)}</span>
       `;
+
+      if (!isTouchDevice) {
+        item.ondragstart = (e) => {
+          const selectedPaths = pane.selected.size > 0 ? Array.from(pane.selected) : [entry.path];
+          e.dataTransfer.setData('text/plain', JSON.stringify({
+            sourcePane: paneIndex,
+            paths: selectedPaths
+          }));
+          e.dataTransfer.effectAllowed = 'copyMove';
+        };
+
+        item.ondragover = (e) => {
+          if (entry.is_dir) {
+            e.preventDefault();
+            e.stopPropagation();
+            item.classList.add('drag-over-item');
+          }
+        };
+
+        item.ondragleave = () => {
+          if (entry.is_dir) {
+            item.classList.remove('drag-over-item');
+          }
+        };
+
+        item.ondrop = (e) => {
+          if (entry.is_dir) {
+            e.preventDefault();
+            e.stopPropagation();
+            item.classList.remove('drag-over-item');
+            handlePaneDrop(e, paneIndex, entry.path);
+          }
+        };
+      }
 
       let iTouchStart = 0;
       let iTouchStartX = 0;
@@ -4383,8 +4465,28 @@ function setupKeyboardNavigation() {
     }
 
     if (e.key === 'Escape') {
-      hideContextMenu();
-      closeModal();
+      let handled = false;
+      const ctxMenu = document.getElementById('context-menu');
+      if (ctxMenu && ctxMenu.style.display === 'block') {
+        hideContextMenu();
+        handled = true;
+      }
+      const activeModal = document.querySelector('.modal-wrapper.active, .modal.active, .dialog-backdrop');
+      if (activeModal) {
+        closeModal();
+        handled = true;
+      }
+      const pane = App.panes[App.activePaneIndex];
+      if (!handled && pane && pane.selected && pane.selected.size > 0) {
+        pane.selected.clear();
+        renderPaneTable(App.activePaneIndex);
+        updateMobileBottomBar();
+        return;
+      }
+      if (!handled) {
+        hideContextMenu();
+        closeModal();
+      }
       return;
     }
 

@@ -5587,7 +5587,9 @@ body {
 }
 
 /* ---------------- DRAG & DROP OVERLAYS & ROW TARGETS ---------------- */
-.file-row.drag-over-row {
+.file-row.drag-over-row,
+.grid-gallery-card.drag-over-card,
+.compact-list-item.drag-over-item {
   background-color: rgba(245, 158, 11, 0.25) !important;
   outline: 2px dashed var(--accent);
 }
