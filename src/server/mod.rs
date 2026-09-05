@@ -154,6 +154,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/git/pull", post(handle_git_pull))
         .route("/api/git/log", get(handle_git_log))
         .route("/api/tasks", get(handle_list_tasks))
+        .route("/api/tasks/:id", get(handle_get_task))
         .route("/api/tasks/:id/cancel", post(handle_cancel_task))
         .route("/api/tasks/:id/pause", post(handle_pause_task))
         .route("/api/tasks/:id/resume", post(handle_resume_task))
@@ -2455,6 +2456,16 @@ async fn handle_list_tasks(
     State(state): State<AppState>,
 ) -> Json<Vec<TaskInfo>> {
     Json(state.tasks.list_tasks().await)
+}
+
+async fn handle_get_task(
+    State(state): State<AppState>,
+    AxumPath(id): AxumPath<String>,
+) -> Result<Json<TaskInfo>, (StatusCode, String)> {
+    match state.tasks.get_task(&id).await {
+        Some(task) => Ok(Json(task)),
+        None => Err((StatusCode::NOT_FOUND, "Task not found".to_string())),
+    }
 }
 
 async fn handle_cancel_task(

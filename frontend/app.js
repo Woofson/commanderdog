@@ -4416,32 +4416,111 @@ async function handlePaneDrop(e, targetPaneIndex, subfolderPath) {
 function executeInterpaneDrop(action) {
   closeModal('interpane-drop-modal');
   if (!pendingInterpaneTransfer) return;
-  const { paths, destination, targetPaneIndex } = pendingInterpaneTransfer;
+  const { sourcePane, paths, destination, targetPaneIndex } = pendingInterpaneTransfer;
   pendingInterpaneTransfer = null;
 
   if (App.paranoidMode && App.dndParanoidPrompt) {
     showParanoidConfirm(action, paths, destination, () => {
-      executeTransfer(action, paths, destination, targetPaneIndex);
+      executeTransfer(action, paths, destination, targetPaneIndex, sourcePane);
     });
   } else {
-    executeTransfer(action, paths, destination, targetPaneIndex);
+    executeTransfer(action, paths, destination, targetPaneIndex, sourcePane);
   }
 }
 
-async function executeTransfer(action, sources, destination, refreshTargetPaneIdx) {
-  const endpoint = action === 'move' ? '/api/fs/move' : '/api/fs/copy';
-  const resp = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
-    body: JSON.stringify({ sources, destination, paranoid: App.paranoidMode })
-  });
+async function trackTransferTask(taskId, action, sources, destination, onCompleteCallback) {
+  if (!taskId) {
+    refreshAllPanes();
+    return;
+  }
 
-  if (resp.ok) {
-    showToast(`${action === 'move' ? 'Moved' : 'Copied'} ${sources.length} item(s)`, 'success');
-    refreshPane(refreshTargetPaneIdx);
-    refreshPane(App.activePaneIndex);
-  } else {
-    showToast(`Transfer failed: ${await resp.text()}`, 'error');
+  const intervals = [40, 80, 120, 200, 350, 500, 800, 1200, 1800];
+  let checkCount = 0;
+  let lastProcessed = -1;
+
+  async function check() {
+    try {
+      const resp = await fetch(`/api/tasks/${taskId}`, {
+        headers: { 'Authorization': `Bearer ${App.token}` }
+      });
+
+      if (resp.ok) {
+        const task = await resp.json();
+        if (task.status === 'completed') {
+          showToast(`${action === 'move' ? 'Moved' : 'Copied'} ${sources.length} item(s)`, 'success');
+          refreshAllPanes();
+          pollTasks();
+          if (typeof onCompleteCallback === 'function') onCompleteCallback(true);
+          return;
+        } else if (task.status === 'failed' || task.status === 'cancelled') {
+          showToast(`Transfer ${task.status}: ${task.error_message || 'Operation failed'}`, 'error');
+          refreshAllPanes();
+          pollTasks();
+          if (typeof onCompleteCallback === 'function') onCompleteCallback(false);
+          return;
+        } else {
+          // Still running - update visible panes if files are processed incrementally
+          if (task.files_processed !== lastProcessed) {
+            lastProcessed = task.files_processed;
+            refreshAllPanes();
+          }
+        }
+      }
+    } catch (_) {}
+
+    checkCount++;
+    const nextDelay = intervals[Math.min(checkCount, intervals.length - 1)];
+    if (checkCount < 50) {
+      setTimeout(check, nextDelay);
+    } else {
+      refreshAllPanes();
+    }
+  }
+
+  setTimeout(check, intervals[0]);
+}
+
+async function executeTransfer(action, sources, destination, refreshTargetPaneIdx, sourcePaneIdx) {
+  if (!sources || sources.length === 0) return;
+  const endpoint = action === 'move' ? '/api/fs/move' : '/api/fs/copy';
+
+  try {
+    const resp = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
+      body: JSON.stringify({ sources, destination, paranoid: App.paranoidMode })
+    });
+
+    if (resp.ok) {
+      const data = await resp.json().catch(() => ({}));
+
+      // Immediately clear selection on source pane for move operations
+      if (action === 'move') {
+        const srcPane = (typeof sourcePaneIdx === 'number' && App.panes[sourcePaneIdx])
+          ? App.panes[sourcePaneIdx]
+          : App.panes[App.activePaneIndex];
+        if (srcPane && srcPane.selected) {
+          srcPane.selected.clear();
+        }
+      }
+
+      // Trigger immediate pane refresh across all panels for instant feedback
+      refreshAllPanes();
+
+      if (data.task_id) {
+        trackTransferTask(data.task_id, action, sources, destination);
+      } else {
+        showToast(`${action === 'move' ? 'Moved' : 'Copied'} ${sources.length} item(s)`, 'success');
+        setTimeout(() => refreshAllPanes(), 80);
+        setTimeout(() => refreshAllPanes(), 300);
+      }
+    } else {
+      showToast(`Transfer failed: ${await resp.text()}`, 'error');
+      refreshAllPanes();
+    }
+  } catch (err) {
+    showToast(`Transfer error: ${err.message || err}`, 'error');
+    refreshAllPanes();
   }
 }
 
@@ -10514,13 +10593,15 @@ function quickTransferToPane(action, targetPaneIdx) {
   const paths = getSelectedOrCursorPaths();
   if (paths.length === 0) return;
   const targetPane = App.panes[targetPaneIdx];
-  executeTransfer(action, paths, targetPane.path, targetPaneIdx);
+  const sourcePaneIdx = (App.contextPaneIndex !== null && App.contextPaneIndex !== undefined) ? App.contextPaneIndex : App.activePaneIndex;
+  executeTransfer(action, paths, targetPane.path, targetPaneIdx, sourcePaneIdx);
 }
 
 function quickTransferToPath(action, destPath) {
   const paths = getSelectedOrCursorPaths();
   if (paths.length === 0) return;
-  executeTransfer(action, paths, destPath, -1);
+  const sourcePaneIdx = (App.contextPaneIndex !== null && App.contextPaneIndex !== undefined) ? App.contextPaneIndex : App.activePaneIndex;
+  executeTransfer(action, paths, destPath, -1, sourcePaneIdx);
 }
 
 let customDestAction = 'copy';
@@ -12071,9 +12152,9 @@ function triggerMove() {
 
   if (paths.length === 0) return;
   if (App.paranoidMode) {
-    showParanoidConfirm('move', paths, targetPane.path, () => executeTransfer('move', paths, targetPane.path, targetIdx));
+    showParanoidConfirm('move', paths, targetPane.path, () => executeTransfer('move', paths, targetPane.path, targetIdx, App.activePaneIndex));
   } else {
-    executeTransfer('move', paths, targetPane.path, targetIdx);
+    executeTransfer('move', paths, targetPane.path, targetIdx, App.activePaneIndex);
   }
 }
 
@@ -13057,6 +13138,7 @@ function navPaneUp(index) {
 }
 
 function refreshPane(index, selectItemName = null) {
+  if (typeof index !== 'number' || index < 0 || !App.panes || !App.panes[index]) return;
   loadPaneDirectory(index, App.panes[index].path, false, selectItemName, true);
 }
 

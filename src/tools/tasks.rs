@@ -264,6 +264,11 @@ impl TaskManager {
         }
     }
 
+    pub async fn get_task(&self, id: &str) -> Option<TaskInfo> {
+        let map = self.tasks.read().await;
+        map.get(id).cloned()
+    }
+
     pub async fn list_tasks(&self) -> Vec<TaskInfo> {
         self.prune_old_completed().await;
         let map = self.tasks.read().await;

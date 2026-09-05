@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.7.4-rc5] - 2026-09-05
+
+### 🔄 Guaranteed Real-Time Source & Destination Directory Refresh
+- **Active Task Completion Tracking**:
+  - Implemented `trackTransferTask` in frontend to actively monitor background transfer lifecycle via `/api/tasks/:id`.
+  - Guaranteed automatic universal pane refresh (`refreshAllPanes()`) as soon as operations complete or stream progress across all visible panes.
+  - Added dedicated `/api/tasks/:id` endpoint in backend Task Manager for sub-millisecond task status resolution.
+- **Robust Transfer Execution & Error Resiliency**:
+  - Hardened `refreshPane` with boundary index checks preventing unhandled index errors.
+  - Immediately clears selection on source panels upon executing moves.
+  - Ensured source and destination panes are reliably refreshed on F5/F6 orthodox keys, drag-and-drop, context menus, and clipboard paste.
+
 ## [0.7.4-rc4] - 2026-09-05
 
 ### 🛑 Global Clean Quit / Exit Shortcut (<kbd>Ctrl+Q</kbd> / <kbd>Cmd+Q</kbd>)
