@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.7.4-rc9] - 2026-09-05
+
+### ⚡ Ultra-Fast WebP & Media Viewer Streaming, HTTP Caching & Async I/O
+- **MIME Auto-Inline Streaming**:
+  - Automatically serves `Content-Disposition: inline` on all media MIME types (`image/*`, `video/*`, `audio/*`, `application/pdf`, `text/*`) across local filesystem, Vault, SMB, and SFTP endpoints.
+  - Allows browser progressive decoders and hardware accelerators (WebP VP8/VP8L chunks, AVIF, PNG) to decode frames on the fly without buffering into download sandboxes.
+- **HTTP Caching & 304 Not Modified Support**:
+  - Implemented strong `ETag` validation and `Cache-Control: public, max-age=86400, must-revalidate` on file download & streaming routes.
+  - Validates `If-None-Match` requests to return lightweight `304 Not Modified` responses, eliminating redundant data transfer during image flipping.
+- **Async Tokio Disk I/O**:
+  - Replaced blocking synchronous file reads (`std::fs::read`) with non-blocking async `tokio::fs::read` and `tokio::fs::metadata`.
+- **Dual-Layer Media Token & Cookie Authentication**:
+  - Implemented automatic `cd_token` cookie authentication and `?token=` query fallback in `extract_claims_or_local` and `handle_download`.
+  - Added centralized `getDownloadUrl()` in `frontend/app.js` with remote URI credential resolution (SFTP/SMB/Vault) and session token injection across all image, audio, video, PDF, and inspector views.
+
 ## [0.7.4-rc8] - 2026-09-05
 
 ### 🎨 Frameless Icon Suite & 128px Amber Asset Integration

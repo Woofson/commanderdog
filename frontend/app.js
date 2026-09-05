@@ -36,6 +36,12 @@ const App = {
   dndParanoidPrompt: localStorage.getItem('cd_dnd_paranoid_prompt') !== 'false',
 };
 
+if (App.token) {
+  try {
+    document.cookie = `cd_token=${encodeURIComponent(App.token)}; path=/; SameSite=Lax`;
+  } catch (e) {}
+}
+
 function getBasename(path) {
   if (!path) return '';
   return path.split('/').filter(Boolean).pop() || path;
@@ -1958,7 +1964,7 @@ function renderPaneTable(paneIndex) {
 
       let thumbHtml = '';
       if (!entry.is_dir && isImageFile(entry.name)) {
-        thumbHtml = `<img src="/api/files/download?path=${encodeURIComponent(entry.path)}" class="grid-thumb-img" loading="lazy" alt="${escapeHtml(entry.name)}" onerror="this.src='assets/logo.webp'">`;
+        thumbHtml = `<img src="${getDownloadUrl(entry.path, true)}" class="grid-thumb-img" loading="lazy" alt="${escapeHtml(entry.name)}" onerror="this.src='assets/logo.webp'">`;
       } else {
         thumbHtml = renderFileIconHtml(entry.name, entry.is_dir, entry.is_archive, entry.path, 'lg');
       }
@@ -11162,6 +11168,9 @@ function setupEventListeners() {
   document.getElementById('btn-submit-login')?.addEventListener('click', handleLoginSubmit);
   document.getElementById('btn-logout')?.addEventListener('click', () => {
     localStorage.removeItem('cd_token');
+    try {
+      document.cookie = 'cd_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
+    } catch (e) {}
     location.reload();
   });
 
@@ -11510,6 +11519,9 @@ async function handleLoginSubmit() {
     App.user = data.user;
     updateHeaderProfile(App.user);
     localStorage.setItem('cd_token', data.token);
+    try {
+      document.cookie = `cd_token=${encodeURIComponent(data.token)}; path=/; SameSite=Lax`;
+    } catch (e) {}
     localStorage.removeItem('cd_is_locked');
     App.isLocked = false;
     hideModal('login-modal');
@@ -15125,6 +15137,16 @@ function resolveAuthUri(path) {
   return path;
 }
 
+function getDownloadUrl(path, inline = false) {
+  if (!path) return '';
+  const resolved = resolveAuthUri(path);
+  let url = `/api/fs/download?path=${encodeURIComponent(resolved)}`;
+  if (inline) url += '&inline=true';
+  const token = App.token || localStorage.getItem('cd_token');
+  if (token) url += `&token=${encodeURIComponent(token)}`;
+  return url;
+}
+
 function copyTextToClipboard(text, successMsg = 'Copied to clipboard!') {
   if (!text) return;
   if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -15525,7 +15547,7 @@ function preloadAdjacentImages() {
     const p = currentImageList[idx];
     if (p) {
       const preImg = new Image();
-      preImg.src = `/api/fs/download?path=${encodeURIComponent(p)}`;
+      preImg.src = getDownloadUrl(p, true);
     }
   });
 }
@@ -15732,22 +15754,29 @@ function loadImageToViewer(path) {
   resetImageTransform();
 
   const fileName = path.split(/[\\/]/).pop() || path;
-  titleEl.textContent = fileName;
-  counterEl.textContent = `${currentImageIndex + 1} / ${currentImageList.length}`;
+  if (titleEl) titleEl.textContent = fileName;
+  if (counterEl) counterEl.textContent = `${currentImageIndex + 1} / ${currentImageList.length}`;
 
-  const imgUrl = `/api/fs/download?path=${encodeURIComponent(path)}`;
-  imgEl.src = imgUrl;
+  const imgUrl = getDownloadUrl(path, true);
+  const rawDlUrl = getDownloadUrl(path, false);
+
+  if (imgEl) {
+    imgEl.classList.add('loading');
+    imgEl.src = imgUrl;
+
+    imgEl.onload = () => {
+      imgEl.classList.remove('loading');
+      if (metaEl) metaEl.textContent = `(${imgEl.naturalWidth} × ${imgEl.naturalHeight} px)`;
+      preloadAdjacentImages();
+    };
+    imgEl.onerror = () => {
+      imgEl.classList.remove('loading');
+      if (metaEl) metaEl.textContent = '(Preview unavailable)';
+    };
+  }
 
   const dlLink = document.getElementById('img-viewer-download-link');
-  if (dlLink) dlLink.href = imgUrl;
-
-  imgEl.onload = () => {
-    metaEl.textContent = `(${imgEl.naturalWidth} × ${imgEl.naturalHeight} px)`;
-    preloadAdjacentImages();
-  };
-  imgEl.onerror = () => {
-    metaEl.textContent = '(Preview unavailable)';
-  };
+  if (dlLink) dlLink.href = rawDlUrl;
 }
 
 function navImageViewer(dir) {
@@ -15800,7 +15829,7 @@ function applyImageTransform() {
 function downloadCurrentImage() {
   const path = currentImageList[currentImageIndex];
   if (path) {
-    window.open(`/api/fs/download?path=${encodeURIComponent(path)}`, '_blank');
+    window.open(getDownloadUrl(path, false), '_blank');
   }
 }
 
@@ -16553,8 +16582,8 @@ async function openDocumentViewer(filePath) {
   const extEl = document.getElementById('doc-viewer-external');
 
   if (titleEl) titleEl.textContent = fileName;
-  const downloadUrl = `/api/fs/download?path=${encodeURIComponent(filePath)}`;
-  const streamUrl = `/api/fs/download?path=${encodeURIComponent(filePath)}&inline=true`;
+  const downloadUrl = getDownloadUrl(filePath, false);
+  const streamUrl = getDownloadUrl(filePath, true);
 
   if (dlEl) {
     dlEl.href = downloadUrl;
@@ -17144,7 +17173,7 @@ function loadMediaTrack(filePath, forcedType) {
   if (artistEl) artistEl.textContent = fileName.replace(/\.[^/.]+$/, '');
   if (pathEl) pathEl.textContent = sanitizeCredentials(filePath);
 
-  const streamUrl = `/api/fs/download?path=${encodeURIComponent(filePath)}&inline=true`;
+  const streamUrl = getDownloadUrl(filePath, true);
 
   if (isVideo) {
     if (iconEl) iconEl.setAttribute('data-lucide', 'video');
@@ -17363,7 +17392,7 @@ async function loadBookPage(idx) {
         console.error('Failed to load book page data:', err);
       }
     } else {
-      imgEl.src = `/api/fs/download?path=${encodeURIComponent(p)}&inline=true`;
+      imgEl.src = getDownloadUrl(p, true);
     }
   }
 }
@@ -20099,8 +20128,8 @@ async function openMediaInspector(filePath) {
   if (mainSub) mainSub.textContent = `Analyzing ${ext.toUpperCase()} media...`;
   if (paletteRow) paletteRow.innerHTML = '';
 
-  const downloadUrl = `/api/fs/download?path=${encodeURIComponent(filePath)}`;
-  const streamUrl = `/api/fs/download?path=${encodeURIComponent(filePath)}&inline=true`;
+  const downloadUrl = getDownloadUrl(filePath, false);
+  const streamUrl = getDownloadUrl(filePath, true);
 
   if (dlBtn) {
     dlBtn.href = downloadUrl;
@@ -20156,7 +20185,7 @@ async function openMediaInspector(filePath) {
 
   // Load and Parse
   try {
-    const resp = await fetch(`/api/fs/download?path=${encodeURIComponent(filePath)}`, {
+    const resp = await fetch(getDownloadUrl(filePath, false), {
       headers: { 'Authorization': `Bearer ${App.token}` }
     });
 

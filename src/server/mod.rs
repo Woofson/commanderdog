@@ -322,10 +322,23 @@ fn extract_claims_or_local(
 
     let auth_header = headers.get(header::AUTHORIZATION).and_then(|v| v.to_str().ok());
     if let Some(token_str) = auth_header.and_then(|h| h.strip_prefix("Bearer ")) {
-        state.auth.verify_token(token_str).map_err(|e| (StatusCode::UNAUTHORIZED, e.to_string()))
-    } else {
-        Err((StatusCode::UNAUTHORIZED, "Missing authorization token".to_string()))
+        if let Ok(claims) = state.auth.verify_token(token_str) {
+            return Ok(claims);
+        }
     }
+
+    if let Some(cookie_hdr) = headers.get(header::COOKIE).and_then(|v| v.to_str().ok()) {
+        for pair in cookie_hdr.split(';') {
+            let pair = pair.trim();
+            if let Some(tok) = pair.strip_prefix("cd_token=").or_else(|| pair.strip_prefix("token=")) {
+                if let Ok(claims) = state.auth.verify_token(tok) {
+                    return Ok(claims);
+                }
+            }
+        }
+    }
+
+    Err((StatusCode::UNAUTHORIZED, "Missing authorization token".to_string()))
 }
 
 pub fn normalize_path(path: &Path) -> PathBuf {
@@ -2590,7 +2603,17 @@ async fn handle_download(
     Query(query): Query<HashMap<String, String>>,
 ) -> Result<Response, (StatusCode, String)> {
     let raw_path = query.get("path").ok_or((StatusCode::BAD_REQUEST, "Missing path param".to_string()))?;
-    let path_str = validate_path_access(&state, &headers, raw_path, false)?;
+
+    let mut modified_headers = headers.clone();
+    if !modified_headers.contains_key(header::AUTHORIZATION) {
+        if let Some(tok) = query.get("token").or_else(|| query.get("auth")) {
+            if let Ok(hv) = header::HeaderValue::from_str(&format!("Bearer {}", tok)) {
+                modified_headers.insert(header::AUTHORIZATION, hv);
+            }
+        }
+    }
+
+    let path_str = validate_path_access(&state, &modified_headers, raw_path, false)?;
 
     if path_str.starts_with("vault://") {
         let rest = path_str.strip_prefix("vault://").unwrap();
@@ -2611,7 +2634,12 @@ async fn handle_download(
 
         let file_name = file_res.name;
         let mime = file_res.mime_type;
-        let is_inline = query.get("inline").map(|v| v == "true" || v == "1").unwrap_or(false);
+        let is_media_type = mime.starts_with("image/")
+            || mime.starts_with("video/")
+            || mime.starts_with("audio/")
+            || mime == "application/pdf"
+            || mime.starts_with("text/");
+        let is_inline = query.get("inline").map(|v| v == "true" || v == "1").unwrap_or(is_media_type);
 
         let disposition = if is_inline {
             format!("inline; filename=\"{}\"", file_name)
@@ -2634,7 +2662,12 @@ async fn handle_download(
             .map_err(|e| (StatusCode::BAD_REQUEST, format!("Failed to download SMB file: {}", e)))?;
         let file_name = params.subpath.rsplit('/').next().unwrap_or(&params.subpath).to_string();
         let mime = mime_guess::from_path(&file_name).first_or_octet_stream().to_string();
-        let is_inline = query.get("inline").map(|v| v == "true" || v == "1").unwrap_or(false);
+        let is_media_type = mime.starts_with("image/")
+            || mime.starts_with("video/")
+            || mime.starts_with("audio/")
+            || mime == "application/pdf"
+            || mime.starts_with("text/");
+        let is_inline = query.get("inline").map(|v| v == "true" || v == "1").unwrap_or(is_media_type);
 
         let disposition = if is_inline {
             format!("inline; filename=\"{}\"", file_name)
@@ -2657,7 +2690,12 @@ async fn handle_download(
             .map_err(|e| (StatusCode::BAD_REQUEST, format!("Failed to download SFTP file: {}", e)))?;
         let file_name = params.remote_path.rsplit('/').next().unwrap_or(&params.remote_path).to_string();
         let mime = mime_guess::from_path(&file_name).first_or_octet_stream().to_string();
-        let is_inline = query.get("inline").map(|v| v == "true" || v == "1").unwrap_or(false);
+        let is_media_type = mime.starts_with("image/")
+            || mime.starts_with("video/")
+            || mime.starts_with("audio/")
+            || mime == "application/pdf"
+            || mime.starts_with("text/");
+        let is_inline = query.get("inline").map(|v| v == "true" || v == "1").unwrap_or(is_media_type);
 
         let disposition = if is_inline {
             format!("inline; filename=\"{}\"", file_name)
@@ -2692,7 +2730,7 @@ async fn handle_download(
         ArchiveHandler::create_zip(&[path_str.clone()], &temp_path)
             .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Zip creation failed: {}", e)))?;
 
-        let file_bytes = std::fs::read(&temp_path).map_err(|e| {
+        let file_bytes = tokio::fs::read(&temp_path).await.map_err(|e| {
             (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to read generated zip: {}", e))
         })?;
 
@@ -2708,13 +2746,39 @@ async fn handle_download(
         return Ok(response);
     }
 
-    let file_bytes = std::fs::read(path).map_err(|e| {
+    let metadata = tokio::fs::metadata(path).await.map_err(|e| {
+        (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to read file metadata: {}", e))
+    })?;
+
+    let mtime_sec = metadata.modified().ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let etag = format!("\"{:x}-{:x}\"", metadata.len(), mtime_sec);
+
+    if let Some(inm) = headers.get(header::IF_NONE_MATCH).and_then(|v| v.to_str().ok()) {
+        if inm == etag || inm == "*" {
+            return Ok(Response::builder()
+                .status(StatusCode::NOT_MODIFIED)
+                .header(header::ETAG, etag)
+                .header(header::CACHE_CONTROL, "public, max-age=86400, must-revalidate")
+                .body(Body::empty())
+                .unwrap());
+        }
+    }
+
+    let file_bytes = tokio::fs::read(path).await.map_err(|e| {
         (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to read file: {}", e))
     })?;
 
     let file_name = path.file_name().unwrap_or_default().to_string_lossy();
     let mime = mime_guess::from_path(path).first_or_octet_stream().to_string();
-    let is_inline = query.get("inline").map(|v| v == "true" || v == "1").unwrap_or(false);
+    let is_media_type = mime.starts_with("image/")
+        || mime.starts_with("video/")
+        || mime.starts_with("audio/")
+        || mime == "application/pdf"
+        || mime.starts_with("text/");
+    let is_inline = query.get("inline").map(|v| v == "true" || v == "1").unwrap_or(is_media_type);
 
     let disposition = if is_inline {
         format!("inline; filename=\"{}\"", file_name)
@@ -2726,6 +2790,8 @@ async fn handle_download(
         .header(header::CONTENT_TYPE, mime)
         .header(header::CONTENT_DISPOSITION, disposition)
         .header(header::ACCEPT_RANGES, "bytes")
+        .header(header::ETAG, etag)
+        .header(header::CACHE_CONTROL, "public, max-age=86400, must-revalidate")
         .body(Body::from(file_bytes))
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Response build error: {}", e)))?;
 

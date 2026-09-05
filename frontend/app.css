@@ -8524,9 +8524,13 @@ body {
   max-width: 92%;
   max-height: 85vh;
   object-fit: contain;
-  transition: transform 0.06s ease-out;
+  transition: transform 0.06s ease-out, opacity 0.12s ease-in-out;
   transform-origin: center center;
   pointer-events: auto;
+}
+
+.image-viewer-img.loading {
+  opacity: 0.55;
 }
 
 /* ---------------- RESIZABLE COLUMNS & DIVIDERS ---------------- */
