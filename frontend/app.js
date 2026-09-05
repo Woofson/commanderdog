@@ -3154,7 +3154,7 @@ document.getElementById('btn-save-permissions')?.addEventListener('click', async
   });
 
   closeModal('permissions-modal');
-  refreshPane(App.activePaneIndex);
+  refreshAllPanes();
 });
 
 // ---------------- RESIZABLE COLUMNS, VIEW MODES & DIRECTORY TREE ----------------
@@ -3814,7 +3814,7 @@ async function executeCustomAction(cmd, targetPath) {
       showToast(data.error || 'Execution failed', 'error');
     } else {
       showToast(`Action finished: ${data.executed}`, 'success');
-      refreshPane(App.activePaneIndex);
+      refreshAllPanes();
     }
   } catch (err) {
     showToast('Failed to run action on host', 'error');
@@ -4326,7 +4326,7 @@ async function handlePaneDrop(e, targetPaneIndex, subfolderPath) {
       });
       if (resp.ok) {
         showToast(`Uploaded ${fileCount} file(s) successfully!`, 'success');
-        refreshPane(targetPaneIndex);
+        refreshAllPanes();
       } else {
         showToast(`Upload failed: ${await resp.text()}`, 'error');
       }
@@ -4612,6 +4612,29 @@ function setupKeyboardNavigation() {
       }
     }
 
+    // Modal-specific file action and navigation overrides
+    const imgModal = document.getElementById('image-viewer-modal');
+    if (imgModal && imgModal.classList.contains('active')) {
+      if (e.key === 'ArrowLeft') { e.preventDefault(); navImageViewer(-1); return; }
+      if (e.key === 'ArrowRight') { e.preventDefault(); navImageViewer(1); return; }
+      if (e.key === '+' || e.key === '=') { e.preventDefault(); zoomImage(0.2); return; }
+      if (e.key === '-') { e.preventDefault(); zoomImage(-0.2); return; }
+      if (e.key === '0') { e.preventDefault(); resetImageTransform(); return; }
+      if (e.key.toLowerCase() === 'r') { e.preventDefault(); rotateImage(90); return; }
+      if (e.key === 'F8' || e.key === 'Delete') { e.preventDefault(); imageViewerDeleteCurrent(); return; }
+      if (e.key === 'F6') { e.preventDefault(); imageViewerMoveCurrent(); return; }
+      if (e.key === 'F5') { e.preventDefault(); imageViewerCopyCurrent(); return; }
+      if (e.key === 'F2') { e.preventDefault(); imageViewerRenameCurrent(); return; }
+    }
+
+    const docModal = document.getElementById('doc-viewer-modal');
+    if (docModal && docModal.classList.contains('active')) {
+      if (e.key === 'F8' || e.key === 'Delete') { e.preventDefault(); docViewerDeleteCurrent(); return; }
+      if (e.key === 'F6') { e.preventDefault(); docViewerMoveCurrent(); return; }
+      if (e.key === 'F5') { e.preventDefault(); docViewerCopyCurrent(); return; }
+      if (e.key === 'F2') { e.preventDefault(); docViewerRenameCurrent(); return; }
+    }
+
     switch (e.key) {
       case 'Tab':
         e.preventDefault();
@@ -4735,15 +4758,6 @@ function setupKeyboardNavigation() {
     if ((e.shiftKey && e.key === 'F6') || (e.ctrlKey && e.key.toLowerCase() === 'm')) {
       e.preventDefault();
       triggerBulkRename();
-    }
-
-    const imgModal = document.getElementById('image-viewer-modal');
-    if (imgModal && imgModal.classList.contains('active')) {
-      if (e.key === 'ArrowLeft') { e.preventDefault(); navImageViewer(-1); }
-      if (e.key === 'ArrowRight') { e.preventDefault(); navImageViewer(1); }
-      if (e.key === '+' || e.key === '=') { e.preventDefault(); zoomImage(0.2); }
-      if (e.key === '-') { e.preventDefault(); zoomImage(-0.2); }
-      if (e.key.toLowerCase() === 'r') { e.preventDefault(); rotateImage(90); }
     }
   });
 }
@@ -7074,6 +7088,7 @@ async function promptDeleteCurrentNote() {
     if (resp.ok) {
       notedogState.activeNote = null;
       await loadNoteDogHierarchy();
+      refreshAllPanes();
       showToast('Note deleted', 'info');
     }
   } catch (err) {
@@ -7289,7 +7304,7 @@ async function saveActiveEditorTab() {
       flashSaveButton();
       showToast(`Saved "${tab.filename}"!`, 'success');
       renderEditorTabs();
-      refreshPane(App.activePaneIndex);
+      refreshAllPanes();
     } else {
       showToast('Save failed: ' + sanitizeCredentials(await resp.text()), 'error');
     }
@@ -7339,7 +7354,7 @@ async function saveConfdAssembledTab(tab) {
   tab.isDirty = false;
   flashSaveButton();
   renderEditorTabs();
-  refreshPane(App.activePaneIndex);
+  refreshAllPanes();
 
   if (errorCount === 0) {
     showToast(`Saved all ${savedCount} modular config files!`, 'success');
@@ -7373,7 +7388,7 @@ async function saveAllEditorTabs() {
     }
   }
   renderEditorTabs();
-  refreshPane(App.activePaneIndex);
+  refreshAllPanes();
   showToast(`Saved ${count} open file(s)!`, 'success');
 }
 
@@ -8341,7 +8356,7 @@ async function executeFileConversion() {
         statusMsg.style.color = 'var(--success)';
         statusMsg.innerHTML = `✅ ${escapeHtml(data.message)}<br><small style="color:var(--text-muted);">Output: ${escapeHtml(data.output_path)}</small>`;
       }
-      refreshPane(App.activePaneIndex);
+      refreshAllPanes();
     } else {
       if (statusMsg) {
         statusMsg.style.color = 'var(--danger)';
@@ -9349,7 +9364,7 @@ async function executeCreateFromTemplate() {
 
     if (resp.ok) {
       showToast(`Created '${filename}' from template`, 'success');
-      await refreshPane(activeTemplatePaneIndex);
+      refreshAllPanes();
       
       const updatedPane = App.panes[activeTemplatePaneIndex];
       if (updatedPane && updatedPane.entries) {
@@ -10045,7 +10060,7 @@ async function savePropertiesSecurity() {
     }
 
     showToast('Security permissions updated', 'success');
-    refreshPane(App.activePaneIndex);
+    refreshAllPanes();
   } catch (err) {
     showToast('Failed to apply permissions', 'error');
   }
@@ -10194,7 +10209,7 @@ function addPropCustomTag() {
     fileTagsMap.set(path, tagInfo);
     saveFileTagsToStorage();
     renderPropTagsTab(path);
-    refreshPane(App.activePaneIndex);
+    refreshAllPanes();
     input.value = '';
     showToast(`Added tag #${val}`, 'success');
   }
@@ -10209,7 +10224,7 @@ function removePropCustomTag(tag) {
     fileTagsMap.set(path, tagInfo);
     saveFileTagsToStorage();
     renderPropTagsTab(path);
-    refreshPane(App.activePaneIndex);
+    refreshAllPanes();
     showToast(`Removed tag #${tag}`, 'info');
   }
 }
@@ -10402,7 +10417,7 @@ function showEmptySpaceContextMenu(x, y, paneIndex) {
     <div class="context-item ${App.clipboard ? '' : 'disabled'}" onclick="triggerPaste(${paneIndex})" style="${App.clipboard ? '' : 'opacity: 0.5; pointer-events: none;'}">
       <i data-lucide="clipboard-paste" style="width: 14px;"></i> Paste ${clipInfo} (Ctrl+V)
     </div>
-    <div class="context-item" onclick="refreshPane(${paneIndex})"><i data-lucide="rotate-cw" style="width: 14px;"></i> Refresh Directory</div>
+    <div class="context-item" onclick="refreshAllPanes()"><i data-lucide="rotate-cw" style="width: 14px;"></i> Refresh Directory</div>
     <div class="context-sep"></div>
     <div class="context-item" onclick="openTerminalInPath('${escapeHtml(pane.path)}')"><img src="assets/term.webp" alt="Terminal" style="width: 14px; height: 14px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> Open in Terminal (\`)</div>
     <div class="context-item" onclick="openSearchModal()"><img src="assets/search.webp" alt="Search" style="width: 14px; height: 14px; object-fit: contain; vertical-align: middle; margin-right: 4px;"> Search in Directory (Ctrl+F)</div>
@@ -10515,7 +10530,7 @@ async function triggerNewFile() {
 
     if (resp.ok) {
       showToast(`Created '${name.trim()}'`, 'success');
-      refreshPane(App.activePaneIndex);
+      refreshAllPanes();
       openEditorWithFile(newFilePath);
     } else {
       showToast(`Failed to create file: ${await resp.text()}`, 'error');
@@ -11909,7 +11924,7 @@ function triggerMkdir() {
       });
       if (resp.ok) {
         showToast(`Created folder "${name}"`, 'success');
-        refreshPane(targetPaneIdx);
+        refreshAllPanes();
       } else {
         showToast('Failed to create folder: ' + sanitizeCredentials(await resp.text()), 'error');
       }
@@ -12004,7 +12019,15 @@ function triggerRename() {
       });
       if (resp.ok) {
         showToast(`Renamed to "${newName}"`, 'success');
-        refreshPane(targetPaneIdx);
+        if (App.panes && Array.isArray(App.panes)) {
+          App.panes.forEach(p => {
+            if (p && p.selected && p.selected.has(item.path)) {
+              p.selected.delete(item.path);
+              p.selected.add(toPath);
+            }
+          });
+        }
+        refreshAllPanes();
       } else {
         showToast('Rename failed: ' + sanitizeCredentials(await resp.text()), 'error');
       }
@@ -12059,7 +12082,14 @@ async function triggerDelete() {
       });
       if (resp.ok) {
         showToast(useTrash ? `Moved ${paths.length} item(s) to Trash` : `Permanently deleted ${paths.length} item(s)`, 'success');
-        refreshPane(targetPaneIdx);
+        if (App.panes && Array.isArray(App.panes)) {
+          App.panes.forEach(p => {
+            if (p && p.selected) {
+              paths.forEach(delPath => p.selected.delete(delPath));
+            }
+          });
+        }
+        refreshAllPanes();
         App.contextItem = null;
       } else {
         showToast(`Delete failed: ${sanitizeCredentials(await resp.text())}`, 'error');
@@ -12132,7 +12162,7 @@ async function executeDeltaCopy() {
   if (resp.ok) {
     pollTasks();
     openFloatingTaskManager();
-    setTimeout(() => refreshPane(pendingDeltaTransfer.targetIdx), 1500);
+    setTimeout(() => refreshAllPanes(), 1500);
   } else {
     showToast('Failed to start DeltaCopy: ' + await resp.text(), 'error');
   }
@@ -12238,7 +12268,7 @@ async function handleDirectFileUpload(files) {
 
     if (resp.ok) {
       showToast(`Uploaded ${fileCount} file(s) successfully!`, 'success');
-      refreshPane(paneIdx);
+      refreshAllPanes();
     } else {
       showToast(`Upload failed: ${await resp.text()}`, 'error');
     }
@@ -12518,7 +12548,7 @@ async function executeCompressArchive() {
 
     if (resp.ok) {
       showToast(`Archive created successfully: ${name}`, 'success');
-      refreshPane(App.activePaneIndex);
+      refreshAllPanes();
     } else {
       showToast(`Archive creation failed: ${await resp.text()}`, 'error');
     }
@@ -12591,7 +12621,7 @@ async function executeExtractArchive() {
 
     if (resp.ok) {
       showToast(`Extracted ${pendingExtractItem.name} successfully!`, 'success');
-      refreshPane(App.activePaneIndex);
+      refreshAllPanes();
     } else {
       showToast(`Extraction failed: ${await resp.text()}`, 'error');
     }
@@ -15393,6 +15423,7 @@ let imgPanX = 0;
 let imgPanY = 0;
 let imgIsDragging = false;
 let imgDragStartX = 0;
+let lastImageWheelTime = 0;
 let imgWheelMode = localStorage.getItem('cd_img_wheel_mode') || 'browse';
 
 function toggleImgWheelMode() {
@@ -15416,16 +15447,26 @@ function setupImageViewerEvents() {
   viewport._wheelAttached = true;
   updateImgWheelModeButton();
 
-  // Mouse wheel listener: Scroll to cycle images or direct zoom
+  // Mouse wheel listener: Scroll to cycle images, pan when zoomed, or direct zoom
   viewport.addEventListener('wheel', (e) => {
     e.preventDefault();
     const isDirectZoom = imgWheelMode === 'zoom';
     if (e.ctrlKey || e.metaKey || isDirectZoom) {
       const delta = e.deltaY < 0 ? 0.15 : -0.15;
       zoomImage(delta);
+    } else if (imgZoom > 1) {
+      // Pan image when zoomed in
+      if (e.shiftKey) {
+        imgPanX -= e.deltaY * 0.8;
+      } else {
+        imgPanY -= e.deltaY * 0.8;
+        if (e.deltaX) imgPanX -= e.deltaX * 0.8;
+      }
+      applyImageTransform();
     } else {
+      // Browse next / previous images when at 1:1 scale
       const now = Date.now();
-      if (now - lastImageWheelTime > 150) {
+      if (now - lastImageWheelTime > 160) {
         lastImageWheelTime = now;
         if (e.deltaY > 0 || e.deltaX > 0) {
           navImageViewer(1);
@@ -15763,6 +15804,196 @@ function downloadCurrentImage() {
   }
 }
 
+async function imageViewerDeleteCurrent() {
+  if (!currentImageList || currentImageList.length === 0) return;
+  const filePath = currentImageList[currentImageIndex];
+  if (!filePath) return;
+
+  const useTrash = App.trashEnabled !== false;
+  const customTrash = App.customTrashDir || null;
+  const fileName = filePath.split(/[\\/]/).pop() || filePath;
+
+  const confirmed = await showConfirmDialog({
+    title: useTrash ? 'Move to Trash Confirmation' : 'Permanent Deletion Confirmation',
+    subtitle: useTrash ? 'Move image to Trash' : 'Permanently Delete image',
+    message: useTrash
+      ? `Move '${fileName}' to Trash?`
+      : `Permanently delete '${fileName}'? This action cannot be undone!`,
+    items: [fileName],
+    icon: 'trash-2',
+    type: 'danger',
+    confirmText: useTrash ? 'Move to Trash (F8)' : 'Permanently Delete (F8)',
+    cancelText: 'Cancel',
+  });
+
+  if (confirmed) {
+    try {
+      const authPath = resolveAuthUri(filePath);
+      const resp = await fetch('/api/fs/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
+        body: JSON.stringify({ paths: [authPath], use_trash: useTrash, custom_trash_dir: customTrash })
+      });
+      if (resp.ok) {
+        showToast(useTrash ? `Moved "${fileName}" to Trash` : `Permanently deleted "${fileName}"`, 'success');
+        currentImageList.splice(currentImageIndex, 1);
+        if (App.panes && Array.isArray(App.panes)) {
+          App.panes.forEach(p => {
+            if (p && p.selected) p.selected.delete(filePath);
+          });
+        }
+        refreshAllPanes();
+
+        if (currentImageList.length > 0) {
+          currentImageIndex = Math.min(currentImageIndex, currentImageList.length - 1);
+          loadImageToViewer(currentImageList[currentImageIndex]);
+        } else {
+          closeModal('image-viewer-modal');
+        }
+      } else {
+        showToast(`Delete failed: ${sanitizeCredentials(await resp.text())}`, 'error');
+      }
+    } catch (err) {
+      showToast(`Delete error: ${sanitizeCredentials(String(err))}`, 'error');
+    }
+  }
+}
+
+async function imageViewerMoveCurrent() {
+  if (!currentImageList || currentImageList.length === 0) return;
+  const filePath = currentImageList[currentImageIndex];
+  if (!filePath) return;
+
+  const targetIdx = (App.activePaneIndex + 1) % getVisiblePaneCount();
+  const targetPane = App.panes[targetIdx];
+  const fileName = filePath.split(/[\\/]/).pop() || filePath;
+  const destDir = targetPane ? targetPane.path : '/';
+
+  const confirmed = await showConfirmDialog({
+    title: 'Move Image Confirmation',
+    subtitle: `Move to ${sanitizeCredentials(destDir)}`,
+    message: `Move '${fileName}' to opposite panel directory?`,
+    items: [`Source: ${sanitizeCredentials(filePath)}`, `Target: ${sanitizeCredentials(destDir)}`],
+    icon: 'folder-input',
+    type: 'warning',
+    confirmText: 'Move File (F6)',
+    cancelText: 'Cancel',
+  });
+
+  if (confirmed) {
+    try {
+      executeTransfer('move', [filePath], destDir, targetIdx, App.activePaneIndex);
+      currentImageList.splice(currentImageIndex, 1);
+      if (currentImageList.length > 0) {
+        currentImageIndex = Math.min(currentImageIndex, currentImageList.length - 1);
+        loadImageToViewer(currentImageList[currentImageIndex]);
+      } else {
+        closeModal('image-viewer-modal');
+      }
+    } catch (err) {
+      showToast(`Move error: ${err}`, 'error');
+    }
+  }
+}
+
+async function imageViewerCopyCurrent() {
+  if (!currentImageList || currentImageList.length === 0) return;
+  const filePath = currentImageList[currentImageIndex];
+  if (!filePath) return;
+
+  const targetIdx = (App.activePaneIndex + 1) % getVisiblePaneCount();
+  const targetPane = App.panes[targetIdx];
+  const fileName = filePath.split(/[\\/]/).pop() || filePath;
+  const destDir = targetPane ? targetPane.path : '/';
+
+  const confirmed = await showConfirmDialog({
+    title: 'Copy Image Confirmation',
+    subtitle: `Copy to ${sanitizeCredentials(destDir)}`,
+    message: `Copy '${fileName}' to opposite panel directory?`,
+    items: [`Source: ${sanitizeCredentials(filePath)}`, `Target: ${sanitizeCredentials(destDir)}`],
+    icon: 'copy',
+    type: 'info',
+    confirmText: 'Copy File (F5)',
+    cancelText: 'Cancel',
+  });
+
+  if (confirmed) {
+    try {
+      executeTransfer('copy', [filePath], destDir, targetIdx, App.activePaneIndex);
+    } catch (err) {
+      showToast(`Copy error: ${err}`, 'error');
+    }
+  }
+}
+
+async function imageViewerRenameCurrent() {
+  if (!currentImageList || currentImageList.length === 0) return;
+  const filePath = currentImageList[currentImageIndex];
+  if (!filePath) return;
+
+  const fileName = filePath.split(/[\\/]/).pop() || filePath;
+  const parts = filePath.split(/[\\/]/);
+  parts.pop();
+  const parentDir = parts.join('/') || '/';
+
+  const input = document.getElementById('rename-input');
+  if (!input) return;
+
+  input.value = fileName;
+  showModal('rename-modal');
+
+  setTimeout(() => {
+    input.focus();
+    const lastDot = fileName.lastIndexOf('.');
+    if (lastDot > 0) {
+      input.setSelectionRange(0, lastDot);
+    } else {
+      input.select();
+    }
+  }, 40);
+
+  const executeRename = async () => {
+    const newName = input.value.trim();
+    if (!newName || newName === fileName) {
+      closeModal('rename-modal');
+      return;
+    }
+    const toPath = `${parentDir.replace(/\/$/, '')}/${newName}`;
+    closeModal('rename-modal');
+
+    try {
+      const resp = await fetch('/api/fs/rename', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
+        body: JSON.stringify({ from: resolveAuthUri(filePath), to: resolveAuthUri(toPath) })
+      });
+      if (resp.ok) {
+        showToast(`Renamed to "${newName}"`, 'success');
+        currentImageList[currentImageIndex] = toPath;
+        loadImageToViewer(toPath);
+        refreshAllPanes();
+      } else {
+        showToast('Rename failed: ' + sanitizeCredentials(await resp.text()), 'error');
+      }
+    } catch (err) {
+      showToast('Rename failed: ' + err.message, 'error');
+    }
+  };
+
+  input.onkeydown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      executeRename();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      closeModal('rename-modal');
+    }
+  };
+
+  const confirmBtn = document.getElementById('btn-confirm-rename');
+  if (confirmBtn) confirmBtn.onclick = executeRename;
+}
+
 // ---------------- UNIVERSAL DOCUMENT & PDF READERS ----------------
 let currentDocViewerPath = '';
 let currentDocViewerRawText = '';
@@ -15880,7 +16111,7 @@ async function executeCreateVault() {
 
     closeModal('create-vault-modal');
     showToast(`🔒 Encrypted vault created: ${path.split('/').pop()}`, 'success');
-    refreshPane(App.activePaneIndex);
+    refreshAllPanes();
 
     // Prompt to unlock immediately
     setTimeout(() => {
@@ -16512,6 +16743,178 @@ function docViewerEditFile() {
     closeDocViewerModal();
     openEditorWithFile(currentDocViewerPath);
   }
+}
+
+async function docViewerDeleteCurrent() {
+  if (!currentDocViewerPath) return;
+  const filePath = currentDocViewerPath;
+
+  const useTrash = App.trashEnabled !== false;
+  const customTrash = App.customTrashDir || null;
+  const fileName = filePath.split(/[\\/]/).pop() || filePath;
+
+  const confirmed = await showConfirmDialog({
+    title: useTrash ? 'Move to Trash Confirmation' : 'Permanent Deletion Confirmation',
+    subtitle: useTrash ? 'Move document to Trash' : 'Permanently Delete document',
+    message: useTrash
+      ? `Move '${fileName}' to Trash?`
+      : `Permanently delete '${fileName}'? This action cannot be undone!`,
+    items: [fileName],
+    icon: 'trash-2',
+    type: 'danger',
+    confirmText: useTrash ? 'Move to Trash (F8)' : 'Permanently Delete (F8)',
+    cancelText: 'Cancel',
+  });
+
+  if (confirmed) {
+    try {
+      const authPath = resolveAuthUri(filePath);
+      const resp = await fetch('/api/fs/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
+        body: JSON.stringify({ paths: [authPath], use_trash: useTrash, custom_trash_dir: customTrash })
+      });
+      if (resp.ok) {
+        showToast(useTrash ? `Moved "${fileName}" to Trash` : `Permanently deleted "${fileName}"`, 'success');
+        if (App.panes && Array.isArray(App.panes)) {
+          App.panes.forEach(p => {
+            if (p && p.selected) p.selected.delete(filePath);
+          });
+        }
+        closeDocViewerModal();
+        refreshAllPanes();
+      } else {
+        showToast(`Delete failed: ${sanitizeCredentials(await resp.text())}`, 'error');
+      }
+    } catch (err) {
+      showToast(`Delete error: ${sanitizeCredentials(String(err))}`, 'error');
+    }
+  }
+}
+
+async function docViewerMoveCurrent() {
+  if (!currentDocViewerPath) return;
+  const filePath = currentDocViewerPath;
+
+  const targetIdx = (App.activePaneIndex + 1) % getVisiblePaneCount();
+  const targetPane = App.panes[targetIdx];
+  const fileName = filePath.split(/[\\/]/).pop() || filePath;
+  const destDir = targetPane ? targetPane.path : '/';
+
+  const confirmed = await showConfirmDialog({
+    title: 'Move Document Confirmation',
+    subtitle: `Move to ${sanitizeCredentials(destDir)}`,
+    message: `Move '${fileName}' to opposite panel directory?`,
+    items: [`Source: ${sanitizeCredentials(filePath)}`, `Target: ${sanitizeCredentials(destDir)}`],
+    icon: 'folder-input',
+    type: 'warning',
+    confirmText: 'Move File (F6)',
+    cancelText: 'Cancel',
+  });
+
+  if (confirmed) {
+    try {
+      executeTransfer('move', [filePath], destDir, targetIdx, App.activePaneIndex);
+      closeDocViewerModal();
+    } catch (err) {
+      showToast(`Move error: ${err}`, 'error');
+    }
+  }
+}
+
+async function docViewerCopyCurrent() {
+  if (!currentDocViewerPath) return;
+  const filePath = currentDocViewerPath;
+
+  const targetIdx = (App.activePaneIndex + 1) % getVisiblePaneCount();
+  const targetPane = App.panes[targetIdx];
+  const fileName = filePath.split(/[\\/]/).pop() || filePath;
+  const destDir = targetPane ? targetPane.path : '/';
+
+  const confirmed = await showConfirmDialog({
+    title: 'Copy Document Confirmation',
+    subtitle: `Copy to ${sanitizeCredentials(destDir)}`,
+    message: `Copy '${fileName}' to opposite panel directory?`,
+    items: [`Source: ${sanitizeCredentials(filePath)}`, `Target: ${sanitizeCredentials(destDir)}`],
+    icon: 'copy',
+    type: 'info',
+    confirmText: 'Copy File (F5)',
+    cancelText: 'Cancel',
+  });
+
+  if (confirmed) {
+    try {
+      executeTransfer('copy', [filePath], destDir, targetIdx, App.activePaneIndex);
+    } catch (err) {
+      showToast(`Copy error: ${err}`, 'error');
+    }
+  }
+}
+
+async function docViewerRenameCurrent() {
+  if (!currentDocViewerPath) return;
+  const filePath = currentDocViewerPath;
+
+  const fileName = filePath.split(/[\\/]/).pop() || filePath;
+  const parts = filePath.split(/[\\/]/);
+  parts.pop();
+  const parentDir = parts.join('/') || '/';
+
+  const input = document.getElementById('rename-input');
+  if (!input) return;
+
+  input.value = fileName;
+  showModal('rename-modal');
+
+  setTimeout(() => {
+    input.focus();
+    const lastDot = fileName.lastIndexOf('.');
+    if (lastDot > 0) {
+      input.setSelectionRange(0, lastDot);
+    } else {
+      input.select();
+    }
+  }, 40);
+
+  const executeRename = async () => {
+    const newName = input.value.trim();
+    if (!newName || newName === fileName) {
+      closeModal('rename-modal');
+      return;
+    }
+    const toPath = `${parentDir.replace(/\/$/, '')}/${newName}`;
+    closeModal('rename-modal');
+
+    try {
+      const resp = await fetch('/api/fs/rename', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
+        body: JSON.stringify({ from: resolveAuthUri(filePath), to: resolveAuthUri(toPath) })
+      });
+      if (resp.ok) {
+        showToast(`Renamed to "${newName}"`, 'success');
+        openDocumentViewer(toPath);
+        refreshAllPanes();
+      } else {
+        showToast('Rename failed: ' + sanitizeCredentials(await resp.text()), 'error');
+      }
+    } catch (err) {
+      showToast('Rename failed: ' + err.message, 'error');
+    }
+  };
+
+  input.onkeydown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      executeRename();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      closeModal('rename-modal');
+    }
+  };
+
+  const confirmBtn = document.getElementById('btn-confirm-rename');
+  if (confirmBtn) confirmBtn.onclick = executeRename;
 }
 
 function toggleDocRawRenderMode() {
@@ -17167,7 +17570,7 @@ async function executeBulkRename() {
   if (resp.ok) {
     showToast(`Renamed ${renames.length} file(s)`, 'success');
     closeModal('bulk-rename-modal');
-    refreshPane(App.activePaneIndex);
+    refreshAllPanes();
   } else {
     showToast('Batch Rename failed: ' + await resp.text(), 'error');
   }
@@ -17673,7 +18076,7 @@ async function executeSync() {
       const data = await resp.json();
       const snapMsg = data.snapshot_dir ? ` (Snapshot: ${data.snapshot_dir})` : '';
       showToast(`⚡ Replication completed: ${data.copied || 0} copied, ${data.archived || 0} archived, ${data.deleted || 0} deleted${snapMsg}`, 'success');
-      for (let i = 0; i < getVisiblePaneCount(); i++) refreshPane(i);
+      refreshAllPanes();
       openFloatingTaskManager();
     } else {
       showToast('Sync error: ' + await resp.text(), 'error');
@@ -18850,7 +19253,7 @@ async function runPredefinedAction(command, label) {
   document.getElementById('action-output-cmd').textContent = `$ ${res.executed_command}`;
   document.getElementById('action-output-text').textContent = (res.stdout || '') + (res.stderr ? `\n--- STDERR ---\n${res.stderr}` : '') || '(No output produced)';
 
-  refreshPane(App.activePaneIndex);
+  refreshAllPanes();
 }
 
 function copyActionOutput() {

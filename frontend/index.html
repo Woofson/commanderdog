@@ -2577,16 +2577,29 @@
           <div class="layout-btn-group desktop-only" id="img-transform-btn-group">
             <button class="btn btn-icon" onclick="zoomImage(0.2)" title="Zoom In (+)"><i data-lucide="zoom-in"></i></button>
             <button class="btn btn-icon" onclick="zoomImage(-0.2)" title="Zoom Out (-)"><i data-lucide="zoom-out"></i></button>
-            <button class="btn btn-icon" onclick="resetImageTransform()" title="Reset 1:1 View"><i data-lucide="refresh-cw"></i></button>
-            <button class="btn btn-icon" onclick="rotateImage(90)" title="Rotate Clockwise 90°"><i data-lucide="rotate-cw"></i></button>
+            <button class="btn btn-icon" onclick="resetImageTransform()" title="Reset 1:1 View (0)"><i data-lucide="refresh-cw"></i></button>
+            <button class="btn btn-icon" onclick="rotateImage(90)" title="Rotate Clockwise 90° (R)"><i data-lucide="rotate-cw"></i></button>
             <button class="btn btn-icon" onclick="flipImage('h')" title="Flip Horizontal"><i data-lucide="flip-horizontal"></i></button>
             <button class="btn btn-icon" onclick="flipImage('v')" title="Flip Vertical"><i data-lucide="flip-vertical"></i></button>
           </div>
 
-          <!-- Mobile / Foldable Consolidated Transform Dropdown -->
+          <!-- Desktop File Operations Group (Rename, Copy, Move, Delete) -->
+          <div class="layout-btn-group desktop-only" id="img-file-actions-group">
+            <button class="btn btn-icon" onclick="imageViewerRenameCurrent()" title="Rename Image (F2)"><i data-lucide="edit-3"></i></button>
+            <button class="btn btn-icon" onclick="imageViewerCopyCurrent()" title="Copy to Opposite Panel (F5)"><i data-lucide="copy"></i></button>
+            <button class="btn btn-icon" onclick="imageViewerMoveCurrent()" title="Move to Opposite Panel (F6)"><i data-lucide="folder-input"></i></button>
+            <button class="btn btn-icon" onclick="imageViewerDeleteCurrent()" title="Delete / Move to Trash (F8 / Del)" style="color: var(--danger);"><i data-lucide="trash-2"></i></button>
+          </div>
+
+          <!-- Mobile / Foldable Consolidated Transform & Action Dropdown -->
           <div class="dropdown-container mobile-only" id="img-transform-dropdown-container" style="position: relative;">
-            <button class="btn btn-icon" onclick="toggleImgTransformDropdown(event)" title="Transform Tools"><i data-lucide="sliders-horizontal"></i></button>
-            <div class="dropdown-menu" id="img-transform-dropdown-menu" style="display: none; right: 0; min-width: 170px;">
+            <button class="btn btn-icon" onclick="toggleImgTransformDropdown(event)" title="Transform & Actions"><i data-lucide="sliders-horizontal"></i></button>
+            <div class="dropdown-menu" id="img-transform-dropdown-menu" style="display: none; right: 0; min-width: 180px;">
+              <div class="dropdown-item" onclick="imageViewerRenameCurrent(); closeImgTransformDropdown();"><i data-lucide="edit-3"></i> Rename (F2)</div>
+              <div class="dropdown-item" onclick="imageViewerCopyCurrent(); closeImgTransformDropdown();"><i data-lucide="copy"></i> Copy to Panel (F5)</div>
+              <div class="dropdown-item" onclick="imageViewerMoveCurrent(); closeImgTransformDropdown();"><i data-lucide="folder-input"></i> Move to Panel (F6)</div>
+              <div class="dropdown-item" onclick="imageViewerDeleteCurrent(); closeImgTransformDropdown();" style="color: var(--danger);"><i data-lucide="trash-2"></i> Delete / Trash (F8)</div>
+              <div class="dropdown-divider"></div>
               <div class="dropdown-item" onclick="zoomImage(0.2); closeImgTransformDropdown();"><i data-lucide="zoom-in"></i> Zoom In (+)</div>
               <div class="dropdown-item" onclick="zoomImage(-0.2); closeImgTransformDropdown();"><i data-lucide="zoom-out"></i> Zoom Out (-)</div>
               <div class="dropdown-item" onclick="resetImageTransform(); closeImgTransformDropdown();"><i data-lucide="refresh-cw"></i> Reset (1:1)</div>
@@ -3422,7 +3435,7 @@
   </div>
 
   <!-- DeltaCopy & TeraCopy Transfer Modal -->
-  <div class="modal-overlay" id="deltacopy-modal">
+  <div class="modal-overlay" id="deltacopy-modal" style="z-index: 3200;">
     <div class="modal-box" style="width: 540px;">
       <div class="modal-header">
         <span style="color: var(--accent); font-weight: 700;">⚡ DeltaCopy & Transfer (RoboCopy / TeraCopy Engine)</span>
@@ -3457,7 +3470,7 @@
   </div>
 
   <!-- Custom Destination Transfer Modal -->
-  <div class="modal-overlay" id="custom-dest-modal">
+  <div class="modal-overlay" id="custom-dest-modal" style="z-index: 3200;">
     <div class="modal-box" style="width: 460px;">
       <div class="modal-header">
         <span id="custom-dest-title" style="display: flex; align-items: center; gap: 6px;"><img src="assets/folder-closed.webp" style="width: 16px; height: 16px;"> Transfer to Custom Destination</span>
@@ -3617,7 +3630,7 @@
   </div>
 
   <!-- Rename Modal -->
-  <div class="modal-overlay" id="rename-modal" style="z-index: 2800;">
+  <div class="modal-overlay" id="rename-modal" style="z-index: 3200;">
     <div class="modal-box" style="width: 420px; max-width: 95vw;">
       <div class="modal-header">
         <span style="display: flex; align-items: center; gap: 8px; font-weight: 700; color: var(--accent);">
@@ -4014,6 +4027,11 @@
           <div style="width: 1px; height: 18px; background: var(--border); margin: 0 2px;"></div>
 
           <div class="doc-viewer-actions-right" style="display: flex; align-items: center; gap: 4px;">
+            <button class="btn btn-icon btn-sm" onclick="docViewerRenameCurrent()" title="Rename File (F2)"><i data-lucide="edit-3"></i></button>
+            <button class="btn btn-icon btn-sm" onclick="docViewerCopyCurrent()" title="Copy to Opposite Panel (F5)"><i data-lucide="copy"></i></button>
+            <button class="btn btn-icon btn-sm" onclick="docViewerMoveCurrent()" title="Move to Opposite Panel (F6)"><i data-lucide="folder-input"></i></button>
+            <button class="btn btn-icon btn-sm" onclick="docViewerDeleteCurrent()" title="Delete / Move to Trash (F8 / Del)" style="color: var(--danger);"><i data-lucide="trash-2"></i></button>
+            <div style="width: 1px; height: 18px; background: var(--border); margin: 0 2px;"></div>
             <button class="btn btn-icon btn-sm" id="doc-viewer-edit-btn" onclick="docViewerEditFile()" title="Edit in EditorDog (F4)"><i data-lucide="code"></i></button>
             <a id="doc-viewer-download" class="btn btn-icon btn-sm" href="#" download title="Download File"><i data-lucide="download"></i></a>
             <a id="doc-viewer-external" class="btn btn-icon btn-sm" href="#" target="_blank" title="Open in New Tab"><i data-lucide="external-link"></i></a>
@@ -4354,7 +4372,7 @@
   </div>
 
   <!-- Universal Custom Confirm / Alert / Prompt Dialog Modal -->
-  <div class="modal-overlay" id="app-dialog-modal" style="z-index: 2100;">
+  <div class="modal-overlay" id="app-dialog-modal" style="z-index: 9999;">
     <div class="modal-box dialog-box" id="app-dialog-box" style="width: 440px; max-width: calc(100vw - 32px);">
       <div class="dialog-header">
         <div style="display: flex; align-items: center; gap: 10px;">

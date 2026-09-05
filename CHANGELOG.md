@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.7.4-rc7] - 2026-09-05
+
+### 🖼️ Enhanced Photo/Image Viewer Mouse Scroll & In-Viewer File Operations
+- **Tri-Mode Mouse Wheel Interaction**:
+  - **Image Cycling at 1:1 Scale**: Scrolling wheel down/up browses to next/previous image with smooth 160ms debounce.
+  - **Pan on Zoom (`zoom > 100%`)**: Natural vertical wheel scrolling and horizontal Shift-wheel panning across zoomed images.
+  - **Zoom on Key/Mode**: Holding <kbd>Ctrl</kbd>/<kbd>Cmd</kbd> or enabling Direct Zoom mode seamlessly zooms in/out at the mouse cursor position.
+- **In-Viewer File Operations Suite**:
+  - Added dedicated toolbar action buttons & global shortcuts to both the **Image Viewer** and **Universal Document Viewer**:
+    - **Rename (<kbd>F2</kbd>)**: Rename current image or document in-place with instant preview reload.
+    - **Copy to Opposite Panel (<kbd>F5</kbd>)**: Direct transfer to opposite pane destination.
+    - **Move to Opposite Panel (<kbd>F6</kbd>)**: Moves file to opposite pane and automatically progresses to the next image/closes viewer.
+    - **Delete / Trash (<kbd>F8</kbd> / <kbd>Del</kbd>)**: Trashes or permanently deletes file with confirm dialog and auto-advances.
+- **Top-Level Z-Index Layering for Confirmation Modals**:
+  - Elevated `#app-dialog-modal` to `z-index: 9999` and transfer modals to `z-index: 3200`, completely preventing confirmation dialogs from rendering beneath active floating or full-screen viewers.
+
+## [0.7.4-rc6] - 2026-09-05
+
+### 🪟 Multi-Panel Real-Time Synchronization Across All Mutations
+- **Universal Multi-Panel Directory Refresh**:
+  - Whenever a file or folder is deleted (via F8, context menu, or keyboard), created, renamed, uploaded, extracted, or saved, all active visible panels (`refreshAllPanes()`) are automatically updated immediately.
+  - Fixes synchronization issue where opening the same folder in two panels left deleted/modified files stale in the second panel.
+- **Stale Selection Pruning Across Panels**:
+  - Automatically clears deleted and moved items from selection state across all open panels, preventing ghost selections.
+- **Full Mutation Coverage**:
+  - Audited and updated all filesystem mutation endpoints in frontend: `triggerDelete`, `executeMkdir`, `executeRename`, `executeBulkRename`, `executeCompressArchive`, `executeExtractArchive`, `handleDirectFileUpload`, drag-and-drop upload, editor tab saves, security permissions, and NoteDog deletions.
+
 ## [0.7.4-rc5] - 2026-09-05
 
 ### 🔄 Guaranteed Real-Time Source & Destination Directory Refresh

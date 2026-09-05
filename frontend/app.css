@@ -6521,6 +6521,10 @@ body {
 /* ========================================================
    UNIVERSAL CUSTOM DIALOG & TOAST NOTIFICATION SYSTEM
    ======================================================== */
+#app-dialog-modal {
+  z-index: 9999 !important;
+}
+
 .dialog-box {
   background: #181a20;
   border: 1px solid rgba(255, 255, 255, 0.18);
