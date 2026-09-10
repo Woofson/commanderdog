@@ -1,4 +1,16 @@
-# <img src="assets/logo.png" alt="CommanderDog Logo" height="36" style="vertical-align: -6px; margin-right: 8px;" /> CommanderDog
+# ⚠️ Project Renamed & Moved to Brum
+
+> [!IMPORTANT]
+> **CommanderDog has been officially rebranded and relocated to [Woofson/brum](https://github.com/Woofson/brum).**
+> 
+> All active development, future releases, documentation, packages, and issues have moved to the new repository:
+> 👉 **[https://github.com/Woofson/brum](https://github.com/Woofson/brum)**
+>
+> This repository is now **archived and read-only**.
+
+---
+
+# <img src="assets/logo.png" alt="CommanderDog Logo" height="36" style="vertical-align: -6px; margin-right: 8px;" /> CommanderDog (Legacy)
 
 <div align="center">
   <img src="assets/CommanderDog3.png" alt="CommanderDog Desktop Edition" width="800" />
